@@ -40,6 +40,8 @@ SEL = {
     "eth": 0, "arp": 1, "ipv4": 2, "ipv6": 3, "icmp": 4, "icmpv6": 5,
     "tcp": 6, "udp": 7, "dns": 8, "dhcp": 9, "dhcpv6": 10, "ntp": 11,
     "http": 12, "tls": 13, "gre": 14, "igmp": 15,
+    "pppoe": 16, "vxlan": 17,
+    "link_null": 18, "link_raw": 19, "link_sll": 20, "link_sll2": 21,
 }
 
 written = 0
@@ -108,7 +110,14 @@ def seed_from_fixtures():
     """Copy the capture fixtures in whole, and reuse their frames."""
     for fixture in ("sample.pcap", "sample.pcapng",
                     "sample-be.pcapng", "sample-spb.pcapng",
-                    "sample-analysis.pcap"):
+                    "sample-analysis.pcap",
+                    # Link types other than Ethernet, and the tunnel capture.
+                    # These are the only seeds that reach the cooked, raw-IP
+                    # and loopback headers, since a capture's link type is
+                    # fixed by its global header.
+                    "sample-sll.pcap", "sample-sll2.pcap",
+                    "sample-raw.pcap", "sample-null.pcap",
+                    "sample-encap.pcap"):
         path = FIXTURES / fixture
         if path.is_file():
             write("pcap", f"valid_{fixture.replace('.', '_')}",
@@ -711,6 +720,125 @@ def pcapng_block(block_type, body):
             + struct.pack("<I", total))
 
 
+# ── encapsulation: link headers and tunnels ─────────────────────────────────
+
+def seed_encapsulation():
+    # PPPoE. The declared length is the sender's claim about how much follows,
+    # so the cases that matter are the ones where it disagrees with reality.
+    write_parser("pppoe", "session_ipv4",
+                 bytes([0x11, 0x00, 0x00, 0x01, 0x00, 0x06])
+                 + b"\x00\x21" + b"\x45\x00\x00\x14")
+    write_parser("pppoe", "length_overrun",
+                 bytes([0x11, 0x00, 0x00, 0x01, 0xFF, 0xFF]) + b"\x00\x21\x45")
+    write_parser("pppoe", "length_zero",
+                 bytes([0x11, 0x00, 0x00, 0x01, 0x00, 0x00]) + b"\x00\x21\x45")
+    write_parser("pppoe", "no_room_for_protocol",
+                 bytes([0x11, 0x00, 0x00, 0x01, 0x00, 0x01, 0x00]))
+    write_parser("pppoe", "discovery_padi",
+                 bytes([0x11, 0x09, 0x00, 0x00, 0x00, 0x04])
+                 + b"\x01\x01\x00\x00")
+    write_parser("pppoe", "unknown_ppp_protocol",
+                 bytes([0x11, 0x00, 0x00, 0x01, 0x00, 0x04])
+                 + b"\xff\xff" + b"\x00\x00")
+    write_parser("pppoe", "truncated", bytes([0x11, 0x00, 0x00]))
+
+    # VXLAN.
+    inner = eth(ipv4_packet(proto=1, payload=bytes([8, 0, 0, 0, 0, 0, 0, 0])))
+    write_parser("vxlan", "valid",
+                 bytes([0x08, 0, 0, 0, 0x12, 0x34, 0x56, 0]) + inner)
+    write_parser("vxlan", "no_i_bit",
+                 bytes([0x00, 0, 0, 0, 0x12, 0x34, 0x56, 0]) + inner)
+    write_parser("vxlan", "reserved_set",
+                 bytes([0x08, 0xFF, 0xFF, 0xFF, 0x12, 0x34, 0x56, 0xFF]) + inner)
+    write_parser("vxlan", "header_only", bytes([0x08, 0, 0, 0, 0, 0, 0, 0]))
+    write_parser("vxlan", "truncated", bytes([0x08, 0, 0, 0, 0, 0, 0]))
+
+    # BSD loopback: the address family is written in the capturing host's byte
+    # order with nothing saying which, so both orientations are worth feeding.
+    write_parser("link_null", "af_inet_le",
+                 struct.pack("<I", 2) + b"\x45\x00\x00\x14")
+    write_parser("link_null", "af_inet6_be",
+                 struct.pack(">I", 30) + b"\x60\x00\x00\x00")
+    write_parser("link_null", "af_inet6_le",
+                 struct.pack("<I", 10) + b"\x60\x00\x00\x00")
+    write_parser("link_null", "unknown_family",
+                 struct.pack("<I", 0xDEADBEEF) + b"\x45\x00")
+    write_parser("link_null", "truncated", b"\x02\x00\x00")
+
+    # Raw IP: the version nibble is the only thing identifying the payload.
+    write_parser("link_raw", "ipv4", b"\x45\x00\x00\x14" + b"\x00" * 16)
+    write_parser("link_raw", "ipv6", b"\x60\x00\x00\x00" + b"\x00" * 36)
+    write_parser("link_raw", "bad_version", b"\x35\x00\x00\x00")
+    write_parser("link_raw", "single_byte", b"\x45")
+
+    # Linux cooked v1 and v2. The address length is the interesting field: it
+    # describes a fixed eight-byte area, so a larger value must not widen it.
+    sll = bytearray(16)
+    sll[4:6] = struct.pack(">H", 6)
+    sll[6:12] = b"\xaa\xbb\xcc\x11\x22\x33"
+    sll[14:16] = struct.pack(">H", 0x0800)
+    write_parser("link_sll", "valid", bytes(sll) + b"\x45\x00\x00\x14")
+    bad = bytearray(sll)
+    bad[4:6] = struct.pack(">H", 0xFFFF)
+    write_parser("link_sll", "addr_len_overrun", bytes(bad) + b"\x45\x00")
+    write_parser("link_sll", "truncated", bytes(sll[:15]))
+    write_parser("link_sll", "header_only", bytes(sll))
+
+    sll2 = bytearray(20)
+    sll2[0:2] = struct.pack(">H", 0x86DD)
+    sll2[4:8] = struct.pack(">I", 3)
+    sll2[11] = 6
+    sll2[12:18] = b"\xaa\xbb\xcc\x11\x22\x33"
+    write_parser("link_sll2", "valid", bytes(sll2) + b"\x60\x00\x00\x00")
+    bad2 = bytearray(sll2)
+    bad2[11] = 0xFF
+    write_parser("link_sll2", "addr_len_overrun", bytes(bad2) + b"\x60\x00")
+    write_parser("link_sll2", "truncated", bytes(sll2[:19]))
+
+    # ── tunnels reached through an Ethernet frame ────────────────────────────
+    icmp = bytes([8, 0, 0, 0, 0, 0, 0, 0])
+
+    # IPv4 in IPv4, and IPv6 in IPv4.
+    write("frame", "tunnel_ipip",
+          frame_input([eth(ipv4_packet(proto=4,
+                                       payload=ipv4_packet(proto=1,
+                                                           payload=icmp)))]))
+    write("frame", "tunnel_6in4",
+          frame_input([eth(ipv4_packet(proto=41, payload=ipv6_packet(58, icmp)))]))
+
+    # PPPoE session carrying IPv4.
+    ppp_payload = ipv4_packet(proto=1, payload=icmp)
+    ppp = (struct.pack(">BBHH", 0x11, 0x00, 1, 2 + len(ppp_payload))
+           + b"\x00\x21" + ppp_payload)
+    write("frame", "tunnel_pppoe", frame_input([eth(ppp, 0x8864)]))
+
+    # VXLAN, which returns the walk to a fresh Ethernet frame.
+    def vxlan_frame(inner_frame, vni=0x123456):
+        body = (bytes([0x08, 0, 0, 0])
+                + struct.pack(">I", vni)[1:] + bytes([0]) + inner_frame)
+        udp = struct.pack(">HHHH", 45678, 4789, 8 + len(body), 0) + body
+        return eth(ipv4_packet(proto=17, payload=udp))
+
+    plain = eth(ipv4_packet(proto=1, payload=icmp))
+    write("frame", "tunnel_vxlan", frame_input([vxlan_frame(plain)]))
+
+    # VXLAN inside VXLAN: each layer returns to the link layer, which is the
+    # shape that makes an unbounded walk unbounded.
+    write("frame", "tunnel_vxlan_nested",
+          frame_input([vxlan_frame(vxlan_frame(plain))]))
+
+    # Nested GRE at the cap and past it. Every layer needs a valid header
+    # checksum, so a mutation will not produce this on its own -- which is
+    # exactly why it belongs in the corpus rather than being left to chance.
+    for depth in (7, 8, 9, 16):
+        packet = ipv4_packet(proto=1, payload=icmp)
+        for _ in range(depth):
+            packet = ipv4_packet(proto=47,
+                                 payload=struct.pack(">HH", 0, 0x0800) + packet)
+        write("frame", f"tunnel_gre_depth_{depth:02d}",
+              frame_input([eth(packet)]))
+
+
 def seed_pcap_files():
     shb_body = struct.pack("<IHHq", 0x1A2B3C4D, 1, 0, -1)
     shb = pcapng_block(0x0A0D0D0A, shb_body)
@@ -883,6 +1011,7 @@ def main():
     seed_dhcp()
     seed_dhcpv6()
     seed_misc_parsers()
+    seed_encapsulation()
     seed_pcap_files()
     seed_frame_cases()
 

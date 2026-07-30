@@ -59,8 +59,11 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
         timestamp_usec = ((uint64_t)pkt_hdr.ts_sec * 1000000u) + pkt_hdr.ts_usec;
         stack_expire_idle(g_stack, timestamp_usec);
 
-        if (reader->global.network == LINKTYPE_ETHERNET) {
-            /* Hand the frame to the dispatcher in an allocation sized exactly
+        /* Dispatch by whatever link type the file declared, not just Ethernet:
+           the cooked, raw-IP, and loopback headers are parsed from the same
+           untrusted bytes and are only reachable this way. */
+        {
+            /* Hand the packet to the dispatcher in an allocation sized exactly
                to pkt_len. The reader has to fill a snaplen-sized buffer, but
                dispatching straight out of it would leave any read past
                pkt_len inside a valid object, where the sanitizer cannot see
@@ -68,7 +71,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             uint8_t* frame = (uint8_t*)malloc(pkt_len);
             if (frame) {
                 memcpy(frame, g_pkt_buf, pkt_len);
-                stack_dispatch_frame(g_stack, frame, pkt_len, timestamp_usec);
+                stack_dispatch_link(g_stack,
+                                    reader->global.network,
+                                    frame, pkt_len, timestamp_usec);
                 free(frame);
             }
         }

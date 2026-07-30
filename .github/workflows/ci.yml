@@ -165,14 +165,18 @@ jobs:
           python-version: '3.x'
       - name: Regenerate the analysis capture
         run: python tests/gen_analysis_pcap.py
+      - name: Regenerate the encapsulation captures
+        run: python tests/gen_encap_pcap.py
+      # The corpus seeds from those captures, so it is regenerated last.
       - name: Regenerate the fuzz corpus
         run: python tests/gen_fuzz_corpus.py
       - name: Fail if anything generated differs
         run: |
-          if ! git diff --quiet -- fuzz/corpus tests/sample-analysis.pcap; then
-            echo "Generated files are out of date. Re-run:"
+          if ! git diff --quiet -- fuzz/corpus tests/sample-*.pcap; then
+            echo "Generated files are out of date. Re-run, in this order:"
             echo "  python tests/gen_analysis_pcap.py"
+            echo "  python tests/gen_encap_pcap.py"
             echo "  python tests/gen_fuzz_corpus.py"
-            git diff --stat -- fuzz/corpus tests/sample-analysis.pcap
+            git diff --stat -- fuzz/corpus tests/sample-*.pcap
             exit 1
           fi
