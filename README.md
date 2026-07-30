@@ -17,10 +17,13 @@ A C99 educational network-stack and packet-analysis project. It parses Ethernet,
 ## Repository layout
 
 ```text
-src/            Protocol parsers, state machines, analysis, dispatch, and CLI
-tests/          Unit tests, packet-capture fixtures, and fixture generators
-fuzz/           Fuzz targets, drivers, and the checked-in seed corpus
-CMakeLists.txt  CMake build and CTest definitions
+src/               Protocol parsers, state machines, analysis, dispatch, and CLI
+tests/             Unit tests, packet-capture fixtures, and fixture generators
+fuzz/              Fuzz targets, drivers, and the checked-in seed corpus
+CMakeLists.txt     CMake build and CTest definitions
+CLAUDE.md          How to build, test, and extend this without breaking it
+PROJECT_STATE.md   What exists, why it is shaped this way, and what is unverified
+task_plan.md       Candidate next rounds and their trade-offs
 ```
 
 `src/main.c` owns only the command line and the capture-reading loop. The
