@@ -1,4 +1,6 @@
-cmake_minimum_required(VERSION 3.10)
+# 3.13 for add_link_options / target_link_options, used by the sanitizer and
+# fuzzer configurations below.
+cmake_minimum_required(VERSION 3.13)
 project(ToyTCPIP C)
 
 set(CMAKE_C_STANDARD 99)
@@ -16,7 +18,43 @@ else()
     add_compile_options(-Wall -Wextra)
 endif()
 
+option(TCPIP_SANITIZE
+       "Build with AddressSanitizer (plus UndefinedBehaviorSanitizer on GCC/Clang)"
+       OFF)
+option(TCPIP_FUZZ
+       "Additionally build libFuzzer-instrumented fuzz targets (Clang only)"
+       OFF)
+
+# ── Sanitizers ────────────────────────────────────────────────────────────────
+# These parsers consume untrusted bytes, so the sanitizer builds are the real
+# test of the bounds checks; the assertions in tests/ only cover what we thought
+# to assert.
+if(TCPIP_SANITIZE)
+    if(MSVC)
+        # /RTC1 and the Debug runtime checks are incompatible with /fsanitize,
+        # and ASan needs the non-incremental linker.
+        string(REGEX REPLACE "/RTC[1csu]+" "" CMAKE_C_FLAGS_DEBUG
+               "${CMAKE_C_FLAGS_DEBUG}")
+        add_compile_options(/fsanitize=address /Zi)
+        add_link_options(/INCREMENTAL:NO /DEBUG)
+        message(STATUS "Sanitizers: AddressSanitizer (MSVC; no UBSan available)")
+    else()
+        # -fno-sanitize-recover makes a UBSan finding abort instead of printing
+        # and continuing, so CTest actually fails on it.
+        add_compile_options(-fsanitize=address,undefined
+                            -fno-sanitize-recover=undefined
+                            -fno-omit-frame-pointer -g)
+        add_link_options(-fsanitize=address,undefined)
+        message(STATUS "Sanitizers: AddressSanitizer + UndefinedBehaviorSanitizer")
+    endif()
+endif()
+
 file(GLOB SOURCES "src/*.c")
+
+# Everything except the CLI entry point, for drivers that supply their own
+# main(): the fuzz targets, and any future test that wants the whole pipeline.
+set(STACK_SOURCES ${SOURCES})
+list(REMOVE_ITEM STACK_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/src/main.c")
 
 add_executable(tcpip ${SOURCES})
 
@@ -27,9 +65,17 @@ if(BUILD_TESTING)
         tests/test_tcp_state.c
         src/tcp_state.c
         src/tcp_stream.c
+        src/tcp_analysis.c
     )
     target_include_directories(test_tcp_state PRIVATE src)
     add_test(NAME tcp_state COMMAND test_tcp_state)
+
+    add_executable(test_tcp_analysis
+        tests/test_tcp_analysis.c
+        src/tcp_analysis.c
+    )
+    target_include_directories(test_tcp_analysis PRIVATE src)
+    add_test(NAME tcp_analysis COMMAND test_tcp_analysis)
 
     add_executable(test_tcp_parse
         tests/test_tcp_parse.c
@@ -407,4 +453,169 @@ if(BUILD_TESTING)
     set_tests_properties(sample_pcap_igmp PROPERTIES
         PASS_REGULAR_EXPRESSION "v2 Membership Report"
     )
+
+    # ── TCP expert analysis ───────────────────────────────────────────────────
+    #
+    # sample-analysis.pcap carries one connection per scenario; see
+    # tests/gen_analysis_pcap.py for why they are kept apart. Each assertion
+    # below pins one verdict, so a regression names the analysis that broke
+    # rather than just failing somewhere in a long output.
+    set(ANALYSIS_CAPTURE
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/sample-analysis.pcap)
+
+    function(add_analysis_test name pattern)
+        add_test(NAME ${name} COMMAND tcpip --quiet ${ANALYSIS_CAPTURE})
+        set_tests_properties(${name} PROPERTIES
+            PASS_REGULAR_EXPRESSION "${pattern}")
+    endfunction()
+
+    # Three duplicate ACKs, and the fast retransmission they triggered.
+    add_analysis_test(analysis_dup_acks       "dup-ack=3")
+    add_analysis_test(analysis_fast_retransmit "retrans: fast=1")
+    # A SACK block above the cumulative ACK, naming the bytes that went missing.
+    add_analysis_test(analysis_sack_hole      "sack-hole=1")
+    # Window pressure.
+    add_analysis_test(analysis_zero_window    "zero-window=1")
+    # Resending data the peer had already acknowledged.
+    add_analysis_test(analysis_spurious       "retrans: spurious=1")
+    # A resend after a silence longer than the retransmission timer.
+    add_analysis_test(analysis_rto            "retrans: rto=1")
+    # A gap filled immediately is reordering, and must not be called a resend.
+    add_analysis_test(analysis_out_of_order   "out-of-order=1")
+    add_analysis_test(analysis_keep_alive     "keep-alive=1")
+    # Window scaling actually applied: 8192 << 7.
+    add_analysis_test(analysis_window_scaling "max 1048576 byte.s.  scale 2.7")
+
+    # Per-segment findings, which are only printed in the full packet walk.
+    add_test(NAME analysis_segment_findings
+        COMMAND tcpip ${ANALYSIS_CAPTURE})
+    set_tests_properties(analysis_segment_findings PROPERTIES
+        PASS_REGULAR_EXPRESSION "findings  : duplicate ACK \\(#3\\)")
+
+    add_test(NAME analysis_segment_probe
+        COMMAND tcpip ${ANALYSIS_CAPTURE})
+    set_tests_properties(analysis_segment_probe PROPERTIES
+        PASS_REGULAR_EXPRESSION "zero-window probe")
+
+    add_test(NAME analysis_segment_sack_loss
+        COMMAND tcpip ${ANALYSIS_CAPTURE})
+    set_tests_properties(analysis_segment_sack_loss PROPERTIES
+        PASS_REGULAR_EXPRESSION "lost      : 100 byte.s. in 1 hole.s. inferred from SACK")
+
+    add_test(NAME analysis_segment_retrans_label
+        COMMAND tcpip ${ANALYSIS_CAPTURE})
+    set_tests_properties(analysis_segment_retrans_label PROPERTIES
+        PASS_REGULAR_EXPRESSION "analysis  : fast retransmission")
+
+    # ── machine-readable export ───────────────────────────────────────────────
+    # Asking for a structured document on stdout must suppress the packet walk,
+    # or the result parses as neither JSON nor CSV.
+    add_test(NAME report_json_is_first_line
+        COMMAND tcpip --json ${ANALYSIS_CAPTURE})
+    set_tests_properties(report_json_is_first_line PROPERTIES
+        PASS_REGULAR_EXPRESSION "^\\{\n  \"packets\": 47,"
+    )
+
+    add_test(NAME report_json_scale_shift
+        COMMAND tcpip --json ${ANALYSIS_CAPTURE})
+    set_tests_properties(report_json_scale_shift PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"scaling_active\": true, \"scale_shift\": 7"
+    )
+
+    # An endpoint whose own SYN was never captured has no known shift, and must
+    # report null rather than claiming it asked for none.
+    add_test(NAME report_json_unknown_shift
+        COMMAND tcpip --json ${CMAKE_CURRENT_SOURCE_DIR}/tests/sample.pcap)
+    set_tests_properties(report_json_unknown_shift PROPERTIES
+        PASS_REGULAR_EXPRESSION "\"scaling_active\": false, \"scale_shift\": null"
+    )
+
+    add_test(NAME report_csv_header
+        COMMAND tcpip --csv ${ANALYSIS_CAPTURE})
+    set_tests_properties(report_csv_header PROPERTIES
+        PASS_REGULAR_EXPRESSION "^connection_id,direction,"
+    )
+
+    add_test(NAME report_csv_row
+        COMMAND tcpip --csv ${ANALYSIS_CAPTURE})
+    set_tests_properties(report_csv_row PROPERTIES
+        PASS_REGULAR_EXPRESSION "1,c->s,0,1,192.168.1.10,40001,"
+    )
+
+    # Two structured formats on one stream would parse as neither.
+    add_test(NAME report_rejects_two_stdout_formats
+        COMMAND tcpip --json --csv ${ANALYSIS_CAPTURE})
+    set_tests_properties(report_rejects_two_stdout_formats PROPERTIES
+        WILL_FAIL TRUE
+    )
+
+    add_test(NAME cli_rejects_unknown_option
+        COMMAND tcpip --nonsense ${ANALYSIS_CAPTURE})
+    set_tests_properties(cli_rejects_unknown_option PROPERTIES
+        WILL_FAIL TRUE
+    )
+
+    add_test(NAME cli_help COMMAND tcpip --help)
+    set_tests_properties(cli_help PROPERTIES
+        PASS_REGULAR_EXPRESSION "--json\\[=PATH\\]"
+    )
+endif()
+
+# ── Fuzz targets ──────────────────────────────────────────────────────────────
+#
+# Each target is built twice over the same LLVMFuzzerTestOneInput():
+#
+#   fuzz_<name>_replay  standalone driver, built always. Replays the corpus in
+#                       fuzz/corpus/<name>/ under CTest. Combine with
+#                       -DTCPIP_SANITIZE=ON to make it catch memory errors
+#                       rather than only hard crashes.
+#   fuzz_<name>         libFuzzer-instrumented, built when -DTCPIP_FUZZ=ON under
+#                       Clang, for coverage-guided campaigns.
+#
+# Corpus inputs are checked in, so a crash found by a campaign becomes a
+# permanent regression test by dropping the reproducer into the corpus
+# directory. Nothing else needs editing.
+
+set(FUZZ_TARGET_NAMES frame parsers pcap)
+
+foreach(fuzz_name IN LISTS FUZZ_TARGET_NAMES)
+    add_executable(fuzz_${fuzz_name}_replay
+        fuzz/fuzz_${fuzz_name}.c
+        fuzz/fuzz_util.c
+        fuzz/standalone_main.c
+        ${STACK_SOURCES}
+    )
+    target_include_directories(fuzz_${fuzz_name}_replay PRIVATE src fuzz)
+
+    if(BUILD_TESTING)
+        add_test(NAME fuzz_corpus_${fuzz_name}
+            COMMAND fuzz_${fuzz_name}_replay
+                ${CMAKE_CURRENT_SOURCE_DIR}/fuzz/corpus/${fuzz_name}
+        )
+    endif()
+endforeach()
+
+if(TCPIP_FUZZ)
+    if(NOT CMAKE_C_COMPILER_ID MATCHES "Clang")
+        message(FATAL_ERROR
+            "TCPIP_FUZZ=ON needs Clang for -fsanitize=fuzzer; "
+            "found ${CMAKE_C_COMPILER_ID}. The fuzz_*_replay targets are built "
+            "with any compiler — use those, ideally with -DTCPIP_SANITIZE=ON.")
+    endif()
+
+    foreach(fuzz_name IN LISTS FUZZ_TARGET_NAMES)
+        add_executable(fuzz_${fuzz_name}
+            fuzz/fuzz_${fuzz_name}.c
+            fuzz/fuzz_util.c
+            ${STACK_SOURCES}
+        )
+        target_include_directories(fuzz_${fuzz_name} PRIVATE src fuzz)
+        # fuzzer-no-link on the sources, fuzzer on the link line: libFuzzer
+        # supplies main(), so standalone_main.c must not be in this target.
+        target_compile_options(fuzz_${fuzz_name} PRIVATE
+            -fsanitize=fuzzer-no-link)
+        target_link_options(fuzz_${fuzz_name} PRIVATE -fsanitize=fuzzer)
+    endforeach()
+
+    message(STATUS "Fuzzing: libFuzzer targets enabled (fuzz_frame, fuzz_parsers, fuzz_pcap)")
 endif()
