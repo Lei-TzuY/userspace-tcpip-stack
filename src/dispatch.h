@@ -38,6 +38,17 @@
 #include "tcp_state.h"
 #include "udp_tracker.h"
 
+/*
+ * How many layers of encapsulation the walk will follow before giving up.
+ *
+ * Tunnels nest: GRE inside IPv4, IPv4 inside GRE, and VXLAN returning all the
+ * way to a fresh Ethernet frame. Each level is another frame on the C stack,
+ * and the packet decides how many there are — so without a cap, one packet
+ * that fits in the read buffer can exhaust the stack and abort the process.
+ * Eight is far past anything real traffic carries and far short of trouble.
+ */
+#define STACK_MAX_ENCAP_DEPTH 8
+
 typedef struct {
     ArpCache        arp_cache;
     TcpTracker      tcp_tracker;
@@ -78,6 +89,20 @@ void stack_expire_idle(StackContext* ctx, uint64_t now_usec);
 void stack_dispatch_frame(StackContext* ctx,
                           const uint8_t* frame, size_t frame_len,
                           uint64_t timestamp_usec);
+
+/*
+ * stack_dispatch_link — dispatch one captured packet for a given link type.
+ *
+ * Ethernet is only the most common link layer; a capture from `tcpdump -i any`
+ * carries Linux cooked headers, a tunnel interface usually has no link header
+ * at all, and BSD loopback prefixes an address family. This is the entry point
+ * the CLI uses, so those captures parse rather than being skipped.
+ *
+ * An unsupported link type is reported and the packet skipped.
+ */
+void stack_dispatch_link(StackContext* ctx, uint32_t link_type,
+                         const uint8_t* data, size_t len,
+                         uint64_t timestamp_usec);
 
 /* stack_print_summary — print the end-of-capture tracker summaries. */
 void stack_print_summary(const StackContext* ctx);

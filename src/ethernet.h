@@ -37,6 +37,8 @@
 #define ETHERTYPE_IPV6  0x86DDu
 #define ETHERTYPE_VLAN  0x8100u
 #define ETHERTYPE_QINQ  0x88A8u
+#define ETHERTYPE_PPPOE_DISCOVERY 0x8863u
+#define ETHERTYPE_PPPOE_SESSION   0x8864u
 
 typedef struct {
     uint16_t tpid;  /* tag protocol identifier: 0x8100 or 0x88a8 */

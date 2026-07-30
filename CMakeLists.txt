@@ -77,6 +77,23 @@ if(BUILD_TESTING)
     target_include_directories(test_tcp_analysis PRIVATE src)
     add_test(NAME tcp_analysis COMMAND test_tcp_analysis)
 
+    add_executable(test_linktype
+        tests/test_linktype.c
+        src/linktype.c
+        src/ethernet.c
+    )
+    target_include_directories(test_linktype PRIVATE src)
+    add_test(NAME linktype COMMAND test_linktype)
+
+    add_executable(test_tunnel
+        tests/test_tunnel.c
+        src/pppoe.c
+        src/vxlan.c
+        src/ethernet.c
+    )
+    target_include_directories(test_tunnel PRIVATE src)
+    add_test(NAME tunnel COMMAND test_tunnel)
+
     add_executable(test_tcp_parse
         tests/test_tcp_parse.c
         src/tcp.c
@@ -559,6 +576,49 @@ if(BUILD_TESTING)
     set_tests_properties(cli_help PROPERTIES
         PASS_REGULAR_EXPRESSION "--json\\[=PATH\\]"
     )
+
+    # ── link types other than Ethernet ────────────────────────────────────────
+    #
+    # A pcap file names its link layer once, in the global header, so each of
+    # these is its own capture. See tests/gen_encap_pcap.py.
+    function(add_capture_test name capture pattern)
+        add_test(NAME ${name}
+            COMMAND tcpip ${CMAKE_CURRENT_SOURCE_DIR}/tests/${capture})
+        set_tests_properties(${name} PROPERTIES
+            PASS_REGULAR_EXPRESSION "${pattern}")
+    endfunction()
+
+    # Linux cooked captures, what `tcpdump -i any` produces.
+    add_capture_test(link_sll_header    sample-sll.pcap  "Linux cooked v1")
+    add_capture_test(link_sll_direction sample-sll.pcap  "Direction : 1  .broadcast.")
+    add_capture_test(link_sll_dispatch  sample-sll.pcap  "Type      : 8  .Echo Request.")
+    add_capture_test(link_sll2_header   sample-sll2.pcap "Linux cooked v2")
+    add_capture_test(link_sll2_ifindex  sample-sll2.pcap "Interface : index=3")
+
+    # No link header at all, as on a tunnel or VPN interface.
+    add_capture_test(link_raw_ipv4 sample-raw.pcap "Raw IP")
+    add_capture_test(link_raw_ipv6 sample-raw.pcap "Version   : 6")
+
+    # BSD loopback. The second packet writes AF_INET6 big-endian, so this also
+    # covers the byte-order guess; the third names a family we cannot place.
+    add_capture_test(link_null_ipv4        sample-null.pcap "Family    : 2  .AF_INET.")
+    add_capture_test(link_null_ipv6_swapped sample-null.pcap "Family    : 30  .AF_INET6.")
+    add_capture_test(link_null_unknown     sample-null.pcap "no recognisable payload")
+
+    # ── tunnels ───────────────────────────────────────────────────────────────
+    add_capture_test(tunnel_ipip     sample-encap.pcap "ipip. IPv4 in IPv4")
+    add_capture_test(tunnel_ipip_inner sample-encap.pcap "Src IP    : 10.0.0.1")
+    add_capture_test(tunnel_6in4     sample-encap.pcap "6in4. IPv6 in IPv4")
+    add_capture_test(tunnel_pppoe    sample-encap.pcap "PPP proto : 0x0021  .IPv4.")
+    add_capture_test(tunnel_pppoe_padi sample-encap.pcap "Code      : 0x09  .PADI.")
+    add_capture_test(tunnel_vxlan    sample-encap.pcap "VNI       : 1193046")
+    add_capture_test(tunnel_vxlan_inner sample-encap.pcap "Src IP    : 10.1.0.1")
+
+    # A packet nested twelve layers deep. The walk follows eight and stops;
+    # before the cap, this shape scaled up to fill the read buffer exhausted
+    # the C stack and killed the process.
+    add_capture_test(tunnel_depth_capped sample-encap.pcap
+        "encap. nested deeper than 8 layers")
 endif()
 
 # ── Fuzz targets ──────────────────────────────────────────────────────────────

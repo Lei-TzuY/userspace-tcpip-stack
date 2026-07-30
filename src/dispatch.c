@@ -2,10 +2,18 @@
  * dispatch.c — Layer-2-upward packet dispatch
  *
  * See dispatch.h for the dispatch chain this file implements.
+ *
+ * Every function that can be reached again through a tunnel carries a `depth`
+ * argument. Tunnels nest — GRE inside IPv4 inside GRE, or VXLAN returning the
+ * walk to a fresh Ethernet frame — and the packet alone decides how deep that
+ * goes. The depth is passed explicitly rather than kept in StackContext so it
+ * cannot leak from one packet to the next.
  */
 
 #include "dispatch.h"
 
+#include "pcap.h"
+#include "linktype.h"
 #include "ethernet.h"
 #include "arp.h"
 #include "ipv4.h"
@@ -22,6 +30,13 @@
 #include "tls.h"
 #include "gre.h"
 #include "igmp.h"
+#include "pppoe.h"
+#include "vxlan.h"
+
+/* IP protocol numbers that carry another IP packet directly. */
+#define IPPROTO_IPIP  4    /* IPv4 in IPv4, or IPv4 in IPv6 */
+#define IPPROTO_IPV6_IN 41 /* IPv6 in IPv4 ("6in4"), or IPv6 in IPv6 */
+#define IPPROTO_GRE   47
 
 /* ── lifecycle ───────────────────────────────────────────────────────────── */
 
@@ -59,6 +74,21 @@ void stack_print_summary(const StackContext* ctx) {
     udp_tracker_print_summary(&ctx->udp_tracker);
 }
 
+/*
+ * Report that a packet nests deeper than the walk will follow.
+ *
+ * Hitting this is not necessarily an attack — but a packet that fits in the
+ * read buffer can name hundreds of layers, and each one costs a stack frame,
+ * so the limit is what keeps a malformed capture from ending the process.
+ */
+static int encap_depth_exceeded(unsigned depth) {
+    if (depth <= STACK_MAX_ENCAP_DEPTH)
+        return 0;
+    printf("  [encap] nested deeper than %d layers — not followed\n",
+           STACK_MAX_ENCAP_DEPTH);
+    return 1;
+}
+
 /* ── shared application-layer sniffing ───────────────────────────────────── */
 
 /*
@@ -80,15 +110,43 @@ static void handle_tcp_payload(const uint8_t* payload, size_t payload_len) {
     }
 }
 
+/* Forward declarations for the recursive tunnel paths. */
+static void handle_ipv4(StackContext* ctx,
+                        const uint8_t* payload, size_t payload_len,
+                        uint64_t timestamp_usec, unsigned depth);
+static void handle_ipv6(StackContext* ctx,
+                        const uint8_t* payload, size_t payload_len,
+                        uint64_t timestamp_usec, unsigned depth);
+static void handle_ethernet(StackContext* ctx,
+                            const uint8_t* frame, size_t frame_len,
+                            uint64_t timestamp_usec, unsigned depth);
+
 /*
- * UDP payload dispatch shared by the IPv4 and IPv6 paths. dhcp_ports selects
- * the DHCP flavour to try: 0 for IPv4 (BOOTP 67/68), 1 for IPv6 (546/547).
+ * UDP payload dispatch shared by the IPv4 and IPv6 paths. is_ipv6 selects the
+ * DHCP flavour to try: BOOTP 67/68 for IPv4, 546/547 for IPv6.
  */
-static void handle_udp_payload(UdpTracker* udp_tracker, const UdpHeader* udp,
+static void handle_udp_payload(StackContext* ctx, const UdpHeader* udp,
                                const uint8_t* src_ip, const uint8_t* dst_ip,
                                uint8_t ip_len, int is_ipv6,
-                               uint64_t timestamp_usec) {
+                               uint64_t timestamp_usec, unsigned depth) {
+    UdpTracker* udp_tracker = &ctx->udp_tracker;
+
     if (udp->payload_len == 0) return;
+
+    /* VXLAN carries a whole Ethernet frame, so this is where the walk can
+       return to the link layer and start over. */
+    if ((udp->dst_port == VXLAN_DEFAULT_PORT
+         || udp->src_port == VXLAN_DEFAULT_PORT)
+            && vxlan_sniff(udp->payload, udp->payload_len)) {
+        VxlanHeader vxlan;
+        if (vxlan_parse(udp->payload, udp->payload_len, &vxlan) == 0) {
+            vxlan_print(&vxlan);
+            if (vxlan.payload_len > 0)
+                handle_ethernet(ctx, vxlan.payload, vxlan.payload_len,
+                                timestamp_usec, depth + 1);
+        }
+        return;
+    }
 
     if (!is_ipv6) {
         /* DHCP: server=67, client=68 */
@@ -167,7 +225,7 @@ static void handle_icmp(const Ipv4Header* ip,
 
 static void handle_udp(StackContext* ctx, const Ipv4Header* ip,
                        const uint8_t* payload, size_t payload_len,
-                       uint64_t timestamp_usec) {
+                       uint64_t timestamp_usec, unsigned depth) {
     UdpHeader udp;
     if (udp_parse(payload, payload_len, &udp) != 0) return;
 
@@ -177,8 +235,8 @@ static void handle_udp(StackContext* ctx, const Ipv4Header* ip,
     udp_tracker_observe(&ctx->udp_tracker, ip->src, ip->dst, 4,
                         udp.src_port, udp.dst_port, timestamp_usec);
 
-    handle_udp_payload(&ctx->udp_tracker, &udp, ip->src, ip->dst, 4,
-                       0 /* IPv4 */, timestamp_usec);
+    handle_udp_payload(ctx, &udp, ip->src, ip->dst, 4,
+                       0 /* IPv4 */, timestamp_usec, depth);
 }
 
 static void handle_tcp(StackContext* ctx, const Ipv4Header* ip,
@@ -208,27 +266,21 @@ static void handle_tcp(StackContext* ctx, const Ipv4Header* ip,
     handle_tcp_payload(tcp.payload, tcp.payload_len);
 }
 
-/* Forward declarations for recursive GRE dispatch */
-static void handle_ipv4(StackContext* ctx,
-                        const uint8_t* payload, size_t payload_len,
-                        uint64_t timestamp_usec);
-static void handle_ipv6(StackContext* ctx,
-                        const uint8_t* payload, size_t payload_len,
-                        uint64_t timestamp_usec);
-
 static void handle_gre(StackContext* ctx,
                        const uint8_t* payload, size_t payload_len,
-                       uint64_t timestamp_usec) {
+                       uint64_t timestamp_usec, unsigned depth) {
     GreHeader gre;
     if (gre_parse(payload, payload_len, &gre) != 0) return;
     gre_print(&gre);
     if (gre.payload_len == 0) return;
     switch (gre.proto) {
         case ETHERTYPE_IPV4:
-            handle_ipv4(ctx, gre.payload, gre.payload_len, timestamp_usec);
+            handle_ipv4(ctx, gre.payload, gre.payload_len,
+                        timestamp_usec, depth + 1);
             break;
         case ETHERTYPE_IPV6:
-            handle_ipv6(ctx, gre.payload, gre.payload_len, timestamp_usec);
+            handle_ipv6(ctx, gre.payload, gre.payload_len,
+                        timestamp_usec, depth + 1);
             break;
         default:
             printf("  [gre] inner protocol 0x%04x — not yet supported\n",
@@ -239,7 +291,7 @@ static void handle_gre(StackContext* ctx,
 
 static void handle_ipv4_transport(StackContext* ctx, const Ipv4Header* ip,
                                   const uint8_t* payload, size_t payload_len,
-                                  uint64_t timestamp_usec) {
+                                  uint64_t timestamp_usec, unsigned depth) {
     switch (ip->protocol) {
         case IPPROTO_ICMP: handle_icmp(ip, payload, payload_len); break;
         case 2: { /* IGMP */
@@ -248,14 +300,22 @@ static void handle_ipv4_transport(StackContext* ctx, const Ipv4Header* ip,
                 igmp_print(&igmp);
             break;
         }
+        case IPPROTO_IPIP:
+            printf("  [ipip] IPv4 in IPv4\n");
+            handle_ipv4(ctx, payload, payload_len, timestamp_usec, depth + 1);
+            break;
+        case IPPROTO_IPV6_IN:
+            printf("  [6in4] IPv6 in IPv4\n");
+            handle_ipv6(ctx, payload, payload_len, timestamp_usec, depth + 1);
+            break;
         case IPPROTO_UDP:
-            handle_udp(ctx, ip, payload, payload_len, timestamp_usec);
+            handle_udp(ctx, ip, payload, payload_len, timestamp_usec, depth);
             break;
         case IPPROTO_TCP:
             handle_tcp(ctx, ip, payload, payload_len, timestamp_usec);
             break;
-        case 47: /* GRE */
-            handle_gre(ctx, payload, payload_len, timestamp_usec);
+        case IPPROTO_GRE:
+            handle_gre(ctx, payload, payload_len, timestamp_usec, depth);
             break;
         default:
             printf("  [IPv4 protocol %u (%s) — not yet supported]\n",
@@ -266,8 +326,11 @@ static void handle_ipv4_transport(StackContext* ctx, const Ipv4Header* ip,
 
 static void handle_ipv4(StackContext* ctx,
                         const uint8_t* payload, size_t payload_len,
-                        uint64_t timestamp_usec) {
+                        uint64_t timestamp_usec, unsigned depth) {
     Ipv4Header ip;
+
+    if (encap_depth_exceeded(depth)) return;
+
     if (ipv4_parse(payload, payload_len, &ip) != 0) return;
     ipv4_print(&ip);
     if (!ip.checksum_valid) {
@@ -295,7 +358,7 @@ static void handle_ipv4(StackContext* ctx,
             printf("  [ipv4-reassembly] complete: %zu bytes from %zu fragments\n",
                    result.payload_len, result.fragment_count);
             handle_ipv4_transport(ctx, &ip, result.payload, result.payload_len,
-                                  timestamp_usec);
+                                  timestamp_usec, depth);
         } else if (status == IPV4_REASSEMBLY_INCOMPLETE) {
             printf("  [ipv4-reassembly] stored fragment: offset=%u bytes len=%zu MF=%u\n",
                    ip.frag_offset * 8u, inner_len,
@@ -306,7 +369,7 @@ static void handle_ipv4(StackContext* ctx,
         return;
     }
 
-    handle_ipv4_transport(ctx, &ip, inner, inner_len, timestamp_usec);
+    handle_ipv4_transport(ctx, &ip, inner, inner_len, timestamp_usec, depth);
 }
 
 /* ── IPv6 ────────────────────────────────────────────────────────────────── */
@@ -322,7 +385,7 @@ static void handle_icmpv6(const Ipv6Header* ip,
 
 static void handle_ipv6_udp(StackContext* ctx, const Ipv6Header* ip6,
                             const uint8_t* payload, size_t payload_len,
-                            uint64_t timestamp_usec) {
+                            uint64_t timestamp_usec, unsigned depth) {
     UdpHeader udp;
     if (udp_parse(payload, payload_len, &udp) != 0) return;
 
@@ -333,8 +396,8 @@ static void handle_ipv6_udp(StackContext* ctx, const Ipv6Header* ip6,
     udp_tracker_observe(&ctx->udp_tracker, ip6->src, ip6->dst, 16,
                         udp.src_port, udp.dst_port, timestamp_usec);
 
-    handle_udp_payload(&ctx->udp_tracker, &udp, ip6->src, ip6->dst, 16,
-                       1 /* IPv6 */, timestamp_usec);
+    handle_udp_payload(ctx, &udp, ip6->src, ip6->dst, 16,
+                       1 /* IPv6 */, timestamp_usec, depth);
 }
 
 static void handle_ipv6_tcp(StackContext* ctx, const Ipv6Header* ip6,
@@ -370,13 +433,16 @@ static void handle_ipv6_tcp(StackContext* ctx, const Ipv6Header* ip6,
 static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
                                    uint8_t next_header,
                                    const uint8_t* payload, size_t payload_len,
-                                   uint64_t timestamp_usec);
+                                   uint64_t timestamp_usec, unsigned depth);
 
 static void handle_ipv6(StackContext* ctx,
                         const uint8_t* payload, size_t payload_len,
-                        uint64_t timestamp_usec) {
+                        uint64_t timestamp_usec, unsigned depth) {
     Ipv6Header ip;
     Ipv6Payload inner;
+
+    if (encap_depth_exceeded(depth)) return;
+
     if (ipv6_parse(payload, payload_len, &ip) != 0)
         return;
 
@@ -407,7 +473,7 @@ static void handle_ipv6(StackContext* ctx,
                        result.final_next_header);
                 handle_ipv6_transport(ctx, &ip, result.final_next_header,
                                       result.payload, result.payload_len,
-                                      timestamp_usec);
+                                      timestamp_usec, depth);
             } else if (status == IPV6_REASSEMBLY_INCOMPLETE) {
                 printf("  [ipv6-reassembly] stored fragment: offset=%u bytes"
                        " len=%zu MF=%u\n",
@@ -423,13 +489,14 @@ static void handle_ipv6(StackContext* ctx,
     }
 
     handle_ipv6_transport(ctx, &ip, inner.final_next_header,
-                          inner.payload, inner.payload_len, timestamp_usec);
+                          inner.payload, inner.payload_len,
+                          timestamp_usec, depth);
 }
 
 static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
                                    uint8_t next_header,
                                    const uint8_t* payload, size_t payload_len,
-                                   uint64_t timestamp_usec) {
+                                   uint64_t timestamp_usec, unsigned depth) {
     switch (next_header) {
         case 59:
             printf("  [ipv6] no payload\n");
@@ -437,8 +504,20 @@ static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
         case IPPROTO_ICMPV6:
             handle_icmpv6(ip, payload, payload_len);
             break;
+        case IPPROTO_IPIP:
+            printf("  [ipip] IPv4 in IPv6\n");
+            handle_ipv4(ctx, payload, payload_len, timestamp_usec, depth + 1);
+            break;
+        case IPPROTO_IPV6_IN:
+            printf("  [ipip] IPv6 in IPv6\n");
+            handle_ipv6(ctx, payload, payload_len, timestamp_usec, depth + 1);
+            break;
+        case IPPROTO_GRE:
+            handle_gre(ctx, payload, payload_len, timestamp_usec, depth);
+            break;
         case IPPROTO_UDP:
-            handle_ipv6_udp(ctx, ip, payload, payload_len, timestamp_usec);
+            handle_ipv6_udp(ctx, ip, payload, payload_len,
+                            timestamp_usec, depth);
             break;
         case IPPROTO_TCP:
             handle_ipv6_tcp(ctx, ip, payload, payload_len, timestamp_usec);
@@ -450,12 +529,77 @@ static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
     }
 }
 
-/* ── Layer 2 entry point ─────────────────────────────────────────────────── */
+/* ── PPPoE ───────────────────────────────────────────────────────────────── */
 
-void stack_dispatch_frame(StackContext* ctx,
-                          const uint8_t* frame, size_t frame_len,
-                          uint64_t timestamp_usec) {
+static void handle_pppoe(StackContext* ctx, uint16_t ethertype,
+                         const uint8_t* payload, size_t payload_len,
+                         uint64_t timestamp_usec, unsigned depth) {
+    PppoeHeader pppoe;
+
+    if (pppoe_parse(ethertype, payload, payload_len, &pppoe) != 0)
+        return;
+    pppoe_print(&pppoe);
+
+    if (!pppoe.is_session || !pppoe.has_ppp_protocol
+            || pppoe.payload_len == 0)
+        return;
+
+    switch (pppoe.ppp_protocol) {
+        case PPP_PROTO_IPV4:
+            handle_ipv4(ctx, pppoe.payload, pppoe.payload_len,
+                        timestamp_usec, depth + 1);
+            break;
+        case PPP_PROTO_IPV6:
+            handle_ipv6(ctx, pppoe.payload, pppoe.payload_len,
+                        timestamp_usec, depth + 1);
+            break;
+        default:
+            printf("  [pppoe] PPP protocol 0x%04x (%s) — not yet supported\n",
+                   pppoe.ppp_protocol,
+                   ppp_protocol_name(pppoe.ppp_protocol));
+            break;
+    }
+}
+
+/* ── EtherType dispatch, shared by Ethernet, Linux cooked, and VXLAN ─────── */
+
+static void dispatch_ethertype(StackContext* ctx, uint16_t ethertype,
+                               const uint8_t* payload, size_t payload_len,
+                               uint64_t timestamp_usec, unsigned depth) {
+    switch (ethertype) {
+        case ETHERTYPE_ARP:
+            handle_arp(&ctx->arp_cache, payload, payload_len);
+            break;
+        case ETHERTYPE_IPV4:
+            handle_ipv4(ctx, payload, payload_len, timestamp_usec, depth);
+            break;
+        case ETHERTYPE_IPV6:
+            handle_ipv6(ctx, payload, payload_len, timestamp_usec, depth);
+            break;
+        case ETHERTYPE_PPPOE_DISCOVERY:
+        case ETHERTYPE_PPPOE_SESSION:
+            handle_pppoe(ctx, ethertype, payload, payload_len,
+                         timestamp_usec, depth);
+            break;
+        default:
+            if (ethertype <= 1500)
+                printf("  [802.3 frame, length=%u — not yet supported]\n",
+                       ethertype);
+            else
+                printf("  [EtherType 0x%04x — unknown]\n", ethertype);
+            break;
+    }
+}
+
+/* ── Layer 2 entry points ────────────────────────────────────────────────── */
+
+static void handle_ethernet(StackContext* ctx,
+                            const uint8_t* frame, size_t frame_len,
+                            uint64_t timestamp_usec, unsigned depth) {
     EtherHeader eth;
+
+    if (encap_depth_exceeded(depth)) return;
+
     if (eth_parse(frame, frame_len, &eth) != 0)
         return;
     eth_print(&eth);
@@ -463,25 +607,51 @@ void stack_dispatch_frame(StackContext* ctx,
     if (frame_len <= eth.hdr_len)
         return;
 
-    const uint8_t* payload     = frame + eth.hdr_len;
-    size_t         payload_len = frame_len - eth.hdr_len;
+    dispatch_ethertype(ctx, eth.ethertype,
+                       frame + eth.hdr_len, frame_len - eth.hdr_len,
+                       timestamp_usec, depth);
+}
 
-    switch (eth.ethertype) {
-        case ETHERTYPE_ARP:
-            handle_arp(&ctx->arp_cache, payload, payload_len);
+void stack_dispatch_frame(StackContext* ctx,
+                          const uint8_t* frame, size_t frame_len,
+                          uint64_t timestamp_usec) {
+    handle_ethernet(ctx, frame, frame_len, timestamp_usec, 0);
+}
+
+void stack_dispatch_link(StackContext* ctx, uint32_t link_type,
+                         const uint8_t* data, size_t len,
+                         uint64_t timestamp_usec) {
+    LinkFrame frame;
+
+    if (link_type == LINKTYPE_ETHERNET) {
+        handle_ethernet(ctx, data, len, timestamp_usec, 0);
+        return;
+    }
+
+    if (link_decode(link_type, data, len, &frame) != 0) {
+        printf("  [skip] link type %u (%s) — not yet supported\n",
+               link_type, link_type_name(link_type));
+        return;
+    }
+
+    link_print(link_type, &frame);
+
+    switch (frame.kind) {
+        case LINK_PAYLOAD_IPV4:
+            handle_ipv4(ctx, frame.payload, frame.payload_len,
+                        timestamp_usec, 0);
             break;
-        case ETHERTYPE_IPV4:
-            handle_ipv4(ctx, payload, payload_len, timestamp_usec);
+        case LINK_PAYLOAD_IPV6:
+            handle_ipv6(ctx, frame.payload, frame.payload_len,
+                        timestamp_usec, 0);
             break;
-        case ETHERTYPE_IPV6:
-            handle_ipv6(ctx, payload, payload_len, timestamp_usec);
+        case LINK_PAYLOAD_ETHERTYPE:
+            dispatch_ethertype(ctx, frame.ethertype,
+                               frame.payload, frame.payload_len,
+                               timestamp_usec, 0);
             break;
         default:
-            if (eth.ethertype <= 1500)
-                printf("  [802.3 frame, length=%u — not yet supported]\n",
-                       eth.ethertype);
-            else
-                printf("  [EtherType 0x%04x — unknown]\n", eth.ethertype);
+            printf("  [link] no recognisable payload\n");
             break;
     }
 }

@@ -15,8 +15,10 @@
  *   │  Layer 3 — ICMP (echo, unreachable, time-exceeded)       │
  *   │  Layer 3 — IPv6 (fixed header + reassembly)              │
  *   │  Layer 3 — IPv4 (header, reassembly, checksum)           │
+ *   │  Tunnels  — GRE / IPIP / 6in4 / PPPoE / VXLAN            │
  *   │  Layer 2 — ARP  (request / reply)                        │
  *   │  Layer 2 — Ethernet II / VLAN (MAC, dispatch)            │
+ *   │  Layer 2 — Linux cooked v1/v2, raw IP, BSD loopback      │
  *   │  pcap file reader (offline mode, endian-aware)           │
  *   └──────────────────────────────────────────────────────────┘
  *
@@ -279,14 +281,8 @@ int main(int argc, char* argv[]) {
                pkt_hdr.ts_sec,
                pkt_hdr.ts_usec);
 
-        if (reader->global.network != LINKTYPE_ETHERNET) {
-            printf("  [skip] Non-Ethernet link type %u\n",
-                   reader->global.network);
-            printf("\n");
-            continue;
-        }
-
-        stack_dispatch_frame(stack, buf, pkt_len, timestamp_usec);
+        stack_dispatch_link(stack, reader->global.network,
+                            buf, pkt_len, timestamp_usec);
         printf("\n");
     }
 

@@ -6,7 +6,7 @@
  * sees anything interesting. This target skips that: the first input byte
  * selects a parser and the rest is handed to it directly.
  *
- *   byte 0    parser selector (low 4 bits)
+ *   byte 0    parser selector (low 5 bits)
  *   byte 1..  the buffer passed to that parser
  *
  * Each case runs the print function too. The print functions walk the parsed
@@ -32,6 +32,10 @@
 #include "tls.h"
 #include "gre.h"
 #include "igmp.h"
+#include "linktype.h"
+#include "pppoe.h"
+#include "vxlan.h"
+#include "pcap.h"
 
 /* Fixed addresses for the pseudo-header checksum paths. The checksum result
    is irrelevant here; what matters is that the summing loops stay in bounds. */
@@ -55,7 +59,10 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     len = size - 1;
     seg_len = (len > 0xFFFFu) ? 0xFFFFu : (uint16_t)len;
 
-    switch (data[0] & 0x0Fu) {
+    /* Five bits, not four. The first sixteen selectors keep the values they
+       had, so corpus inputs written against the earlier mask still reach the
+       same parser. */
+    switch (data[0] & 0x1Fu) {
         case 0: {
             EtherHeader eth;
             if (eth_parse(buf, len, &eth) == 0)
@@ -163,6 +170,41 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             GreHeader gre;
             if (gre_parse(buf, len, &gre) == 0)
                 gre_print(&gre);
+            break;
+        }
+        case 15: {
+            IgmpMessage igmp;
+            if (igmp_parse(buf, len, &igmp) == 0)
+                igmp_print(&igmp);
+            break;
+        }
+        case 16: {
+            PppoeHeader pppoe;
+            if (pppoe_parse(ETHERTYPE_PPPOE_SESSION, buf, len, &pppoe) == 0)
+                pppoe_print(&pppoe);
+            if (pppoe_parse(ETHERTYPE_PPPOE_DISCOVERY, buf, len, &pppoe) == 0)
+                pppoe_print(&pppoe);
+            break;
+        }
+        case 17: {
+            VxlanHeader vxlan;
+            (void)vxlan_sniff(buf, len);
+            if (vxlan_parse(buf, len, &vxlan) == 0)
+                vxlan_print(&vxlan);
+            break;
+        }
+        case 18: case 19: case 20: case 21: {
+            /* The four link headers, one per selector, so a mutation stays on
+               whichever one it started from instead of drifting between
+               layouts with completely different field offsets. */
+            static const uint16_t link_types[] = {
+                LINKTYPE_NULL, LINKTYPE_RAW,
+                LINKTYPE_LINUX_SLL, LINKTYPE_LINUX_SLL2
+            };
+            uint16_t link_type = link_types[(data[0] & 0x1Fu) - 18u];
+            LinkFrame frame;
+            if (link_decode(link_type, buf, len, &frame) == 0)
+                link_print(link_type, &frame);
             break;
         }
         default: {

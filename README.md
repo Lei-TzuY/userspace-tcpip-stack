@@ -5,6 +5,8 @@ A C99 educational network-stack and packet-analysis project. It parses Ethernet,
 ## Highlights
 
 - Protocol parsers for Ethernet, ARP, IPv4, IPv6, ICMP/ICMPv6, TCP, UDP, DNS, DHCP/DHCPv6, HTTP, TLS, NTP, GRE, IGMP, and mDNS.
+- Link layers beyond Ethernet: Linux cooked v1/v2, raw IP, and BSD loopback, so captures from `tcpdump -i any`, a VPN interface, or loopback parse rather than being skipped.
+- Tunnels decapsulated recursively: GRE, IPv4-in-IPv4, 6in4, PPPoE, and VXLAN, with a depth cap.
 - Stateful behaviors including TCP stream tracking, UDP tracking, ARP caching, IPv4 reassembly, and IPv6 reassembly.
 - TCP expert analysis: retransmissions attributed to a cause, reordering told apart from loss, window scaling applied, SACK-inferred loss, and per-direction throughput.
 - A conversation table, exportable as JSON or CSV.
@@ -64,6 +66,37 @@ Usage: tcpip [options] <file.pcap|file.pcapng>
 Asking for JSON or CSV on stdout implies `--quiet --no-summary`, since a
 structured document has to be the only thing on the stream. Diagnostics always
 go to stderr, so a malformed packet is still reported in quiet mode.
+
+## Link layers and tunnels
+
+A capture names its link layer once, in its global header. Ethernet is the most
+common but far from the only one, and a capture in another shape used to parse
+to nothing.
+
+| Link type | Where it comes from |
+| --- | --- |
+| `LINKTYPE_ETHERNET` (1) | ordinary interface captures |
+| `LINKTYPE_LINUX_SLL` (113) | `tcpdump -i any` on Linux |
+| `LINKTYPE_LINUX_SLL2` (276) | the same, with newer libpcap |
+| `LINKTYPE_RAW` (101) | tunnel and VPN interfaces, which have no link header |
+| `LINKTYPE_NULL` (0) | BSD and macOS loopback |
+
+The loopback header is a four-byte address family written in the *capturing
+host's* byte order with nothing recording which that was, so both orientations
+are tried and the one yielding a known family wins. The IPv6 constant differs
+per system — 10, 24, 28, or 30 — and all are accepted, which is what libpcap's
+own readers do.
+
+Tunnels are followed into their payload: GRE, IPv4-in-IPv4 (protocol 4), 6in4
+(protocol 41), the IPv6 equivalents, PPPoE sessions, and VXLAN. VXLAN is the
+one that returns the walk to the link layer, since it carries a complete inner
+Ethernet frame.
+
+That recursion is capped at `STACK_MAX_ENCAP_DEPTH` (8). The cap is not
+cosmetic: the packet alone decides how many layers there are, each one costs a
+stack frame, and a single packet small enough to fit the read buffer can name
+thousands. `tests/gen_encap_pcap.py` includes a twelve-deep packet so the suite
+checks that the walk stops.
 
 ## TCP analysis
 
@@ -174,11 +207,16 @@ malformed inputs aimed at the places where the stack walks an
 attacker-controlled length: TLV option chains, DNS name compression, IPv6
 extension headers, and pcapng block totals.
 
-Regenerate after changing the generator:
+Three scripts generate checked-in files, and the corpus seeds from the captures
+the other two produce, so it goes last:
 
 ```sh
-python tests/gen_fuzz_corpus.py
+python tests/gen_analysis_pcap.py   # tests/sample-analysis.pcap
+python tests/gen_encap_pcap.py      # tests/sample-{sll,sll2,raw,null,encap}.pcap
+python tests/gen_fuzz_corpus.py     # fuzz/corpus/
 ```
+
+CI checks that all of them still match their generators.
 
 When a campaign finds a crash, copy the reproducer into the matching corpus
 directory and commit it. Nothing else needs editing — CTest picks it up, and
