@@ -89,11 +89,15 @@ int tcp_parse(const uint8_t* data, size_t len, TcpHeader* out) {
 
         TcpOption* o = &out->options[out->opt_count++];
         o->kind     = kind;
-        o->data_len = dlen;
 
-        /* Copy option data, clamped to our storage */
+        /* Copy option data, clamped to our storage, and report the length that
+           was actually stored. Recording the declared length instead would let
+           a consumer loop past the end of data[] on an option claiming more
+           than fits — the storage is sized for the largest option the header
+           can hold, so this only ever trims a malformed one. */
         size_t copy = (dlen <= sizeof(o->data)) ? dlen : sizeof(o->data);
         memcpy(o->data, opt, copy);
+        o->data_len = (uint8_t)copy;
 
         opt += dlen;
     }
