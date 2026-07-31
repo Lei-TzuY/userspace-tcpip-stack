@@ -35,8 +35,17 @@ cmake --build build-asan
 ctest --test-dir build-asan --output-on-failure
 ```
 
-Both must be **99/99** before a commit. See `PROJECT_STATE.md` for the baseline
-breakdown.
+Both must be **115/115** before a commit. See `PROJECT_STATE.md` for the
+baseline breakdown.
+
+Worth running a Release build too, at least when touching tests: it is the
+configuration four of the seven CI jobs use, and it is the one where an
+assertion that has been compiled out would go unnoticed.
+
+```sh
+cmake -S . -B build-rel -DCMAKE_BUILD_TYPE=Release
+cmake --build build-rel && ctest --test-dir build-rel --output-on-failure
+```
 
 ### On this machine (Windows)
 
@@ -79,7 +88,9 @@ src/            Parsers, state machines, analysis, dispatch, CLI
   report.c        JSON/CSV export
   linktype.c      non-Ethernet link layers
   pppoe.c vxlan.c gre.c   tunnels
+  dns.c           RFC 1035 plus EDNS0 (6891) and DNSSEC (4034)
 tests/          Unit tests, capture fixtures, and the generators for both
+  test_support.c  linked into every test target; see the invariants below
 fuzz/           Three targets, two drivers each, plus the checked-in corpus
 .github/        7 CI jobs
 ```
@@ -142,12 +153,28 @@ when it fails.
 9. **`.gitattributes` keeps `fuzz/corpus/**` and `*.pcap*` binary.** `core.autocrlf`
    is on for this user; without the marking, the bare-LF HTTP corpus inputs are
    silently rewritten into different test cases on checkout.
-10. **Generated files are regenerated in dependency order**, because the corpus
+10. **Every test target is listed in `TEST_TARGETS` in CMakeLists.txt.** The
+    loop there does two things a test cannot do for itself: `-UNDEBUG`, without
+    which CMake's Release `-DNDEBUG` compiles every `assert()` in the suite to
+    nothing, and `tests/test_support.c`, which stops a failed assertion on
+    Windows from opening a dialog box and hanging CTest. A new test target left
+    off that list still passes — it just stops checking anything in the four CI
+    jobs that build Release.
+11. **The OPT record is never printed as an ordinary resource record.** Its
+    class field is a UDP payload size and its TTL field is a flags word, so a
+    line reading `OPT ... TTL=32768` is three separate lies. It is hoisted into
+    `DnsMessage.edns`; `dns_opt_not_listed_as_a_record` asserts the absence.
+12. **Every RCODE the tool prints comes from `dns_full_rcode()`**, which
+    composes the header's low four bits with the OPT record's upper eight
+    (RFC 6891 §6.1.3). Reading the header alone turns BADVERS into NOERROR —
+    a different answer, not a truncated one.
+13. **Generated files are regenerated in dependency order**, because the corpus
     seeds from the captures:
 
     ```sh
     python tests/gen_analysis_pcap.py   # tests/sample-analysis.pcap
     python tests/gen_encap_pcap.py      # tests/sample-{sll,sll2,raw,null,encap}.pcap
+    python tests/gen_dns_pcap.py        # tests/sample-dns.pcap
     python tests/gen_fuzz_corpus.py     # fuzz/corpus/
     ```
 
@@ -158,10 +185,10 @@ when it fails.
 ## Adding things
 
 **A new parser.** Add `src/foo.{c,h}`; the `file(GLOB)` in CMakeLists picks it
-up. Dispatch from `src/dispatch.c`. Add a `test_foo.c` with an `add_test`, add
-a selector case in `fuzz/fuzz_parsers.c`, and add malformed seeds to
-`tests/gen_fuzz_corpus.py`. A parser with no fuzz selector is not covered by
-anything.
+up. Dispatch from `src/dispatch.c`. Add a `test_foo.c` with an `add_test`,
+**add the target to `TEST_TARGETS`**, add a selector case in
+`fuzz/fuzz_parsers.c`, and add malformed seeds to `tests/gen_fuzz_corpus.py`. A
+parser with no fuzz selector is not covered by anything.
 
 **A new fuzz-corpus entry after a crash.** Drop the reproducer into
 `fuzz/corpus/<target>/` and commit. CTest picks it up automatically and the
@@ -188,9 +215,29 @@ CMakeLists.txt. One assertion per behaviour, so a failure names what broke.
 - Prefer writing a `.py` helper to the scratchpad over `python -c` with a
   heredoc; the quoting does not survive the shell layers.
 
+## A note on assertions
+
+Two things used to stop `assert()` from meaning anything here, and both are
+fixed in CMakeLists rather than in the tests. Knowing they existed is what
+stops them coming back:
+
+- **Release compiles them out.** `-DNDEBUG` is in CMake's Release flags, and
+  the C standard defines `assert` as `((void)0)` when it is set. Four CI jobs
+  build Release, so their unit tests were verifying only that the process
+  exited 0. `-UNDEBUG` on the test targets undoes it, after the config flags,
+  and only for tests — the CLI keeps `NDEBUG`.
+- **Windows turned a failure into a hang.** MSVC's debug CRT answers a failed
+  assertion with a modal dialog, so CTest waited for a click. A failing test
+  took the full timeout and left no assertion text in the log.
+  `tests/test_support.c` routes those reports to stderr; the same regression
+  now fails in under half a second with the file and line in the log.
+
+If you add a target and its tests never fail no matter what you break, this is
+the first thing to check.
+
 ## Before you commit
 
-1. Both builds green: `ctest` on plain **and** on the ASan build, 99/99 each.
+1. Both builds green: `ctest` on plain **and** on the ASan build, 115/115 each.
 2. If you touched a parser, run a mutation campaign as well — see
    `PROJECT_STATE.md` for the invocation. libFuzzer is unavailable here (no
    Clang); the replay driver's `--mutate` mode is the substitute.

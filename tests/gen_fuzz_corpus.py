@@ -117,7 +117,8 @@ def seed_from_fixtures():
                     # fixed by its global header.
                     "sample-sll.pcap", "sample-sll2.pcap",
                     "sample-raw.pcap", "sample-null.pcap",
-                    "sample-encap.pcap"):
+                    "sample-encap.pcap",
+                    "sample-dns.pcap"):
         path = FIXTURES / fixture
         if path.is_file():
             write("pcap", f"valid_{fixture.replace('.', '_')}",
@@ -137,6 +138,18 @@ def seed_from_fixtures():
         for index, frame in enumerate(analysis_frames):
             if len(frame) >= 14 and struct.unpack(">H", frame[12:14])[0] == 0x0800:
                 seed_ipv4_transport(1000 + index, frame[14:])
+
+    # The EDNS0/DNSSEC capture is the only fixture whose DNS messages carry an
+    # OPT record or signed records, so its payloads are the only valid seeds
+    # that reach that code. Its frames are Ethernet + a 20-byte IPv4 header +
+    # UDP, so the DNS message starts at a fixed offset.
+    dns_frames = read_classic_pcap_frames(FIXTURES / "sample-dns.pcap")
+    if dns_frames:
+        write("frame", "valid_dns_all", frame_input(dns_frames))
+        for index, frame in enumerate(dns_frames):
+            if len(frame) > 14 + 20 + 8:
+                write_parser("dns", f"valid_edns_{index:02d}",
+                             frame[14 + 20 + 8:])
 
     frames = read_classic_pcap_frames(FIXTURES / "sample.pcap")
     if not frames:
@@ -234,9 +247,32 @@ def seed_udp_payload(index, datagram):
 
 # ── DNS: name compression is the classic non-termination trap ────────────────
 
-def dns_message(payload, qdcount=1, ancount=0):
-    header = struct.pack(">HHHHHH", 0x1234, 0x8180, qdcount, ancount, 0, 0)
+def dns_message(payload, qdcount=1, ancount=0, nscount=0, arcount=0):
+    header = struct.pack(">HHHHHH", 0x1234, 0x8180,
+                         qdcount, ancount, nscount, arcount)
     return header + bytes(payload)
+
+
+def dns_rr(name=b"\x00", rtype=1, rclass=1, ttl=60, rdata=b"", rdlength=None):
+    """One resource record. rdlength defaults to the truth; pass it explicitly
+    to build a record that lies about its own size."""
+    if rdlength is None:
+        rdlength = len(rdata)
+    return name + struct.pack(">HHIH", rtype, rclass, ttl, rdlength) + rdata
+
+
+def dns_opt(udp_size=1232, rcode_high=0, version=0, flags=0,
+            options=b"", rdlength=None):
+    """An OPT pseudo-record: root owner, class reused as the UDP payload size,
+    TTL reused as (extended RCODE, version, flags)."""
+    ttl = (rcode_high << 24) | (version << 16) | flags
+    return dns_rr(b"\x00", 41, udp_size, ttl, options, rdlength)
+
+
+def edns_option(code, payload, length=None):
+    if length is None:
+        length = len(payload)
+    return struct.pack(">HH", code, length) + payload
 
 
 def seed_dns():
@@ -281,6 +317,168 @@ def seed_dns():
         bomb += bytes([63]) + b"x" * 63
     bomb += b"\x00\x00\x01\x00\x01"
     write_parser("dns", "long_name", dns_message(bomb))
+
+
+# ── EDNS0: the OPT record's options are another self-describing TLV walk ─────
+
+def seed_dns_edns():
+    # An option that claims far more bytes than the RDATA holds.
+    write_parser("dns", "opt_option_overrun",
+                 dns_message(dns_opt(options=edns_option(10, b"\xaa", 0xFFFF)),
+                             qdcount=0, arcount=1))
+
+    # RDLENGTH stops mid-option-header: four bytes are needed to start one.
+    write_parser("dns", "opt_trailing_bytes",
+                 dns_message(dns_opt(options=b"\x00\x0a\x00"),
+                             qdcount=0, arcount=1))
+
+    # Client Subnet with a source prefix of 255 bits — 32 octets of address,
+    # inside an option carrying one. Both numbers are the sender's.
+    write_parser("dns", "opt_ecs_prefix_overrun",
+                 dns_message(dns_opt(options=edns_option(
+                     8, struct.pack(">HBB", 1, 255, 0) + b"\xc0")),
+                     qdcount=0, arcount=1))
+
+    # The same, for a family nothing knows, so the width check has nothing to
+    # compare against.
+    write_parser("dns", "opt_ecs_family_unknown",
+                 dns_message(dns_opt(options=edns_option(
+                     8, struct.pack(">HBB", 0xFFFF, 200, 200) + b"\x01\x02")),
+                     qdcount=0, arcount=1))
+
+    # Scope prefix longer than the source prefix, which RFC 7871 forbids in a
+    # query but nothing stops a sender writing.
+    write_parser("dns", "opt_ecs_scope_over_source",
+                 dns_message(dns_opt(options=edns_option(
+                     8, struct.pack(">HBB", 1, 8, 128) + b"\xc0")),
+                     qdcount=0, arcount=1))
+
+    # Sixty-four zero-length options: the walk must make progress on each one
+    # from the header alone.
+    write_parser("dns", "opt_many_empty_options",
+                 dns_message(dns_opt(options=edns_option(0, b"") * 64),
+                             qdcount=0, arcount=1))
+
+    # Two OPT records, which RFC 6891 §6.1.1 forbids.
+    write_parser("dns", "opt_duplicate",
+                 dns_message(dns_opt() + dns_opt(udp_size=512),
+                             qdcount=0, arcount=2))
+
+    # An OPT in the answer section, where it does not belong.
+    write_parser("dns", "opt_misplaced",
+                 dns_message(dns_opt(), qdcount=0, ancount=1))
+
+    # An owner name that is not the root, and a version nothing defines.
+    write_parser("dns", "opt_bad_owner_and_version",
+                 dns_message(dns_rr(b"\x03abc\x00", 41, 1232,
+                                    (1 << 16), b""),
+                             qdcount=0, arcount=1))
+
+    # A cookie of a length RFC 7873 does not allow, and an extended error whose
+    # text runs to the end of the record.
+    write_parser("dns", "opt_cookie_and_error",
+                 dns_message(dns_opt(options=(
+                     edns_option(10, b"\xaa" * 3)
+                     + edns_option(15, struct.pack(">H", 6) + b"\xff" * 40))),
+                     qdcount=0, arcount=1))
+
+    # RDLENGTH lies upward: the options walk must stay inside the message even
+    # when the record claims more than arrived.
+    write_parser("dns", "opt_rdlength_overrun",
+                 dns_message(dns_opt(options=edns_option(3, b"\xaa"),
+                                     rdlength=0xFFFF),
+                             qdcount=0, arcount=1))
+
+
+# ── DNSSEC: every record here walks a length the sender chose ────────────────
+
+def seed_dns_dnssec():
+    # NSEC type bit map: a window claiming 33 octets, over the 32 RFC 4034
+    # §4.1.2 allows, and one claiming zero, which would never advance.
+    write_parser("dns", "nsec_bitmap_len_over_32",
+                 dns_message(dns_rr(rtype=47,
+                                    rdata=b"\x00" + b"\x00\x21" + b"\x40"),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "nsec_bitmap_len_zero",
+                 dns_message(dns_rr(rtype=47,
+                                    rdata=b"\x00" + b"\x00\x00" + b"\x40"),
+                             qdcount=0, ancount=1))
+
+    # A bitmap block whose length runs past the RDATA.
+    write_parser("dns", "nsec_bitmap_past_rdata",
+                 dns_message(dns_rr(rtype=47, rdata=b"\x00\x00\x20\x40"),
+                             qdcount=0, ancount=1))
+
+    # The next-domain name is not allowed to be compressed, so a pointer here
+    # escapes the record's own RDATA.
+    write_parser("dns", "nsec_next_name_compressed",
+                 dns_message(dns_rr(rtype=47, rdata=b"\xc0\x0c\x00\x01\x40"),
+                             qdcount=0, ancount=1))
+
+    # NSEC3 salt and hash lengths, each declared far beyond what arrived.
+    write_parser("dns", "nsec3_salt_overrun",
+                 dns_message(dns_rr(rtype=50,
+                                    rdata=b"\x01\x00\x00\x0a\xff\xaa"),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "nsec3_hash_overrun",
+                 dns_message(dns_rr(rtype=50,
+                                    rdata=b"\x01\x00\x00\x0a\x00\xff\xaa"),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "nsec3param_salt_overrun",
+                 dns_message(dns_rr(rtype=51, rdata=b"\x01\x00\x00\x0a\xff"),
+                             qdcount=0, ancount=1))
+
+    # RRSIG: one byte short of the fixed fields, and a signer's name that runs
+    # past RDLENGTH.
+    write_parser("dns", "rrsig_short_fixed_part",
+                 dns_message(dns_rr(rtype=46, rdata=b"\x00" * 17),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "rrsig_signer_past_rdlength",
+                 dns_message(dns_rr(rtype=46,
+                                    rdata=b"\x00" * 18 + b"\x03com\x00",
+                                    rdlength=18),
+                             qdcount=0, ancount=1))
+    # A signer's name given as a compression pointer, which RFC 4034 §3.1.7
+    # forbids and which would otherwise be counted against the wrong length.
+    write_parser("dns", "rrsig_signer_compressed",
+                 dns_message(dns_rr(rtype=46, rdata=b"\x00" * 18 + b"\xc0\x0c"),
+                             qdcount=0, ancount=1))
+
+    # DNSKEY and DS truncated to less than their fixed fields.
+    write_parser("dns", "dnskey_short",
+                 dns_message(dns_rr(rtype=48, rdata=b"\x01\x00\x03"),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "dnskey_no_key_material",
+                 dns_message(dns_rr(rtype=48, rdata=b"\x01\x00\x03\x08"),
+                             qdcount=0, ancount=1))
+    write_parser("dns", "ds_short",
+                 dns_message(dns_rr(rtype=43, rdata=b"\x00\x01\x08"),
+                             qdcount=0, ancount=1))
+
+    # A DNSKEY whose RDLENGTH claims 65535 bytes: the key tag is summed over
+    # RDATA, so the length that drives that loop must be the checked one.
+    write_parser("dns", "dnskey_rdlength_overrun",
+                 dns_message(dns_rr(rtype=48, rdata=b"\x01\x00\x03\x08\xab",
+                                    rdlength=0xFFFF),
+                             qdcount=0, ancount=1))
+
+    # A well-formed DNSSEC response, as a seed a mutator can work from: NSEC
+    # with a full bitmap, an RRSIG, and a DNSKEY.
+    nsec = dns_rr(b"\x03www\x00", 47, 1, 3600,
+                  b"\x04next\x00" + b"\x00\x06\x60\x00\x00\x00\x00\x03")
+    rrsig = dns_rr(b"\x03www\x00", 46, 1, 3600,
+                   struct.pack(">HBBIIIH", 1, 8, 2, 3600,
+                               0xF4865700, 0x00000000, 40663)
+                   + b"\x00" + b"\xde\xad\xbe\xef")
+    dnskey = dns_rr(b"\x00", 48, 1, 3600,
+                    struct.pack(">HBB", 0x0101, 3, 8) + b"\xab\xcd\xef\x01")
+    write_parser("dns", "dnssec_response",
+                 dns_message(nsec + rrsig + dnskey
+                             + dns_opt(flags=0x8000,
+                                       options=edns_option(
+                                           8, struct.pack(">HBB", 1, 24, 0)
+                                           + b"\xc0\x00\x02")),
+                             qdcount=0, ancount=3, arcount=1))
 
 
 # ── TCP and IPv4 options: zero-length entries must still make progress ───────
@@ -1001,6 +1199,8 @@ def main():
     print(f"Writing fuzz corpus under {CORPUS}")
     seed_from_fixtures()
     seed_dns()
+    seed_dns_edns()
+    seed_dns_dnssec()
     seed_tcp_options()
     seed_ipv4_options()
     seed_ipv4_fragments()
