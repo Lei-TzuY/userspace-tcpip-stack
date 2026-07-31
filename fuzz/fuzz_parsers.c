@@ -35,6 +35,8 @@
 #include "linktype.h"
 #include "pppoe.h"
 #include "vxlan.h"
+#include "sctp.h"
+#include "quic.h"
 #include "pcap.h"
 
 /* Fixed addresses for the pseudo-header checksum paths. The checksum result
@@ -205,6 +207,23 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
             LinkFrame frame;
             if (link_decode(link_type, buf, len, &frame) == 0)
                 link_print(link_type, &frame);
+            break;
+        }
+        case 22: {
+            SctpPacket sctp;
+            if (sctp_parse(buf, len, &sctp) == 0)
+                sctp_print(&sctp, sctp_checksum_ok(buf, len));
+            break;
+        }
+        case 23: {
+            QuicDatagram quic;
+            (void)quic_sniff(buf, len);
+            (void)quic_is_short_header(buf, len);
+            /* Parsed unconditionally rather than behind the sniff: the sniff
+               is what the dispatcher trusts, so the parser has to survive
+               everything the sniff would have rejected as well. */
+            if (quic_parse(buf, len, &quic) == 0)
+                quic_print(&quic);
             break;
         }
         default: {

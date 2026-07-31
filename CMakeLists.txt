@@ -101,6 +101,20 @@ if(BUILD_TESTING)
     target_include_directories(test_tcp_parse PRIVATE src)
     add_test(NAME tcp_parse COMMAND test_tcp_parse)
 
+    add_executable(test_sctp_parse
+        tests/test_sctp_parse.c
+        src/sctp.c
+    )
+    target_include_directories(test_sctp_parse PRIVATE src)
+    add_test(NAME sctp_parse COMMAND test_sctp_parse)
+
+    add_executable(test_quic_parse
+        tests/test_quic_parse.c
+        src/quic.c
+    )
+    target_include_directories(test_quic_parse PRIVATE src)
+    add_test(NAME quic_parse COMMAND test_quic_parse)
+
     add_executable(test_tcp_stream
         tests/test_tcp_stream.c
         src/tcp_stream.c
@@ -204,6 +218,7 @@ if(BUILD_TESTING)
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
         test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
+        test_sctp_parse test_quic_parse
     )
     foreach(test_target IN LISTS TEST_TARGETS)
         target_sources(${test_target} PRIVATE tests/test_support.c)
@@ -691,6 +706,59 @@ if(BUILD_TESTING)
     add_capture_test(dns_nsec3_optout   sample-dns.pcap
         "OPTOUT iter=10 salt=aabbccdd")
     add_capture_test(dns_ad_flag        sample-dns.pcap "AA RD RA AD")
+
+    # ── SCTP and QUIC ─────────────────────────────────────────────────────────
+    #
+    # tests/sample-transport.pcap, one scenario per packet. See
+    # gen_transport_pcap.py for why these are not in sample.pcap.
+    add_capture_test(transport_sctp_init sample-transport.pcap
+        "tag=0xaabbccdd a_rwnd=106496 out=10 in=5 initial TSN=10000")
+    add_capture_test(transport_sctp_init_param sample-transport.pcap
+        "param 12    Supported Address Types")
+
+    # The CRC-32C, tested in both directions: packet 7 of the capture carries a
+    # deliberately wrong checksum, so "valid" is not merely what this prints
+    # for everything.
+    add_capture_test(transport_sctp_checksum_valid sample-transport.pcap
+        "CRC-32C valid")
+    add_capture_test(transport_sctp_checksum_invalid sample-transport.pcap
+        "CRC-32C INVALID")
+
+    add_capture_test(transport_sctp_data sample-transport.pcap
+        "TSN=1000 stream=1 seq=0 ppid=51")
+    # The DATA chunk before it declares 26 bytes, so two pad bytes separate
+    # them. A walk that does not round up to the next four-byte boundary never
+    # finds this second chunk.
+    add_capture_test(transport_sctp_chunk_padding sample-transport.pcap
+        "chunk 1   : SACK")
+    add_capture_test(transport_sctp_sack_gaps sample-transport.pcap
+        "gap 0: TSN 1002..1003")
+    add_capture_test(transport_sctp_abort_cause sample-transport.pcap
+        "cause 12    User Initiated Abort")
+    # The same protocol over IPv6, which reaches it through the other switch.
+    add_capture_test(transport_sctp_over_ipv6 sample-transport.pcap
+        "cum TSN=2000")
+
+    add_capture_test(transport_quic_initial sample-transport.pcap
+        "Initial  version=0x00000001")
+    add_capture_test(transport_quic_dcid sample-transport.pcap
+        "0102030405060708")
+    # Two packets in one datagram, found only by following the first one's
+    # Length field.
+    add_capture_test(transport_quic_coalesced sample-transport.pcap
+        "Packets   : 2 in 298 byte")
+    add_capture_test(transport_quic_token sample-transport.pcap
+        "Token : 16 byte")
+    add_capture_test(transport_quic_version_negotiation sample-transport.pcap
+        "Offers: 3 version")
+    add_capture_test(transport_quic_retry_tag sample-transport.pcap
+        "plus a 16-byte integrity tag")
+    # Packet type 1 is Initial in version 2 and 0-RTT in version 1, so reading
+    # the type without the version gives a different answer, not a partial one.
+    add_capture_test(transport_quic_v2 sample-transport.pcap
+        "Initial  version=0x6b3343cf")
+    add_capture_test(transport_quic_short_header sample-transport.pcap
+        "no length prefix here")
 endif()
 
 # ── Fuzz targets ──────────────────────────────────────────────────────────────

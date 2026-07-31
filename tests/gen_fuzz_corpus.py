@@ -42,6 +42,7 @@ SEL = {
     "http": 12, "tls": 13, "gre": 14, "igmp": 15,
     "pppoe": 16, "vxlan": 17,
     "link_null": 18, "link_raw": 19, "link_sll": 20, "link_sll2": 21,
+    "sctp": 22, "quic": 23,
 }
 
 written = 0
@@ -71,6 +72,24 @@ def frame_input(frames, time_step=1):
         out += struct.pack(">H", len(frame) & 0xFFFF)
         out += bytes(frame)
     return bytes(out)
+
+
+_CRC32C_NIBBLE = []
+for _i in range(16):
+    _c = _i
+    for _ in range(4):
+        _c = (_c >> 1) ^ (0x82F63B78 if (_c & 1) else 0)
+    _CRC32C_NIBBLE.append(_c)
+
+
+def crc32c(data):
+    """Reflected CRC-32C, which is what SCTP's checksum field carries."""
+    crc = 0xFFFFFFFF
+    for byte in data:
+        crc ^= byte
+        crc = (crc >> 4) ^ _CRC32C_NIBBLE[crc & 0xF]
+        crc = (crc >> 4) ^ _CRC32C_NIBBLE[crc & 0xF]
+    return crc ^ 0xFFFFFFFF
 
 
 def inet_checksum(data):
@@ -118,7 +137,8 @@ def seed_from_fixtures():
                     "sample-sll.pcap", "sample-sll2.pcap",
                     "sample-raw.pcap", "sample-null.pcap",
                     "sample-encap.pcap",
-                    "sample-dns.pcap"):
+                    "sample-dns.pcap",
+                    "sample-transport.pcap"):
         path = FIXTURES / fixture
         if path.is_file():
             write("pcap", f"valid_{fixture.replace('.', '_')}",
@@ -150,6 +170,25 @@ def seed_from_fixtures():
             if len(frame) > 14 + 20 + 8:
                 write_parser("dns", f"valid_edns_{index:02d}",
                              frame[14 + 20 + 8:])
+
+    # The transport capture is the only fixture carrying SCTP or QUIC, so its
+    # payloads are the only valid seeds that reach either parser at all.
+    transport_frames = read_classic_pcap_frames(FIXTURES / "sample-transport.pcap")
+    if transport_frames:
+        write("frame", "valid_transport_all", frame_input(transport_frames))
+        for index, frame in enumerate(transport_frames):
+            if len(frame) < 14:
+                continue
+            ethertype = struct.unpack(">H", frame[12:14])[0]
+            if ethertype == 0x0800:
+                write_parser("ipv4", f"valid_transport_{index:02d}", frame[14:])
+                seed_ipv4_transport(2000 + index, frame[14:])
+            elif ethertype == 0x86DD:
+                # A fixed 40-byte IPv6 header with no extension headers, so
+                # the transport payload starts at a known offset.
+                write_parser("ipv6", f"valid_transport_{index:02d}", frame[14:])
+                if len(frame) > 14 + 40:
+                    write_parser("sctp", f"valid_v6_{index:02d}", frame[14 + 40:])
 
     frames = read_classic_pcap_frames(FIXTURES / "sample.pcap")
     if not frames:
@@ -210,6 +249,8 @@ def seed_ipv4_transport(index, packet):
     elif proto == 17:
         write_parser("udp", f"valid_{index:02d}", payload)
         seed_udp_payload(index, payload)
+    elif proto == 132:
+        write_parser("sctp", f"valid_{index:02d}", payload)
 
 
 def seed_tcp_payload(index, segment):
@@ -243,6 +284,8 @@ def seed_udp_payload(index, datagram):
         write_parser("dhcpv6", f"valid_{index:02d}", body)
     elif 123 in ports:
         write_parser("ntp", f"valid_{index:02d}", body)
+    elif ports & {443, 4433, 8443, 853}:
+        write_parser("quic", f"valid_{index:02d}", body)
 
 
 # ── DNS: name compression is the classic non-termination trap ────────────────
@@ -721,6 +764,208 @@ def seed_icmpv6():
     # Echo request with the code and checksum fields at extremes.
     write_parser("icmpv6", "echo_max_fields",
                  bytes([128, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]))
+
+
+# ── SCTP: two nested TLV walks, and a checksum over the whole packet ─────────
+
+def sctp_packet(chunks, src=9899, dst=9900, vtag=0x11223344, checksum=0):
+    return (struct.pack(">HHII", src, dst, vtag, checksum)
+            + b"".join(bytes(c) for c in chunks))
+
+
+def sctp_chunk(ctype, value=b"", flags=0, length=None):
+    """One chunk. Pass `length` explicitly to build one that lies about its
+    own size — which is the field the whole walk is steered by."""
+    declared = length if length is not None else 4 + len(value)
+    body = struct.pack(">BBH", ctype, flags, declared) + bytes(value)
+    return body + b"\x00" * (-len(body) % 4)
+
+
+def sctp_param(ptype, value=b"", length=None):
+    declared = length if length is not None else 4 + len(value)
+    body = struct.pack(">HH", ptype, declared) + bytes(value)
+    return body + b"\x00" * (-len(body) % 4)
+
+
+def seed_sctp():
+    init_fixed = struct.pack(">IIHHI", 0xAABBCCDD, 106496, 10, 5, 10000)
+
+    # A chunk length below the four-byte header: advancing by it never moves.
+    for declared in (0, 1, 2, 3):
+        write_parser("sctp", f"chunk_len_{declared}",
+                     sctp_packet([sctp_chunk(11, length=declared),
+                                  sctp_chunk(11)]))
+
+    # A chunk claiming far more than the packet holds.
+    write_parser("sctp", "chunk_len_overrun",
+                 sctp_packet([sctp_chunk(7, b"\x00\x00\x00\x2a", length=0xFFFF)]))
+
+    # Sixty-four minimum-size chunks: bounded work only if each step advances.
+    write_parser("sctp", "many_empty_chunks",
+                 sctp_packet([sctp_chunk(11)] * 64))
+
+    # A chunk header in the last bytes of the packet, and one cut in half.
+    write_parser("sctp", "chunk_header_only",
+                 sctp_packet([]) + b"\x00\x00\x00\x10")
+    write_parser("sctp", "trailing_partial_chunk",
+                 sctp_packet([sctp_chunk(11)]) + b"\x00\x00")
+
+    # The common header alone, and one byte short of it.
+    write_parser("sctp", "common_header_only", sctp_packet([]))
+    write_parser("sctp", "truncated_common_header", sctp_packet([])[:11])
+
+    # INIT parameters: the walk inside the walk, with the same hazards.
+    write_parser("sctp", "init_param_len_zero",
+                 sctp_packet([sctp_chunk(1, init_fixed
+                                         + sctp_param(5, length=0))]))
+    write_parser("sctp", "init_param_len_overrun",
+                 sctp_packet([sctp_chunk(1, init_fixed
+                                         + sctp_param(7, b"\x01\x02",
+                                                      length=0xFFFF))]))
+    write_parser("sctp", "init_many_empty_params",
+                 sctp_packet([sctp_chunk(1, init_fixed
+                                         + sctp_param(0xC000) * 64)]))
+    write_parser("sctp", "init_short_fixed_part",
+                 sctp_packet([sctp_chunk(1, init_fixed[:15])]))
+    # A parameter whose declared length is inside the chunk but whose padding
+    # would take the walk past it.
+    write_parser("sctp", "init_param_ends_on_the_boundary",
+                 sctp_packet([sctp_chunk(1, init_fixed
+                                         + struct.pack(">HH", 5, 5) + b"\x01")]))
+
+    # SACK: two counts, four bytes each, multiplied by the sender.
+    write_parser("sctp", "sack_counts_absurd",
+                 sctp_packet([sctp_chunk(3, struct.pack(">IIHH", 1000, 65536,
+                                                        0xFFFF, 0xFFFF))]))
+    write_parser("sctp", "sack_short",
+                 sctp_packet([sctp_chunk(3, b"\x00" * 11)]))
+    write_parser("sctp", "sack_gaps_past_the_chunk",
+                 sctp_packet([sctp_chunk(3, struct.pack(">IIHH", 1000, 65536,
+                                                        4, 4)
+                                         + b"\x00\x01\x00\x02")]))
+
+    # DATA one byte short of its fixed fields, and with none at all.
+    write_parser("sctp", "data_short_fixed_part",
+                 sctp_packet([sctp_chunk(0, b"\x00" * 11, flags=0x03)]))
+    write_parser("sctp", "data_empty", sctp_packet([sctp_chunk(0, flags=0x03)]))
+
+    # ABORT and ERROR causes.
+    write_parser("sctp", "abort_cause_len_zero",
+                 sctp_packet([sctp_chunk(6, sctp_param(12, length=0))]))
+    write_parser("sctp", "error_cause_overrun",
+                 sctp_packet([sctp_chunk(9, sctp_param(1, b"\xaa",
+                                                       length=0xFFFF))]))
+
+    # One chunk type from each of the four unknown-type quadrants, since the
+    # top two bits are what tells a receiver whether to stop or skip.
+    for ctype in (0x3F, 0x7F, 0xBF, 0xFF):
+        write_parser("sctp", f"unknown_type_{ctype:02x}",
+                     sctp_packet([sctp_chunk(ctype, b"\x01\x02\x03\x04"),
+                                  sctp_chunk(11)]))
+
+    # A packet with a correct CRC-32C, as a seed a mutator can work outward
+    # from: the checksum path is otherwise only ever reached in the failing
+    # direction, since random bytes never sum correctly.
+    body = sctp_packet([sctp_chunk(0, struct.pack(">IHHI", 1000, 1, 0, 51)
+                                   + b"hello", flags=0x03)])
+    write_parser("sctp", "valid_checksum",
+                 body[:8] + struct.pack("<I", crc32c(body)) + body[12:])
+
+
+# ── QUIC: a self-describing integer width, and a sender-chosen packet length ─
+
+def quic_varint(value):
+    if value < (1 << 6):
+        return bytes([value])
+    if value < (1 << 14):
+        return struct.pack(">H", 0x4000 | value)
+    if value < (1 << 30):
+        return struct.pack(">I", 0x80000000 | value)
+    return struct.pack(">Q", 0xC000000000000000 | value)
+
+
+def quic_long(first, version, dcid=b"", scid=b"", rest=b"",
+              dcid_len=None, scid_len=None):
+    return (bytes([first]) + struct.pack(">I", version)
+            + bytes([dcid_len if dcid_len is not None else len(dcid)]) + dcid
+            + bytes([scid_len if scid_len is not None else len(scid)]) + scid
+            + bytes(rest))
+
+
+def seed_quic():
+    dcid = bytes.fromhex("0102030405060708")
+    scid = bytes.fromhex("aabbccdd")
+
+    # A well-formed Initial, and one with a token, as mutation seeds.
+    write_parser("quic", "initial_v1",
+                 quic_long(0xC0, 1, dcid, scid,
+                           quic_varint(0) + quic_varint(32) + bytes(32)))
+    write_parser("quic", "initial_with_token",
+                 quic_long(0xC0, 1, dcid, scid,
+                           quic_varint(16) + bytes(16)
+                           + quic_varint(32) + bytes(32)))
+
+    # Connection ID lengths: past the version 1 limit, and past the datagram.
+    write_parser("quic", "dcid_len_255",
+                 quic_long(0xC0, 1, b"\x01\x02\x03", scid, dcid_len=255))
+    write_parser("quic", "scid_len_255",
+                 quic_long(0xC0, 1, dcid, b"\x01", scid_len=255))
+    write_parser("quic", "cid_len_over_20",
+                 quic_long(0xC0, 1, bytes(25), bytes(25),
+                           quic_varint(0) + quic_varint(0)))
+
+    # Variable-length integers announcing more bytes than arrived.
+    write_parser("quic", "token_varint_truncated",
+                 quic_long(0xC0, 1, b"", b"", b"\xc0\x00"))
+    write_parser("quic", "token_len_huge",
+                 quic_long(0xC0, 1, b"", b"",
+                           quic_varint(1 << 40) + b"\x01\x02"))
+    write_parser("quic", "length_huge",
+                 quic_long(0xC0, 1, b"", b"",
+                           quic_varint(0) + quic_varint(1 << 40) + b"\x01"))
+    write_parser("quic", "length_varint_truncated",
+                 quic_long(0xC0, 1, b"", b"", quic_varint(0) + b"\x80\x00"))
+
+    # A Length of zero, repeated: legal on the wire, and a step of zero for
+    # anything that walks payloads rather than whole packets.
+    empty = quic_long(0xE0, 1, b"", b"", quic_varint(0))
+    write_parser("quic", "coalesced_empty_many", empty * 64)
+    write_parser("quic", "coalesced_initial_handshake",
+                 quic_long(0xC0, 1, dcid, scid,
+                           quic_varint(0) + quic_varint(4) + bytes(4))
+                 + quic_long(0xE0, 1, dcid, scid,
+                             quic_varint(4) + bytes(4)))
+
+    # Version Negotiation: a list of 32-bit versions that need not be whole.
+    write_parser("quic", "version_negotiation",
+                 quic_long(0xC0, 0, dcid, scid,
+                           struct.pack(">III", 1, 0x6B3343CF, 0x1A2A3A4A)))
+    write_parser("quic", "version_negotiation_ragged",
+                 quic_long(0xC0, 0, dcid, scid, b"\x00\x00\x00\x01\xff"))
+    write_parser("quic", "version_negotiation_long",
+                 quic_long(0xC0, 0, b"", b"", struct.pack(">I", 1) * 64))
+
+    # Retry, whose trailing 16 bytes are an integrity tag.
+    write_parser("quic", "retry",
+                 quic_long(0xF0, 1, dcid, scid, bytes(8) + bytes(16)))
+    write_parser("quic", "retry_shorter_than_its_tag",
+                 quic_long(0xF0, 1, dcid, scid, b"\x01\x02"))
+
+    # Version 2, whose type numbering differs, and a reserved version, where
+    # RFC 8999 says nothing past the connection IDs may be read at all.
+    write_parser("quic", "initial_v2",
+                 quic_long(0xD0, 0x6B3343CF, dcid, b"",
+                           quic_varint(0) + quic_varint(8) + bytes(8)))
+    write_parser("quic", "reserved_version",
+                 quic_long(0xC0, 0x1A2A3A4A, dcid, scid,
+                           quic_varint(0) + quic_varint(8) + bytes(8)))
+
+    # Short header, and headers cut off at each field boundary.
+    write_parser("quic", "short_header", bytes([0x41]) + dcid + bytes(16))
+    for cut in (1, 2, 5, 6, 7, 14, 15):
+        write_parser("quic", f"truncated_at_{cut:02d}",
+                     quic_long(0xC0, 1, dcid, scid,
+                               quic_varint(0) + quic_varint(4))[:cut])
 
 
 # ── Application-layer parsers ───────────────────────────────────────────────
@@ -1206,6 +1451,8 @@ def main():
     seed_ipv4_fragments()
     seed_ipv6_extensions()
     seed_icmpv6()
+    seed_sctp()
+    seed_quic()
     seed_http()
     seed_tls()
     seed_dhcp()

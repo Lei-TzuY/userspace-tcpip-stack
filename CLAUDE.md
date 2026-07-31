@@ -35,7 +35,7 @@ cmake --build build-asan
 ctest --test-dir build-asan --output-on-failure
 ```
 
-Both must be **115/115** before a commit. See `PROJECT_STATE.md` for the
+Both must be **134/134** before a commit. See `PROJECT_STATE.md` for the
 baseline breakdown.
 
 Worth running a Release build too, at least when touching tests: it is the
@@ -89,6 +89,8 @@ src/            Parsers, state machines, analysis, dispatch, CLI
   linktype.c      non-Ethernet link layers
   pppoe.c vxlan.c gre.c   tunnels
   dns.c           RFC 1035 plus EDNS0 (6891) and DNSSEC (4034)
+  sctp.c          RFC 9260 chunk walk, and the only CRC-32C in the tree
+  quic.c          RFC 8999/9000/9369 long headers, as far as encryption allows
 tests/          Unit tests, capture fixtures, and the generators for both
   test_support.c  linked into every test target; see the invariants below
 fuzz/           Three targets, two drivers each, plus the checked-in corpus
@@ -168,13 +170,34 @@ when it fails.
     composes the header's low four bits with the OPT record's upper eight
     (RFC 6891 §6.1.3). Reading the header alone turns BADVERS into NOERROR —
     a different answer, not a truncated one.
-13. **Generated files are regenerated in dependency order**, because the corpus
+13. **An SCTP chunk or parameter walk rounds the declared length up to the
+    next four-byte boundary, and refuses a declared length below four.** The
+    padding is on the wire but outside the declared length, so a walk that
+    does not round up finds only the first chunk of a bundled packet; a length
+    below the four-byte header would advance the walk by nothing at all.
+    `transport_sctp_chunk_padding` pins the first and
+    `test_length_below_the_chunk_header_stops_the_walk` the second.
+14. **`sctp_checksum_ok()` is given the length IP reported, not the buffer
+    size**, and reads the checksum field little-endian. Ethernet pads short
+    frames, so summing the buffer makes every small packet fail; and RFC 9260
+    Appendix A byte-swaps the CRC before storing it, so reading that one field
+    big-endian like every other field makes every packet fail.
+15. **QUIC is dispatched on a port as well as on the sniff.** An ordinary
+    iterative DNS query whose ID ends in `0xff` satisfies every structural
+    test a long header offers. `test_sniff_alone_would_claim_a_dns_query`
+    exists to stop someone deleting the port gate as redundant.
+16. **A QUIC packet type is read only together with its version**, and an
+    unknown version stops the parse at the connection IDs. RFC 9369 renumbered
+    the type bits, so type 1 is Initial in v2 and 0-RTT in v1; RFC 8999
+    defines nothing past the connection IDs for any other version.
+17. **Generated files are regenerated in dependency order**, because the corpus
     seeds from the captures:
 
     ```sh
     python tests/gen_analysis_pcap.py   # tests/sample-analysis.pcap
     python tests/gen_encap_pcap.py      # tests/sample-{sll,sll2,raw,null,encap}.pcap
     python tests/gen_dns_pcap.py        # tests/sample-dns.pcap
+    python tests/gen_transport_pcap.py  # tests/sample-transport.pcap
     python tests/gen_fuzz_corpus.py     # fuzz/corpus/
     ```
 
@@ -214,6 +237,12 @@ CMakeLists.txt. One assertion per behaviour, so a failure names what broke.
   with `LNK1104`. That is not a code error.
 - Prefer writing a `.py` helper to the scratchpad over `python -c` with a
   heredoc; the quoting does not survive the shell layers.
+- **Never edit a source file with PowerShell's `Get-Content`/`Set-Content`.**
+  Half the files here contain box-drawing characters; `Get-Content` decodes
+  them as ANSI and `Set-Content -Encoding utf8` writes a BOM. A round trip
+  turns every `│` into `??` and leaves a file that still compiles. Use the
+  editor, and if you want to check a build reacts to a change, revert with git
+  rather than by editing the text back.
 
 ## A note on assertions
 
@@ -241,7 +270,7 @@ the first thing to check.
 2. If you touched a parser, run a mutation campaign as well — see
    `PROJECT_STATE.md` for the invocation. libFuzzer is unavailable here (no
    Clang); the replay driver's `--mutate` mode is the substitute.
-3. If you touched a generator, re-run all three in order and check the diff is
-   what you meant.
+3. If you touched a generator, re-run all of them in the order above and check
+   the diff is what you meant.
 4. Commit messages explain *why*, in the style of the existing history — read
    `git log` before writing one.
