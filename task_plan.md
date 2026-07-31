@@ -5,17 +5,25 @@ Current state is in `PROJECT_STATE.md`; working rules are in `CLAUDE.md`.
 
 ## Where we are
 
-Three rounds are complete and committed on `tcp-analysis-and-fuzz-harness`:
+Four rounds are complete and committed on `tcp-analysis-and-fuzz-harness`:
 robustness (fuzzing, sanitizers, CI), TCP expert analysis with JSON/CSV export,
-and encapsulation breadth. 99/99 tests pass in both the plain and ASan builds.
-Nothing is half-finished; any of the options below can start from a clean tree.
+encapsulation breadth, and DNS depth. 115/115 tests pass in the plain, ASan,
+and Release builds. Nothing is half-finished; any of the options below can
+start from a clean tree.
+
+Round 4 also fixed two defects in the test suite itself: `-DNDEBUG` had been
+compiling every assertion out of the four CI jobs that build Release, and a
+failing assertion on Windows opened a dialog box instead of failing. Both are
+recorded in `PROJECT_STATE.md`, and the rule they imply — new test targets go
+in `TEST_TARGETS` — is in `CLAUDE.md`.
 
 ## Definition of done — applies to every round
 
 A round is not finished until all of these hold:
 
 1. `ctest` is green in the plain build **and** the ASan build, with the count
-   higher than it started.
+   higher than it started. Run Release too when the change touches tests — it
+   is what four CI jobs build, and it is where a broken assertion hides.
 2. Every new parser has a unit test, a `fuzz_parsers` selector, and malformed
    seeds in `tests/gen_fuzz_corpus.py`.
 3. A mutation campaign over the affected targets runs clean (three targets ×
@@ -97,21 +105,18 @@ happens first the decoder can be shared.
 
 **Size.** Medium, and easily split across several commits.
 
-## Option E — DNS depth: EDNS0 and DNSSEC
+## ~~Option E — DNS depth: EDNS0 and DNSSEC~~ — done, round 4
 
-**Scope.** OPT pseudo-record (payload size, extended RCODE, flags), plus
-DNSKEY / RRSIG / DS / NSEC / NSEC3 record types reported structurally — not
-validated.
+Delivered: the OPT pseudo-record hoisted out of the additional section, its
+options decoded (Client Subnet, Cookie, Extended DNS Error, TCP Keepalive,
+NSID, Padding), the 12-bit extended RCODE, and DS / DNSKEY / RRSIG / NSEC /
+NSEC3 / NSEC3PARAM reported structurally with the DNSKEY key tag computed.
+`tests/sample-dns.pcap` and 32 new corpus inputs came with it.
 
-**Why.** The DNS parser is already the most-exercised in the corpus, and its
-name-compression handling is proven. EDNS0 is in nearly every real query today,
-so the parser is currently incomplete for ordinary traffic, not just exotic
-traffic.
-
-**Risk.** Low. The compression-pointer loop protection is already in place and
-tested.
-
-**Size.** Small.
+The estimate held — it was the small round it looked like. What it did not
+predict is that verifying one of its own assertions would surface two defects
+in how the suite is built. That is worth remembering when sizing the options
+below: the parser work is usually the predictable part.
 
 ## Option F — layer 2/3 breadth: MPLS, IPsec, 802.1ad
 
@@ -128,16 +133,18 @@ another unbounded-nesting shape, and the cap infrastructure already exists.
 
 ## Recommended order
 
-**A → E → B → D → F → C.**
+**A → B → D → F → C.** (E is done.)
 
-A first, because everything else assumes the current tree is correct and CI is
-the only thing that can check that assumption on three architectures and two
-sanitizers.
+A first, and now with more reason than before. Round 4 established that four of
+the seven jobs would have run hollow unit tests, which means the value of
+actually running CI is higher than the original estimate — it is not only
+"does it build on s390x" but "does the suite check anything there". Everything
+below still assumes the current tree is correct, and CI remains the only thing
+that can test that assumption on three architectures and two sanitizers.
 
-Then E, because it is small and completes a parser that real traffic already
-exercises. Then B for SCTP (small, self-contained) before QUIC. D and F are
-interchangeable filler that can absorb a partial session. C last, because it is
-the largest and benefits from a shared BER/DER decoder if D landed SNMP first.
+Then B for SCTP (small, self-contained) before QUIC. D and F are interchangeable
+filler that can absorb a partial session. C last, because it is the largest and
+benefits from a shared BER/DER decoder if D landed SNMP first.
 
 If the goal is *demonstrable* capability rather than correctness, invert this:
 C produces the most striking output. But it should not go first while three CI

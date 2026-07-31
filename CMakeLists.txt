@@ -184,6 +184,32 @@ if(BUILD_TESTING)
             ${CMAKE_CURRENT_SOURCE_DIR}/tests/sample-spb.pcapng
     )
 
+    # ── what every test target needs ──────────────────────────────────────────
+    #
+    # These tests check things with assert(), and two build settings quietly
+    # stop that from meaning anything:
+    #
+    #   -DNDEBUG, which CMake puts in every Release configuration, compiles
+    #   assert() out entirely. Four of the seven CI jobs build Release, so
+    #   without -UNDEBUG their unit tests verify only that the process exits 0.
+    #   Undefining it here rather than forcing Debug keeps the optimiser on,
+    #   which is worth having: -O2 and -O0 do not always agree about
+    #   uninitialised reads.
+    #
+    #   On Windows the debug CRT answers a failed assertion with a dialog box
+    #   instead of a message, so a failing test hangs. tests/test_support.c
+    #   sends those reports to stderr; see the comment there.
+    set(TEST_TARGETS
+        test_tcp_state test_tcp_analysis test_linktype test_tunnel
+        test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
+        test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
+        test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
+    )
+    foreach(test_target IN LISTS TEST_TARGETS)
+        target_sources(${test_target} PRIVATE tests/test_support.c)
+        target_compile_options(${test_target} PRIVATE -UNDEBUG)
+    endforeach()
+
     add_test(NAME sample_pcap
         COMMAND tcpip ${CMAKE_CURRENT_SOURCE_DIR}/tests/sample.pcap
     )
@@ -619,6 +645,52 @@ if(BUILD_TESTING)
     # the C stack and killed the process.
     add_capture_test(tunnel_depth_capped sample-encap.pcap
         "encap. nested deeper than 8 layers")
+
+    # ── EDNS0 and DNSSEC ──────────────────────────────────────────────────────
+    #
+    # tests/sample-dns.pcap, one scenario per packet. See gen_dns_pcap.py for
+    # why these are not in sample.pcap.
+    add_capture_test(dns_edns_udp_size  sample-dns.pcap "UDP size : 1232")
+    add_capture_test(dns_edns_do_bit    sample-dns.pcap "flags=0x8000  .DO.")
+    add_capture_test(dns_edns_subnet    sample-dns.pcap
+        "Client Subnet   192.0.2.0/24 scope /0")
+    add_capture_test(dns_edns_cookie    sample-dns.pcap
+        "client 0102030405060708 . 8-byte server")
+    add_capture_test(dns_edns_nsid      sample-dns.pcap "NSID")
+    add_capture_test(dns_edns_padding   sample-dns.pcap "Padding         16 byte")
+
+    # The OPT is counted in ARCOUNT but is not a record about a name, so it
+    # must never be printed as one. Its class field is a UDP payload size and
+    # its TTL field is a flags word, so a line reading "OPT ... TTL=32768"
+    # would be three separate lies. FAIL_REGULAR_EXPRESSION wins over PASS in
+    # CTest, so this asserts the absence rather than merely finding the EDNS
+    # block somewhere.
+    add_test(NAME dns_opt_not_listed_as_a_record
+        COMMAND tcpip ${CMAKE_CURRENT_SOURCE_DIR}/tests/sample-dns.pcap)
+    set_tests_properties(dns_opt_not_listed_as_a_record PROPERTIES
+        PASS_REGULAR_EXPRESSION "-- EDNS0 .RFC 6891. --"
+        FAIL_REGULAR_EXPRESSION "OPT     TTL=")
+
+    # BADVERS exists only once the OPT extends the RCODE past four bits.
+    # Reading the header alone would print NOERROR here.
+    add_capture_test(dns_extended_rcode sample-dns.pcap "RCODE=16 .BADVERS.")
+    add_capture_test(dns_extended_error sample-dns.pcap
+        "6 .DNSSEC Bogus. .no RRSIG covering")
+
+    # DNSSEC records, reported structurally and never validated.
+    add_capture_test(dns_rrsig_times    sample-dns.pcap
+        "20240101000000..20240201000000")
+    add_capture_test(dns_rrsig_signer   sample-dns.pcap
+        "keytag=40664 signer=example.com")
+    add_capture_test(dns_dnskey_flags   sample-dns.pcap
+        "keytag=40664 flags=0x0101 ZONE SEP")
+    add_capture_test(dns_nsec_bitmap    sample-dns.pcap
+        "mail.example.com A NS SOA RRSIG NSEC DNSKEY")
+    add_capture_test(dns_ds_algorithms  sample-dns.pcap
+        "alg=8 .RSASHA256. digest=2 .SHA-256.")
+    add_capture_test(dns_nsec3_optout   sample-dns.pcap
+        "OPTOUT iter=10 salt=aabbccdd")
+    add_capture_test(dns_ad_flag        sample-dns.pcap "AA RD RA AD")
 endif()
 
 # ── Fuzz targets ──────────────────────────────────────────────────────────────
@@ -678,4 +750,19 @@ if(TCPIP_FUZZ)
     endforeach()
 
     message(STATUS "Fuzzing: libFuzzer targets enabled (fuzz_frame, fuzz_parsers, fuzz_pcap)")
+endif()
+
+# ── a bound on every test ─────────────────────────────────────────────────────
+#
+# The whole suite finishes in seconds natively, so anything still running after
+# five minutes has stopped making progress — a parser looping on a length that
+# never advances, or a test waiting on something that will not arrive. CTest's
+# own default is 1500 seconds, long enough that a hang reads as a stuck CI job
+# rather than as a failure. This is deliberately loose enough for the emulated
+# big-endian job, where everything runs an order of magnitude slower.
+if(BUILD_TESTING)
+    get_property(ALL_TESTS DIRECTORY PROPERTY TESTS)
+    if(ALL_TESTS)
+        set_tests_properties(${ALL_TESTS} PROPERTIES TIMEOUT 300)
+    endif()
 endif()
