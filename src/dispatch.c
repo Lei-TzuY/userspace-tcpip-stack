@@ -32,11 +32,31 @@
 #include "igmp.h"
 #include "pppoe.h"
 #include "vxlan.h"
+#include "sctp.h"
+#include "quic.h"
 
-/* IP protocol numbers that carry another IP packet directly. */
+/*
+ * IP protocol numbers this file dispatches on that are not already named by
+ * every platform's headers.
+ *
+ * The guards matter: glibc's <netinet/in.h> declares these as enumerators and
+ * then defines each name as a macro expanding to itself, so an unguarded
+ * `#define IPPROTO_GRE 47` here is a macro redefinition with a different
+ * token sequence — a diagnostic on GCC and Clang, in the builds that have the
+ * least tolerance for noise.
+ */
+#ifndef IPPROTO_IPIP
 #define IPPROTO_IPIP  4    /* IPv4 in IPv4, or IPv4 in IPv6 */
+#endif
+#ifndef IPPROTO_IPV6_IN
 #define IPPROTO_IPV6_IN 41 /* IPv6 in IPv4 ("6in4"), or IPv6 in IPv6 */
+#endif
+#ifndef IPPROTO_GRE
 #define IPPROTO_GRE   47
+#endif
+#ifndef IPPROTO_SCTP
+#define IPPROTO_SCTP  132
+#endif
 
 /* ── lifecycle ───────────────────────────────────────────────────────────── */
 
@@ -110,6 +130,39 @@ static void handle_tcp_payload(const uint8_t* payload, size_t payload_len) {
     }
 }
 
+/*
+ * SCTP needs nothing from the IP header: its checksum covers the SCTP packet
+ * alone, with no pseudo-header, so one handler serves both IP versions.
+ *
+ * `payload_len` must be the length IP reports, not the size of the buffer —
+ * Ethernet padding summed into a CRC-32C makes every checksum read as wrong.
+ */
+static void handle_sctp(const uint8_t* payload, size_t payload_len) {
+    SctpPacket sctp;
+
+    if (sctp_parse(payload, payload_len, &sctp) != 0)
+        return;
+    sctp_print(&sctp, sctp_checksum_ok(payload, payload_len));
+}
+
+/*
+ * QUIC does not reserve a port — it is defined over UDP generally, and the
+ * long header is what identifies it. Sniffing every datagram anyway is not
+ * safe. An ordinary iterative DNS query whose ID ends in 0xff and which has
+ * the recursion-desired bit clear reads, byte for byte, as a long header
+ * announcing an IETF draft version with a one-byte connection ID; roughly one
+ * query in a thousand has that shape. Taking those away from the DNS parser
+ * would be a worse answer than missing QUIC on an unusual port, so the port
+ * has to look like QUIC as well as the bytes.
+ * tests/test_quic_parse.c pins that collision.
+ */
+static int is_quic_port(uint16_t port) {
+    return port == 443     /* HTTP/3 */
+        || port == 4433    /* the interop convention */
+        || port == 8443
+        || port == 853;    /* DNS over QUIC, RFC 9250 */
+}
+
 /* Forward declarations for the recursive tunnel paths. */
 static void handle_ipv4(StackContext* ctx,
                         const uint8_t* payload, size_t payload_len,
@@ -145,6 +198,15 @@ static void handle_udp_payload(StackContext* ctx, const UdpHeader* udp,
                 handle_ethernet(ctx, vxlan.payload, vxlan.payload_len,
                                 timestamp_usec, depth + 1);
         }
+        return;
+    }
+
+    if ((is_quic_port(udp->src_port) || is_quic_port(udp->dst_port))
+            && (quic_sniff(udp->payload, udp->payload_len)
+                || quic_is_short_header(udp->payload, udp->payload_len))) {
+        QuicDatagram quic;
+        if (quic_parse(udp->payload, udp->payload_len, &quic) == 0)
+            quic_print(&quic);
         return;
     }
 
@@ -313,6 +375,9 @@ static void handle_ipv4_transport(StackContext* ctx, const Ipv4Header* ip,
             break;
         case IPPROTO_TCP:
             handle_tcp(ctx, ip, payload, payload_len, timestamp_usec);
+            break;
+        case IPPROTO_SCTP:
+            handle_sctp(payload, payload_len);
             break;
         case IPPROTO_GRE:
             handle_gre(ctx, payload, payload_len, timestamp_usec, depth);
@@ -521,6 +586,9 @@ static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
             break;
         case IPPROTO_TCP:
             handle_ipv6_tcp(ctx, ip, payload, payload_len, timestamp_usec);
+            break;
+        case IPPROTO_SCTP:
+            handle_sctp(payload, payload_len);
             break;
         default:
             printf("  [ipv6] next-header dispatch not yet supported: %u (%s)\n",

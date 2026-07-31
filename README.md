@@ -4,7 +4,8 @@ A C99 educational network-stack and packet-analysis project. It parses Ethernet,
 
 ## Highlights
 
-- Protocol parsers for Ethernet, ARP, IPv4, IPv6, ICMP/ICMPv6, TCP, UDP, DNS, DHCP/DHCPv6, HTTP, TLS, NTP, GRE, IGMP, and mDNS.
+- Protocol parsers for Ethernet, ARP, IPv4, IPv6, ICMP/ICMPv6, TCP, UDP, SCTP, QUIC, DNS, DHCP/DHCPv6, HTTP, TLS, NTP, GRE, IGMP, and mDNS.
+- SCTP with its chunk and parameter walk and a verified CRC-32C, and QUIC long headers read as far as encryption allows.
 - DNS covering what today's traffic actually carries: EDNS0 with its options decoded, the 12-bit extended RCODE, and DNSSEC records reported structurally.
 - Link layers beyond Ethernet: Linux cooked v1/v2, raw IP, and BSD loopback, so captures from `tcpdump -i any`, a VPN interface, or loopback parse rather than being skipped.
 - Tunnels decapsulated recursively: GRE, IPv4-in-IPv4, 6in4, PPPoE, and VXLAN, with a depth cap.
@@ -108,6 +109,84 @@ cosmetic: the packet alone decides how many layers there are, each one costs a
 stack frame, and a single packet small enough to fit the read buffer can name
 thousands. `tests/gen_encap_pcap.py` includes a twelve-deep packet so the suite
 checks that the walk stops.
+
+## Transports beyond TCP and UDP
+
+### SCTP
+
+An SCTP packet is a twelve-byte common header followed by a chain of chunks,
+each declaring its own length, and an INIT, ABORT or ERROR carries a second
+chain of the same shape nested inside. Both are walked; both are capped.
+
+```text
+│  chunk 0   : INIT              len=48 flags=0x00
+│      tag=0xaabbccdd a_rwnd=106496 out=10 in=5 initial TSN=10000
+│      param 5     IPv4 Address                 4 byte(s)
+│      param 12    Supported Address Types      2 byte(s)
+```
+
+DATA, INIT, INIT ACK, SACK (with its gap blocks resolved to absolute TSNs),
+SHUTDOWN, ABORT, ERROR and FORWARD TSN are decoded; the rest are named. For a
+chunk type this build does not know, the top two bits of the type say what a
+receiver is meant to do with it — stop, or skip, and whether to report — and
+that is printed instead of a guess.
+
+Two details are worth knowing. A chunk's declared length excludes the padding
+that aligns the next chunk to a four-byte boundary, so a walk that does not
+round up silently stops after the first chunk of a bundled packet; and a
+declared length below four describes something smaller than the header that
+declared it, which would make the walk stand still. That case ends the walk.
+
+The checksum is CRC-32C (RFC 3309), not the one's-complement sum every other
+protocol here uses, and it is the single field of an SCTP packet that is not
+big endian — RFC 9260 Appendix A byte-swaps the result before storing it.
+`tests/test_sctp_parse.c` checks the implementation against the published
+CRC-32C check value for `123456789` and the all-zero vector from RFC 3720
+Appendix B, so the table is verified against something other than itself, and
+`tests/sample-transport.pcap` carries one packet with a deliberately wrong
+checksum so the verdict is tested in both directions.
+
+### QUIC
+
+Only the clear-text part of a QUIC packet is readable, and that is the point:
+everything from the packet number onward is protected by keys derived from the
+Initial secret, and even the packet number's length bits are masked by header
+protection. Rather than print a packet number it cannot know, this reports what
+is genuinely on the wire.
+
+```text
+│  packet 0  : Initial  version=0x00000001 (v1, RFC 9000)
+│      DCID  : 8 byte(s)  0102030405060708
+│      SCID  : 4 byte(s)  aabbccdd
+│      Token : 16 byte(s)
+│      Length: 200 byte(s) of packet number and payload, encrypted
+│  packet 1  : Handshake  version=0x00000001 (v1, RFC 9000)
+```
+
+Version 1 (RFC 9000), version 2 (RFC 9369), the IETF drafts, and Version
+Negotiation are named. The two type bits mean different things per version —
+type 1 is Initial in v2 and 0-RTT in v1 — so reading them without the version
+gives a different answer rather than a partial one, and for a version this
+build does not know, the parse stops at the connection IDs, which is exactly as
+far as RFC 8999 defines anything.
+
+One datagram may carry several packets back to back, and the Length field of
+each is the only thing saying where the next begins. That is a sender-chosen
+offset driving a loop, so the walk is capped at `QUIC_MAX_COALESCED` and every
+step is required to advance.
+
+QUIC reserves no port, but sniffing every UDP datagram is not safe: an ordinary
+iterative DNS query whose transaction ID ends in `0xff` reads, byte for byte,
+as a long header announcing an IETF draft version with a one-byte connection
+ID. Roughly one query in a thousand has that shape, so the dispatcher requires
+a QUIC port (443, 4433, 8443, or 853 for DNS over QUIC) as well as the
+structural check. `tests/test_quic_parse.c` pins that collision, so the reason
+for the port gate cannot be optimised away by someone who has forgotten it.
+
+A 1-RTT (short-header) packet is reported as such and no further. Its
+destination connection ID has no length prefix — the receiver is expected to
+know how long the IDs it issued are — so nothing after the first byte can be
+located from the packet alone.
 
 ## DNS: EDNS0 and DNSSEC
 
@@ -264,20 +343,22 @@ executing when the process died.
 seeds come from `tests/sample.pcap`, which already reaches deep into every
 parser; from `tests/sample-analysis.pcap`, which is the only fixture carrying
 SACK options, duplicate-ACK runs, and zero-window advertisements — so it is
-what reaches the expert analysis at all; and from `tests/sample-dns.pcap`,
-which is the only one carrying an OPT record or a signed RRset. The rest are
+what reaches the expert analysis at all; from `tests/sample-dns.pcap`, which is
+the only one carrying an OPT record or a signed RRset; and from
+`tests/sample-transport.pcap`, the only one carrying SCTP or QUIC. The rest are
 hand-built malformed inputs aimed at the places where the stack walks an
 attacker-controlled length: TLV option chains, DNS name compression, EDNS
-option lists, NSEC type bit maps, IPv6 extension headers, and pcapng block
-totals.
+option lists, NSEC type bit maps, IPv6 extension headers, SCTP chunk and
+parameter chains, QUIC variable-length integers, and pcapng block totals.
 
-Four scripts generate checked-in files, and the corpus seeds from the captures
-the other three produce, so it goes last:
+Five scripts generate checked-in files, and the corpus seeds from the captures
+the other four produce, so it goes last:
 
 ```sh
 python tests/gen_analysis_pcap.py   # tests/sample-analysis.pcap
 python tests/gen_encap_pcap.py      # tests/sample-{sll,sll2,raw,null,encap}.pcap
 python tests/gen_dns_pcap.py        # tests/sample-dns.pcap
+python tests/gen_transport_pcap.py  # tests/sample-transport.pcap
 python tests/gen_fuzz_corpus.py     # fuzz/corpus/
 ```
 

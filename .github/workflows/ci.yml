@@ -169,6 +169,8 @@ jobs:
         run: python tests/gen_encap_pcap.py
       - name: Regenerate the EDNS0/DNSSEC capture
         run: python tests/gen_dns_pcap.py
+      - name: Regenerate the SCTP/QUIC capture
+        run: python tests/gen_transport_pcap.py
       # The corpus seeds from those captures, so it is regenerated last.
       - name: Regenerate the fuzz corpus
         run: python tests/gen_fuzz_corpus.py
@@ -179,6 +181,7 @@ jobs:
             echo "  python tests/gen_analysis_pcap.py"
             echo "  python tests/gen_encap_pcap.py"
             echo "  python tests/gen_dns_pcap.py"
+            echo "  python tests/gen_transport_pcap.py"
             echo "  python tests/gen_fuzz_corpus.py"
             git diff --stat -- fuzz/corpus tests/sample-*.pcap
             exit 1

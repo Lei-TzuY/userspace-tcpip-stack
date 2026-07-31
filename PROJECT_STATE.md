@@ -8,12 +8,13 @@ it.
 - **Branch:** `tcp-analysis-and-fuzz-harness` (**not pushed**; no PR opened)
 - **Base:** `main` at `9ad6ae1`
 - **Working tree:** clean
-- **Tests:** 115/115 plain, 115/115 AddressSanitizer, 115/115 Release
+- **Tests:** 134/134 plain, 134/134 AddressSanitizer, 134/134 Release
 
 ## Commit history on this branch
 
 ```text
-(this commit)  Parse EDNS0 and DNSSEC, and make the test suite's assertions count
+(this commit)  Parse SCTP and QUIC, the two transports the stack could not read
+2e8b9fe  Parse EDNS0 and DNSSEC, and make the test suite's assertions count
 2f10485  Write down the state a fresh session would otherwise have to rediscover
 cf5a9b2  Decapsulate tunnels and non-Ethernet link layers, and cap the nesting depth   67 files, +1865 −71
 ae3f9b2  Add fuzz harness, TCP expert analysis, and a machine-readable report         379 files, +5709 −541
@@ -41,13 +42,13 @@ f481b55  Keep capture fixtures and fuzz corpus byte-exact
       │                        │                         │
       └────────────► ipv4.c / ipv6.c ◄───────────────────┘  ← recursion,
                           │                                   depth-capped
-             ┌────────────┼──────────────┬─────────┐
-          icmp.c       tcp.c          udp.c     igmp.c
-          icmpv6.c        │              │
-                          │              └── dns.c dhcp.c dhcpv6.c ntp.c
-                          │
-                 tcp_state.c ──► tcp_analysis.c ──► report.c
-                 tcp_stream.c                        (JSON / CSV)
+          ┌───────────┬───┴──────────┬─────────┬─────────┐
+       icmp.c      tcp.c          udp.c     igmp.c    sctp.c
+       icmpv6.c       │              │
+                      │              └── dns.c dhcp.c dhcpv6.c ntp.c quic.c
+                      │
+             tcp_state.c ──► tcp_analysis.c ──► report.c
+             tcp_stream.c                        (JSON / CSV)
 ```
 
 Cross-packet state lives in one `StackContext` (`src/dispatch.h`): the ARP
@@ -55,8 +56,8 @@ cache, the TCP tracker, the UDP tracker, and the two reassemblers. It is
 heap-allocated because the TCP tracker alone holds a reassembly window per
 endpoint.
 
-Roughly 7,700 lines of C in `src/`, 2,600 of headers, 3,300 of tests, 3,100 of
-Python generators, 880 of fuzz harness.
+Roughly 8,800 lines of C in `src/`, 2,900 of headers, 4,200 of tests, 3,700 of
+Python generators, 900 of fuzz harness.
 
 ### Layering rules that hold today
 
@@ -134,6 +135,33 @@ timestamps placed deliberately on each side of the analysis thresholds.
 - **`tests/gen_dns_pcap.py` → `tests/sample-dns.pcap`**, one scenario per
   packet, and 32 new fuzz-corpus inputs.
 - **Two defects in the test suite itself** — see bug 4 below.
+
+### Round 5 — transport breadth: SCTP and QUIC
+
+- **SCTP (RFC 9260).** Common header, the chunk walk, and the parameter and
+  error-cause walks nested inside INIT / ABORT / ERROR. DATA, INIT, INIT ACK,
+  SACK (gap blocks resolved to absolute TSNs), SHUTDOWN, ABORT, ERROR and
+  FORWARD TSN are decoded; the rest are named, and an unrecognised type is
+  reported with what RFC 9260 §3.2's top two bits say a receiver should do.
+  Dispatched from both the IPv4 and the IPv6 switch.
+- **CRC-32C**, the first checksum here that is not a one's-complement sum. A
+  64-byte reflected nibble table, verified in the unit test against the
+  published `123456789` check value and RFC 3720 Appendix B's all-zero vector
+  rather than against itself. The capture carries one packet with a wrong
+  checksum, so the verdict is exercised in both directions.
+- **QUIC long headers (RFC 8999 / 9000 / 9369).** Version, connection IDs,
+  token and Length; Initial, 0-RTT, Handshake, Retry and Version Negotiation;
+  coalesced packets walked through the Length field with a cap; the RFC 9000
+  §16 variable-length integer. Nothing is decrypted, and the packet number is
+  not printed, because header protection masks even its length.
+- **`tests/gen_transport_pcap.py` → `tests/sample-transport.pcap`**, 12
+  packets, and 84 new fuzz-corpus inputs.
+- **`#ifndef` guards on the `IPPROTO_*` defines in `dispatch.c`.** glibc
+  declares these as enumerators and then defines each name as a macro
+  expanding to itself, so the existing unguarded `#define IPPROTO_GRE 47` was
+  a macro redefinition with a different token sequence — a diagnostic on GCC
+  and Clang. It has never been seen because the CI jobs that would print it
+  have never run.
 
 ## Bugs found and fixed
 
@@ -237,15 +265,19 @@ checkout produced byte-identical files, and that `http_bare_lf` still contained
 | Test targets are built with `-UNDEBUG` | Otherwise Release compiles every assertion in the suite away, which is what four of the seven CI jobs build. |
 | Both a libFuzzer build and a portable replay driver | libFuzzer needs Clang, which is not available on the development machine. The replay driver runs the corpus under CTest with any compiler, and has a dumb mutation mode that still found real bugs under ASan. |
 | Heuristic thresholds are labelled as heuristics in the code | A capture taken at the other end of the path can legitimately disagree with a timing-based verdict. |
+| QUIC needs a port match as well as a structural sniff | An ordinary iterative DNS query whose ID ends in `0xff` reads byte for byte as a long header of an IETF draft version. Losing QUIC on an unusual port is a smaller error than taking one DNS query in a thousand away from the DNS parser. |
+| QUIC's packet number is not printed | Header protection masks the two bits that say how long it is, so any value shown would be a guess dressed as an observation. |
+| An unknown QUIC version stops the parse at the connection IDs | RFC 8999 defines nothing beyond them. Applying version 1's layout to a version that does not exist yet produces confident nonsense. |
+| SCTP chunk detail is decoded at parse time, lists are capped | The unit tests can then assert on values rather than on printed text, and a packet cannot make the parser allocate. `value_len` is what arrived, never what was declared — the same rule as `TcpOption.data_len`. |
 
 ## Test baseline
 
-**115 CTest tests, 100% passing** in the plain, ASan, and Release
+**134 CTest tests, 100% passing** in the plain, ASan, and Release
 configurations. Breakdown:
 
 | Group | Count | What |
 | --- | --- | --- |
-| Unit-test binaries | 16 | `test_tcp_state`, `test_tcp_analysis` (26 cases), `test_dns_parse` (21 cases), `test_linktype`, `test_tunnel`, `test_tcp_parse`, `test_tcp_stream`, `test_ipv4_parse`, `test_ipv6_parse`, `test_icmpv6_parse`, `test_udp_parse`, `test_ipv4_reassembly`, `test_ethernet_parse`, `test_arp_parse`, `test_arp_cache`, `test_pcap_reader` |
+| Unit-test binaries | 18 | `test_tcp_state`, `test_tcp_analysis` (26 cases), `test_dns_parse` (21 cases), `test_sctp_parse` (19 cases), `test_quic_parse` (23 cases), `test_linktype`, `test_tunnel`, `test_tcp_parse`, `test_tcp_stream`, `test_ipv4_parse`, `test_ipv6_parse`, `test_icmpv6_parse`, `test_udp_parse`, `test_ipv4_reassembly`, `test_ethernet_parse`, `test_arp_parse`, `test_arp_cache`, `test_pcap_reader` |
 | `sample_pcap*` | 41 | Output assertions against `tests/sample.pcap` |
 | pcapng fixtures | 2 | Little-endian and big-endian |
 | `analysis_*` | 13 | One TCP verdict each, against `sample-analysis.pcap` |
@@ -253,10 +285,11 @@ configurations. Breakdown:
 | `link_*` | 10 | SLL, SLL2, raw IP, loopback, including the byte-order guess |
 | `tunnel_*` | 8 | IPIP, 6in4, PPPoE, VXLAN, and the depth cap |
 | `dns_*` | 16 | EDNS0 options, the extended RCODE, the DNSSEC records, and the one assertion written as an absence |
-| `fuzz_corpus_*` | 3 | Replay of all 433 checked-in inputs |
+| `transport_*` | 17 | SCTP chunks, parameters, the CRC-32C both ways, and the QUIC packet types |
+| `fuzz_corpus_*` | 3 | Replay of all 517 checked-in inputs |
 
-Growth: 54 → 57 → 79 → 99 → 115 across the four rounds. Fuzz corpus:
-0 → 399 → 433 (frame 72, parsers 328, pcap 33).
+Growth: 54 → 57 → 79 → 99 → 115 → 134 across the five rounds. Fuzz corpus:
+0 → 399 → 433 → 517 (frame 73, parsers 410, pcap 34).
 
 Every test carries `TIMEOUT 300`, so a hang is a failure rather than a stuck
 job.
@@ -272,8 +305,8 @@ Hand-written mutation mode only (no Clang on this machine), under ASan:
 
 Mutation is deterministic given `--seed`, so a crash reproduces: re-run with the
 same seed and read `--save-current`. Round 3 ran three targets × two seeds
-(21, 22) and round 4 the same with seeds 31 and 32 — about 210,000 inputs each
-— all clean.
+(21, 22), round 4 the same with seeds 31 and 32, and round 5 with 41 and 42 —
+about 600,000 inputs per round, all clean.
 
 ## Known issues and unverified claims
 
@@ -304,3 +337,12 @@ correct than it looks.
 7. **No live capture.** Offline files only; there is no `pcap_open_live`
    equivalent and adding one would need libpcap, which the no-dependency rule
    currently forbids.
+8. **SCTP and QUIC are parsed per packet, not tracked.** There is no
+   association state for SCTP — no TSN accounting, no bundling across packets
+   — and no QUIC connection table keyed by connection ID, so a migration or a
+   retired ID is invisible. Both are the same shape of work `tcp_state.c` does
+   for TCP, and neither was attempted in round 5.
+9. **QUIC is only recognised on ports 443, 4433, 8443 and 853.** That is a
+   deliberate trade (see the design table), but it does mean QUIC on any other
+   port shows as plain UDP. A short-header packet on one of those ports is
+   reported as 1-RTT on the strength of the port alone.

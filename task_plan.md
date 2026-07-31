@@ -5,17 +5,23 @@ Current state is in `PROJECT_STATE.md`; working rules are in `CLAUDE.md`.
 
 ## Where we are
 
-Four rounds are complete and committed on `tcp-analysis-and-fuzz-harness`:
+Five rounds are complete and committed on `tcp-analysis-and-fuzz-harness`:
 robustness (fuzzing, sanitizers, CI), TCP expert analysis with JSON/CSV export,
-encapsulation breadth, and DNS depth. 115/115 tests pass in the plain, ASan,
-and Release builds. Nothing is half-finished; any of the options below can
-start from a clean tree.
+encapsulation breadth, DNS depth, and transport breadth (SCTP and QUIC).
+134/134 tests pass in the plain, ASan, and Release builds. Nothing is
+half-finished; any of the options below can start from a clean tree.
 
 Round 4 also fixed two defects in the test suite itself: `-DNDEBUG` had been
 compiling every assertion out of the four CI jobs that build Release, and a
 failing assertion on Windows opened a dialog box instead of failing. Both are
 recorded in `PROJECT_STATE.md`, and the rule they imply — new test targets go
 in `TEST_TARGETS` — is in `CLAUDE.md`.
+
+Round 5 turned up one thing worth carrying forward: the `IPPROTO_*` defines in
+`dispatch.c` had always been macro redefinitions on glibc, which is a
+diagnostic on GCC and Clang. Nobody had seen it because the jobs that would
+print it have never run. That is the third time a defect has survived because
+CI is unexecuted rather than because it was hard to find.
 
 ## Definition of done — applies to every round
 
@@ -55,21 +61,23 @@ changes what the next round should be.
 **Done when:** all 7 jobs pass on the pushed branch, or the failures are fixed
 and pass.
 
-## Option B — transport breadth: SCTP and QUIC
+## ~~Option B — transport breadth: SCTP and QUIC~~ — done, round 5
 
-**Scope.** SCTP common header and chunk walk (DATA, INIT, SACK, HEARTBEAT),
-including the CRC32c checksum. QUIC long-header Initial packets: version,
-connection IDs, and enough to name the version and the handshake — *not*
-decryption, which needs the HKDF key schedule and is a different project.
+Delivered: the SCTP common header, chunk walk, and the parameter and
+error-cause walks nested inside it, with a CRC-32C verified against published
+check values; QUIC long headers for v1, v2, the drafts and Version
+Negotiation, including coalesced packets and the RFC 9000 §16 variable-length
+integer. `tests/sample-transport.pcap` and 84 new corpus inputs came with it.
 
-**Why.** SCTP is the last classic transport the stack does not know, and its
-chunk walk is exactly the TLV-length pattern where the other bugs lived. QUIC
-carries a growing share of real traffic and currently shows as unremarkable UDP.
+The estimate was right about where the risk was — the varint and the coalescing
+walk are the fiddly parts — but wrong about what would take the time. The
+parsers were straightforward; what needed thought was deciding *when* to claim
+a datagram is QUIC, since the long header is not distinctive enough to sniff on
+its own.
 
-**Risk.** Low for SCTP. QUIC has a variable-length integer encoding that is easy
-to get subtly wrong on the boundary cases — fuzz it hard.
-
-**Size.** Medium. SCTP alone is small and self-contained.
+Two things it did not do, both recorded in `PROJECT_STATE.md`: neither protocol
+is tracked across packets (no SCTP association state, no QUIC connection table
+keyed by connection ID), and QUIC is only looked for on four ports.
 
 ## Option C — TLS depth: certificates, ALPN, JA3
 
@@ -131,20 +139,42 @@ another unbounded-nesting shape, and the cap infrastructure already exists.
 
 **Size.** Small to medium.
 
+## Option G — track SCTP associations and QUIC connections
+
+**Scope.** For SCTP: an association table keyed by the verification tag and the
+address/port pair, TSN accounting, and retransmission and gap detection of the
+kind `tcp_analysis.c` already does for TCP. For QUIC: a connection table keyed
+by connection ID, so a datagram can be attributed to a handshake seen earlier
+and a connection migration is visible rather than looking like a new flow.
+
+**Why.** Round 5 made both protocols readable per packet, which is where the
+existing UDP support already was and well short of what the TCP side does.
+The analysis machinery is the project's most distinctive part and neither new
+transport reaches it.
+
+**Risk.** Medium. QUIC connection IDs are chosen by the receiver and can be
+retired and replaced mid-connection, and the frames that do so are encrypted —
+so the table can only ever be keyed on what the handshake exposed in clear.
+Say so rather than implying more.
+
+**Size.** Medium for SCTP, larger for QUIC.
+
 ## Recommended order
 
-**A → B → D → F → C.** (E is done.)
+**A → G → D → F → C.** (B and E are done.)
 
 A first, and now with more reason than before. Round 4 established that four of
-the seven jobs would have run hollow unit tests, which means the value of
-actually running CI is higher than the original estimate — it is not only
-"does it build on s390x" but "does the suite check anything there". Everything
-below still assumes the current tree is correct, and CI remains the only thing
-that can test that assumption on three architectures and two sanitizers.
+the seven jobs would have run hollow unit tests; round 5 found a macro
+redefinition that GCC and Clang would both have flagged on the first run. That
+is twice now that the cost of unexecuted CI has been paid in defects found
+later than they should have been. Everything below still assumes the current
+tree is correct, and CI remains the only thing that can test that assumption on
+three architectures and two sanitizers.
 
-Then B for SCTP (small, self-contained) before QUIC. D and F are interchangeable
-filler that can absorb a partial session. C last, because it is the largest and
-benefits from a shared BER/DER decoder if D landed SNMP first.
+Then G, which is what makes round 5's parsers worth as much as the TCP side.
+D and F are interchangeable filler that can absorb a partial session. C last,
+because it is the largest and benefits from a shared BER/DER decoder if D
+landed SNMP first.
 
 If the goal is *demonstrable* capability rather than correctness, invert this:
 C produces the most striking output. But it should not go first while three CI
@@ -156,5 +186,10 @@ jobs have never run.
   analysis is the project's scope.
 - **Packet transmission.** This is a parser, not a stack that speaks.
 - **TLS decryption.** Out of scope even with keys; a different project.
+- **QUIC decryption.** The Initial keys are derivable from the version and the
+  client's connection ID, so an Initial packet's CRYPTO frames *could* be read
+  without any secret — but it needs HKDF-SHA256 and AES-GCM in-tree, which is
+  a cryptography project wearing a parser's clothes. Everything after the
+  handshake needs keys the capture does not contain.
 - **Performance work.** Nothing here is slow enough to matter, and optimising a
   parser before it is proven correct is the wrong order.
