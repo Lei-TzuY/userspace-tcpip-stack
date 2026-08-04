@@ -1,0 +1,17 @@
+# Byte-exact files. Git's automatic text detection looks for NUL bytes, and
+# several fuzz inputs are pure ASCII by design — the HTTP cases in particular
+# test bare-LF line endings. With core.autocrlf enabled those LFs would be
+# rewritten to CRLF on checkout, quietly turning a test case into a different
+# one. Capture fixtures are binary for the same reason: a byte is a byte.
+fuzz/corpus/** binary
+*.pcap   binary
+*.pcapng binary
+
+# Source and build files are text, normalised to LF in the repository so the
+# Windows and Linux CI jobs compile identical bytes.
+*.c   text eol=lf
+*.h   text eol=lf
+*.py  text eol=lf
+*.yml text eol=lf
+*.md  text eol=lf
+CMakeLists.txt text eol=lf

@@ -104,29 +104,14 @@ int ipv6_locate_payload(const Ipv6Header* header,
         }
 
         next_header = packet[offset];
+
+        /* Work out how long this header claims to be, but read nothing that
+           the claim points at yet. The length is a single attacker-controlled
+           byte, so it has to be checked against the packet before it is used
+           as a bound — a Routing Header declaring hdr_ext_len=0x3a would
+           otherwise have us copying addresses from 400 bytes past the end. */
         if (current == 44) {
-            uint16_t frag = read16(packet + offset + 2);
-            out->fragment_seen = 1;
-            out->fragment_offset = (uint16_t)(frag >> 3);
-            out->more_fragments = (frag & 0x1u) != 0;
-            out->fragment_id = read32(packet + offset + 4);
-            ext_len = 8;
-        } else if (current == 43) {
-            /* Routing Header */
-            ext_len = ((size_t)packet[offset + 1] + 1u) * 8u;
-            if (!out->has_routing && ext_len >= 8) {
-                out->has_routing = 1;
-                out->routing_type          = packet[offset + 2];
-                out->routing_segments_left = packet[offset + 3];
-                /* Extract up to IPV6_ROUTING_MAX_SEGS 16-byte addresses
-                   beginning at byte 8 of the routing header. */
-                size_t addr_bytes = ext_len - 8u;
-                int n = (int)(addr_bytes / 16u);
-                if (n > IPV6_ROUTING_MAX_SEGS) n = IPV6_ROUTING_MAX_SEGS;
-                for (int i = 0; i < n; i++)
-                    memcpy(out->routing_segs[i], packet + offset + 8 + i * 16, 16);
-                out->routing_seg_count = n;
-            }
+            ext_len = 8;   /* Fragment headers are a fixed size */
         } else if (current == 51) {
             ext_len = ((size_t)packet[offset + 1] + 2u) * 4u;
         } else {
@@ -137,6 +122,30 @@ int ipv6_locate_payload(const Ipv6Header* header,
             fprintf(stderr, "[ipv6] Invalid extension header length\n");
             return -1;
         }
+
+        /* Past this point ext_len is known to fit, so offset + ext_len is a
+           safe upper bound for anything read out of this header. */
+        if (current == 44) {
+            uint16_t frag = read16(packet + offset + 2);
+            out->fragment_seen = 1;
+            out->fragment_offset = (uint16_t)(frag >> 3);
+            out->more_fragments = (frag & 0x1u) != 0;
+            out->fragment_id = read32(packet + offset + 4);
+        } else if (current == 43 && !out->has_routing) {
+            /* Routing Header */
+            out->has_routing = 1;
+            out->routing_type          = packet[offset + 2];
+            out->routing_segments_left = packet[offset + 3];
+            /* Extract up to IPV6_ROUTING_MAX_SEGS 16-byte addresses
+               beginning at byte 8 of the routing header. */
+            size_t addr_bytes = ext_len - 8u;
+            int n = (int)(addr_bytes / 16u);
+            if (n > IPV6_ROUTING_MAX_SEGS) n = IPV6_ROUTING_MAX_SEGS;
+            for (int i = 0; i < n; i++)
+                memcpy(out->routing_segs[i], packet + offset + 8 + i * 16, 16);
+            out->routing_seg_count = n;
+        }
+
         offset += ext_len;
     }
 

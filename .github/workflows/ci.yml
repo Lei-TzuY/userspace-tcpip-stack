@@ -10,6 +10,7 @@ permissions:
 
 jobs:
   build-and-test:
+    name: Linux / Release
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -20,3 +21,168 @@ jobs:
         run: cmake --build build --parallel
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+  # The README claims Windows support through Winsock, and common.h has a
+  # _WIN32 branch that nothing was verifying. This job is what makes that claim
+  # true rather than aspirational.
+  windows:
+    name: Windows / MSVC
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build
+      - name: Build
+        run: cmake --build build --config Release --parallel
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
+
+  macos:
+    name: macOS / Clang
+    runs-on: macos-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # Every multi-byte field in this stack is read big-endian by hand or through
+  # ntohs, and the pcap reader has a byte-swap path chosen from the file's
+  # magic number. On a big-endian host the swapped and native paths trade
+  # places, so this is the only configuration that exercises the other half of
+  # that code. s390x runs under QEMU emulation, which is slow but adequate for
+  # a suite that finishes in seconds natively.
+  big-endian:
+    name: Linux / s390x (big-endian, emulated)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        with:
+          platforms: s390x
+      - name: Configure, build, and test under s390x
+        run: |
+          docker run --rm --platform linux/s390x \
+            -v "$PWD":/src -w /src s390x/ubuntu:22.04 \
+            bash -c '
+              set -e
+              export DEBIAN_FRONTEND=noninteractive
+              apt-get update -qq
+              apt-get install -y -qq cmake gcc make >/dev/null
+              cmake -S . -B build-be -DCMAKE_BUILD_TYPE=Release
+              cmake --build build-be --parallel
+              ctest --test-dir build-be --output-on-failure
+            '
+
+  # These parsers exist to consume untrusted bytes, so the sanitizer build is
+  # the test that matters most. The corpus replay under CTest turns every crash
+  # ever found into a permanent regression check.
+  sanitizers:
+    name: Linux / ASan + UBSan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler }}
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DTCPIP_SANITIZE=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Test
+        env:
+          # halt_on_error keeps a finding from being buried under later output.
+          ASAN_OPTIONS: detect_leaks=1:abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build --output-on-failure
+
+  # A short coverage-guided campaign on every pull request. This is not meant
+  # to be a thorough search — it is a tripwire for a change that breaks a
+  # bounds check in a way the checked-in corpus does not already cover. Run a
+  # long campaign locally before trusting a parser change.
+  fuzz-smoke:
+    name: Linux / libFuzzer smoke
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Configure
+        env:
+          CC: clang
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+                -DTCPIP_SANITIZE=ON -DTCPIP_FUZZ=ON
+      - name: Build
+        run: cmake --build build --parallel
+      - name: Fuzz each target
+        env:
+          ASAN_OPTIONS: abort_on_error=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          for target in frame parsers pcap; do
+            echo "── fuzzing $target ──"
+            ./build/fuzz_$target \
+              -max_total_time=90 \
+              -timeout=25 \
+              -rss_limit_mb=2048 \
+              -close_fd_mask=3 \
+              -artifact_prefix=./crash-$target- \
+              fuzz/corpus/$target
+          done
+      - name: Upload any crash reproducers
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: crash-*
+          if-no-files-found: ignore
+
+  # The corpus and the analysis capture are both generated, so a stale
+  # checked-in copy would quietly stop covering whatever its generator learned
+  # to produce. The analysis capture matters especially: its timestamps are
+  # chosen to sit on specific sides of the analysis thresholds, so a hand edit
+  # would silently change which verdict each scenario tests.
+  generated-files-up-to-date:
+    name: Generated fixtures match their generators
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Regenerate the analysis capture
+        run: python tests/gen_analysis_pcap.py
+      - name: Regenerate the encapsulation captures
+        run: python tests/gen_encap_pcap.py
+      - name: Regenerate the EDNS0/DNSSEC capture
+        run: python tests/gen_dns_pcap.py
+      - name: Regenerate the SCTP/QUIC capture
+        run: python tests/gen_transport_pcap.py
+      # The corpus seeds from those captures, so it is regenerated last.
+      - name: Regenerate the fuzz corpus
+        run: python tests/gen_fuzz_corpus.py
+      - name: Fail if anything generated differs
+        run: |
+          if ! git diff --quiet -- fuzz/corpus tests/sample-*.pcap; then
+            echo "Generated files are out of date. Re-run, in this order:"
+            echo "  python tests/gen_analysis_pcap.py"
+            echo "  python tests/gen_encap_pcap.py"
+            echo "  python tests/gen_dns_pcap.py"
+            echo "  python tests/gen_transport_pcap.py"
+            echo "  python tests/gen_fuzz_corpus.py"
+            git diff --stat -- fuzz/corpus tests/sample-*.pcap
+            exit 1
+          fi

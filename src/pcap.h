@@ -35,8 +35,12 @@
 #define PCAPNG_BYTE_ORDER_MAGIC  0x1a2b3c4du
 #define PCAPNG_MAX_INTERFACES    16
 
-/* Link-layer type constants (only the ones we care about now) */
-#define LINKTYPE_ETHERNET 1
+/* Link-layer type constants (https://www.tcpdump.org/linktypes.html) */
+#define LINKTYPE_NULL        0    /* BSD loopback: 4-byte address family     */
+#define LINKTYPE_ETHERNET    1
+#define LINKTYPE_RAW       101    /* no link header; starts at the IP header */
+#define LINKTYPE_LINUX_SLL 113    /* Linux "cooked" capture, 16-byte header  */
+#define LINKTYPE_LINUX_SLL2 276   /* cooked v2, 20-byte header               */
 
 typedef struct {
     uint32_t magic_number;   /* 0xa1b2c3d4                                 */
