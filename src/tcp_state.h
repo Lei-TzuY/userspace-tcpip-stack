@@ -14,6 +14,7 @@
 
 #include "tcp.h"
 #include "tcp_stream.h"
+#include "tcp_analysis.h"
 
 #define TCP_TRACKER_MAX_CONNECTIONS 64
 #define TCP_STREAM_PREVIEW_LEN      32
@@ -54,6 +55,8 @@ typedef struct {
     uint32_t last_tsval;
     uint64_t last_tsval_usec;
     int      last_tsval_valid;
+    /* Retransmission, window, and SACK analysis for this direction */
+    TcpEndpointAnalysis analysis;
 } TcpEndpoint;
 
 typedef struct {
@@ -92,6 +95,8 @@ typedef struct {
     /* Passive RTT from TCP Timestamp echo (RFC 7323) */
     int      has_rtt;
     uint64_t rtt_usec;
+    /* Retransmission cause, window pressure, and SACK-inferred loss */
+    TcpSegmentAnalysis analysis;
 } TcpObservation;
 
 void tcp_tracker_init(TcpTracker* tracker);
@@ -131,6 +136,17 @@ int tcp_tracker_observe_v6_at(TcpTracker* tracker,
                               const uint8_t* src_ip6, const uint8_t* dst_ip6,
                               const TcpHeader* segment, uint64_t now_usec,
                               TcpObservation* out);
+
+/* Enough for "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff" and a terminator. */
+#define TCP_ADDRESS_STR_MAX 46
+
+/*
+ * Write an endpoint's address, without port or brackets, into buf. IPv6 is
+ * printed group by group without the "::" run-length compression, matching how
+ * the rest of the stack prints addresses. Always NUL-terminates.
+ */
+void tcp_endpoint_address_str(const TcpEndpoint* endpoint,
+                              char* buf, size_t buf_len);
 
 const char* tcp_state_name(TcpState state);
 const char* tcp_seq_status_name(TcpSeqStatus status);

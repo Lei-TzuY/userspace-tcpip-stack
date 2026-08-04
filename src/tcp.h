@@ -62,10 +62,25 @@
 
 #define TCP_MAX_OPTS  20    /* maximum distinct option entries to store */
 
+/*
+ * The largest option data section that can fit. The header is at most 60 bytes,
+ * leaving 40 for options; an option spends two of those on its kind and length,
+ * so 38 bytes of data is the most any single option can carry.
+ */
+#define TCP_OPT_MAX_DATA 38
+
 typedef struct {
     uint8_t  kind;
-    uint8_t  data_len;         /* bytes of option-specific data (0 for EOL/NOP) */
-    uint8_t  data[34];         /* raw option data (enough for 4-block SACK) */
+    /*
+     * Bytes of option-specific data present in data[] (0 for EOL/NOP).
+     *
+     * This is the length of what was actually stored, not the length the
+     * sender claimed. The two can differ — a malformed option may declare more
+     * than fits — and a consumer looping to data_len must not be able to walk
+     * off the end of the array.
+     */
+    uint8_t  data_len;
+    uint8_t  data[TCP_OPT_MAX_DATA];
 } TcpOption;
 
 typedef struct {

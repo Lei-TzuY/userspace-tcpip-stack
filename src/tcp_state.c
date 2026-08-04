@@ -352,6 +352,21 @@ static void process_segment(TcpConnection* connection,
         process_fin(src, dst);
 }
 
+/*
+ * Translate the tracker's sequence verdict into the raw placement the analysis
+ * module works from. The tracker already calls a segment below the expected
+ * point a retransmission; the analysis is what decides whether it really is
+ * one or is merely reordered, so it is handed the placement instead.
+ */
+static TcpArrival arrival_of(TcpSeqStatus status) {
+    switch (status) {
+        case TCP_SEQ_IN_ORDER:       return TCP_ARRIVAL_IN_ORDER;
+        case TCP_SEQ_RETRANSMISSION: return TCP_ARRIVAL_BELOW_EXPECTED;
+        case TCP_SEQ_GAP:            return TCP_ARRIVAL_ABOVE_EXPECTED;
+        default:                     return TCP_ARRIVAL_FIRST;
+    }
+}
+
 void tcp_tracker_init(TcpTracker* tracker) {
     memset(tracker, 0, sizeof(*tracker));
     tracker->next_id = 1;
@@ -413,6 +428,27 @@ static int tcp_tracker_observe_impl(TcpTracker* tracker,
     out->src_after = src->state;
     out->dst_after = dst->state;
 
+    /* Handshake options decide how every later window is read, so they have to
+       be recorded before the first non-SYN segment is analysed. */
+    if (segment->flags & TCP_SYN) {
+        tcp_analysis_note_syn_options(&src->analysis, segment);
+        /* A SYN-ACK carrying window scale or SACK-permitted proves the peer's
+           SYN offered the same, even when that SYN was never captured. */
+        if (segment->flags & TCP_ACK) {
+            for (int i = 0; i < segment->opt_count; i++) {
+                if (segment->options[i].kind == TCP_OPT_WSCALE)
+                    dst->analysis.wscale_offer_inferred = 1;
+                else if (segment->options[i].kind == TCP_OPT_SACKP)
+                    dst->analysis.sack_permitted = 1;
+            }
+        }
+        tcp_analysis_settle_options(&connection->client.analysis,
+                                    &connection->server.analysis);
+    }
+
+    tcp_analysis_observe(&src->analysis, &dst->analysis, segment,
+                         arrival_of(out->seq_status), now_usec, &out->analysis);
+
     /* Passive RTT from TCP Timestamps option (RFC 7323).
      * When segment carries TSval, record it on src endpoint.
      * When TSecr matches dst's last recorded TSval, RTT = now - that time. */
@@ -436,6 +472,9 @@ static int tcp_tracker_observe_impl(TcpTracker* tracker,
                     && now_usec >= dst->last_tsval_usec) {
                 out->has_rtt  = 1;
                 out->rtt_usec = now_usec - dst->last_tsval_usec;
+                /* The sample belongs to dst: it is dst's timestamp coming
+                   back, so the interval measures the round trip dst sees. */
+                tcp_analysis_add_rtt_sample(&dst->analysis, out->rtt_usec);
             }
             break;
         }
@@ -497,24 +536,39 @@ const char* tcp_seq_status_name(TcpSeqStatus status) {
     }
 }
 
-static void print_endpoint(const TcpEndpoint* endpoint) {
+void tcp_endpoint_address_str(const TcpEndpoint* endpoint,
+                              char* buf, size_t buf_len) {
+    if (!buf || buf_len == 0)
+        return;
+    buf[0] = '\0';
+    if (!endpoint)
+        return;
+
     if (endpoint->ip_len == 16) {
-        printf("[%x:%x:%x:%x:%x:%x:%x:%x]:%u",
-               (unsigned)((endpoint->ip[0]  << 8) | endpoint->ip[1]),
-               (unsigned)((endpoint->ip[2]  << 8) | endpoint->ip[3]),
-               (unsigned)((endpoint->ip[4]  << 8) | endpoint->ip[5]),
-               (unsigned)((endpoint->ip[6]  << 8) | endpoint->ip[7]),
-               (unsigned)((endpoint->ip[8]  << 8) | endpoint->ip[9]),
-               (unsigned)((endpoint->ip[10] << 8) | endpoint->ip[11]),
-               (unsigned)((endpoint->ip[12] << 8) | endpoint->ip[13]),
-               (unsigned)((endpoint->ip[14] << 8) | endpoint->ip[15]),
-               endpoint->port);
+        snprintf(buf, buf_len, "%x:%x:%x:%x:%x:%x:%x:%x",
+                 (unsigned)((endpoint->ip[0]  << 8) | endpoint->ip[1]),
+                 (unsigned)((endpoint->ip[2]  << 8) | endpoint->ip[3]),
+                 (unsigned)((endpoint->ip[4]  << 8) | endpoint->ip[5]),
+                 (unsigned)((endpoint->ip[6]  << 8) | endpoint->ip[7]),
+                 (unsigned)((endpoint->ip[8]  << 8) | endpoint->ip[9]),
+                 (unsigned)((endpoint->ip[10] << 8) | endpoint->ip[11]),
+                 (unsigned)((endpoint->ip[12] << 8) | endpoint->ip[13]),
+                 (unsigned)((endpoint->ip[14] << 8) | endpoint->ip[15]));
     } else {
-        printf("%u.%u.%u.%u:%u",
-               endpoint->ip[0], endpoint->ip[1],
-               endpoint->ip[2], endpoint->ip[3],
-               endpoint->port);
+        snprintf(buf, buf_len, "%u.%u.%u.%u",
+                 endpoint->ip[0], endpoint->ip[1],
+                 endpoint->ip[2], endpoint->ip[3]);
     }
+}
+
+static void print_endpoint(const TcpEndpoint* endpoint) {
+    char address[TCP_ADDRESS_STR_MAX];
+
+    tcp_endpoint_address_str(endpoint, address, sizeof(address));
+    if (endpoint->ip_len == 16)
+        printf("[%s]:%u", address, endpoint->port);
+    else
+        printf("%s:%u", address, endpoint->port);
 }
 
 void tcp_observation_print(const TcpObservation* observation) {
@@ -568,6 +622,116 @@ void tcp_observation_print(const TcpObservation* observation) {
     if (observation->has_rtt)
         printf("    rtt       : %.3f ms  (TCP timestamp echo)\n",
                (double)observation->rtt_usec / 1000.0);
+    tcp_segment_analysis_print(&observation->analysis);
+}
+
+/* ── conversation table ──────────────────────────────────────────────────── */
+
+/*
+ * Print a byte rate in whichever unit keeps it readable. A capture of a
+ * handful of bytes has a real rate that rounds to "0.0 KiB/s", which reads
+ * like a bug rather than like a small transfer.
+ */
+static void print_rate(double bytes_per_second) {
+    if (bytes_per_second >= 1048576.0)
+        printf("%.1f MiB/s", bytes_per_second / 1048576.0);
+    else if (bytes_per_second >= 1024.0)
+        printf("%.1f KiB/s", bytes_per_second / 1024.0);
+    else
+        printf("%.0f B/s", bytes_per_second);
+}
+
+static void print_direction_stats(const char* label,
+                                  const TcpEndpointAnalysis* analysis) {
+    double throughput;
+
+    if (!analysis->seen) {
+        printf("      %-8s no segments observed\n", label);
+        return;
+    }
+
+    printf("      %-8s %llu segment(s), %llu payload byte(s)",
+           label,
+           (unsigned long long)analysis->segments,
+           (unsigned long long)analysis->payload_bytes);
+    if (analysis->retrans_bytes > 0)
+        printf(", %llu resent",
+               (unsigned long long)analysis->retrans_bytes);
+    printf("\n");
+
+    throughput = tcp_analysis_throughput_bps(analysis);
+    if (throughput > 0.0) {
+        printf("               goodput %llu byte(s), ",
+               (unsigned long long)tcp_analysis_goodput_bytes(analysis));
+        print_rate(throughput);
+        printf("\n");
+    }
+
+    if (analysis->retrans_fast || analysis->retrans_timeout
+            || analysis->retrans_spurious || analysis->retrans_plain) {
+        printf("               retrans:");
+        if (analysis->retrans_fast)
+            printf(" fast=%llu", (unsigned long long)analysis->retrans_fast);
+        if (analysis->retrans_timeout)
+            printf(" rto=%llu", (unsigned long long)analysis->retrans_timeout);
+        if (analysis->retrans_spurious)
+            printf(" spurious=%llu",
+                   (unsigned long long)analysis->retrans_spurious);
+        if (analysis->retrans_plain)
+            printf(" unclassified=%llu",
+                   (unsigned long long)analysis->retrans_plain);
+        printf("\n");
+    }
+
+    /* out-of-order belongs here rather than on the retransmission line: the
+       whole point of the verdict is that the segment was not a resend. */
+    if (analysis->dup_acks || analysis->zero_window_events
+            || analysis->window_full_events || analysis->keep_alives
+            || analysis->missing_segments || analysis->sack_holes
+            || analysis->out_of_order) {
+        printf("               events :");
+        if (analysis->out_of_order)
+            printf(" out-of-order=%llu",
+                   (unsigned long long)analysis->out_of_order);
+        if (analysis->dup_acks)
+            printf(" dup-ack=%llu", (unsigned long long)analysis->dup_acks);
+        if (analysis->zero_window_events)
+            printf(" zero-window=%llu",
+                   (unsigned long long)analysis->zero_window_events);
+        if (analysis->window_full_events)
+            printf(" window-full=%llu",
+                   (unsigned long long)analysis->window_full_events);
+        if (analysis->keep_alives)
+            printf(" keep-alive=%llu",
+                   (unsigned long long)analysis->keep_alives);
+        if (analysis->missing_segments)
+            printf(" missing=%llu",
+                   (unsigned long long)analysis->missing_segments);
+        if (analysis->sack_holes)
+            printf(" sack-hole=%llu",
+                   (unsigned long long)analysis->sack_holes);
+        printf("\n");
+    }
+
+    if (analysis->rtt_samples > 0)
+        printf("               rtt    : min %.3f / srtt %.3f / max %.3f ms"
+               "  (%llu sample(s), rto %.3f ms)\n",
+               (double)analysis->rtt_min / 1000.0,
+               (double)analysis->srtt / 1000.0,
+               (double)analysis->rtt_max / 1000.0,
+               (unsigned long long)analysis->rtt_samples,
+               (double)tcp_analysis_rto_estimate(analysis) / 1000.0);
+
+    printf("               window : max %u byte(s)", analysis->max_window_seen);
+    if (analysis->wscale_active)
+        printf("  scale 2^%u", analysis->wscale_shift);
+    else
+        printf("  unscaled");
+    if (analysis->mss)
+        printf("  mss %u", analysis->mss);
+    if (analysis->sack_permitted)
+        printf("  sack-permitted");
+    printf("\n");
 }
 
 void tcp_tracker_print_summary(const TcpTracker* tracker) {
@@ -590,6 +754,8 @@ void tcp_tracker_print_summary(const TcpTracker* tracker) {
         printf("      stream bytes: client=%llu server=%llu\n",
                (unsigned long long)connection->client.stream.delivered_bytes,
                (unsigned long long)connection->server.stream.delivered_bytes);
+        print_direction_stats("c->s", &connection->client.analysis);
+        print_direction_stats("s->c", &connection->server.analysis);
     }
     printf("  tracked connections: %zu\n", count);
     printf("  expired connections: %zu\n", tracker->expired_connections);
