@@ -291,9 +291,12 @@ void tcp_print(const TcpHeader* hdr, int cksum_valid) {
                 }
                 break;
             case TCP_OPT_WSCALE:
-                if (o->data_len >= 1)
+                if (o->data_len >= 1) {
+                    /* RFC 7323 permits scale counts only through 14. */
+                    uint8_t shift = o->data[0] > 14 ? 14u : o->data[0];
                     printf("│  Opt WScale: %u  (multiply window by %u)\n",
-                           o->data[0], 1u << o->data[0]);
+                           shift, 1u << shift);
+                }
                 break;
             case TCP_OPT_SACKP:
                 printf("│  Opt SACK  : permitted\n");
