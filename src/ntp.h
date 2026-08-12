@@ -50,5 +50,6 @@ typedef struct {
 int  ntp_parse(const uint8_t* data, size_t len, NtpMessage* out);
 void ntp_print(const NtpMessage* msg);
 const char* ntp_mode_name(uint8_t mode);
+uint32_t ntp_poll_interval_seconds(int8_t poll);
 
 #endif /* NTP_H */
