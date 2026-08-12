@@ -69,8 +69,13 @@ int http_parse(const uint8_t* payload, size_t len, HttpMessage* out) {
         p = sp1 + 1;
         while (p < eol && *p == ' ') p++;
         out->status_code = 0;
-        while (p < eol && *p >= '0' && *p <= '9')
+        size_t status_digits = 0;
+        while (p < eol && *p >= '0' && *p <= '9') {
+            if (status_digits == 3u) return -1;
             out->status_code = out->status_code * 10 + (*p++ - '0');
+            status_digits++;
+        }
+        if (status_digits != 3u) return -1;
         /* reason */
         while (p < eol && *p == ' ') p++;
         copy_until(out->reason, sizeof(out->reason), p, eol);
