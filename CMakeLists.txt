@@ -157,6 +157,20 @@ if(BUILD_TESTING)
     target_include_directories(test_udp_parse PRIVATE src)
     add_test(NAME udp_parse COMMAND test_udp_parse)
 
+    add_executable(test_ntp_parse
+        tests/test_ntp_parse.c
+        src/ntp.c
+    )
+    target_include_directories(test_ntp_parse PRIVATE src)
+    add_test(NAME ntp_parse COMMAND test_ntp_parse)
+
+    add_executable(test_http_parse
+        tests/test_http_parse.c
+        src/http.c
+    )
+    target_include_directories(test_http_parse PRIVATE src)
+    add_test(NAME http_parse COMMAND test_http_parse)
+
     add_executable(test_ipv4_reassembly
         tests/test_ipv4_reassembly.c
         src/ipv4_reassembly.c
@@ -218,7 +232,7 @@ if(BUILD_TESTING)
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
         test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
-        test_sctp_parse test_quic_parse
+        test_sctp_parse test_quic_parse test_ntp_parse test_http_parse
     )
     foreach(test_target IN LISTS TEST_TARGETS)
         target_sources(${test_target} PRIVATE tests/test_support.c)
