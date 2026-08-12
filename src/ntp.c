@@ -68,6 +68,11 @@ static uint32_t ntp_to_unix_sec(uint64_t ntp) {
     return (sec > 2208988800u) ? sec - 2208988800u : 0u;
 }
 
+uint32_t ntp_poll_interval_seconds(int8_t poll) {
+    /* Shifting a 32-bit value by 32 or more is undefined in C. */
+    return (poll >= 0 && poll < 32) ? (1u << (uint8_t)poll) : 0u;
+}
+
 void ntp_print(const NtpMessage* msg) {
     printf("┌─ NTP ──────────────────────────────────────────────┐\n");
     printf("│  Mode      : %u  (%s)\n", msg->mode, ntp_mode_name(msg->mode));
@@ -82,7 +87,7 @@ void ntp_print(const NtpMessage* msg) {
         printf("│  Ref ID    : %.4s\n", (const char*)msg->ref_id);
     }
     printf("│  Poll      : %d  (%u s)\n",
-           msg->poll, msg->poll >= 0 ? (1u << msg->poll) : 0u);
+           msg->poll, ntp_poll_interval_seconds(msg->poll));
     uint32_t xmit_unix = ntp_to_unix_sec(msg->xmit_ts);
     if (xmit_unix)
         printf("│  Xmit TS   : %u (Unix)\n", xmit_unix);
