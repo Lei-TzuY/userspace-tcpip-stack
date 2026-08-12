@@ -58,7 +58,7 @@ int http_parse(const uint8_t* payload, size_t len, HttpMessage* out) {
 
     /* Parse first line */
     const char* p = data;
-    if (memcmp(p, "HTTP/1.", 7) == 0) {
+    if (len >= 7 && memcmp(p, "HTTP/1.", 7) == 0) {
         /* Response: "HTTP/1.x NNN Reason" */
         out->type = HTTP_MSG_RESPONSE;
         /* version */
