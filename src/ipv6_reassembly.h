@@ -44,6 +44,7 @@ typedef struct {
     int      final_seen;           /* fragment with M=0 was received */
     size_t   total_len;            /* byte length once final fragment known */
     size_t   received_count;       /* bytes received so far */
+    size_t   highest_end;          /* one past the highest received byte */
     size_t   fragment_count;
     uint64_t last_seen_sequence;
     uint64_t last_seen_usec;

@@ -134,7 +134,7 @@ Ipv6ReassemblyStatus ipv6_reassembly_add_at(
     if (!inner->more_fragments) {
         if (entry->final_seen && entry->total_len != end)
             return reject_entry(reassembler, entry);
-        if (entry->final_seen && entry->received_count > end)
+        if (entry->highest_end > end)
             return reject_entry(reassembler, entry);
         entry->final_seen = 1;
         entry->total_len  = end;
@@ -157,10 +157,8 @@ Ipv6ReassemblyStatus ipv6_reassembly_add_at(
         }
     }
 
-    if (end > entry->received_count   /* highest_end tracking */
-            || entry->total_len == 0)  /* keep below for clarity */ {
-        /* (nothing — received_count serves as the byte tally) */
-    }
+    if (end > entry->highest_end)
+        entry->highest_end = end;
 
     if (entry->first_seen && entry->final_seen
             && entry->received_count == entry->total_len) {
