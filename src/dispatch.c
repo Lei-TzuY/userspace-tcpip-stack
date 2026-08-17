@@ -455,7 +455,7 @@ static void handle_ipv6_udp(StackContext* ctx, const Ipv6Header* ip6,
     if (udp_parse(payload, payload_len, &udp) != 0) return;
 
     int ck = udp_checksum_ok_v6(ip6->src, ip6->dst,
-                                payload, (uint16_t)payload_len);
+                                payload, udp.length);
     udp_print(&udp, ck);
 
     udp_tracker_observe(&ctx->udp_tracker, ip6->src, ip6->dst, 16,
