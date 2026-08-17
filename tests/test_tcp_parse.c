@@ -106,6 +106,34 @@ static void test_option_length_never_exceeds_storage(void) {
         assert(header.options[i].data_len <= TCP_OPT_MAX_DATA);
 }
 
+static void test_validates_options_beyond_storage_limit(void) {
+    uint8_t segment[60];
+    TcpHeader header;
+
+    init_segment(segment, sizeof(segment));
+    segment[12] = 0x0F << 4;
+    for (int i = 0; i < TCP_MAX_OPTS; i++)
+        segment[TCP_MIN_HDR_LEN + i] = TCP_OPT_NOP;
+
+    segment[TCP_MIN_HDR_LEN + TCP_MAX_OPTS] = TCP_OPT_MSS;
+    segment[TCP_MIN_HDR_LEN + TCP_MAX_OPTS + 1] = 1;
+
+    assert(tcp_parse(segment, sizeof(segment), &header) == -1);
+}
+
+static void test_accepts_valid_options_beyond_storage_limit(void) {
+    uint8_t segment[60];
+    TcpHeader header;
+
+    init_segment(segment, sizeof(segment));
+    segment[12] = 0x0F << 4;
+    memset(segment + TCP_MIN_HDR_LEN, TCP_OPT_NOP,
+           sizeof(segment) - TCP_MIN_HDR_LEN);
+
+    assert(tcp_parse(segment, sizeof(segment), &header) == 0);
+    assert(header.opt_count == TCP_MAX_OPTS);
+}
+
 static void test_checksum_rejects_short_segment(void) {
     static const uint8_t ip[4] = { 192, 0, 2, 1 };
     uint8_t segment[TCP_MIN_HDR_LEN - 1] = { 0 };
@@ -127,6 +155,8 @@ int main(void) {
     test_truncated_option_data();
     test_max_length_option_fits();
     test_option_length_never_exceeds_storage();
+    test_validates_options_beyond_storage_limit();
+    test_accepts_valid_options_beyond_storage_limit();
     test_checksum_rejects_short_segment();
     test_flags_string_ignores_empty_buffer();
     printf("tcp_parse tests passed\n");
