@@ -232,6 +232,7 @@ static size_t read_pcapng_epb(PcapReader* reader, uint32_t total_len,
     uint32_t raw_orig_len;
     uint32_t interface_id;
     uint32_t incl_len;
+    uint32_t orig_len;
     size_t padded_len;
     size_t options_len;
     size_t to_read;
@@ -247,17 +248,24 @@ static size_t read_pcapng_epb(PcapReader* reader, uint32_t total_len,
 
     interface_id = decode32(reader, raw_interface_id);
     incl_len = decode32(reader, raw_incl_len);
+    orig_len = decode32(reader, raw_orig_len);
     padded_len = padded4(incl_len);
     if (interface_id >= reader->interface_count
             || padded_len > total_len - 32u)
         return 0;
+    if (incl_len > orig_len) {
+        fprintf(stderr,
+                "[pcapng] Captured length %u exceeds original length %u\n",
+                incl_len, orig_len);
+        return 0;
+    }
     options_len = total_len - 32u - padded_len;
 
     PcapngInterface* iface = &reader->interfaces[interface_id];
     reader->global.network = iface->link_type;
     reader->global.snaplen = iface->snaplen;
     hdr_out->incl_len = incl_len;
-    hdr_out->orig_len = decode32(reader, raw_orig_len);
+    hdr_out->orig_len = orig_len;
     split_timestamp(((uint64_t)decode32(reader, raw_ts_high) << 32)
                         | decode32(reader, raw_ts_low),
                     iface->timestamp_units_per_second,
@@ -409,6 +417,12 @@ static size_t read_classic_packet(PcapReader* reader,
     }
     if (reader->timestamp_is_nsec)
         raw.ts_usec /= 1000u;
+    if (raw.incl_len > raw.orig_len) {
+        fprintf(stderr,
+                "[pcap] Captured length %u exceeds original length %u\n",
+                raw.incl_len, raw.orig_len);
+        return 0;
+    }
     *hdr_out = raw;
 
     to_read = raw.incl_len < buf_size ? raw.incl_len : buf_size;
