@@ -59,10 +59,35 @@ static void test_truncated_message(void) {
     assert(icmpv6_parse(message, sizeof(message), &icmp) == -1);
 }
 
+static void test_rejects_truncated_type_specific_bodies(void) {
+    struct TruncatedCase {
+        uint8_t type;
+        size_t required_len;
+    } cases[] = {
+        {ICMPV6_TYPE_ROUTER_ADV, 16},
+        {ICMPV6_TYPE_NEIGHBOR_SOL, 24},
+        {ICMPV6_TYPE_NEIGHBOR_ADV, 24},
+        {ICMPV6_TYPE_REDIRECT, 40}
+    };
+    uint8_t message[40];
+    Icmpv6Header icmp;
+
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        memset(message, 0, sizeof(message));
+        message[0] = cases[i].type;
+
+        assert(icmpv6_parse(
+            message, cases[i].required_len - 1, &icmp) == -1);
+        assert(icmpv6_parse(
+            message, cases[i].required_len, &icmp) == 0);
+    }
+}
+
 int main(void) {
     test_echo_request_and_checksum();
     test_checksum_rejects_modified_message();
     test_truncated_message();
+    test_rejects_truncated_type_specific_bodies();
     printf("icmpv6_parse tests passed\n");
     return 0;
 }

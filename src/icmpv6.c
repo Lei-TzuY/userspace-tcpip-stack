@@ -74,6 +74,8 @@ static void parse_ndp_options(const uint8_t* data, size_t len,
 /* ── icmpv6_parse ────────────────────────────────────────────────────────── */
 
 int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
+    size_t required_len;
+
     if (!data || !out) {
         fprintf(stderr, "[icmpv6] Missing message data or output header\n");
         return -1;
@@ -81,6 +83,28 @@ int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
     if (len < ICMPV6_MIN_LEN) {
         fprintf(stderr, "[icmpv6] Too short: %zu bytes (need %d)\n",
                 len, ICMPV6_MIN_LEN);
+        return -1;
+    }
+
+    required_len = ICMPV6_MIN_LEN;
+    switch (data[0]) {
+        case ICMPV6_TYPE_ROUTER_ADV:
+            required_len = 16;
+            break;
+        case ICMPV6_TYPE_NEIGHBOR_SOL:
+        case ICMPV6_TYPE_NEIGHBOR_ADV:
+            required_len = 24;
+            break;
+        case ICMPV6_TYPE_REDIRECT:
+            required_len = 40;
+            break;
+        default:
+            break;
+    }
+    if (len < required_len) {
+        fprintf(stderr,
+                "[icmpv6] Truncated type %u: have %zu, need %zu bytes\n",
+                data[0], len, required_len);
         return -1;
     }
 
