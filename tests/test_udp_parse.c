@@ -57,12 +57,30 @@ static void test_disabled_checksum_is_valid(void) {
     assert(udp_checksum_ok(ip, ip, datagram, sizeof(datagram)) == 1);
 }
 
+static void test_zero_checksum_is_invalid_over_ipv6(void) {
+    static const uint8_t src_ip[16] = {
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+    };
+    static const uint8_t dst_ip[16] = {
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2
+    };
+    /* The non-checksum words deliberately sum to 0xffff. A verifier that
+     * checks only the folded sum will therefore accept this forbidden zero. */
+    static const uint8_t datagram[8] = {
+        0x04, 0xd2, 0x9f, 0x97, 0x00, 0x08, 0x00, 0x00
+    };
+
+    assert(udp_checksum_ok_v6(
+        src_ip, dst_ip, datagram, sizeof(datagram)) == 0);
+}
+
 int main(void) {
     test_declared_length_bounds_payload();
     test_length_smaller_than_header();
     test_truncated_datagram();
     test_checksum_rejects_short_segment();
     test_disabled_checksum_is_valid();
+    test_zero_checksum_is_invalid_over_ipv6();
     printf("udp_parse tests passed\n");
     return 0;
 }

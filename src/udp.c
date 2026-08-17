@@ -87,6 +87,8 @@ int udp_checksum_ok_v6(const uint8_t* src_ip6, const uint8_t* dst_ip6,
                        const uint8_t* segment, uint16_t seg_len) {
     if (!src_ip6 || !dst_ip6 || !segment || seg_len < UDP_HDR_LEN)
         return 0;
+    if (segment[6] == 0 && segment[7] == 0)
+        return 0;
 
     /* IPv6 pseudo-header: src(16) + dst(16) + upper-layer-length(4) +
        zeros(3) + next-header(1) = 40 bytes total (RFC 8200 §8.1). */
@@ -158,7 +160,7 @@ void udp_print(const UdpHeader* hdr, int cksum_valid) {
     const char* ck_str = (cksum_valid < 0) ? "not checked"
                        : (cksum_valid     ) ? "OK"
                        : "BAD";
-    if (hdr->checksum == 0)
+    if (hdr->checksum == 0 && cksum_valid > 0)
         printf("│  Checksum  : 0x0000  (disabled)\n");
     else
         printf("│  Checksum  : 0x%04x  (%s)\n", hdr->checksum, ck_str);
