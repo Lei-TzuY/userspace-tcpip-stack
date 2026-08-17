@@ -49,14 +49,15 @@ static void test_rejects_data_beyond_final_fragment_end(void) {
     Ipv6ReassemblyResult result;
     Ipv6Header header = make_header();
     Ipv6Payload first = make_fragment(0, 1, first_data, sizeof(first_data));
-    Ipv6Payload far = make_fragment(3, 1, far_data, sizeof(far_data));
+    Ipv6Payload high_fragment =
+        make_fragment(3, 1, far_data, sizeof(far_data));
     Ipv6Payload final = make_fragment(2, 0, final_data, sizeof(final_data));
 
     assert(ipv6_reassembly_add_at(
         reassembler, &header, &first, 1, &result)
         == IPV6_REASSEMBLY_INCOMPLETE);
     assert(ipv6_reassembly_add_at(
-        reassembler, &header, &far, 2, &result)
+        reassembler, &header, &high_fragment, 2, &result)
         == IPV6_REASSEMBLY_INCOMPLETE);
 
     /* The final fragment declares a 24-byte datagram, but bytes 24..31 were
