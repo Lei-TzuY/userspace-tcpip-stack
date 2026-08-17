@@ -24,17 +24,32 @@ static uint32_t fold_sum(uint32_t sum) {
 
 /* ── NDP option parser ───────────────────────────────────────────────────── */
 
-static void parse_ndp_options(const uint8_t* data, size_t len,
-                               Icmpv6Header* out) {
+static int parse_ndp_options(const uint8_t* data, size_t len,
+                             Icmpv6Header* out) {
     size_t offset = 0;
 
-    while (offset + 2 <= len && out->ndp_opt_count < ICMPV6_NDP_MAX_OPTS) {
-        uint8_t opt_type   = data[offset];
-        uint8_t opt_len    = data[offset + 1]; /* in 8-byte units */
-        size_t  opt_bytes  = (size_t)opt_len * 8u;
+    /* Validate every option, including entries beyond the bounded number we
+       retain for display. A zero length cannot advance, and a partial option
+       makes the entire list malformed. */
+    while (offset < len) {
+        if (len - offset < 2) {
+            fprintf(stderr, "[icmpv6] Truncated NDP option header\n");
+            return -1;
+        }
+        uint8_t opt_len = data[offset + 1]; /* in 8-byte units */
+        size_t opt_bytes = (size_t)opt_len * 8u;
+        if (opt_len == 0 || opt_bytes > len - offset) {
+            fprintf(stderr, "[icmpv6] Invalid NDP option length\n");
+            return -1;
+        }
+        offset += opt_bytes;
+    }
 
-        if (opt_len == 0 || offset + opt_bytes > len) break;
-
+    offset = 0;
+    while (offset < len && out->ndp_opt_count < ICMPV6_NDP_MAX_OPTS) {
+        uint8_t opt_type  = data[offset];
+        uint8_t opt_len   = data[offset + 1];
+        size_t opt_bytes  = (size_t)opt_len * 8u;
         Icmpv6NdpOption* opt = &out->ndp_opts[out->ndp_opt_count];
         opt->type   = opt_type;
         opt->length = opt_len;
@@ -69,6 +84,8 @@ static void parse_ndp_options(const uint8_t* data, size_t len,
         out->ndp_opt_count++;
         offset += opt_bytes;
     }
+
+    return 0;
 }
 
 /* ── icmpv6_parse ────────────────────────────────────────────────────────── */
@@ -106,8 +123,9 @@ int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
             /* 4 bytes reserved + 16-byte target + options */
             if (len >= 24) {
                 memcpy(out->target, data + 8, 16);
-                if (len > 24)
-                    parse_ndp_options(data + 24, len - 24, out);
+                if (len > 24
+                        && parse_ndp_options(data + 24, len - 24, out) != 0)
+                    return -1;
             }
             break;
 
@@ -116,15 +134,17 @@ int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
             if (len >= 24) {
                 out->na_flags = read32(data + 4);
                 memcpy(out->target, data + 8, 16);
-                if (len > 24)
-                    parse_ndp_options(data + 24, len - 24, out);
+                if (len > 24
+                        && parse_ndp_options(data + 24, len - 24, out) != 0)
+                    return -1;
             }
             break;
 
         case ICMPV6_TYPE_ROUTER_SOL:
             /* 4 bytes reserved + options */
-            if (len > 8)
-                parse_ndp_options(data + 8, len - 8, out);
+            if (len > 8
+                    && parse_ndp_options(data + 8, len - 8, out) != 0)
+                return -1;
             break;
 
         case ICMPV6_TYPE_ROUTER_ADV:
@@ -136,8 +156,9 @@ int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
                 out->ra_router_lifetime = read16(data + 6);
                 out->ra_reachable_time  = read32(data + 8);
                 out->ra_retrans_timer   = read32(data + 12);
-                if (len > 16)
-                    parse_ndp_options(data + 16, len - 16, out);
+                if (len > 16
+                        && parse_ndp_options(data + 16, len - 16, out) != 0)
+                    return -1;
             }
             break;
 
@@ -146,8 +167,9 @@ int icmpv6_parse(const uint8_t* data, size_t len, Icmpv6Header* out) {
             if (len >= 40) {
                 memcpy(out->target, data + 8,  16);
                 memcpy(out->dest,   data + 24, 16);
-                if (len > 40)
-                    parse_ndp_options(data + 40, len - 40, out);
+                if (len > 40
+                        && parse_ndp_options(data + 40, len - 40, out) != 0)
+                    return -1;
             }
             break;
 
