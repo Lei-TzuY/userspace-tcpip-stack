@@ -69,26 +69,21 @@ int ipv6_parse(const uint8_t* data, size_t len, Ipv6Header* out) {
     return 0;
 }
 
-int ipv6_locate_payload(const Ipv6Header* header,
-                        const uint8_t* packet, size_t packet_len,
-                        Ipv6Payload* out) {
-    size_t declared_end;
-    size_t offset = IPV6_HDR_LEN;
+static int locate_payload_from(uint8_t first_next_header,
+                               const uint8_t* packet,
+                               size_t start, size_t declared_end,
+                               Ipv6Payload* out) {
+    size_t offset = start;
     uint8_t next_header;
     unsigned depth = 0;
 
-    if (!header || !packet || !out) {
+    if (!packet || !out || start > declared_end) {
         fprintf(stderr, "[ipv6] Missing payload traversal input\n");
-        return -1;
-    }
-    declared_end = IPV6_HDR_LEN + (size_t)header->payload_len;
-    if (packet_len < declared_end) {
-        fprintf(stderr, "[ipv6] Truncated packet while locating payload\n");
         return -1;
     }
 
     memset(out, 0, sizeof(*out));
-    next_header = header->next_header;
+    next_header = first_next_header;
 
     while (is_extension_header(next_header)) {
         uint8_t current = next_header;
@@ -147,10 +142,18 @@ int ipv6_locate_payload(const Ipv6Header* header,
         }
 
         offset += ext_len;
+
+        /* Everything after a Fragment header is fragmentable data. It cannot
+           be interpreted as a complete extension header until the fragments
+           have been reassembled; a non-first fragment may begin in the
+           middle of that header. Atomic fragments can continue directly. */
+        if (current == 44
+                && (out->fragment_offset != 0 || out->more_fragments))
+            break;
     }
 
     out->final_next_header = next_header;
-    out->extension_len = offset - IPV6_HDR_LEN;
+    out->extension_len = offset - start;
     if (next_header == 59) {
         out->payload = NULL;
         out->payload_len = 0;
@@ -159,6 +162,32 @@ int ipv6_locate_payload(const Ipv6Header* header,
         out->payload_len = declared_end - offset;
     }
     return 0;
+}
+
+int ipv6_locate_payload(const Ipv6Header* header,
+                        const uint8_t* packet, size_t packet_len,
+                        Ipv6Payload* out) {
+    size_t declared_end;
+
+    if (!header || !packet || !out) {
+        fprintf(stderr, "[ipv6] Missing payload traversal input\n");
+        return -1;
+    }
+    declared_end = IPV6_HDR_LEN + (size_t)header->payload_len;
+    if (packet_len < declared_end) {
+        fprintf(stderr, "[ipv6] Truncated packet while locating payload\n");
+        return -1;
+    }
+
+    return locate_payload_from(header->next_header, packet,
+                               IPV6_HDR_LEN, declared_end, out);
+}
+
+int ipv6_locate_fragmentable_payload(uint8_t next_header,
+                                     const uint8_t* payload,
+                                     size_t payload_len,
+                                     Ipv6Payload* out) {
+    return locate_payload_from(next_header, payload, 0, payload_len, out);
 }
 
 const char* ipv6_next_header_name(uint8_t next_header) {

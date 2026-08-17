@@ -500,6 +500,28 @@ static void handle_ipv6_transport(StackContext* ctx, const Ipv6Header* ip,
                                    const uint8_t* payload, size_t payload_len,
                                    uint64_t timestamp_usec, unsigned depth);
 
+static void handle_reassembled_ipv6_transport(
+    StackContext* ctx, const Ipv6Header* ip,
+    uint8_t next_header, const uint8_t* payload, size_t payload_len,
+    uint64_t timestamp_usec, unsigned depth) {
+    Ipv6Payload inner;
+
+    if (ipv6_locate_fragmentable_payload(
+            next_header, payload, payload_len, &inner) != 0) {
+        printf("  [ipv6-reassembly] invalid extension header chain\n");
+        return;
+    }
+    if (inner.extension_len > 0)
+        printf("  [ipv6-reassembly] extension headers: %zu byte(s)\n",
+               inner.extension_len);
+    if (inner.has_routing)
+        ipv6_routing_print(&inner);
+
+    handle_ipv6_transport(ctx, ip, inner.final_next_header,
+                          inner.payload, inner.payload_len,
+                          timestamp_usec, depth);
+}
+
 static void handle_ipv6(StackContext* ctx,
                         const uint8_t* payload, size_t payload_len,
                         uint64_t timestamp_usec, unsigned depth) {
@@ -536,9 +558,10 @@ static void handle_ipv6(StackContext* ctx,
                        "  next=%u\n",
                        result.payload_len, result.fragment_count,
                        result.final_next_header);
-                handle_ipv6_transport(ctx, &ip, result.final_next_header,
-                                      result.payload, result.payload_len,
-                                      timestamp_usec, depth);
+                handle_reassembled_ipv6_transport(
+                    ctx, &ip, result.final_next_header,
+                    result.payload, result.payload_len,
+                    timestamp_usec, depth);
             } else if (status == IPV6_REASSEMBLY_INCOMPLETE) {
                 printf("  [ipv6-reassembly] stored fragment: offset=%u bytes"
                        " len=%zu MF=%u\n",
