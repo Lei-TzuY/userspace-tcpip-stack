@@ -178,6 +178,13 @@ if(BUILD_TESTING)
     target_include_directories(test_ipv4_reassembly PRIVATE src)
     add_test(NAME ipv4_reassembly COMMAND test_ipv4_reassembly)
 
+    add_executable(test_ipv6_reassembly
+        tests/test_ipv6_reassembly.c
+        src/ipv6_reassembly.c
+    )
+    target_include_directories(test_ipv6_reassembly PRIVATE src)
+    add_test(NAME ipv6_reassembly COMMAND test_ipv6_reassembly)
+
     add_executable(test_ethernet_parse
         tests/test_ethernet_parse.c
         src/ethernet.c
@@ -231,6 +238,7 @@ if(BUILD_TESTING)
         test_tcp_state test_tcp_analysis test_linktype test_tunnel
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
         test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
+        test_ipv6_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
         test_sctp_parse test_quic_parse test_ntp_parse test_http_parse
     )
