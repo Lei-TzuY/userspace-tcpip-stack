@@ -60,14 +60,16 @@ int tcp_parse(const uint8_t* data, size_t len, TcpHeader* out) {
     const uint8_t* opt     = data + TCP_MIN_HDR_LEN;
     const uint8_t* opt_end = data + out->hdr_len;
 
-    while (opt < opt_end && out->opt_count < TCP_MAX_OPTS) {
+    while (opt < opt_end) {
         uint8_t kind = *opt++;
 
         if (kind == TCP_OPT_EOL) break;       /* End of options list */
         if (kind == TCP_OPT_NOP) {            /* No-Op — single byte, no length */
-            TcpOption* o = &out->options[out->opt_count++];
-            o->kind     = kind;
-            o->data_len = 0;
+            if (out->opt_count < TCP_MAX_OPTS) {
+                TcpOption* o = &out->options[out->opt_count++];
+                o->kind     = kind;
+                o->data_len = 0;
+            }
             continue;
         }
 
@@ -87,17 +89,20 @@ int tcp_parse(const uint8_t* data, size_t len, TcpHeader* out) {
             return -1;
         }
 
-        TcpOption* o = &out->options[out->opt_count++];
-        o->kind     = kind;
+        if (out->opt_count < TCP_MAX_OPTS) {
+            TcpOption* o = &out->options[out->opt_count++];
+            o->kind     = kind;
 
-        /* Copy option data, clamped to our storage, and report the length that
-           was actually stored. Recording the declared length instead would let
-           a consumer loop past the end of data[] on an option claiming more
-           than fits — the storage is sized for the largest option the header
-           can hold, so this only ever trims a malformed one. */
-        size_t copy = (dlen <= sizeof(o->data)) ? dlen : sizeof(o->data);
-        memcpy(o->data, opt, copy);
-        o->data_len = (uint8_t)copy;
+            /* Copy option data, clamped to our storage, and report the length
+               that was actually stored. Recording the declared length instead
+               would let a consumer loop past the end of data[] on an option
+               claiming more than fits — the storage is sized for the largest
+               option the header can hold, so this only ever trims a malformed
+               one. */
+            size_t copy = (dlen <= sizeof(o->data)) ? dlen : sizeof(o->data);
+            memcpy(o->data, opt, copy);
+            o->data_len = (uint8_t)copy;
+        }
 
         opt += dlen;
     }
