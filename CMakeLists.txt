@@ -136,6 +136,17 @@ if(BUILD_TESTING)
     target_include_directories(test_ipv6_parse PRIVATE src)
     add_test(NAME ipv6_parse COMMAND test_ipv6_parse)
 
+    add_executable(test_ipv6_fragment_dispatch
+        tests/test_ipv6_fragment_dispatch.c
+        ${STACK_SOURCES}
+    )
+    target_include_directories(test_ipv6_fragment_dispatch PRIVATE src)
+    add_test(NAME ipv6_fragment_extension_chain
+        COMMAND test_ipv6_fragment_dispatch)
+    set_tests_properties(ipv6_fragment_extension_chain PROPERTIES
+        PASS_REGULAR_EXPRESSION "Src Port  : 1234"
+    )
+
     add_executable(test_icmpv6_parse
         tests/test_icmpv6_parse.c
         src/icmpv6.c
@@ -230,6 +241,7 @@ if(BUILD_TESTING)
     set(TEST_TARGETS
         test_tcp_state test_tcp_analysis test_linktype test_tunnel
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
+        test_ipv6_fragment_dispatch
         test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
         test_sctp_parse test_quic_parse test_ntp_parse test_http_parse

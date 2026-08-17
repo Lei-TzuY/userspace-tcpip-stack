@@ -65,6 +65,15 @@ int ipv6_locate_payload(const Ipv6Header* header,
                         const uint8_t* packet, size_t packet_len,
                         Ipv6Payload* out);
 
+/*
+ * Traverse extension headers in a fully reassembled Fragmentable Part.
+ * next_header is the value carried by the first fragment's Fragment header.
+ */
+int ipv6_locate_fragmentable_payload(uint8_t next_header,
+                                     const uint8_t* payload,
+                                     size_t payload_len,
+                                     Ipv6Payload* out);
+
 const char* ipv6_next_header_name(uint8_t next_header);
 void ipv6_print(const Ipv6Header* header);
 void ipv6_routing_print(const Ipv6Payload* inner);
