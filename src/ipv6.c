@@ -118,7 +118,8 @@ int ipv6_locate_payload(const Ipv6Header* header,
             ext_len = ((size_t)packet[offset + 1] + 1u) * 8u;
         }
 
-        if (ext_len == 0 || ext_len > declared_end - offset) {
+        if ((current == 51 && ext_len < 12u)
+                || ext_len > declared_end - offset) {
             fprintf(stderr, "[ipv6] Invalid extension header length\n");
             return -1;
         }
