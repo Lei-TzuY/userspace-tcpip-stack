@@ -107,6 +107,19 @@ static void test_reports_fragment_header(void) {
     assert(payload.fragment_id == 0x12345678u);
 }
 
+static void test_rejects_truncated_authentication_header(void) {
+    uint8_t packet[IPV6_HDR_LEN + 16];
+    Ipv6Header header;
+    Ipv6Payload payload;
+    init_packet(packet, sizeof(packet), 16);
+    packet[6] = 51; /* Authentication Header */
+    packet[IPV6_HDR_LEN + 0] = 17; /* UDP */
+    packet[IPV6_HDR_LEN + 1] = 0;  /* Claims only 8 bytes, below AH's 12-byte fixed part. */
+
+    assert(ipv6_parse(packet, sizeof(packet), &header) == 0);
+    assert(ipv6_locate_payload(&header, packet, sizeof(packet), &payload) == -1);
+}
+
 int main(void) {
     test_valid_header_with_ethernet_padding();
     test_bad_version();
@@ -114,6 +127,7 @@ int main(void) {
     test_truncated_payload();
     test_locates_payload_after_hop_by_hop();
     test_reports_fragment_header();
+    test_rejects_truncated_authentication_header();
     printf("ipv6_parse tests passed\n");
     return 0;
 }
