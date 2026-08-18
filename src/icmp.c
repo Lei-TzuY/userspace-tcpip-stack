@@ -60,8 +60,10 @@ int icmp_parse(const uint8_t* data, size_t len, IcmpHeader* out) {
     if ((out->type == ICMP_TYPE_UNREACH || out->type == ICMP_TYPE_TIME_EXCEEDED)
             && out->payload_len >= 28) {
         const uint8_t* inner = out->payload;
+        uint8_t version = (uint8_t)(inner[0] >> 4);
         uint8_t ihl = (uint8_t)((inner[0] & 0x0F) * 4u);
-        if (ihl >= 20 && out->payload_len >= (size_t)(ihl + 8u)) {
+        if (version == 4 && ihl >= 20
+                && out->payload_len >= (size_t)(ihl + 8u)) {
             out->has_embedded     = 1;
             out->embedded_proto   = inner[9];
             memcpy(out->embedded_src, inner + 12, 4);

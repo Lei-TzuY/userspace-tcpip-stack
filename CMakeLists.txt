@@ -143,6 +143,13 @@ if(BUILD_TESTING)
     target_include_directories(test_icmpv6_parse PRIVATE src)
     add_test(NAME icmpv6_parse COMMAND test_icmpv6_parse)
 
+    add_executable(test_icmp_parse
+        tests/test_icmp_parse.c
+        src/icmp.c
+    )
+    target_include_directories(test_icmp_parse PRIVATE src)
+    add_test(NAME icmp_parse COMMAND test_icmp_parse)
+
     add_executable(test_dns_parse
         tests/test_dns_parse.c
         src/dns.c
@@ -230,7 +237,8 @@ if(BUILD_TESTING)
     set(TEST_TARGETS
         test_tcp_state test_tcp_analysis test_linktype test_tunnel
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
-        test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
+        test_icmp_parse test_icmpv6_parse test_dns_parse test_udp_parse
+        test_ipv4_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
         test_sctp_parse test_quic_parse test_ntp_parse test_http_parse
     )
