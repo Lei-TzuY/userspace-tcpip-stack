@@ -530,6 +530,58 @@ static void test_sack_blocks_out_of_order(void) {
     assert(out.hole_bytes == 200);
 }
 
+static void test_overlapping_sack_blocks_count_unique_bytes(void) {
+    TcpEndpointAnalysis receiver, sender;
+    TcpSegmentAnalysis out;
+    TcpHeader segment;
+    uint8_t blocks[16];
+
+    tcp_analysis_init(&receiver);
+    tcp_analysis_init(&sender);
+
+    /* The blocks overlap by 100 bytes. The receiver holds the 300-byte union,
+       not the 400-byte sum of both block lengths. */
+    put32(blocks + 0, 1200);
+    put32(blocks + 4, 1400);
+    put32(blocks + 8, 1100);
+    put32(blocks + 12, 1300);
+    segment_init(&segment, TCP_ACK, 1, 1000, 8192);
+    segment_add_option(&segment, TCP_OPT_SACK, blocks, 16);
+    tcp_analysis_observe(&receiver, &sender, &segment, TCP_ARRIVAL_IN_ORDER,
+                         1000, &out);
+
+    assert(out.sack_block_count == 2);
+    assert(out.sacked_bytes == 300);
+    assert(out.hole_count == 1);
+    assert(out.hole_left[0] == 1000 && out.hole_right[0] == 1100);
+}
+
+static void test_overlapping_sack_blocks_across_sequence_wrap(void) {
+    TcpEndpointAnalysis receiver, sender;
+    TcpSegmentAnalysis out;
+    TcpHeader segment;
+    uint8_t blocks[16];
+
+    tcp_analysis_init(&receiver);
+    tcp_analysis_init(&sender);
+
+    /* Each block spans 24 bytes and they overlap by 8 across 2^32. */
+    put32(blocks + 0, 0x00000008u);
+    put32(blocks + 4, 0x00000020u);
+    put32(blocks + 8, 0xfffffff8u);
+    put32(blocks + 12, 0x00000010u);
+    segment_init(&segment, TCP_ACK, 1, 0xfffffff0u, 8192);
+    segment_add_option(&segment, TCP_OPT_SACK, blocks, 16);
+    tcp_analysis_observe(&receiver, &sender, &segment, TCP_ARRIVAL_IN_ORDER,
+                         1000, &out);
+
+    assert(out.sack_block_count == 2);
+    assert(out.sack_left[0] == 0xfffffff8u);
+    assert(out.sacked_bytes == 40);
+    assert(out.hole_count == 1);
+    assert(out.hole_bytes == 8);
+}
+
 static void test_sack_rejects_reversed_block(void) {
     TcpEndpointAnalysis receiver, sender;
     TcpSegmentAnalysis out;
@@ -771,6 +823,8 @@ int main(void) {
 
     test_sack_reveals_one_hole();
     test_sack_blocks_out_of_order();
+    test_overlapping_sack_blocks_count_unique_bytes();
+    test_overlapping_sack_blocks_across_sequence_wrap();
     test_sack_rejects_reversed_block();
 
     test_gap_reports_missing_segment();
