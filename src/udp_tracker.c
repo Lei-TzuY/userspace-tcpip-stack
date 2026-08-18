@@ -11,12 +11,14 @@ void udp_tracker_init(UdpTracker* t) {
 void udp_tracker_expire_idle(UdpTracker* t, uint64_t now_usec) {
     for (int i = 0; i < UDP_TRACKER_MAX_FLOWS; i++) {
         UdpFlow* f = &t->flows[i];
-        if (f->active && now_usec - f->last_seen_usec > UDP_TRACKER_IDLE_USEC)
+        if (f->active && now_usec > f->last_seen_usec
+                && now_usec - f->last_seen_usec > UDP_TRACKER_IDLE_USEC)
             f->active = 0;
     }
     for (int i = 0; i < UDP_TRACKER_DNS_SLOTS; i++) {
         DnsQuerySlot* s = &t->dns_pending[i];
-        if (s->active && now_usec - s->query_usec > UDP_TRACKER_IDLE_USEC)
+        if (s->active && now_usec > s->query_usec
+                && now_usec - s->query_usec > UDP_TRACKER_IDLE_USEC)
             s->active = 0;
     }
 }
@@ -39,7 +41,8 @@ int udp_tracker_observe(UdpTracker* t,
     /* Find existing flow */
     for (int i = 0; i < UDP_TRACKER_MAX_FLOWS; i++) {
         if (flow_matches(&t->flows[i], src_ip, dst_ip, ip_len, src_port, dst_port)) {
-            t->flows[i].last_seen_usec = now_usec;
+            if (now_usec > t->flows[i].last_seen_usec)
+                t->flows[i].last_seen_usec = now_usec;
             t->flows[i].packet_count++;
             return i;
         }
@@ -103,6 +106,7 @@ uint64_t udp_tracker_dns_response(UdpTracker* t,
         if (s->client_port != client_port) continue;
         if (memcmp(s->client_ip, client_ip, ip_len) != 0) continue;
         if (memcmp(s->server_ip, server_ip, ip_len) != 0) continue;
+        if (now_usec < s->query_usec) continue;
         uint64_t rtt = now_usec - s->query_usec;
         s->active = 0;
         t->dns_responses++;

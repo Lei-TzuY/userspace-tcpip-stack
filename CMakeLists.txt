@@ -157,6 +157,13 @@ if(BUILD_TESTING)
     target_include_directories(test_udp_parse PRIVATE src)
     add_test(NAME udp_parse COMMAND test_udp_parse)
 
+    add_executable(test_udp_tracker
+        tests/test_udp_tracker.c
+        src/udp_tracker.c
+    )
+    target_include_directories(test_udp_tracker PRIVATE src)
+    add_test(NAME udp_tracker COMMAND test_udp_tracker)
+
     add_executable(test_ntp_parse
         tests/test_ntp_parse.c
         src/ntp.c
@@ -230,7 +237,8 @@ if(BUILD_TESTING)
     set(TEST_TARGETS
         test_tcp_state test_tcp_analysis test_linktype test_tunnel
         test_tcp_parse test_tcp_stream test_ipv4_parse test_ipv6_parse
-        test_icmpv6_parse test_dns_parse test_udp_parse test_ipv4_reassembly
+        test_icmpv6_parse test_dns_parse test_udp_parse test_udp_tracker
+        test_ipv4_reassembly
         test_ethernet_parse test_arp_parse test_arp_cache test_pcap_reader
         test_sctp_parse test_quic_parse test_ntp_parse test_http_parse
     )
