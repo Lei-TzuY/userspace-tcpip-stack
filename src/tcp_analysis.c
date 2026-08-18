@@ -191,7 +191,6 @@ static void analyse_sack(const TcpHeader* segment, uint32_t ack_num,
         out->sack_left[out->sack_block_count]  = left;
         out->sack_right[out->sack_block_count] = right;
         out->sack_block_count++;
-        out->sacked_bytes += seq_distance(right, left);
     }
 
     /* Blocks after the first are not required to be in order (RFC 2018 §4),
@@ -208,6 +207,23 @@ static void analyse_sack(const TcpHeader* segment, uint32_t ack_num,
         }
         out->sack_left[j + 1]  = left;
         out->sack_right[j + 1] = right;
+    }
+
+    /* Count the union of the sorted blocks. Receivers may report overlapping
+       blocks, and summing each length would count the overlap twice. */
+    if (out->sack_block_count > 0) {
+        uint32_t covered_right = out->sack_right[0];
+        out->sacked_bytes = seq_distance(covered_right, out->sack_left[0]);
+
+        for (i = 1; i < out->sack_block_count; i++) {
+            uint32_t right = out->sack_right[i];
+            if (seq_after(right, covered_right)) {
+                uint32_t start = seq_after(covered_right, out->sack_left[i])
+                               ? covered_right : out->sack_left[i];
+                out->sacked_bytes += seq_distance(right, start);
+                covered_right = right;
+            }
+        }
     }
 
     hole_from = ack_num;
