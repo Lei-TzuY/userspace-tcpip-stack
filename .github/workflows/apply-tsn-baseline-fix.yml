@@ -18,7 +18,10 @@ jobs:
       - name: Apply TSN fixes
         run: python scripts/fix_tsn_baseline.py
       - name: Verify focused TSN tests
-        run: cargo test --lib tsn_ats_multihop::tests::test_ats_multihop_cascaded_propagation tsn_qav_cbs::tests::test_tsn_qav_cbs_transmission_and_credit_depletion
+        shell: bash
+        run: |
+          cargo test --lib tsn_ats_multihop::tests::test_ats_multihop_cascaded_propagation
+          cargo test --lib tsn_qav_cbs::tests::test_tsn_qav_cbs_transmission_and_credit_depletion
       - name: Commit fixes
         shell: bash
         run: |
