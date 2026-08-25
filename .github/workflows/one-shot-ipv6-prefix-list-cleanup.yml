@@ -33,31 +33,11 @@ jobs:
                   raise SystemExit(f'expected one match, found {count}: {old[:120]!r}')
               s = s.replace(old, new, 1)
 
-          one('''    gateway: Option<Ipv6Address>,
-              on_link: bool,
-              deadline_ms: u64,''', '''    gateway: Option<Ipv6Address>,
-              deadline_ms: u64,''')
-          one('''        gateway: Option<Ipv6Address>,
-              on_link: bool,
-              preferred_lifetime: u32,''', '''        gateway: Option<Ipv6Address>,
-              preferred_lifetime: u32,''')
-          one('''            dad.gateway = gateway;
-              // RFC 4861: L=0 makes no statement about on-link status.
-              dad.on_link |= on_link;
-              dad.preferred_until_ms = preferred_until_ms;''', '''            dad.gateway = gateway;
-              dad.preferred_until_ms = preferred_until_ms;''')
-          one('''            prefix_len: prefix_len.min(128),
-              gateway,
-              on_link,
-              deadline_ms:''', '''            prefix_len: prefix_len.min(128),
-              gateway,
-              deadline_ms:''')
-          one('''                                            prefix.prefix_length,
-                                              gateway,
-                                              prefix.on_link,
-                                              prefix.preferred_lifetime,''', '''                                            prefix.prefix_length,
-                                              gateway,
-                                              prefix.preferred_lifetime,''')
+          one("    gateway: Option<Ipv6Address>,\n    on_link: bool,\n    deadline_ms: u64,", "    gateway: Option<Ipv6Address>,\n    deadline_ms: u64,")
+          one("        gateway: Option<Ipv6Address>,\n        on_link: bool,\n        preferred_lifetime: u32,", "        gateway: Option<Ipv6Address>,\n        preferred_lifetime: u32,")
+          one("            dad.gateway = gateway;\n            // RFC 4861: L=0 makes no statement about on-link status.\n            dad.on_link |= on_link;\n            dad.preferred_until_ms = preferred_until_ms;", "            dad.gateway = gateway;\n            dad.preferred_until_ms = preferred_until_ms;")
+          one("            prefix_len: prefix_len.min(128),\n            gateway,\n            on_link,\n            deadline_ms:", "            prefix_len: prefix_len.min(128),\n            gateway,\n            deadline_ms:")
+          one("                                            prefix.prefix_length,\n                                            gateway,\n                                            prefix.on_link,\n                                            prefix.preferred_lifetime,", "                                            prefix.prefix_length,\n                                            gateway,\n                                            prefix.preferred_lifetime,")
 
           p.write_text(s)
           PY
