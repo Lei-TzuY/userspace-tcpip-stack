@@ -1,0 +1,38 @@
+name: One-shot clean IPv6 PIO diff
+
+on:
+  push:
+    branches: [feat/ipv6-pio-onlink]
+
+permissions:
+  contents: write
+
+jobs:
+  clean-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Restore unrelated files and verify focused diff
+        shell: bash
+        run: |
+          git fetch origin main
+          while IFS= read -r path; do
+            case "$path" in
+              src/stack.rs|tests/test_ipv6_ra_onlink.rs|.github/workflows/one-shot-clean-pio-diff.yml) ;;
+              *) git checkout origin/main -- "$path" ;;
+            esac
+          done < <(git diff --name-only origin/main...HEAD)
+
+          cargo test --test test_ipv6_ra_onlink
+          cargo test --all-targets
+          cargo build --release
+
+          rm .github/workflows/one-shot-clean-pio-diff.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'chore: keep IPv6 PIO diff focused'
+          git push origin HEAD:feat/ipv6-pio-onlink
