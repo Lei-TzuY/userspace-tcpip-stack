@@ -8,8 +8,8 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
-    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_ROUTER_ADVERT, Icmpv6Packet, NdpTable,
-    RouterAdvertisement, ipv6_multicast_mac, slaac_address,
+    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_PACKET_TOO_BIG, ICMPV6_TYPE_ROUTER_ADVERT,
+    Icmpv6Packet, NdpTable, RouterAdvertisement, ipv6_multicast_mac, slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -135,6 +135,7 @@ pub struct NetStack {
     ipv6_ra_on_link_prefixes: HashMap<(Ipv6Address, u8), Option<u64>>,
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
+    ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -183,6 +184,7 @@ impl NetStack {
             ipv6_ra_on_link_prefixes: HashMap::new(),
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
+            ipv6_path_mtu_cache: HashMap::new(),
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -222,6 +224,7 @@ impl NetStack {
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
+        self.ipv6_path_mtu_cache.clear();
         if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
         {
             self.ipv6_routing_table.remove_route(
@@ -265,6 +268,16 @@ impl NetStack {
         self.ipv6_gateway
     }
 
+    /// Returns the currently learned RFC 8201 Path MTU for a destination.
+    pub fn ipv6_path_mtu(&self, destination: Ipv6Address) -> Option<u32> {
+        self.ipv6_path_mtu_cache.get(&destination).copied()
+    }
+
+    /// Forgets a learned Path MTU so a caller can explicitly probe a larger path again.
+    pub fn clear_ipv6_path_mtu(&mut self, destination: Ipv6Address) {
+        self.ipv6_path_mtu_cache.remove(&destination);
+    }
+
     pub fn clear_ipv6_interface(&mut self) {
         if let (Some(address), Some(prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len) {
             self.ipv6_routing_table
@@ -280,6 +293,7 @@ impl NetStack {
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
+        self.ipv6_path_mtu_cache.clear();
         self.pending_ndp_packets.clear();
     }
 
@@ -548,6 +562,16 @@ impl NetStack {
     }
 
     pub fn send_ip6_packet(&mut self, dst_ip: Ipv6Address, ip6_bytes: Vec<u8>) -> Option<Vec<u8>> {
+        if self
+            .ipv6_path_mtu_cache
+            .get(&dst_ip)
+            .is_some_and(|mtu| ip6_bytes.len() > *mtu as usize)
+        {
+            // IPv6 routers never fragment. Until source fragmentation is modelled,
+            // an RFC 8201 PMTU estimate is a hard upper bound on a source packet.
+            return None;
+        }
+
         // Preserve the historical on-link fallback when no IPv6 route exists, but
         // once a route is present resolve NDP against the route's next hop rather
         // than against the final destination. That is the IPv6 equivalent of the
@@ -1522,6 +1546,43 @@ impl NetStack {
                         )
                     {
                         match icmp6.msg_type {
+                            ICMPV6_TYPE_PACKET_TOO_BIG => {
+                                // RFC 8201: learn only from a syntactically valid PTB
+                                // that quotes a packet this host actually originated.
+                                // PTB can only lower an estimate; upward probing is an
+                                // explicit lifecycle event via clear_ipv6_path_mtu().
+                                if icmp6.code == 0 && icmp6.payload.len() >= 44 {
+                                    let advertised_mtu = u32::from_be_bytes([
+                                        icmp6.payload[0],
+                                        icmp6.payload[1],
+                                        icmp6.payload[2],
+                                        icmp6.payload[3],
+                                    ]);
+                                    let quoted = &icmp6.payload[4..];
+                                    if quoted[0] >> 4 == 6 {
+                                        let mut quoted_src = [0u8; 16];
+                                        quoted_src.copy_from_slice(&quoted[8..24]);
+                                        let mut quoted_dst = [0u8; 16];
+                                        quoted_dst.copy_from_slice(&quoted[24..40]);
+                                        let quoted_src = Ipv6Address(quoted_src);
+                                        let quoted_dst = Ipv6Address(quoted_dst);
+                                        if self.config.ipv6 == Some(quoted_src)
+                                            && !quoted_dst.is_multicast()
+                                        {
+                                            // This deterministic lab models only legal
+                                            // IPv6 links, whose MTU is at least 1280.
+                                            let learned = advertised_mtu.max(1280);
+                                            self.ipv6_path_mtu_cache
+                                                .entry(quoted_dst)
+                                                .and_modify(|current| {
+                                                    *current = (*current).min(learned);
+                                                })
+                                                .or_insert(learned);
+                                        }
+                                    }
+                                }
+                            }
+
                             ICMPV6_TYPE_ROUTER_ADVERT => {
                                 if ip6_pkt.header.hop_limit == 255
                                     && ip6_pkt.header.src_ip.is_link_local()
