@@ -38,12 +38,17 @@ use crate::bgp_evpn::{
     mac_mobility_from_communities, other_ext_communities, route_targets_from_communities,
     select_best_evpn,
 };
+use crate::bgp_ipv6::{
+    Ipv6AdjRibIn, Ipv6AdjRibOut, Ipv6AdvertisedRoute, Ipv6LocRib, Ipv6Path, Ipv6Prefix,
+    encode_ipv6_nlri_list, select_best_ipv6,
+};
 use crate::bgp_mp::{MpReachNlri, MpUnreachNlri};
 use crate::bgp_rib::{
     AdjRibIn, AdjRibOut, AdvertisedRoute, BgpPath, LocRib, PathSource, PolicyOutcome, RoutePolicy,
     select_best,
 };
 use crate::ipv4::Ipv4Address;
+use crate::ipv6::Ipv6Address;
 use crate::router::{RouteSource, RoutingTable};
 use crate::socket::{SocketError, SocketRuntime, TcpListenerHandle, TcpStreamHandle};
 use crate::tcp::{SocketAddrV4, TcpState};
@@ -180,6 +185,9 @@ pub struct BgpPeerCounters {
     pub evpn_received: u64,
     /// EVPN routes advertised to this peer.
     pub evpn_advertised: u64,
+    /// IPv6-Unicast NLRI accepted from / advertised to this peer.
+    pub ipv6_received: u64,
+    pub ipv6_advertised: u64,
     /// EVPN NLRI discarded because no configured import Route Target matched.
     pub evpn_rt_rejected: u64,
     /// Routes discarded because ORIGINATOR_ID named this speaker (RFC 4456
@@ -251,6 +259,8 @@ pub struct BgpPeer {
     /// Snapshot of IPv4 routes that existed when BoRR arrived. A refreshed
     /// announcement removes its prefix; EoRR purges whatever remains.
     enhanced_refresh_stale_ipv4: BTreeSet<Ipv4Prefix>,
+    /// Same stale snapshot for IPv6-Unicast prefixes.
+    enhanced_refresh_stale_ipv6: BTreeSet<Ipv6Prefix>,
     /// Same stale snapshot for EVPN route identities.
     enhanced_refresh_stale_evpn: BTreeSet<EvpnRouteKey>,
     /// Families for which this restarting speaker owes the peer an End-of-RIB.
@@ -312,6 +322,7 @@ impl BgpPeer {
             enhanced_refresh_outbound: BTreeMap::new(),
             enhanced_refresh_inbound: BTreeSet::new(),
             enhanced_refresh_stale_ipv4: BTreeSet::new(),
+            enhanced_refresh_stale_ipv6: BTreeSet::new(),
             enhanced_refresh_stale_evpn: BTreeSet::new(),
             local_restart_eor_pending: BTreeSet::new(),
             graceful_restart_stale: BTreeSet::new(),
@@ -355,6 +366,7 @@ impl BgpPeer {
     pub fn enhanced_refresh_stale_count(&self, family: AfiSafi) -> usize {
         match family {
             AfiSafi::IPV4_UNICAST => self.enhanced_refresh_stale_ipv4.len(),
+            AfiSafi::IPV6_UNICAST => self.enhanced_refresh_stale_ipv6.len(),
             AfiSafi::L2VPN_EVPN => self.enhanced_refresh_stale_evpn.len(),
             _ => 0,
         }
@@ -516,6 +528,14 @@ pub struct BgpRouter {
     pub adj_rib_in: AdjRibIn,
     pub loc_rib: LocRib,
     pub adj_rib_out: AdjRibOut,
+    /// IPv6-Unicast MP-BGP RIBs. The BGP transport remains IPv4/TCP.
+    pub ipv6_adj_rib_in: Ipv6AdjRibIn,
+    pub ipv6_loc_rib: Ipv6LocRib,
+    pub ipv6_adj_rib_out: Ipv6AdjRibOut,
+    ipv6_originated: BTreeMap<Ipv6Prefix, Ipv6Address>,
+    /// Global IPv6 next hop used when this speaker rewrites NEXT_HOP on export.
+    ipv6_next_hop: Option<Ipv6Address>,
+    ipv6_dirty: bool,
     /// Address families offered in OPEN.
     families: BTreeSet<AfiSafi>,
     /// EVPN routes received from every peer, before Route Target import.
@@ -551,6 +571,8 @@ pub struct BgpRouter {
     /// process runs once per poll instead of once per UPDATE.
     dirty: bool,
     pub decision_runs: u64,
+    /// How many times the IPv6-Unicast decision process has run.
+    pub ipv6_decision_runs: u64,
     /// How many times the EVPN decision process has run.
     pub evpn_decision_runs: u64,
     /// The cluster identifier used in CLUSTER_LIST. `None` means "use the router
@@ -581,6 +603,12 @@ impl BgpRouter {
             adj_rib_in: AdjRibIn::new(),
             loc_rib: LocRib::new(),
             adj_rib_out: AdjRibOut::new(),
+            ipv6_adj_rib_in: Ipv6AdjRibIn::new(),
+            ipv6_loc_rib: Ipv6LocRib::new(),
+            ipv6_adj_rib_out: Ipv6AdjRibOut::new(),
+            ipv6_originated: BTreeMap::new(),
+            ipv6_next_hop: None,
+            ipv6_dirty: true,
             families: BTreeSet::from([AfiSafi::IPV4_UNICAST]),
             evpn_adj_rib_in: EvpnAdjRibIn::new(),
             evpn_loc_rib: EvpnLocRib::new(),
@@ -595,6 +623,7 @@ impl BgpRouter {
             events: Vec::new(),
             dirty: true,
             decision_runs: 0,
+            ipv6_decision_runs: 0,
             evpn_decision_runs: 0,
             cluster_id: None,
             retain_all_rts: false,
@@ -629,6 +658,7 @@ impl BgpRouter {
         }
         self.cluster_id = Some(id);
         self.dirty = true;
+        self.ipv6_dirty = true;
         self.evpn_dirty = true;
     }
 
@@ -668,6 +698,11 @@ impl BgpRouter {
                 path.from_client = is_client;
             }
         }
+        if let Some(table) = self.ipv6_adj_rib_in.peer_table_mut(peer) {
+            for path in table.values_mut() {
+                path.from_client = is_client;
+            }
+        }
         if let Some(table) = self.evpn_adj_rib_in.peer_table_mut(peer) {
             for path in table.values_mut() {
                 path.from_client = is_client;
@@ -675,6 +710,7 @@ impl BgpRouter {
         }
 
         self.dirty = true;
+        self.ipv6_dirty = true;
         self.evpn_dirty = true;
         true
     }
@@ -923,6 +959,35 @@ impl BgpRouter {
         self.originated.keys().copied().collect()
     }
 
+    /// Sets the global IPv6 address used as MP_REACH next hop when this speaker
+    /// performs next-hop-self (always on eBGP, optional on iBGP).
+    pub fn set_ipv6_next_hop(&mut self, address: Ipv6Address) {
+        self.ipv6_next_hop = Some(address);
+    }
+
+    pub fn ipv6_next_hop(&self) -> Option<Ipv6Address> {
+        self.ipv6_next_hop
+    }
+
+    /// Originates an IPv6-Unicast prefix into MP-BGP.
+    pub fn originate_ipv6(&mut self, prefix: Ipv6Prefix, next_hop: Ipv6Address) {
+        self.enable_family(AfiSafi::IPV6_UNICAST);
+        self.ipv6_originated.insert(prefix, next_hop);
+        self.ipv6_dirty = true;
+    }
+
+    pub fn withdraw_originated_ipv6(&mut self, prefix: Ipv6Prefix) -> bool {
+        let removed = self.ipv6_originated.remove(&prefix).is_some();
+        if removed {
+            self.ipv6_dirty = true;
+        }
+        removed
+    }
+
+    pub fn originated_ipv6_prefixes(&self) -> Vec<Ipv6Prefix> {
+        self.ipv6_originated.keys().copied().collect()
+    }
+
     /// Administratively shuts a peer down: NOTIFICATION (Cease), TCP teardown, and
     /// removal of everything learned from it.
     pub fn shutdown_peer(&mut self, addr: Ipv4Address, now_ms: u64, sockets: &mut SocketRuntime) {
@@ -1023,6 +1088,11 @@ impl BgpRouter {
             self.dirty = false;
         }
 
+        if self.ipv6_dirty {
+            self.run_ipv6_decision_process(now_ms);
+            self.ipv6_dirty = false;
+        }
+
         if self.evpn_dirty {
             self.run_evpn_decision_process(now_ms);
             self.evpn_dirty = false;
@@ -1038,6 +1108,7 @@ impl BgpRouter {
         // needs the full Loc-RIB even when nothing about the RIB itself changed.
         for idx in 0..self.peers.len() {
             self.advertise_to_peer(idx, now_ms, sockets);
+            self.advertise_ipv6_to_peer(idx, now_ms, sockets);
             self.advertise_evpn_to_peer(idx, now_ms, sockets);
             self.send_enhanced_refresh_eorrs(idx, now_ms, sockets);
             self.send_local_restart_eors(idx, now_ms, sockets);
@@ -1773,6 +1844,9 @@ impl BgpRouter {
             (BgpState::Established, BgpPdu::Update(update)) => {
                 self.peers[idx].counters.updates_received += 1;
                 let ipv4_eor = update.is_end_of_rib();
+                let ipv6_eor = update
+                    .mp_unreach()
+                    .is_some_and(|m| m.family() == AfiSafi::IPV6_UNICAST && m.nlri.is_empty());
                 let evpn_eor = update
                     .mp_unreach()
                     .is_some_and(|m| m.family() == AfiSafi::L2VPN_EVPN && m.nlri.is_empty());
@@ -1785,6 +1859,13 @@ impl BgpRouter {
                             self.complete_graceful_restart_family(
                                 idx,
                                 AfiSafi::IPV4_UNICAST,
+                                now_ms,
+                            );
+                        }
+                        if ipv6_eor {
+                            self.complete_graceful_restart_family(
+                                idx,
+                                AfiSafi::IPV6_UNICAST,
                                 now_ms,
                             );
                         }
@@ -2007,6 +2088,16 @@ impl BgpRouter {
                 self.peers[idx].enhanced_refresh_stale_ipv4 = stale;
                 count
             }
+            AfiSafi::IPV6_UNICAST => {
+                let stale: BTreeSet<Ipv6Prefix> = self
+                    .ipv6_adj_rib_in
+                    .peer_table(addr)
+                    .map(|table| table.keys().copied().collect())
+                    .unwrap_or_default();
+                let count = stale.len();
+                self.peers[idx].enhanced_refresh_stale_ipv6 = stale;
+                count
+            }
             AfiSafi::L2VPN_EVPN => {
                 let stale: BTreeSet<EvpnRouteKey> = self
                     .evpn_adj_rib_in
@@ -2058,6 +2149,24 @@ impl BgpRouter {
                 }
                 if purged > 0 {
                     self.dirty = true;
+                }
+                purged
+            }
+            AfiSafi::IPV6_UNICAST => {
+                let stale: Vec<Ipv6Prefix> = self.peers[idx]
+                    .enhanced_refresh_stale_ipv6
+                    .iter()
+                    .copied()
+                    .collect();
+                self.peers[idx].enhanced_refresh_stale_ipv6.clear();
+                let mut purged = 0usize;
+                for prefix in stale {
+                    if self.ipv6_adj_rib_in.remove(addr, prefix).is_some() {
+                        purged += 1;
+                    }
+                }
+                if purged > 0 {
+                    self.ipv6_dirty = true;
                 }
                 purged
             }
@@ -2174,6 +2283,9 @@ impl BgpRouter {
 
             let pdu = match family {
                 AfiSafi::IPV4_UNICAST => BgpPdu::Update(BgpUpdateMessage::end_of_rib()),
+                AfiSafi::IPV6_UNICAST => BgpPdu::Update(BgpUpdateMessage::mp_withdraw(
+                    MpUnreachNlri::new(AfiSafi::IPV6_UNICAST, Vec::new()),
+                )),
                 AfiSafi::L2VPN_EVPN => BgpPdu::Update(BgpUpdateMessage::mp_withdraw(
                     MpUnreachNlri::new(AfiSafi::L2VPN_EVPN, Vec::new()),
                 )),
@@ -2279,6 +2391,23 @@ impl BgpRouter {
                 }
                 if !stale.is_empty() {
                     self.dirty = true;
+                }
+                stale.len()
+            }
+            AfiSafi::IPV6_UNICAST => {
+                let stale: Vec<Ipv6Prefix> = self
+                    .ipv6_adj_rib_in
+                    .peer_table(addr)
+                    .into_iter()
+                    .flat_map(|table| table.iter())
+                    .filter(|(_, path)| cutoff.is_none_or(|t| path.received_at_ms < t))
+                    .map(|(prefix, _)| *prefix)
+                    .collect();
+                for prefix in &stale {
+                    self.ipv6_adj_rib_in.remove(addr, *prefix);
+                }
+                if !stale.is_empty() {
+                    self.ipv6_dirty = true;
                 }
                 stale.len()
             }
@@ -2483,7 +2612,9 @@ impl BgpRouter {
                     .map(|f| f.family)
                     .filter(|family| self.peers[idx].negotiated.supports(*family))
                     .filter(|family| {
-                        *family == AfiSafi::IPV4_UNICAST || *family == AfiSafi::L2VPN_EVPN
+                        *family == AfiSafi::IPV4_UNICAST
+                            || *family == AfiSafi::IPV6_UNICAST
+                            || *family == AfiSafi::L2VPN_EVPN
                     })
                     .collect();
                 if !preserve.is_empty() {
@@ -2493,6 +2624,7 @@ impl BgpRouter {
         }
 
         let preserve_ipv4 = preserve.contains(&AfiSafi::IPV4_UNICAST);
+        let preserve_ipv6 = preserve.contains(&AfiSafi::IPV6_UNICAST);
         let preserve_evpn = preserve.contains(&AfiSafi::L2VPN_EVPN);
         let purged = if preserve_ipv4 {
             0
@@ -2500,6 +2632,15 @@ impl BgpRouter {
             self.adj_rib_in.clear_peer(addr)
         };
         self.adj_rib_out.clear_peer(addr);
+        let ipv6_purged = if preserve_ipv6 {
+            0
+        } else {
+            self.ipv6_adj_rib_in.clear_peer(addr)
+        };
+        self.ipv6_adj_rib_out.clear_peer(addr);
+        if ipv6_purged > 0 {
+            self.ipv6_dirty = true;
+        }
         let evpn_purged = if preserve_evpn {
             0
         } else {
@@ -2524,6 +2665,7 @@ impl BgpRouter {
         peer.enhanced_refresh_outbound.clear();
         peer.enhanced_refresh_inbound.clear();
         peer.enhanced_refresh_stale_ipv4.clear();
+        peer.enhanced_refresh_stale_ipv6.clear();
         peer.enhanced_refresh_stale_evpn.clear();
         peer.remote_router_id = None;
         peer.established_since_ms = None;
@@ -2543,8 +2685,8 @@ impl BgpRouter {
                 now_ms,
                 addr,
                 format!(
-                    "session down ({}); purged {} learned path(s) and {} EVPN route(s)",
-                    reason, purged, evpn_purged
+                    "session down ({}); purged {} IPv4 path(s), {} IPv6 path(s), and {} EVPN route(s)",
+                    reason, purged, ipv6_purged, evpn_purged
                 ),
             );
         } else {
@@ -2874,6 +3016,168 @@ impl BgpRouter {
         self.evpn_originated.values().collect()
     }
 
+    fn import_ipv6_mp_update(
+        &mut self,
+        idx: usize,
+        now_ms: u64,
+        update: &BgpUpdateMessage,
+    ) -> Result<(), Teardown> {
+        let addr = self.peers[idx].addr;
+        if !self.peers[idx].negotiated.supports_ipv6_unicast() {
+            return Ok(());
+        }
+
+        if let Some(mp) = update.mp_unreach()
+            && mp.family() == AfiSafi::IPV6_UNICAST
+        {
+            let prefixes = Ipv6Prefix::decode_list(&mp.nlri).map_err(|e| {
+                Teardown::Protocol(
+                    BgpNotificationMessage::new(e.code, e.subcode),
+                    format!("malformed IPv6 MP_UNREACH: {}", e),
+                )
+            })?;
+            let mut removed = 0usize;
+            for prefix in prefixes {
+                if self.ipv6_adj_rib_in.remove(addr, prefix).is_some() {
+                    removed += 1;
+                    self.ipv6_dirty = true;
+                }
+            }
+            if removed > 0 {
+                self.log(
+                    now_ms,
+                    addr,
+                    format!("withdrew {} IPv6-Unicast route(s) from Adj-RIB-In", removed),
+                );
+            }
+        }
+
+        let Some(mp) = update.mp_reach() else {
+            return Ok(());
+        };
+        if mp.family() != AfiSafi::IPV6_UNICAST {
+            return Ok(());
+        }
+        let Some(next_hop) = mp.ipv6_next_hop() else {
+            return Err(Teardown::Protocol(
+                BgpNotificationMessage::new(BGP_ERR_UPDATE_MESSAGE, BGP_SUB_INVALID_NEXT_HOP),
+                format!(
+                    "IPv6 MP_REACH next hop is {} bytes; RFC 2545 expects 16 or 32",
+                    mp.next_hop.len()
+                ),
+            ));
+        };
+        if next_hop.is_unspecified() || next_hop.is_loopback() || next_hop.is_multicast() {
+            return Err(Teardown::Protocol(
+                BgpNotificationMessage::new(BGP_ERR_UPDATE_MESSAGE, BGP_SUB_INVALID_NEXT_HOP),
+                format!("IPv6 MP_REACH next hop {} is not usable", next_hop),
+            ));
+        }
+
+        let prefixes = Ipv6Prefix::decode_list(&mp.nlri).map_err(|e| {
+            Teardown::Protocol(
+                BgpNotificationMessage::new(e.code, e.subcode),
+                format!("malformed IPv6 MP_REACH: {}", e),
+            )
+        })?;
+        if prefixes.is_empty() {
+            return Ok(());
+        }
+        let Some(attrs) = update.attributes.as_ref() else {
+            return Ok(());
+        };
+
+        let is_ebgp = self.peers[idx].remote_as != self.local_as;
+        let peer_as = self.peers[idx].remote_as;
+        if is_ebgp {
+            let refusal = if attrs.as_path.is_empty() {
+                Some("AS_PATH is empty".to_string())
+            } else if !self.peers[idx].enforce_first_as {
+                None
+            } else {
+                match attrs.as_path.leading_as() {
+                    Some(a) if a == peer_as => None,
+                    Some(a) => Some(format!(
+                        "AS_PATH [{}] leads with AS {}, not the neighbour's AS {}",
+                        attrs.as_path, a, peer_as
+                    )),
+                    None => Some(format!(
+                        "AS_PATH [{}] does not begin with an AS_SEQUENCE",
+                        attrs.as_path
+                    )),
+                }
+            };
+            if let Some(reason) = refusal {
+                self.peers[idx].counters.as_path_rejected += 1;
+                return Err(Teardown::Protocol(
+                    BgpNotificationMessage::new(BGP_ERR_UPDATE_MESSAGE, BGP_SUB_MALFORMED_AS_PATH),
+                    format!("IPv6 UPDATE refused: {}", reason),
+                ));
+            }
+        }
+
+        if let Some(loop_kind) = self.reflection_loop(attrs.originator_id, &attrs.cluster_list) {
+            let count = prefixes.len() as u64;
+            match loop_kind {
+                ReflectionLoop::Originator => {
+                    self.peers[idx].counters.originator_loops_rejected += count;
+                }
+                ReflectionLoop::Cluster => {
+                    self.peers[idx].counters.cluster_loops_rejected += count;
+                }
+            }
+            return Ok(());
+        }
+        if attrs.as_path.contains(self.local_as) {
+            self.peers[idx].counters.as_loops_rejected += prefixes.len() as u64;
+            return Ok(());
+        }
+
+        let source = if is_ebgp {
+            PathSource::Ebgp
+        } else {
+            PathSource::Ibgp
+        };
+        let peer_router_id = self.peers[idx].remote_router_id.unwrap_or(addr);
+        let from_client = self.peers[idx].is_client();
+        for prefix in prefixes {
+            if self.ipv6_next_hop == Some(next_hop) {
+                self.peers[idx].counters.next_hop_rejected += 1;
+                continue;
+            }
+            let path = Ipv6Path {
+                prefix,
+                source,
+                peer_addr: addr,
+                peer_as,
+                peer_router_id,
+                origin: attrs.origin,
+                as_path: attrs.as_path.clone(),
+                next_hop,
+                med: attrs.med,
+                local_pref: attrs.local_pref.unwrap_or(BGP_DEFAULT_LOCAL_PREF),
+                atomic_aggregate: attrs.atomic_aggregate,
+                originator_id: attrs.originator_id,
+                cluster_list: attrs.cluster_list.clone(),
+                from_client,
+                received_at_ms: now_ms,
+            };
+            let previous = self.ipv6_adj_rib_in.insert(addr, path.clone());
+            self.peers[idx].enhanced_refresh_stale_ipv6.remove(&prefix);
+            if previous.is_none_or(|prev| !prev.same_route_as(&path)) {
+                self.ipv6_dirty = true;
+            }
+            self.peers[idx].counters.ipv6_received += 1;
+            if self.ipv6_adj_rib_in.prefix_count(addr) > self.peers[idx].max_prefixes {
+                return Err(Teardown::Protocol(
+                    BgpNotificationMessage::new(BGP_ERR_CEASE, BGP_SUB_MAX_PREFIXES),
+                    "IPv6-Unicast maximum-prefix limit exceeded".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
     /// Applies the multiprotocol part of a received UPDATE.
     ///
     /// An UPDATE that carries EVPN NLRI on a session that never negotiated the
@@ -2894,27 +3198,43 @@ impl BgpRouter {
         .into_iter()
         .flatten()
         {
-            if family != AfiSafi::L2VPN_EVPN {
-                // A family that was never negotiated has no business here either,
-                // but an unnegotiated *unknown* family is best ignored rather than
-                // treated as fatal: RFC 4760 leaves the NLRI meaningless to us.
-                self.log(
-                    now_ms,
-                    addr,
-                    format!("ignored MP NLRI for unsupported family {}", family),
-                );
-                continue;
-            }
-            if !self.peers[idx].negotiated.supports_evpn() {
-                return Err(Teardown::Protocol(
-                    BgpNotificationMessage::new(
-                        BGP_ERR_UPDATE_MESSAGE,
-                        BGP_SUB_OPTIONAL_ATTRIBUTE_ERROR,
-                    ),
-                    "peer sent EVPN NLRI without negotiating AFI 25 / SAFI 70".to_string(),
-                ));
+            match family {
+                AfiSafi::IPV6_UNICAST => {
+                    if !self.peers[idx].negotiated.supports_ipv6_unicast() {
+                        // RFC 4760 requires capability exchange before a family is
+                        // used bidirectionally. A stray optional MP attribute for a
+                        // family that was not negotiated is ignored rather than
+                        // being allowed to reset an otherwise healthy BGP session.
+                        self.log(
+                            now_ms,
+                            addr,
+                            "ignored IPv6-Unicast MP NLRI: AFI 2 / SAFI 1 was not negotiated",
+                        );
+                    }
+                }
+                AfiSafi::L2VPN_EVPN => {
+                    if !self.peers[idx].negotiated.supports_evpn() {
+                        return Err(Teardown::Protocol(
+                            BgpNotificationMessage::new(
+                                BGP_ERR_UPDATE_MESSAGE,
+                                BGP_SUB_OPTIONAL_ATTRIBUTE_ERROR,
+                            ),
+                            "peer sent EVPN NLRI without negotiating AFI 25 / SAFI 70"
+                                .to_string(),
+                        ));
+                    }
+                }
+                _ => {
+                    self.log(
+                        now_ms,
+                        addr,
+                        format!("ignored MP NLRI for unsupported family {}", family),
+                    );
+                }
             }
         }
+
+        self.import_ipv6_mp_update(idx, now_ms, update)?;
 
         if let Some(mp) = update.mp_unreach()
             && mp.family() == AfiSafi::L2VPN_EVPN
@@ -3497,6 +3817,54 @@ impl BgpRouter {
     // Decision process and FIB
     // ========================================================================
 
+    fn run_ipv6_decision_process(&mut self, now_ms: u64) {
+        self.ipv6_decision_runs += 1;
+        let mut new_rib = Ipv6LocRib::new();
+        let mut prefixes = self.ipv6_adj_rib_in.prefixes();
+        prefixes.extend(self.ipv6_originated.keys().copied());
+
+        for prefix in prefixes {
+            let learned = self.ipv6_adj_rib_in.candidates(prefix);
+            let fresh: Vec<&Ipv6Path> = learned
+                .iter()
+                .copied()
+                .filter(|path| {
+                    !self.route_is_graceful_restart_stale(
+                        path.peer_addr,
+                        AfiSafi::IPV6_UNICAST,
+                        path.received_at_ms,
+                    )
+                })
+                .collect();
+            let local = self
+                .ipv6_originated
+                .get(&prefix)
+                .map(|next_hop| Ipv6Path::local(prefix, *next_hop, self.router_id));
+            let mut candidates: Vec<&Ipv6Path> = if fresh.is_empty() { learned } else { fresh };
+            if let Some(ref local) = local {
+                candidates.push(local);
+            }
+            if let Some(best) = select_best_ipv6(&candidates) {
+                new_rib.insert(best.clone());
+            }
+        }
+
+        let before = self.ipv6_loc_rib.prefixes();
+        let after = new_rib.prefixes();
+        if before != after {
+            self.log(
+                now_ms,
+                Ipv4Address::UNSPECIFIED,
+                format!(
+                    "IPv6 decision process: Loc-RIB {} -> {} prefix(es)",
+                    before.len(),
+                    after.len()
+                ),
+            );
+        }
+        self.ipv6_loc_rib = new_rib;
+    }
+
     /// Recomputes the Loc-RIB from the Adj-RIB-In tables plus the originated set.
     fn run_decision_process(&mut self, now_ms: u64) {
         self.decision_runs += 1;
@@ -3649,6 +4017,181 @@ impl BgpRouter {
     // ========================================================================
     // Export
     // ========================================================================
+
+    fn ipv6_attributes_for(
+        route: &Ipv6AdvertisedRoute,
+        four_octet_as: bool,
+    ) -> BgpPathAttributes {
+        let mut attrs = BgpPathAttributes::new(
+            route.origin,
+            route.as_path.clone(),
+            Ipv4Address::UNSPECIFIED,
+        );
+        attrs.four_octet_as = four_octet_as;
+        attrs.med = route.med;
+        attrs.local_pref = route.local_pref;
+        attrs.originator_id = route.originator_id;
+        attrs.cluster_list = route.cluster_list.clone();
+        attrs.mp_reach = Some(MpReachNlri::with_ipv6_next_hop(
+            AfiSafi::IPV6_UNICAST,
+            route.next_hop,
+            Vec::new(),
+        ));
+        attrs
+    }
+
+    fn compute_ipv6_adj_rib_out(
+        &self,
+        idx: usize,
+    ) -> BTreeMap<Ipv6Prefix, Ipv6AdvertisedRoute> {
+        let peer = &self.peers[idx];
+        let is_ebgp_session = peer.remote_as != self.local_as;
+        let mut out = BTreeMap::new();
+        for (prefix, best) in self.ipv6_loc_rib.iter() {
+            if !best.is_local() && best.peer_addr == peer.addr {
+                continue;
+            }
+            let learned_over_ibgp = !best.is_local() && best.source == PathSource::Ibgp;
+            let propagation =
+                self.propagation(idx, is_ebgp_session, learned_over_ibgp, best.from_client);
+            if propagation == Propagation::Deny {
+                continue;
+            }
+            let mut as_path = best.as_path.clone();
+            if is_ebgp_session {
+                as_path.prepend(self.local_as);
+            }
+            if as_path.contains(peer.remote_as) {
+                continue;
+            }
+            let next_hop = if is_ebgp_session || peer.next_hop_self {
+                self.ipv6_next_hop.unwrap_or(best.next_hop)
+            } else {
+                best.next_hop
+            };
+            let (originator_id, cluster_list) = if propagation == Propagation::Reflect {
+                self.reflection_metadata(
+                    best.originator_id,
+                    &best.cluster_list,
+                    best.peer_router_id,
+                )
+            } else {
+                (None, Vec::new())
+            };
+            out.insert(
+                *prefix,
+                Ipv6AdvertisedRoute {
+                    origin: best.origin,
+                    as_path,
+                    next_hop,
+                    med: best.med,
+                    local_pref: if is_ebgp_session {
+                        None
+                    } else {
+                        Some(best.local_pref)
+                    },
+                    originator_id,
+                    cluster_list,
+                },
+            );
+        }
+        out
+    }
+
+    fn advertise_ipv6_to_peer(
+        &mut self,
+        idx: usize,
+        now_ms: u64,
+        sockets: &mut SocketRuntime,
+    ) {
+        if !self.peers[idx].carries(AfiSafi::IPV6_UNICAST) {
+            return;
+        }
+        let addr = self.peers[idx].addr;
+        let force_refresh = self.peers[idx]
+            .refresh_pending
+            .contains(&AfiSafi::IPV6_UNICAST);
+        if force_refresh
+            && !self.ensure_enhanced_refresh_borr(idx, AfiSafi::IPV6_UNICAST, now_ms, sockets)
+        {
+            return;
+        }
+        let mut refresh_complete = true;
+        let desired = self.compute_ipv6_adj_rib_out(idx);
+        let withdrawn: Vec<Ipv6Prefix> = self
+            .ipv6_adj_rib_out
+            .prefixes(addr)
+            .into_iter()
+            .filter(|prefix| !desired.contains_key(prefix))
+            .collect();
+        if !withdrawn.is_empty() {
+            let pdu = BgpPdu::Update(BgpUpdateMessage::mp_withdraw(MpUnreachNlri::new(
+                AfiSafi::IPV6_UNICAST,
+                encode_ipv6_nlri_list(&withdrawn),
+            )));
+            if self.send_pdu(idx, sockets, &pdu) {
+                self.peers[idx].counters.updates_sent += 1;
+                for prefix in &withdrawn {
+                    self.ipv6_adj_rib_out.remove(addr, prefix);
+                }
+                self.log(
+                    now_ms,
+                    addr,
+                    format!("advertised withdrawal of {} IPv6 prefix(es)", withdrawn.len()),
+                );
+            } else if force_refresh {
+                refresh_complete = false;
+            }
+        }
+
+        let four_octet = self.peers[idx].negotiated.four_octet_as;
+        let mut groups: BTreeMap<Vec<u8>, (Ipv6AdvertisedRoute, Vec<Ipv6Prefix>)> =
+            BTreeMap::new();
+        for (prefix, route) in &desired {
+            if !force_refresh && self.ipv6_adj_rib_out.get(addr, prefix) == Some(route) {
+                continue;
+            }
+            let attrs = Self::ipv6_attributes_for(route, four_octet);
+            let key = attrs.encode_for(false);
+            groups
+                .entry(key)
+                .or_insert_with(|| (route.clone(), Vec::new()))
+                .1
+                .push(*prefix);
+        }
+        for (_, (route, prefixes)) in groups {
+            let mut attrs = Self::ipv6_attributes_for(&route, four_octet);
+            attrs.mp_reach.as_mut().unwrap().nlri = encode_ipv6_nlri_list(&prefixes);
+            let pdu = BgpPdu::Update(BgpUpdateMessage::mp_announce(attrs));
+            if self.send_pdu(idx, sockets, &pdu) {
+                self.peers[idx].counters.updates_sent += 1;
+                self.peers[idx].counters.ipv6_advertised += prefixes.len() as u64;
+                for prefix in &prefixes {
+                    self.ipv6_adj_rib_out.insert(addr, *prefix, route.clone());
+                }
+                self.log(
+                    now_ms,
+                    addr,
+                    format!(
+                        "advertised {} IPv6 prefix(es) with AS_PATH [{}] next-hop {}{}",
+                        prefixes.len(),
+                        route.as_path,
+                        route.next_hop,
+                        if force_refresh { " (refresh)" } else { "" }
+                    ),
+                );
+            } else if force_refresh {
+                refresh_complete = false;
+            }
+        }
+        if force_refresh && refresh_complete {
+            self.peers[idx]
+                .refresh_pending
+                .remove(&AfiSafi::IPV6_UNICAST);
+            self.finish_enhanced_refresh_replay(idx, AfiSafi::IPV6_UNICAST);
+            self.log(now_ms, addr, "completed IPv6 Unicast route refresh");
+        }
+    }
 
     /// Computes what `idx` should be hearing and sends only the differences.
     fn advertise_to_peer(&mut self, idx: usize, now_ms: u64, sockets: &mut SocketRuntime) {

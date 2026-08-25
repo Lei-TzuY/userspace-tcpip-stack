@@ -19,7 +19,7 @@ pub const NEXT_HEADER_ICMPV6: u8 = 58;
 pub const NEXT_HEADER_NO_NEXT: u8 = 59;
 pub const NEXT_HEADER_DEST_OPTS: u8 = 60;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Ipv6Address(pub [u8; 16]);
 
 impl Ipv6Address {
@@ -45,6 +45,10 @@ impl Ipv6Address {
             *word = u16::from_be_bytes([self.0[i * 2], self.0[i * 2 + 1]]);
         }
         words
+    }
+
+    pub fn is_unspecified(&self) -> bool {
+        *self == Self::UNSPECIFIED
     }
 
     pub fn is_loopback(&self) -> bool {

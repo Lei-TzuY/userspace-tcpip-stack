@@ -233,7 +233,7 @@ fn test_an_mp_attribute_with_the_wrong_flags_is_refused() {
 }
 
 #[test]
-fn test_an_unsupported_afi_safi_is_ignored_without_disturbing_the_session() {
+fn test_an_unnegotiated_afi_safi_is_ignored_without_disturbing_the_session() {
     let mut peer = victim();
     let mp = MpReachNlri::new(AfiSafi::new(2, 1), vec![0u8; 16], vec![0xAA, 0xBB]);
     peer.write(&update_with_raw_attribute(
@@ -242,8 +242,9 @@ fn test_an_unsupported_afi_safi_is_ignored_without_disturbing_the_session() {
         &mp.encode_value(),
     ));
 
-    // A family we do not implement carries NLRI we cannot read; dropping the
-    // session over it would be worse than ignoring it (RFC 4760 section 7).
+    // IPv6-Unicast is implemented, but this test peer did not negotiate AFI 2 /
+    // SAFI 1 in OPEN. The optional MP attribute must therefore not be consumed as
+    // usable routing information or reset the otherwise healthy session.
     assert_eq!(peer.state(), BgpState::Established);
     assert_nothing_leaked(&mut peer);
 }

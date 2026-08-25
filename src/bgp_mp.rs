@@ -19,6 +19,7 @@
 use crate::bgp::{BGP_SUB_ATTRIBUTE_LENGTH_ERROR, BGP_SUB_INVALID_NETWORK_FIELD, BgpParseError};
 use crate::bgp_caps::AfiSafi;
 use crate::ipv4::Ipv4Address;
+use crate::ipv6::Ipv6Address;
 
 /// MP_REACH_NLRI path attribute type code (RFC 4760).
 pub const BGP_ATTR_MP_REACH_NLRI: u8 = 14;
@@ -62,6 +63,24 @@ impl MpReachNlri {
         MpReachNlri::new(family, next_hop.0.to_vec(), nlri)
     }
 
+    /// RFC 2545 IPv6 next hop. A single global address uses 16 bytes.
+    pub fn with_ipv6_next_hop(family: AfiSafi, next_hop: Ipv6Address, nlri: Vec<u8>) -> Self {
+        MpReachNlri::new(family, next_hop.0.to_vec(), nlri)
+    }
+
+    /// RFC 2545 permits a 32-byte next hop containing global then link-local.
+    pub fn with_ipv6_global_and_link_local(
+        family: AfiSafi,
+        global: Ipv6Address,
+        link_local: Ipv6Address,
+        nlri: Vec<u8>,
+    ) -> Self {
+        let mut next_hop = Vec::with_capacity(32);
+        next_hop.extend_from_slice(&global.0);
+        next_hop.extend_from_slice(&link_local.0);
+        MpReachNlri::new(family, next_hop, nlri)
+    }
+
     pub fn family(&self) -> AfiSafi {
         AfiSafi::new(self.afi, self.safi)
     }
@@ -85,6 +104,26 @@ impl MpReachNlri {
             ])),
             _ => None,
         }
+    }
+
+    /// Returns the global IPv6 next hop from a 16- or 32-byte RFC 2545 field.
+    pub fn ipv6_next_hop(&self) -> Option<Ipv6Address> {
+        if !matches!(self.next_hop.len(), 16 | 32) {
+            return None;
+        }
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(&self.next_hop[..16]);
+        Some(Ipv6Address(bytes))
+    }
+
+    /// Returns the optional link-local half of a 32-byte IPv6 next hop.
+    pub fn ipv6_link_local_next_hop(&self) -> Option<Ipv6Address> {
+        if self.next_hop.len() != 32 {
+            return None;
+        }
+        let mut bytes = [0u8; 16];
+        bytes.copy_from_slice(&self.next_hop[16..]);
+        Some(Ipv6Address(bytes))
     }
 
     pub fn encode_value(&self) -> Vec<u8> {
@@ -230,6 +269,28 @@ mod tests {
         let parsed = MpUnreachNlri::parse_value(&mp.encode_value()).unwrap();
         assert_eq!(parsed, mp);
         assert_eq!(parsed.nlri, evpn_nlri());
+    }
+
+    #[test]
+    fn test_ipv6_next_hop_accepts_global_and_global_plus_link_local() {
+        let global = Ipv6Address::new([0x2001, 0xdb8, 0, 0, 0, 0, 0, 1]);
+        let link_local = Ipv6Address::new([0xfe80, 0, 0, 0, 0, 0, 0, 1]);
+        let single = MpReachNlri::with_ipv6_next_hop(
+            AfiSafi::IPV6_UNICAST,
+            global,
+            vec![64, 0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0],
+        );
+        assert_eq!(single.ipv6_next_hop(), Some(global));
+        assert_eq!(single.ipv6_link_local_next_hop(), None);
+
+        let dual = MpReachNlri::with_ipv6_global_and_link_local(
+            AfiSafi::IPV6_UNICAST,
+            global,
+            link_local,
+            Vec::new(),
+        );
+        assert_eq!(dual.ipv6_next_hop(), Some(global));
+        assert_eq!(dual.ipv6_link_local_next_hop(), Some(link_local));
     }
 
     #[test]

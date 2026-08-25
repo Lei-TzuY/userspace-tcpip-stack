@@ -19,6 +19,7 @@ pub mod bgp_caps;
 pub mod bgp_epe;
 pub mod bgp_evpn;
 pub mod bgp_ext_comm;
+pub mod bgp_ipv6;
 pub mod bgp_ls;
 pub mod bgp_ls_srv6;
 pub mod bgp_mp;
@@ -275,6 +276,10 @@ pub use bgp_ls_srv6::{
 pub use bgp_prefix_sid::{
     BGP_ATTR_PREFIX_SID, BGP_PREFIX_SID_TLV_IPV6_NODE_SID, BGP_PREFIX_SID_TLV_LABEL_INDEX,
     BGP_PREFIX_SID_TLV_ORIGINATOR_SRGB, BgpPrefixSidAttribute, LabelIndexTlv, OriginatorSrgbTlv,
+};
+pub use bgp_ipv6::{
+    Ipv6AdjRibIn, Ipv6AdjRibOut, Ipv6AdvertisedRoute, Ipv6LocRib, Ipv6Path, Ipv6Prefix,
+    encode_ipv6_nlri_list, select_best_ipv6,
 };
 pub use bgp_rib::{
     AdjRibIn, AdjRibOut, BgpPath, LocRib, PathSource, PolicyAction, PolicyRule, PrefixMatch,

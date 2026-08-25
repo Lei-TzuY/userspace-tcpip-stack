@@ -75,6 +75,10 @@ impl AfiSafi {
         afi: BGP_AFI_IPV4,
         safi: BGP_SAFI_UNICAST,
     };
+    pub const IPV6_UNICAST: AfiSafi = AfiSafi {
+        afi: BGP_AFI_IPV6,
+        safi: BGP_SAFI_UNICAST,
+    };
     pub const L2VPN_EVPN: AfiSafi = AfiSafi {
         afi: BGP_AFI_L2VPN,
         safi: BGP_SAFI_EVPN,
@@ -556,6 +560,10 @@ impl NegotiatedCapabilities {
 
     pub fn supports_evpn(&self) -> bool {
         self.supports(AfiSafi::L2VPN_EVPN)
+    }
+
+    pub fn supports_ipv6_unicast(&self) -> bool {
+        self.supports(AfiSafi::IPV6_UNICAST)
     }
 
     pub fn supports_route_refresh(&self) -> bool {
