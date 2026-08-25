@@ -549,6 +549,47 @@ impl LabRouter {
     pub fn step_timers(&mut self, now_ms: u64) -> Vec<(String, Vec<u8>)> {
         self.current_time_ms = now_ms;
         let mut out = Vec::new();
+
+        // IPv6 Neighbor Unreachability Detection is a data-plane timer and must run
+        // even on routers that do not terminate sockets or run a control plane.
+        // Each interface owns an independent Neighbor Cache, so probes leave on the
+        // same link and with the same source address that owns the cached mapping.
+        let ndp_interfaces: Vec<String> = self.ndp_tables.keys().cloned().collect();
+        for interface_name in ndp_interfaces {
+            let probes = self
+                .ndp_tables
+                .get_mut(&interface_name)
+                .map(|table| table.step_nud(now_ms))
+                .unwrap_or_default();
+            if probes.is_empty() {
+                continue;
+            }
+            let Some(interface) = self
+                .interfaces
+                .iter()
+                .find(|iface| iface.name == interface_name)
+                .cloned()
+            else {
+                continue;
+            };
+            let Some((source, _)) = interface.ipv6 else {
+                continue;
+            };
+            for (target, dst_mac) in probes {
+                let ns = Icmpv6Packet::build_neighbor_solicitation(
+                    source,
+                    target,
+                    target,
+                    interface.mac,
+                );
+                let packet = Ipv6Packet::serialize(source, target, NEXT_HEADER_ICMPV6, 255, &ns);
+                out.push((
+                    interface.link_name.clone(),
+                    EthernetFrame::serialize(dst_mac, interface.mac, ETHERTYPE_IPV6, &packet),
+                ));
+            }
+        }
+
         if self.sockets.is_none() {
             return out;
         }
@@ -1261,6 +1302,10 @@ impl LabRouter {
                 // Learn L2 neighbors only from validated NDP control traffic. Ordinary
                 // routed IPv6 data may carry a remote source behind the previous hop and
                 // therefore must never create a directly-attached Neighbor Cache entry.
+                // NS/RS provide link-layer information but no positive reachability
+                // confirmation, so they create STALE dynamic entries rather than static
+                // mappings. NA processing follows RFC 4861 section 7.2.5 and never creates
+                // a cache entry unless resolution is already INCOMPLETE.
                 if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
                     && let Ok(icmp6) = Icmpv6Packet::parse(
                         ip6_pkt.header.src_ip,
@@ -1269,7 +1314,7 @@ impl LabRouter {
                         true,
                     )
                 {
-                    let neighbor_ip = match icmp6.msg_type {
+                    let learned_source = match icmp6.msg_type {
                         ICMPV6_TYPE_ROUTER_SOLICIT
                             if icmp6.is_valid_router_solicitation(
                                 ip6_pkt.header.src_ip,
@@ -1288,22 +1333,70 @@ impl LabRouter {
                                 (!ip6_pkt.header.src_ip.is_unspecified())
                                     .then_some(ip6_pkt.header.src_ip)
                             }),
-                        ICMPV6_TYPE_NEIGHBOR_ADVERT => icmp6
-                            .validated_neighbor_advertisement_target(
-                                ip6_pkt.header.dst_ip,
-                                ip6_pkt.header.hop_limit,
-                            ),
                         _ => None,
                     };
 
-                    if let Some(neighbor_ip) = neighbor_ip {
+                    if let Some(neighbor_ip) = learned_source {
                         self.ndp_tables
                             .entry(ingress_iface.name.clone())
                             .or_default()
-                            .insert(neighbor_ip, eth.src_mac);
+                            .learn_stale(neighbor_ip, eth.src_mac);
 
                         let pending_key = (ingress_iface.name.clone(), neighbor_ip);
                         if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key)
+                        {
+                            for packet in queued {
+                                out_transmissions.push((
+                                    ingress_link.to_string(),
+                                    EthernetFrame::serialize(
+                                        eth.src_mac,
+                                        ingress_iface.mac,
+                                        ETHERTYPE_IPV6,
+                                        &packet,
+                                    ),
+                                ));
+                            }
+                        }
+                    }
+
+                    if icmp6.msg_type == ICMPV6_TYPE_NEIGHBOR_ADVERT
+                        && let Some(target) = icmp6.validated_neighbor_advertisement_target(
+                            ip6_pkt.header.dst_ip,
+                            ip6_pkt.header.hop_limit,
+                        )
+                    {
+                        let table = self
+                            .ndp_tables
+                            .entry(ingress_iface.name.clone())
+                            .or_default();
+                        let cached_mac = table.lookup(&target);
+                        let pending_key = (ingress_iface.name.clone(), target);
+                        let resolving =
+                            self.pending_ipv6_transit_packets.contains_key(&pending_key);
+                        let solicited = icmp6.payload[0] & 0x40 != 0;
+                        let override_flag = icmp6.payload[0] & 0x20 != 0;
+                        let mut resolved = false;
+
+                        if let Some(current_mac) = cached_mac {
+                            if current_mac != eth.src_mac && !override_flag {
+                                table.demote_reachable_preserving_mac(target);
+                            } else if solicited {
+                                table.confirm_reachable(target, eth.src_mac, self.current_time_ms);
+                            } else if current_mac != eth.src_mac {
+                                table.mark_stale(target, eth.src_mac);
+                            }
+                        } else if resolving {
+                            if solicited {
+                                table.confirm_reachable(target, eth.src_mac, self.current_time_ms);
+                            } else {
+                                table.mark_stale(target, eth.src_mac);
+                            }
+                            resolved = true;
+                        }
+
+                        if resolved
+                            && let Some(queued) =
+                                self.pending_ipv6_transit_packets.remove(&pending_key)
                         {
                             for packet in queued {
                                 out_transmissions.push((
@@ -1568,7 +1661,7 @@ impl LabRouter {
                     .ndp_tables
                     .entry(egress_iface.name.clone())
                     .or_default();
-                if let Some(dst_mac) = ndp.lookup(&next_hop) {
+                if let Some(dst_mac) = ndp.lookup_for_transmit(&next_hop, self.current_time_ms) {
                     out_transmissions.push((
                         egress_iface.link_name.clone(),
                         EthernetFrame::serialize(

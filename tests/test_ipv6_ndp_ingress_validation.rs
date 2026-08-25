@@ -195,9 +195,12 @@ fn router_rejects_offlink_na_before_neighbor_cache_learning() {
             .process_incoming_frame("lan", &valid_frame)
             .is_empty()
     );
+    // A wire-valid NA still cannot create a Neighbor Cache entry out of thin air.
+    // RFC 4861 section 7.2.5 discards it when no cache entry / INCOMPLETE
+    // resolution exists; LabRouter NUD now mirrors NetStack here.
     assert_eq!(
         router.ndp_tables.get("eth0").unwrap().lookup(&neighbor_ip),
-        Some(neighbor_mac)
+        None
     );
 }
 
