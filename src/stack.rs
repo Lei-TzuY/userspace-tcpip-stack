@@ -1615,11 +1615,14 @@ impl NetStack {
                                     ip6_pkt.header.src_ip,
                                     ip6_pkt.header.hop_limit,
                                 ) {
-                                    // Only validated on-link NDP control traffic may create
-                                    // Neighbor Cache state. Ordinary routed IPv6 data must not
-                                    // make its remote source appear directly attached.
-                                    self.ndp_table
-                                        .learn_stale(ip6_pkt.header.src_ip, eth.src_mac);
+                                    // RFC 4861 sections 6.3.4 and 7.2: a valid RA may
+                                    // update the Neighbor Cache only when it actually carries
+                                    // SLLA. The enclosing Ethernet source is not a substitute.
+                                    if let Some(source_mac) = icmp6.ndp_source_link_layer_address()
+                                    {
+                                        self.ndp_table
+                                            .learn_stale(ip6_pkt.header.src_ip, source_mac);
+                                    }
 
                                     // Any valid RA is a Router Discovery response, even
                                     // when Router Lifetime is zero or no autonomous prefix
@@ -1762,12 +1765,15 @@ impl NetStack {
                                         ip6_pkt.header.hop_limit,
                                     )
                                 {
-                                    // A non-DAD NS is direct on-link evidence for its source.
-                                    // DAD uses the unspecified source and deliberately teaches
-                                    // no Neighbor Cache entry.
-                                    if !ip6_pkt.header.src_ip.is_unspecified() {
+                                    // RFC 4861 section 7.2.3: a non-DAD NS updates the
+                                    // Neighbor Cache only when SLLA is present, and the option's
+                                    // address is the cache hint. Ethernet source MAC is not.
+                                    if !ip6_pkt.header.src_ip.is_unspecified()
+                                        && let Some(source_mac) =
+                                            icmp6.ndp_source_link_layer_address()
+                                    {
                                         self.ndp_table
-                                            .learn_stale(ip6_pkt.header.src_ip, eth.src_mac);
+                                            .learn_stale(ip6_pkt.header.src_ip, source_mac);
                                     }
 
                                     // A competing DAD probe for our tentative target is

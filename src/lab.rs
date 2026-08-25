@@ -1302,9 +1302,9 @@ impl LabRouter {
                 // Learn L2 neighbors only from validated NDP control traffic. Ordinary
                 // routed IPv6 data may carry a remote source behind the previous hop and
                 // therefore must never create a directly-attached Neighbor Cache entry.
-                // NS/RS provide link-layer information but no positive reachability
-                // confirmation, so they create STALE dynamic entries rather than static
-                // mappings. NA processing follows RFC 4861 section 7.2.5 and never creates
+                // NS/RS contribute link-layer information only when SLLA is present;
+                // that option creates a STALE dynamic entry rather than a static mapping.
+                // NA processing follows RFC 4861 section 7.2.5 and never creates
                 // a cache entry unless resolution is already INCOMPLETE.
                 if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
                     && let Ok(icmp6) = Icmpv6Packet::parse(
@@ -1321,7 +1321,9 @@ impl LabRouter {
                                 ip6_pkt.header.hop_limit,
                             ) && !ip6_pkt.header.src_ip.is_unspecified() =>
                         {
-                            Some(ip6_pkt.header.src_ip)
+                            icmp6
+                                .ndp_source_link_layer_address()
+                                .map(|mac| (ip6_pkt.header.src_ip, mac))
                         }
                         ICMPV6_TYPE_NEIGHBOR_SOLICIT => icmp6
                             .validated_neighbor_solicitation_target(
@@ -1332,15 +1334,20 @@ impl LabRouter {
                             .and_then(|_| {
                                 (!ip6_pkt.header.src_ip.is_unspecified())
                                     .then_some(ip6_pkt.header.src_ip)
+                            })
+                            .and_then(|source| {
+                                icmp6
+                                    .ndp_source_link_layer_address()
+                                    .map(|mac| (source, mac))
                             }),
                         _ => None,
                     };
 
-                    if let Some(neighbor_ip) = learned_source {
+                    if let Some((neighbor_ip, neighbor_mac)) = learned_source {
                         self.ndp_tables
                             .entry(ingress_iface.name.clone())
                             .or_default()
-                            .learn_stale(neighbor_ip, eth.src_mac);
+                            .learn_stale(neighbor_ip, neighbor_mac);
 
                         let pending_key = (ingress_iface.name.clone(), neighbor_ip);
                         if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key)
@@ -1349,7 +1356,7 @@ impl LabRouter {
                                 out_transmissions.push((
                                     ingress_link.to_string(),
                                     EthernetFrame::serialize(
-                                        eth.src_mac,
+                                        neighbor_mac,
                                         ingress_iface.mac,
                                         ETHERTYPE_IPV6,
                                         &packet,
@@ -1373,28 +1380,45 @@ impl LabRouter {
                         let pending_key = (ingress_iface.name.clone(), target);
                         let resolving =
                             self.pending_ipv6_transit_packets.contains_key(&pending_key);
+                        let advertised_mac =
+                            icmp6.neighbor_advertisement_target_link_layer_address();
                         let solicited = icmp6.payload[0] & 0x40 != 0;
                         let override_flag = icmp6.payload[0] & 0x20 != 0;
-                        let mut resolved = false;
+                        let mut resolved_mac = None;
 
                         if let Some(current_mac) = cached_mac {
-                            if current_mac != eth.src_mac && !override_flag {
+                            if advertised_mac.is_some_and(|mac| mac != current_mac)
+                                && !override_flag
+                            {
                                 table.demote_reachable_preserving_mac(target);
-                            } else if solicited {
-                                table.confirm_reachable(target, eth.src_mac, self.current_time_ms);
-                            } else if current_mac != eth.src_mac {
-                                table.mark_stale(target, eth.src_mac);
+                            } else {
+                                let selected_mac = advertised_mac.unwrap_or(current_mac);
+                                let address_changed = selected_mac != current_mac;
+                                if solicited {
+                                    table.confirm_reachable(
+                                        target,
+                                        selected_mac,
+                                        self.current_time_ms,
+                                    );
+                                } else if address_changed {
+                                    table.mark_stale(target, selected_mac);
+                                }
                             }
                         } else if resolving {
+                            // RFC 4861 section 7.2.5: on Ethernet an NA received for an
+                            // INCOMPLETE entry cannot complete resolution without TLLA.
+                            let Some(target_mac) = advertised_mac else {
+                                return out_transmissions;
+                            };
                             if solicited {
-                                table.confirm_reachable(target, eth.src_mac, self.current_time_ms);
+                                table.confirm_reachable(target, target_mac, self.current_time_ms);
                             } else {
-                                table.mark_stale(target, eth.src_mac);
+                                table.mark_stale(target, target_mac);
                             }
-                            resolved = true;
+                            resolved_mac = Some(target_mac);
                         }
 
-                        if resolved
+                        if let Some(target_mac) = resolved_mac
                             && let Some(queued) =
                                 self.pending_ipv6_transit_packets.remove(&pending_key)
                         {
@@ -1402,7 +1426,7 @@ impl LabRouter {
                                 out_transmissions.push((
                                     ingress_link.to_string(),
                                     EthernetFrame::serialize(
-                                        eth.src_mac,
+                                        target_mac,
                                         ingress_iface.mac,
                                         ETHERTYPE_IPV6,
                                         &packet,

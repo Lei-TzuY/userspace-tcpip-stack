@@ -214,6 +214,42 @@ fn ndp_ethernet_lla_option_length_valid(options: &[u8], option_type: u8) -> bool
     true
 }
 
+/// Extracts an Ethernet Source/Target Link-Layer Address option from an already
+/// validated NDP option list. RFC 2464 fixes Ethernet LLA options at one 8-octet
+/// unit; malformed or truncated lists deliberately yield no cache hint.
+fn ndp_ethernet_link_layer_address(options: &[u8], option_type: u8) -> Option<MacAddress> {
+    let mut offset = 0usize;
+    while offset < options.len() {
+        if options.len() - offset < 2 {
+            return None;
+        }
+        let units = options[offset + 1] as usize;
+        if units == 0 {
+            return None;
+        }
+        let option_len = units.checked_mul(8)?;
+        let end = offset.checked_add(option_len)?;
+        if end > options.len() {
+            return None;
+        }
+        if options[offset] == option_type {
+            if option_len != 8 {
+                return None;
+            }
+            return Some(MacAddress([
+                options[offset + 2],
+                options[offset + 3],
+                options[offset + 4],
+                options[offset + 5],
+                options[offset + 6],
+                options[offset + 7],
+            ]));
+        }
+        offset = end;
+    }
+    None
+}
+
 impl<'a> Icmpv6Packet<'a> {
     pub fn parse(
         src_ip: Ipv6Address,
@@ -332,41 +368,20 @@ impl<'a> Icmpv6Packet<'a> {
         if self.msg_type != ICMPV6_TYPE_NEIGHBOR_ADVERT || self.payload.len() < 20 {
             return None;
         }
+        ndp_ethernet_link_layer_address(&self.payload[20..], NDP_OPT_TARGET_LINK_LAYER_ADDR)
+    }
 
-        let options = &self.payload[20..];
-        let mut offset = 0usize;
-        while offset < options.len() {
-            if options.len() - offset < 2 {
-                return None;
-            }
-            let units = options[offset + 1] as usize;
-            if units == 0 {
-                return None;
-            }
-            let option_len = units.checked_mul(8)?;
-            let end = offset.checked_add(option_len)?;
-            if end > options.len() {
-                return None;
-            }
-
-            if options[offset] == NDP_OPT_TARGET_LINK_LAYER_ADDR {
-                // RFC 4861 section 4.6.1 notes that IEEE 802 addresses use
-                // one 8-octet option unit: type, length, then six MAC octets.
-                if option_len != 8 {
-                    return None;
-                }
-                return Some(MacAddress([
-                    options[offset + 2],
-                    options[offset + 3],
-                    options[offset + 4],
-                    options[offset + 5],
-                    options[offset + 6],
-                    options[offset + 7],
-                ]));
-            }
-            offset = end;
-        }
-        None
+    /// Returns the Ethernet Source Link-Layer Address option carried by an NS,
+    /// RS, or RA. Absence is meaningful: RFC 4861 does not permit callers to
+    /// synthesize a Neighbor Cache mapping from the enclosing Ethernet header.
+    pub fn ndp_source_link_layer_address(&self) -> Option<MacAddress> {
+        let options = match self.msg_type {
+            ICMPV6_TYPE_NEIGHBOR_SOLICIT if self.payload.len() >= 20 => &self.payload[20..],
+            ICMPV6_TYPE_ROUTER_SOLICIT if self.payload.len() >= 4 => &self.payload[4..],
+            ICMPV6_TYPE_ROUTER_ADVERT if self.payload.len() >= 12 => &self.payload[12..],
+            _ => return None,
+        };
+        ndp_ethernet_link_layer_address(options, NDP_OPT_SRC_LINK_LAYER_ADDR)
     }
 
     /// Validates an RFC 4861 Router Solicitation before a router uses
