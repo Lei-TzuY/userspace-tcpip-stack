@@ -93,11 +93,11 @@ fn later_on_link_assertion_adds_route_and_l_zero_does_not_withdraw_it() {
     stack.process_frame(&ra_frame(router_mac, on_link, 1800));
     let route = stack.ipv6_routing_table.lookup(peer).unwrap();
     assert_eq!(route.prefix_len, 64);
-    assert_eq!(route.source, RouteSource::Connected);
+    assert_eq!(route.source, RouteSource::Ra);
     assert_eq!(route.gateway, None);
 
     stack.process_frame(&ra_frame(router_mac, off_link, 1800));
     let route = stack.ipv6_routing_table.lookup(peer).unwrap();
     assert_eq!(route.prefix_len, 64);
-    assert_eq!(route.source, RouteSource::Connected);
+    assert_eq!(route.source, RouteSource::Ra);
 }

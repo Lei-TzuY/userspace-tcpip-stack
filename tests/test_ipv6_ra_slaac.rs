@@ -152,7 +152,7 @@ fn router_solicitation_configures_slaac_and_default_route_then_routes_ping6() {
         .ipv6_routing_table
         .lookup(ip6("2001:db8:1::beef"))
         .unwrap();
-    assert_eq!(connected.source, RouteSource::Connected);
+    assert_eq!(connected.source, RouteSource::Ra);
     assert_eq!(connected.gateway, None);
     let remote = host_a.ipv6_routing_table.lookup(host_b).unwrap();
     assert_eq!(remote.gateway, Some(router_ll));

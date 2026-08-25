@@ -101,7 +101,7 @@ fn slaac_address_stays_tentative_until_dad_timer_expires() {
             .lookup(ip6("2001:db8:1::beef"))
             .unwrap()
             .source,
-        RouteSource::Connected
+        RouteSource::Ra
     );
 }
 

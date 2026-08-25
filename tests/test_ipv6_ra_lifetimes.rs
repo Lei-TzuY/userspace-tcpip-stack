@@ -99,7 +99,7 @@ fn router_preferred_and_valid_lifetimes_expire_independently() {
     assert!(
         !stack
             .ipv6_routing_table
-            .routes_from(RouteSource::Connected)
+            .routes_from(RouteSource::Ra)
             .is_empty()
     );
 
@@ -121,7 +121,7 @@ fn router_preferred_and_valid_lifetimes_expire_independently() {
     assert!(
         stack
             .ipv6_routing_table
-            .routes_from(RouteSource::Connected)
+            .routes_from(RouteSource::Ra)
             .is_empty()
     );
 }

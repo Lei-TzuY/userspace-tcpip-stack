@@ -10,6 +10,8 @@ use std::fmt;
 pub enum RouteSource {
     /// Directly attached subnet of a local interface.
     Connected,
+    /// On-link prefix learned from an IPv6 Router Advertisement PIO.
+    Ra,
     /// Operator-configured route (the default for `add_route`).
     #[default]
     Static,
@@ -28,6 +30,7 @@ impl RouteSource {
     pub fn distance(&self) -> u8 {
         match self {
             RouteSource::Connected => 0,
+            RouteSource::Ra => 0,
             RouteSource::Static => 1,
             RouteSource::Bgp => 20,
             RouteSource::Ospf => 110,
@@ -38,6 +41,7 @@ impl RouteSource {
     pub fn as_str(&self) -> &'static str {
         match self {
             RouteSource::Connected => "connected",
+            RouteSource::Ra => "ra",
             RouteSource::Static => "static",
             RouteSource::Bgp => "bgp",
             RouteSource::Ospf => "ospf",

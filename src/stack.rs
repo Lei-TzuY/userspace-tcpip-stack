@@ -133,6 +133,7 @@ pub struct NetStack {
     ipv6_dad: Option<PendingIpv6Dad>,
     ipv6_dad_duplicate: Option<Ipv6Address>,
     ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
+    ipv6_ra_on_link_prefixes: HashMap<(Ipv6Address, u8), Option<u64>>,
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
     pub firewall: Firewall,
@@ -180,6 +181,7 @@ impl NetStack {
             ipv6_dad: None,
             ipv6_dad_duplicate: None,
             ipv6_slaac_lifetimes: None,
+            ipv6_ra_on_link_prefixes: HashMap::new(),
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
             firewall: Firewall::new(),
@@ -363,6 +365,33 @@ impl NetStack {
                 dad.router_until_ms = deadline;
             }
         }
+    }
+
+    fn refresh_ipv6_ra_on_link_prefix(
+        &mut self,
+        prefix: Ipv6Address,
+        prefix_len: u8,
+        valid_lifetime: u32,
+    ) {
+        let prefix_len = prefix_len.min(128);
+        let prefix = prefix.mask(prefix_len);
+        let key = (prefix, prefix_len);
+        if valid_lifetime == 0 {
+            self.ipv6_ra_on_link_prefixes.remove(&key);
+            self.ipv6_routing_table
+                .remove_route(prefix, prefix_len, RouteSource::Ra);
+            return;
+        }
+
+        let valid_until_ms = ipv6_lifetime_deadline(self.current_time_ms, valid_lifetime);
+        self.ipv6_ra_on_link_prefixes.insert(key, valid_until_ms);
+        self.ipv6_routing_table.add_route_from(
+            prefix,
+            prefix_len,
+            None,
+            "eth0",
+            RouteSource::Ra,
+        );
     }
 
     fn start_ipv6_dad(
@@ -800,6 +829,23 @@ impl NetStack {
             }
         }
 
+        // RFC 4861 Prefix List lifetimes are independent of SLAAC address
+        // lifetimes. Expiry returns destinations to normal default-router selection.
+        let expired_ra_prefixes: Vec<(Ipv6Address, u8)> = self
+            .ipv6_ra_on_link_prefixes
+            .iter()
+            .filter_map(|(key, deadline)| {
+                (*deadline)
+                    .is_some_and(|deadline| now_ms >= deadline)
+                    .then_some(*key)
+            })
+            .collect();
+        for (prefix, prefix_len) in expired_ra_prefixes {
+            self.ipv6_ra_on_link_prefixes.remove(&(prefix, prefix_len));
+            self.ipv6_routing_table
+                .remove_route(prefix, prefix_len, RouteSource::Ra);
+        }
+
         // A tentative SLAAC address becomes usable only after its DAD interval
         // expires without a conflicting NS/NA.
         if self.ipv6_dad.is_some_and(|dad| now_ms >= dad.deadline_ms) {
@@ -811,14 +857,13 @@ impl NetStack {
                         .is_some_and(|deadline| now_ms < deadline)
                 });
                 self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);
-                // A configures the address; L independently declares the prefix on-link.
-                if !dad.on_link {
-                    self.ipv6_routing_table.remove_route(
-                        dad.address,
-                        dad.prefix_len,
-                        RouteSource::Connected,
-                    );
-                }
+                // RFC 5942: SLAAC address assignment does not itself make the
+                // address prefix on-link. PIO L-bit state is owned separately.
+                self.ipv6_routing_table.remove_route(
+                    dad.address,
+                    dad.prefix_len,
+                    RouteSource::Connected,
+                );
                 self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
                     address: dad.address,
                     preferred_until_ms: dad.preferred_until_ms,
@@ -1438,6 +1483,20 @@ impl NetStack {
                                         ra.router_lifetime,
                                     );
 
+                                    // RFC 4861 section 6.3.4: L and A are independent.
+                                    // Only L=1 updates the Prefix List; L=0 makes no
+                                    // on-link/off-link statement and therefore cannot
+                                    // withdraw or refresh prior on-link knowledge.
+                                    for prefix in ra.prefixes.iter().filter(|prefix| {
+                                        prefix.on_link && !prefix.prefix.is_link_local()
+                                    }) {
+                                        self.refresh_ipv6_ra_on_link_prefix(
+                                            prefix.prefix,
+                                            prefix.prefix_length,
+                                            prefix.valid_lifetime,
+                                        );
+                                    }
+
                                     if let Some(prefix) = ra.prefixes.iter().find(|prefix| {
                                         prefix.autonomous && prefix.prefix_length == 64
                                     }) && let Some(address) = slaac_address(
@@ -1449,16 +1508,6 @@ impl NetStack {
                                             .then_some(ip6_pkt.header.src_ip);
                                         let now_ms = self.current_time_ms;
                                         if self.config.ipv6 == Some(address) {
-                                            // L=1 adds positive on-link knowledge; L=0 does not erase it.
-                                            if prefix.on_link {
-                                                self.ipv6_routing_table.add_route_from(
-                                                    address,
-                                                    prefix.prefix_length,
-                                                    None,
-                                                    "eth0",
-                                                    RouteSource::Connected,
-                                                );
-                                            }
                                             let old_valid = self
                                                 .ipv6_slaac_lifetimes
                                                 .filter(|lifetimes| lifetimes.address == address)
