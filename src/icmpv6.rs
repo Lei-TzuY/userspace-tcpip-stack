@@ -282,6 +282,50 @@ impl<'a> Icmpv6Packet<'a> {
         Some(target)
     }
 
+    /// Returns the Ethernet Target Link-Layer Address carried by a Neighbor
+    /// Advertisement, if present. Callers should validate the advertisement
+    /// before using this accessor.
+    pub fn neighbor_advertisement_target_link_layer_address(&self) -> Option<MacAddress> {
+        if self.msg_type != ICMPV6_TYPE_NEIGHBOR_ADVERT || self.payload.len() < 20 {
+            return None;
+        }
+
+        let options = &self.payload[20..];
+        let mut offset = 0usize;
+        while offset < options.len() {
+            if options.len() - offset < 2 {
+                return None;
+            }
+            let units = options[offset + 1] as usize;
+            if units == 0 {
+                return None;
+            }
+            let option_len = units.checked_mul(8)?;
+            let end = offset.checked_add(option_len)?;
+            if end > options.len() {
+                return None;
+            }
+
+            if options[offset] == NDP_OPT_TARGET_LINK_LAYER_ADDR {
+                // RFC 4861 section 4.6.1 notes that IEEE 802 addresses use
+                // one 8-octet option unit: type, length, then six MAC octets.
+                if option_len != 8 {
+                    return None;
+                }
+                return Some(MacAddress([
+                    options[offset + 2],
+                    options[offset + 3],
+                    options[offset + 4],
+                    options[offset + 5],
+                    options[offset + 6],
+                    options[offset + 7],
+                ]));
+            }
+            offset = end;
+        }
+        None
+    }
+
     /// Validates an RFC 4861 Router Solicitation before a router uses
     /// the packet as a Neighbor Cache hint or generates a Router Advertisement.
     pub fn is_valid_router_solicitation(&self, src_ip: Ipv6Address, hop_limit: u8) -> bool {

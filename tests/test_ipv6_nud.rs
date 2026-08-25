@@ -6,7 +6,9 @@ use toy_tcpip::icmpv6::{
     NDP_REACHABLE_TIME_MS, NDP_RETRANS_TIMER_MS, NdpTable, NeighborState, ipv6_multicast_mac,
 };
 use toy_tcpip::ipv4::Ipv4Address;
-use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
+use toy_tcpip::ipv6::{
+    Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checksum,
+};
 use toy_tcpip::stack::{NetStack, NetStackConfig};
 
 fn ip6(text: &str) -> Ipv6Address {
@@ -60,6 +62,35 @@ fn na_frame_with_override(
     );
     let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
     EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
+}
+
+fn na_frame_with_tlla(
+    src: Ipv6Address,
+    dst: Ipv6Address,
+    target: Ipv6Address,
+    ethernet_src_mac: MacAddress,
+    dst_mac: MacAddress,
+    target_mac: Option<MacAddress>,
+    solicited: bool,
+    override_flag: bool,
+) -> Vec<u8> {
+    let mut na = Icmpv6Packet::build_neighbor_advertisement(
+        src,
+        dst,
+        target,
+        target_mac.unwrap_or(ethernet_src_mac),
+        false,
+        solicited,
+        override_flag,
+    );
+    if target_mac.is_none() {
+        na.truncate(24);
+        na[2..4].copy_from_slice(&[0, 0]);
+        let checksum = compute_ipv6_transport_checksum(src, dst, NEXT_HEADER_ICMPV6, &na);
+        na[2..4].copy_from_slice(&checksum.to_be_bytes());
+    }
+    let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
+    EthernetFrame::serialize(dst_mac, ethernet_src_mac, ETHERTYPE_IPV6, &packet)
 }
 
 #[test]
@@ -300,4 +331,113 @@ fn unsolicited_na_without_cache_or_resolution_state_is_discarded() {
     assert!(stack.process_frame(&frame).is_empty());
     assert_eq!(stack.ndp_table.lookup(&peer_ip), None);
     assert_eq!(stack.ndp_table.state(&peer_ip), None);
+}
+
+#[test]
+fn incomplete_resolution_requires_tlla_and_uses_advertised_mac() {
+    let host_ip = ip6("2001:db8:7::1");
+    let peer_ip = ip6("2001:db8:7::2");
+    let host_mac = mac(0x71);
+    let ethernet_src = mac(0x72);
+    let advertised_mac = mac(0x73);
+    let mut stack = host(host_ip, host_mac);
+
+    let _resolution = stack.ping6(peer_ip, 0x7000, 1, b"queued").unwrap();
+    assert_eq!(
+        stack.pending_ndp_packets.get(&peer_ip).map(Vec::len),
+        Some(1)
+    );
+
+    let no_tlla = na_frame_with_tlla(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        ethernet_src,
+        host_mac,
+        None,
+        true,
+        true,
+    );
+    assert!(stack.process_frame(&no_tlla).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), None);
+    assert_eq!(
+        stack.pending_ndp_packets.get(&peer_ip).map(Vec::len),
+        Some(1)
+    );
+
+    let with_tlla = na_frame_with_tlla(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        ethernet_src,
+        host_mac,
+        Some(advertised_mac),
+        true,
+        true,
+    );
+    let released = stack.process_frame(&with_tlla);
+    assert_eq!(released.len(), 1);
+    assert_eq!(
+        EthernetFrame::parse(&released[0]).unwrap().dst_mac,
+        advertised_mac
+    );
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(advertised_mac));
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert!(!stack.pending_ndp_packets.contains_key(&peer_ip));
+}
+
+#[test]
+fn solicited_na_without_tlla_confirms_cached_mac_without_replacing_it() {
+    let host_ip = ip6("2001:db8:8::1");
+    let peer_ip = ip6("2001:db8:8::2");
+    let host_mac = mac(0x81);
+    let cached_mac = mac(0x82);
+    let ethernet_src = mac(0x83);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.mark_stale(peer_ip, cached_mac);
+
+    let frame = na_frame_with_tlla(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        ethernet_src,
+        host_mac,
+        None,
+        true,
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(cached_mac));
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+}
+
+#[test]
+fn override_update_uses_tlla_not_ethernet_source_address() {
+    let host_ip = ip6("2001:db8:9::1");
+    let peer_ip = ip6("2001:db8:9::2");
+    let host_mac = mac(0x91);
+    let cached_mac = mac(0x92);
+    let advertised_mac = mac(0x93);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.confirm_reachable(peer_ip, cached_mac, 0);
+
+    let frame = na_frame_with_tlla(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        cached_mac,
+        host_mac,
+        Some(advertised_mac),
+        false,
+        true,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(advertised_mac));
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
 }

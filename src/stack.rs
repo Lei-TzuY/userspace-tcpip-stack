@@ -1841,37 +1841,50 @@ impl NetStack {
                                 // simulator's INCOMPLETE resolution state.
                                 let cached_mac = self.ndp_table.lookup(&target_ip6);
                                 let resolving = self.pending_ndp_packets.contains_key(&target_ip6);
+                                let advertised_mac =
+                                    icmp6.neighbor_advertisement_target_link_layer_address();
                                 let solicited = icmp6.payload[0] & 0x40 != 0;
                                 let override_flag = icmp6.payload[0] & 0x20 != 0;
 
                                 if let Some(current_mac) = cached_mac {
-                                    if current_mac != eth.src_mac && !override_flag {
-                                        // RFC 4861 section 7.2.5: when Override is clear and
-                                        // the advertised link-layer address differs, do not
-                                        // replace it. Only a REACHABLE dynamic entry becomes
-                                        // STALE; other states and static mappings are ignored.
+                                    if advertised_mac.is_some_and(|mac| mac != current_mac)
+                                        && !override_flag
+                                    {
+                                        // With Override clear, a differing TLLA cannot replace
+                                        // the cached address. Only a REACHABLE dynamic entry is
+                                        // demoted to STALE; every other cache field is preserved.
                                         self.ndp_table.demote_reachable_preserving_mac(target_ip6);
-                                    } else if solicited {
-                                        self.ndp_table.confirm_reachable(
-                                            target_ip6,
-                                            eth.src_mac,
-                                            self.current_time_ms,
-                                        );
-                                    } else if current_mac != eth.src_mac {
-                                        self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                    } else {
+                                        // With Override set, the advertised TLLA wins. If the
+                                        // option is absent, RFC 4861 explicitly keeps the cached
+                                        // link-layer address while still allowing a solicited NA
+                                        // to confirm reachability.
+                                        let selected_mac = advertised_mac.unwrap_or(current_mac);
+                                        let address_changed = selected_mac != current_mac;
+                                        if solicited {
+                                            self.ndp_table.confirm_reachable(
+                                                target_ip6,
+                                                selected_mac,
+                                                self.current_time_ms,
+                                            );
+                                        } else if address_changed {
+                                            self.ndp_table.mark_stale(target_ip6, selected_mac);
+                                        }
                                     }
                                 } else if resolving {
-                                    // INCOMPLETE resolution ignores Override. The NA supplies
-                                    // the missing link-layer address; Solicited determines
-                                    // whether it is immediately REACHABLE or merely STALE.
+                                    // An INCOMPLETE Ethernet Neighbor Cache entry MUST ignore an
+                                    // NA that omits TLLA. Override is ignored in INCOMPLETE state.
+                                    let Some(target_mac) = advertised_mac else {
+                                        return out_frames;
+                                    };
                                     if solicited {
                                         self.ndp_table.confirm_reachable(
                                             target_ip6,
-                                            eth.src_mac,
+                                            target_mac,
                                             self.current_time_ms,
                                         );
                                     } else {
-                                        self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                        self.ndp_table.mark_stale(target_ip6, target_mac);
                                     }
 
                                     if let Some(queued_packets) =
@@ -1879,7 +1892,7 @@ impl NetStack {
                                     {
                                         for ip6_pkt_data in queued_packets {
                                             let eth_out = EthernetFrame::serialize(
-                                                eth.src_mac,
+                                                target_mac,
                                                 self.config.mac,
                                                 ETHERTYPE_IPV6,
                                                 &ip6_pkt_data,
