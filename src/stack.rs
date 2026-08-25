@@ -1497,12 +1497,6 @@ impl NetStack {
                         }
                     }
 
-                    // The unspecified source is used by DAD and is never a
-                    // neighbour-cache key (RFC 4861/4862).
-                    if !ip6_pkt.header.src_ip.is_unspecified() {
-                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
-                    }
-
                     let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
                     let dst6 = ip6_pkt.header.dst_ip;
 
@@ -1527,6 +1521,11 @@ impl NetStack {
                                     && ip6_pkt.header.src_ip.is_link_local()
                                     && let Some(ra) = RouterAdvertisement::parse(&icmp6)
                                 {
+                                    // Only validated on-link NDP control traffic may create
+                                    // Neighbor Cache state. Ordinary routed IPv6 data must not
+                                    // make its remote source appear directly attached.
+                                    self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+
                                     // Any valid RA is a Router Discovery response, even
                                     // when Router Lifetime is zero or no autonomous prefix
                                     // is present. Invalid RAs never cancel retransmission.
@@ -1668,6 +1667,13 @@ impl NetStack {
                                         ip6_pkt.header.hop_limit,
                                     )
                                 {
+                                    // A non-DAD NS is direct on-link evidence for its source.
+                                    // DAD uses the unspecified source and deliberately teaches
+                                    // no Neighbor Cache entry.
+                                    if !ip6_pkt.header.src_ip.is_unspecified() {
+                                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                                    }
+
                                     // A competing DAD probe for our tentative target is
                                     // itself evidence that the address is not unique.
                                     if eth.src_mac != self.config.mac
@@ -1727,6 +1733,10 @@ impl NetStack {
                                 else {
                                     return out_frames;
                                 };
+
+                                // A validated NA resolves the advertised target, not an
+                                // arbitrary IPv6 source address carried by the frame.
+                                self.ndp_table.insert(target_ip6, eth.src_mac);
 
                                 if eth.src_mac != self.config.mac
                                     && self.ipv6_dad.is_some_and(|dad| dad.address == target_ip6)
