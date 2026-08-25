@@ -1,0 +1,29 @@
+name: Apply Route Refresh Test Fix
+
+on:
+  push:
+    branches: [ feat/bgp-route-refresh ]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/bgp-route-refresh
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply regression fix
+        run: python scripts/fix_route_refresh_test.py
+      - name: Verify focused BGP tests
+        run: cargo test --test test_bgp_malformed --test test_bgp_route_refresh
+      - name: Commit fix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tests/test_bgp_malformed.rs
+          git commit -m "test(bgp): treat route refresh as supported message type"
+          git push
