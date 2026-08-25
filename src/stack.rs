@@ -8,7 +8,8 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
-    ICMPV6_TYPE_NEIGHBOR_SOLICIT, Icmpv6Packet, NdpTable,
+    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_ROUTER_ADVERT, Icmpv6Packet, NdpTable,
+    RouterAdvertisement, ipv6_multicast_mac, slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -170,6 +171,18 @@ impl NetStack {
         self.ipv6_prefix_len = None;
         self.ipv6_gateway = None;
         self.pending_ndp_packets.clear();
+    }
+
+    /// Emits a Router Solicitation to ff02::2. An unconfigured host uses the
+    /// unspecified IPv6 source and therefore omits the source-link-layer option.
+    pub fn router_solicitation(&self) -> Vec<u8> {
+        let src = self.config.ipv6.unwrap_or(Ipv6Address::UNSPECIFIED);
+        let dst = Ipv6Address::LINK_LOCAL_ALL_ROUTERS;
+        let source_mac = (!src.is_unspecified()).then_some(self.config.mac);
+        let rs = Icmpv6Packet::build_router_solicitation(src, dst, source_mac);
+        let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &rs);
+        let dst_mac = ipv6_multicast_mac(dst).unwrap_or(MacAddress::BROADCAST);
+        EthernetFrame::serialize(dst_mac, self.config.mac, ETHERTYPE_IPV6, &packet)
     }
 
     pub fn enable_nat(&mut self, public_ip: Ipv4Address) {
@@ -1035,6 +1048,31 @@ impl NetStack {
                         )
                     {
                         match icmp6.msg_type {
+                            ICMPV6_TYPE_ROUTER_ADVERT => {
+                                if ip6_pkt.header.hop_limit == 255
+                                    && ip6_pkt.header.src_ip.is_link_local()
+                                    && let Some(ra) = RouterAdvertisement::parse(&icmp6)
+                                    && let Some(prefix) = ra.prefixes.iter().find(|prefix| {
+                                        prefix.autonomous
+                                            && prefix.prefix_length == 64
+                                            && prefix.valid_lifetime > 0
+                                    })
+                                    && let Some(address) = slaac_address(
+                                        prefix.prefix,
+                                        prefix.prefix_length,
+                                        self.config.mac,
+                                    )
+                                {
+                                    let gateway =
+                                        (ra.router_lifetime > 0).then_some(ip6_pkt.header.src_ip);
+                                    self.configure_ipv6_interface(
+                                        address,
+                                        prefix.prefix_length,
+                                        gateway,
+                                    );
+                                }
+                            }
+
                             ICMPV6_TYPE_ECHO_REQUEST => {
                                 if icmp6.payload.len() >= 4 {
                                     let id =

@@ -20,6 +20,90 @@ pub const ICMPV6_TYPE_NEIGHBOR_ADVERT: u8 = 136;
 
 pub const NDP_OPT_SRC_LINK_LAYER_ADDR: u8 = 1;
 pub const NDP_OPT_TARGET_LINK_LAYER_ADDR: u8 = 2;
+pub const NDP_OPT_PREFIX_INFORMATION: u8 = 3;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PrefixInformationOption {
+    pub prefix_length: u8,
+    pub on_link: bool,
+    pub autonomous: bool,
+    pub valid_lifetime: u32,
+    pub preferred_lifetime: u32,
+    pub prefix: Ipv6Address,
+}
+
+impl PrefixInformationOption {
+    pub fn new(
+        prefix: Ipv6Address,
+        prefix_length: u8,
+        on_link: bool,
+        autonomous: bool,
+        valid_lifetime: u32,
+        preferred_lifetime: u32,
+    ) -> Self {
+        let prefix_length = prefix_length.min(128);
+        PrefixInformationOption {
+            prefix_length,
+            on_link,
+            autonomous,
+            valid_lifetime,
+            preferred_lifetime: preferred_lifetime.min(valid_lifetime),
+            prefix: prefix.mask(prefix_length),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RouterAdvertisement {
+    pub current_hop_limit: u8,
+    pub managed: bool,
+    pub other_config: bool,
+    pub router_lifetime: u16,
+    pub reachable_time: u32,
+    pub retrans_timer: u32,
+    pub prefixes: Vec<PrefixInformationOption>,
+}
+
+/// RFC 2464 IPv6 multicast-to-Ethernet mapping.
+pub fn ipv6_multicast_mac(address: Ipv6Address) -> Option<MacAddress> {
+    if !address.is_multicast() {
+        return None;
+    }
+    Some(MacAddress([
+        0x33,
+        0x33,
+        address.0[12],
+        address.0[13],
+        address.0[14],
+        address.0[15],
+    ]))
+}
+
+/// Derives a 64-bit modified EUI-64 interface identifier for SLAAC.
+pub fn slaac_address(
+    prefix: Ipv6Address,
+    prefix_length: u8,
+    mac: MacAddress,
+) -> Option<Ipv6Address> {
+    if prefix_length != 64 {
+        return None;
+    }
+    let mut bytes = prefix.mask(64).0;
+    bytes[8] = mac.0[0] ^ 0x02;
+    bytes[9] = mac.0[1];
+    bytes[10] = mac.0[2];
+    bytes[11] = 0xff;
+    bytes[12] = 0xfe;
+    bytes[13] = mac.0[3];
+    bytes[14] = mac.0[4];
+    bytes[15] = mac.0[5];
+    Some(Ipv6Address(bytes))
+}
+
+pub fn link_local_address(mac: MacAddress) -> Ipv6Address {
+    slaac_address(Ipv6Address::new([0xfe80, 0, 0, 0, 0, 0, 0, 0]), 64, mac)
+        .expect("/64 link-local SLAAC prefix")
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Icmpv6Packet<'a> {
@@ -216,6 +300,81 @@ impl<'a> Icmpv6Packet<'a> {
         buf
     }
 
+    /// Builds an NDP Router Solicitation (RFC 4861, Type 133).
+    /// A source link-layer option is omitted for an unspecified source address,
+    /// as required during initial host configuration.
+    pub fn build_router_solicitation(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        source_mac: Option<MacAddress>,
+    ) -> Vec<u8> {
+        let include_slla = !src_ip.is_unspecified() && source_mac.is_some();
+        let mut buf = Vec::with_capacity(if include_slla { 16 } else { 8 });
+        buf.push(ICMPV6_TYPE_ROUTER_SOLICIT);
+        buf.push(0);
+        buf.extend_from_slice(&[0, 0]);
+        buf.extend_from_slice(&[0, 0, 0, 0]);
+        if include_slla {
+            let mac = source_mac.unwrap();
+            buf.push(NDP_OPT_SRC_LINK_LAYER_ADDR);
+            buf.push(1);
+            buf.extend_from_slice(&mac.0);
+        }
+        let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
+        buf
+    }
+
+    /// Builds an NDP Router Advertisement (RFC 4861, Type 134) carrying one or
+    /// more Prefix Information Options (RFC 4861 section 4.6.2).
+    pub fn build_router_advertisement(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        current_hop_limit: u8,
+        router_lifetime: u16,
+        prefixes: &[PrefixInformationOption],
+        source_mac: Option<MacAddress>,
+    ) -> Vec<u8> {
+        let mut buf =
+            Vec::with_capacity(16 + prefixes.len() * 32 + usize::from(source_mac.is_some()) * 8);
+        buf.push(ICMPV6_TYPE_ROUTER_ADVERT);
+        buf.push(0);
+        buf.extend_from_slice(&[0, 0]);
+        buf.push(current_hop_limit);
+        buf.push(0); // M=0, O=0
+        buf.extend_from_slice(&router_lifetime.to_be_bytes());
+        buf.extend_from_slice(&0u32.to_be_bytes()); // Reachable Time
+        buf.extend_from_slice(&0u32.to_be_bytes()); // Retrans Timer
+
+        if let Some(mac) = source_mac {
+            buf.push(NDP_OPT_SRC_LINK_LAYER_ADDR);
+            buf.push(1);
+            buf.extend_from_slice(&mac.0);
+        }
+
+        for prefix in prefixes {
+            buf.push(NDP_OPT_PREFIX_INFORMATION);
+            buf.push(4); // 32 octets
+            buf.push(prefix.prefix_length);
+            let mut flags = 0u8;
+            if prefix.on_link {
+                flags |= 0x80;
+            }
+            if prefix.autonomous {
+                flags |= 0x40;
+            }
+            buf.push(flags);
+            buf.extend_from_slice(&prefix.valid_lifetime.to_be_bytes());
+            buf.extend_from_slice(&prefix.preferred_lifetime.to_be_bytes());
+            buf.extend_from_slice(&0u32.to_be_bytes());
+            buf.extend_from_slice(&prefix.prefix.mask(prefix.prefix_length).0);
+        }
+
+        let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
+        buf
+    }
+
     /// Builds an NDP Neighbor Solicitation (NS - Type 135)
     pub fn build_neighbor_solicitation(
         src_ip: Ipv6Address,
@@ -284,6 +443,71 @@ impl<'a> Icmpv6Packet<'a> {
     }
 }
 
+impl RouterAdvertisement {
+    /// Parses the body of an already checksum-validated ICMPv6 Router Advertisement.
+    /// Unknown NDP options are skipped according to their encoded length.
+    pub fn parse(icmp: &Icmpv6Packet<'_>) -> Option<Self> {
+        if icmp.msg_type != ICMPV6_TYPE_ROUTER_ADVERT || icmp.code != 0 || icmp.payload.len() < 12 {
+            return None;
+        }
+        let payload = icmp.payload;
+        let current_hop_limit = payload[0];
+        let flags = payload[1];
+        let router_lifetime = u16::from_be_bytes([payload[2], payload[3]]);
+        let reachable_time = u32::from_be_bytes(payload[4..8].try_into().ok()?);
+        let retrans_timer = u32::from_be_bytes(payload[8..12].try_into().ok()?);
+        let mut prefixes = Vec::new();
+        let mut offset = 12usize;
+        while offset < payload.len() {
+            if offset + 2 > payload.len() {
+                return None;
+            }
+            let option_type = payload[offset];
+            let units = payload[offset + 1] as usize;
+            if units == 0 {
+                return None;
+            }
+            let option_len = units * 8;
+            if offset + option_len > payload.len() {
+                return None;
+            }
+            if option_type == NDP_OPT_PREFIX_INFORMATION {
+                if option_len != 32 {
+                    return None;
+                }
+                let option = &payload[offset..offset + option_len];
+                let prefix_length = option[2];
+                if prefix_length > 128 {
+                    return None;
+                }
+                let option_flags = option[3];
+                let valid_lifetime = u32::from_be_bytes(option[4..8].try_into().ok()?);
+                let preferred_lifetime = u32::from_be_bytes(option[8..12].try_into().ok()?);
+                let mut prefix_bytes = [0u8; 16];
+                prefix_bytes.copy_from_slice(&option[16..32]);
+                prefixes.push(PrefixInformationOption::new(
+                    Ipv6Address(prefix_bytes),
+                    prefix_length,
+                    option_flags & 0x80 != 0,
+                    option_flags & 0x40 != 0,
+                    valid_lifetime,
+                    preferred_lifetime,
+                ));
+            }
+            offset += option_len;
+        }
+        Some(RouterAdvertisement {
+            current_hop_limit,
+            managed: flags & 0x80 != 0,
+            other_config: flags & 0x40 != 0,
+            router_lifetime,
+            reachable_time,
+            retrans_timer,
+            prefixes,
+        })
+    }
+}
+
 /// Dynamic Neighbor Cache Table (IPv6 NDP equivalent of ARP Cache)
 #[derive(Debug, Clone, Default)]
 pub struct NdpTable {
@@ -340,8 +564,7 @@ mod tests {
         let host = Ipv6Address::from_str("2001:db8::2").unwrap();
         let invoking = vec![0x5a; 1600];
 
-        let unreachable =
-            Icmpv6Packet::build_destination_unreachable(router, host, 0, &invoking);
+        let unreachable = Icmpv6Packet::build_destination_unreachable(router, host, 0, &invoking);
         let parsed = Icmpv6Packet::parse(router, host, &unreachable, true).unwrap();
         assert_eq!(parsed.msg_type, ICMPV6_TYPE_DEST_UNREACHABLE);
         assert_eq!(parsed.code, 0);
@@ -353,7 +576,10 @@ mod tests {
         let parsed = Icmpv6Packet::parse(router, host, &too_big, true).unwrap();
         assert_eq!(parsed.msg_type, ICMPV6_TYPE_PACKET_TOO_BIG);
         assert_eq!(parsed.code, 0);
-        assert_eq!(u32::from_be_bytes(parsed.payload[..4].try_into().unwrap()), 1280);
+        assert_eq!(
+            u32::from_be_bytes(parsed.payload[..4].try_into().unwrap()),
+            1280
+        );
         assert_eq!(too_big.len(), 1240);
         assert_eq!(&parsed.payload[4..], &invoking[..1232]);
 

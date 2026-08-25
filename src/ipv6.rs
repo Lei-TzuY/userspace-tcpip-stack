@@ -47,6 +47,22 @@ impl Ipv6Address {
         words
     }
 
+    /// Returns this address masked to `prefix_len` bits.
+    pub fn mask(self, prefix_len: u8) -> Self {
+        let prefix_len = prefix_len.min(128);
+        let mut bytes = self.0;
+        let whole = (prefix_len / 8) as usize;
+        let rem = prefix_len % 8;
+        if rem != 0 && whole < bytes.len() {
+            bytes[whole] &= 0xff << (8 - rem);
+        }
+        let clear_from = whole + usize::from(rem != 0);
+        for byte in &mut bytes[clear_from..] {
+            *byte = 0;
+        }
+        Ipv6Address(bytes)
+    }
+
     pub fn is_unspecified(&self) -> bool {
         *self == Self::UNSPECIFIED
     }
