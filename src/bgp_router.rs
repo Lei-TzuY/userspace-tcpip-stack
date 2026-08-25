@@ -460,6 +460,9 @@ pub struct BgpRouter {
     /// True while this speaker is reconnecting after a local control-plane restart.
     /// While set, OPEN carries RFC 4724's Restart State bit.
     graceful_restart_restarting: bool,
+    /// Families whose forwarding plane survives a simulated local control-plane restart.
+    /// RFC 4724's Forwarding State bit is set for these families in replacement OPENs.
+    graceful_restart_forwarding_preserved: BTreeSet<AfiSafi>,
     /// Families whose local RIB recovery has not yet been declared complete.
     graceful_restart_recovery_pending: BTreeSet<AfiSafi>,
     /// Safety deadline after which Restart State is cleared even if a peer never
@@ -526,6 +529,7 @@ impl BgpRouter {
             graceful_restart_enabled: true,
             graceful_restart_time: DEFAULT_GRACEFUL_RESTART_TIME,
             graceful_restart_restarting: false,
+            graceful_restart_forwarding_preserved: BTreeSet::from([AfiSafi::IPV4_UNICAST]),
             graceful_restart_recovery_pending: BTreeSet::new(),
             graceful_restart_local_deadline: None,
             peers: Vec::new(),
@@ -690,6 +694,17 @@ impl BgpRouter {
 
     pub fn set_graceful_restart_time(&mut self, seconds: u16) {
         self.graceful_restart_time = seconds.min(crate::bgp_caps::BGP_GR_MAX_RESTART_TIME);
+    }
+
+    /// Configures whether a family's forwarding plane survives the simulated local
+    /// control-plane restart. RFC 4724 requires the replacement OPEN's Forwarding
+    /// State bit to describe what actually survived, not merely GR capability.
+    pub fn set_graceful_restart_forwarding_preserved(&mut self, family: AfiSafi, preserved: bool) {
+        if preserved {
+            self.graceful_restart_forwarding_preserved.insert(family);
+        } else {
+            self.graceful_restart_forwarding_preserved.remove(&family);
+        }
     }
 
     /// True while local RFC 4724 restarting-speaker mode is active.
@@ -1429,7 +1444,11 @@ impl BgpRouter {
                     self.families
                         .iter()
                         .copied()
-                        .map(|family| BgpGracefulRestartFamily::new(family, false))
+                        .map(|family| {
+                            let forwarding_state = self.graceful_restart_restarting
+                                && self.graceful_restart_forwarding_preserved.contains(&family);
+                            BgpGracefulRestartFamily::new(family, forwarding_state)
+                        })
                         .collect(),
                 ),
             ));
@@ -1449,6 +1468,7 @@ impl BgpRouter {
     /// carries the family still depends on the neighbour offering it too.
     pub fn enable_family(&mut self, family: AfiSafi) {
         self.families.insert(family);
+        self.graceful_restart_forwarding_preserved.insert(family);
     }
 
     /// OpenSent / OpenConfirm / Established: read the stream, decode complete
@@ -2057,6 +2077,7 @@ impl BgpRouter {
         let supported: BTreeSet<AfiSafi> = gr
             .families
             .iter()
+            .filter(|f| f.forwarding_state)
             .map(|f| f.family)
             .filter(|family| negotiated.supports(*family))
             .collect();

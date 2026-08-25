@@ -250,6 +250,13 @@ fn test_restarting_speaker_sets_restart_state_and_finishes_with_eor() {
         restart_cap.restarting,
         "replacement OPEN did not set Restart State"
     );
+    assert!(
+        restart_cap
+            .families
+            .iter()
+            .any(|f| f.family == AfiSafi::IPV4_UNICAST && f.forwarding_state),
+        "control-plane-only restart did not advertise preserved IPv4 forwarding state"
+    );
     assert!(helper_peer.graceful_restart_active());
 
     let now = lab.current_time_ms;
@@ -307,5 +314,57 @@ fn test_restarting_speaker_sets_restart_state_and_finishes_with_eor() {
             .counters
             .graceful_restart_eors_sent
             >= 1
+    );
+}
+
+#[test]
+fn test_reconnect_without_forwarding_state_purges_stale_family() {
+    let mut lab = build_linear_lab();
+    assert!(converge_sessions(&mut lab, 60_000));
+    let now = lab.current_time_ms;
+    {
+        let r3 = lab.router_mut("r3").unwrap();
+        let (bgp, sockets) = (&mut r3.bgp, &mut r3.sockets);
+        let bgp = bgp.as_mut().unwrap();
+        bgp.set_graceful_restart_forwarding_preserved(AfiSafi::IPV4_UNICAST, false);
+        assert!(bgp.begin_graceful_restart(now, sockets.as_mut().unwrap()));
+    }
+    lab.run_pumped(100);
+    assert!(
+        lab.router("r2")
+            .unwrap()
+            .bgp()
+            .unwrap()
+            .peer(ip(10, 23, 0, 3))
+            .unwrap()
+            .graceful_restart_active()
+    );
+    lab.link_mut("r2r3").unwrap().set_blackhole(true);
+    lab.advance_time(1_000);
+    lab.run_pumped(50);
+    lab.link_mut("r2r3").unwrap().set_blackhole(false);
+    assert!(converge_sessions(&mut lab, 60_000));
+    let helper_peer = lab
+        .router("r2")
+        .unwrap()
+        .bgp()
+        .unwrap()
+        .peer(ip(10, 23, 0, 3))
+        .unwrap();
+    let restart_cap = helper_peer
+        .negotiated
+        .peer
+        .graceful_restart()
+        .expect("replacement OPEN omitted RFC 4724");
+    assert!(restart_cap.restarting);
+    assert!(
+        restart_cap
+            .families
+            .iter()
+            .any(|f| f.family == AfiSafi::IPV4_UNICAST && !f.forwarding_state)
+    );
+    assert!(
+        !helper_peer.graceful_restart_active(),
+        "helper retained stale IPv4 state after replacement OPEN cleared F"
     );
 }
