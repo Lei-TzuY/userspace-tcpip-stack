@@ -105,11 +105,23 @@ impl EirGraylistEngine {
     pub fn handle_ecr(&mut self, ecr: &S13GraylistMessage) -> (S13GraylistMessage, EirQosAction) {
         self.total_ecr_checks += 1;
 
-        let imei = ecr.avps.iter().find_map(|a| {
-            if let S13GraylistAvp::TerminalInformation(i) = a { Some(i.clone()) } else { None }
-        }).unwrap_or_default();
+        let imei = ecr
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let S13GraylistAvp::TerminalInformation(i) = a {
+                    Some(i.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
-        let status = self.imei_database.get(&imei).copied().unwrap_or(EirStatus::WhiteListed);
+        let status = self
+            .imei_database
+            .get(&imei)
+            .copied()
+            .unwrap_or(EirStatus::WhiteListed);
 
         let qos_action = match status {
             EirStatus::WhiteListed => EirQosAction::FullAccess,
@@ -138,7 +150,13 @@ mod tests {
         // 1. Check Graylisted device
         let ecr1 = S13GraylistMessage::new_ecr("s13-sess-1", "861234567890123");
         let (eca1, qos1) = eir.handle_ecr(&ecr1);
-        let st1 = eca1.avps.iter().find_map(|a| if let S13GraylistAvp::EquipmentStatus(s) = a { Some(*s) } else { None });
+        let st1 = eca1.avps.iter().find_map(|a| {
+            if let S13GraylistAvp::EquipmentStatus(s) = a {
+                Some(*s)
+            } else {
+                None
+            }
+        });
         assert_eq!(st1, Some(EirStatus::GreyListed));
         assert_eq!(qos1, EirQosAction::ThrottledAccess { max_kbps: 256 });
 

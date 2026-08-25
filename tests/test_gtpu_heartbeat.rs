@@ -1,4 +1,6 @@
-use toy_tcpip::gtpu_heartbeat::{GtpuEchoMessage, GtpuPathEngine, GtpuPathState, GTPU_MSG_ECHO_REQUEST};
+use toy_tcpip::gtpu_heartbeat::{
+    GTPU_MSG_ECHO_REQUEST, GtpuEchoMessage, GtpuPathEngine, GtpuPathState,
+};
 use toy_tcpip::ipv4::Ipv4Address;
 
 #[test]

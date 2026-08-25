@@ -80,7 +80,11 @@ impl EvpnMacFlushEngine {
 
     /// Adds or updates a MAC entry in the EVPN forwarding table.
     pub fn learn_mac(&mut self, entry: EvpnMacEntry) {
-        if let Some(pos) = self.mac_table.iter().position(|m| m.vni == entry.vni && m.mac == entry.mac) {
+        if let Some(pos) = self
+            .mac_table
+            .iter()
+            .position(|m| m.vni == entry.vni && m.mac == entry.mac)
+        {
             self.mac_table[pos] = entry;
         } else {
             self.mac_table.push(entry);
@@ -104,10 +108,12 @@ impl EvpnMacFlushEngine {
                 self.mac_table.retain(|m| m.is_static || m.esi != esi);
             }
             MacFlushScope::VniOnEsi { esi, vni } => {
-                self.mac_table.retain(|m| m.is_static || !(m.esi == esi && m.vni == vni));
+                self.mac_table
+                    .retain(|m| m.is_static || !(m.esi == esi && m.vni == vni));
             }
             MacFlushScope::SpecificMac { vni, mac } => {
-                self.mac_table.retain(|m| m.is_static || !(m.vni == vni && m.mac == mac));
+                self.mac_table
+                    .retain(|m| m.is_static || !(m.vni == vni && m.mac == mac));
             }
         }
 
@@ -136,8 +142,10 @@ mod tests {
     #[test]
     fn test_evpn_mac_flush_on_esi_failure() {
         let mut engine = EvpnMacFlushEngine::new();
-        let esi1 = EthernetSegmentId::new([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]);
-        let esi2 = EthernetSegmentId::new([0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22]);
+        let esi1 =
+            EthernetSegmentId::new([0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09]);
+        let esi2 =
+            EthernetSegmentId::new([0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00, 0x11, 0x22]);
 
         let vtep1 = Ipv4Address::new(10, 0, 0, 1);
         let vtep2 = Ipv4Address::new(10, 0, 0, 2);
@@ -194,7 +202,11 @@ mod tests {
         assert_eq!(engine.total_macs_purged, 3);
 
         // ESI2 MACs remain intact
-        assert!(engine.lookup(100, MacAddress([0x52, 0x54, 0x00, 0x02, 0x02, 0x01])).is_some());
+        assert!(
+            engine
+                .lookup(100, MacAddress([0x52, 0x54, 0x00, 0x02, 0x02, 0x01]))
+                .is_some()
+        );
     }
 
     #[test]
@@ -223,6 +235,10 @@ mod tests {
         let purged = engine.execute_flush(MacFlushScope::VniOnEsi { esi, vni: 100 });
         assert_eq!(purged, 1);
         assert_eq!(engine.active_mac_count(), 1);
-        assert!(engine.lookup(200, MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x66])).is_some());
+        assert!(
+            engine
+                .lookup(200, MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x66]))
+                .is_some()
+        );
     }
 }

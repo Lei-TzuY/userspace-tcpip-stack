@@ -459,7 +459,10 @@ mod tests {
     fn test_parser_rejects_non_ethernet_or_non_ipv4_arp() {
         let mut raw = ArpPacket::build_request(mac(1), [10, 0, 0, 1], [10, 0, 0, 2]).serialize();
         raw[0..2].copy_from_slice(&2u16.to_be_bytes());
-        assert_eq!(ArpPacket::parse(&raw), Err(ArpError::InvalidHardwareType(2)));
+        assert_eq!(
+            ArpPacket::parse(&raw),
+            Err(ArpError::InvalidHardwareType(2))
+        );
 
         let mut raw = ArpPacket::build_request(mac(1), [10, 0, 0, 1], [10, 0, 0, 2]).serialize();
         raw[2..4].copy_from_slice(&0x86ddu16.to_be_bytes());

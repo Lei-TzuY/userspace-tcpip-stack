@@ -72,10 +72,7 @@ impl ZhMessage {
             is_request: true,
             application_id: DIAMETER_APPLICATION_ZH,
             session_id: session_id.to_string(),
-            avps: vec![
-                ZhAvp::UserName(imsi.to_string()),
-                ZhAvp::GbaType(gba_type),
-            ],
+            avps: vec![ZhAvp::UserName(imsi.to_string()), ZhAvp::GbaType(gba_type)],
         }
     }
 
@@ -122,19 +119,30 @@ impl BsfZhEngine {
     }
 
     pub fn register_subscriber(&mut self, imsi: &str, guss_xml: &str, vector: GbaAuthVector) {
-        self.subscribers.insert(imsi.to_string(), GbaSubscriberProfile {
-            imsi: imsi.to_string(),
-            guss_xml: guss_xml.to_string(),
-            auth_vector: vector,
-        });
+        self.subscribers.insert(
+            imsi.to_string(),
+            GbaSubscriberProfile {
+                imsi: imsi.to_string(),
+                guss_xml: guss_xml.to_string(),
+                auth_vector: vector,
+            },
+        );
     }
 
     /// Handles Multimedia-Auth-Request (MAR) and delivers GUSS XML & AKA Vector in MAA.
     pub fn handle_mar(&mut self, mar: &ZhMessage) -> ZhMessage {
         self.total_mar_requests += 1;
-        let imsi = mar.avps.iter().find_map(|a| {
-            if let ZhAvp::UserName(u) = a { Some(u.clone()) } else { None }
-        }).unwrap_or_default();
+        let imsi = mar
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let ZhAvp::UserName(u) = a {
+                    Some(u.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
         if let Some(sub) = self.subscribers.get(&imsi) {
             self.successful_bootstraps += 1;
@@ -181,14 +189,28 @@ mod tests {
         let maa = bsf.handle_mar(&mar);
         assert!(!maa.is_request);
 
-        let rc = maa.avps.iter().find_map(|a| if let ZhAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = maa.avps.iter().find_map(|a| {
+            if let ZhAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
-        let guss = maa.avps.iter().find_map(|a| if let ZhAvp::GbaUserSecSettings(g) = a { Some(g.clone()) } else { None });
+        let guss = maa.avps.iter().find_map(|a| {
+            if let ZhAvp::GbaUserSecSettings(g) = a {
+                Some(g.clone())
+            } else {
+                None
+            }
+        });
         assert_eq!(guss, Some("<guss><uicc>yes</uicc></guss>".into()));
 
         // Derive Ks_NAF
-        let ks_naf = bsf.derive_ks_naf("208950123456789", "naf.service.org").expect("Derive Ks_NAF");
+        let ks_naf = bsf
+            .derive_ks_naf("208950123456789", "naf.service.org")
+            .expect("Derive Ks_NAF");
         assert_eq!(ks_naf.len(), 32);
         assert_eq!(bsf.successful_bootstraps, 1);
     }

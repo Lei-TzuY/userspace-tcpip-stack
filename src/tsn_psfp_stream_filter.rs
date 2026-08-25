@@ -101,8 +101,10 @@ impl FlowMeterInstance {
     pub fn evaluate(&mut self, byte_len: usize, now_ns: u64) -> PsfpColor {
         if self.last_update_ns > 0 && now_ns > self.last_update_ns {
             let elapsed_sec = (now_ns - self.last_update_ns) as f64 / 1_000_000_000.0;
-            self.tc_tokens = (self.tc_tokens + self.cir_bps as f64 * elapsed_sec).min(self.cbs_bytes as f64);
-            self.tp_tokens = (self.tp_tokens + self.pir_bps as f64 * elapsed_sec).min(self.pbs_bytes as f64);
+            self.tc_tokens =
+                (self.tc_tokens + self.cir_bps as f64 * elapsed_sec).min(self.cbs_bytes as f64);
+            self.tp_tokens =
+                (self.tp_tokens + self.pir_bps as f64 * elapsed_sec).min(self.pbs_bytes as f64);
         }
         self.last_update_ns = now_ns;
 
@@ -161,7 +163,11 @@ impl PsfpEngine {
         now_ns: u64,
     ) -> PsfpVerdict {
         // 1. Stage 1: Stream Filter Instance (SFI)
-        let filter = match self.filters.iter_mut().find(|f| f.stream_id == stream_id && f.priority == priority) {
+        let filter = match self
+            .filters
+            .iter_mut()
+            .find(|f| f.stream_id == stream_id && f.priority == priority)
+        {
             Some(f) => f,
             None => return PsfpVerdict::Pass, // Unmanaged stream bypasses PSFP
         };
@@ -226,7 +232,10 @@ mod tests {
         // 200B fits
         assert_eq!(engine.process_frame(101, 7, 200, 1000), PsfpVerdict::Pass);
         // 300B exceeds 256B limit -> dropped
-        assert_eq!(engine.process_frame(101, 7, 300, 2000), PsfpVerdict::DropMaxSduExceeded);
+        assert_eq!(
+            engine.process_frame(101, 7, 300, 2000),
+            PsfpVerdict::DropMaxSduExceeded
+        );
         assert_eq!(engine.filters[0].sdu_oversized_drops, 1);
     }
 
@@ -249,7 +258,10 @@ mod tests {
             invalid_rx_count: 0,
         });
 
-        assert_eq!(engine.process_frame(202, 6, 128, 5000), PsfpVerdict::DropGateClosed);
+        assert_eq!(
+            engine.process_frame(202, 6, 128, 5000),
+            PsfpVerdict::DropGateClosed
+        );
         assert_eq!(engine.gates[0].gate_closed_drops, 1);
     }
 

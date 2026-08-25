@@ -3226,8 +3226,7 @@ impl BgpRouter {
                                 BGP_ERR_UPDATE_MESSAGE,
                                 BGP_SUB_OPTIONAL_ATTRIBUTE_ERROR,
                             ),
-                            "peer sent EVPN NLRI without negotiating AFI 25 / SAFI 70"
-                                .to_string(),
+                            "peer sent EVPN NLRI without negotiating AFI 25 / SAFI 70".to_string(),
                         ));
                     }
                 }
@@ -4055,9 +4054,7 @@ impl BgpRouter {
                 .find(|route| {
                     route.destination == prefix.address && route.prefix_len == prefix.length
                 })
-                .is_some_and(|route| {
-                    route.gateway == Some(*next_hop) && route.interface == *iface
-                });
+                .is_some_and(|route| route.gateway == Some(*next_hop) && route.interface == *iface);
             if !already {
                 fib.add_route_from(
                     prefix.address,
@@ -4069,7 +4066,10 @@ impl BgpRouter {
                 self.log(
                     now_ms,
                     Ipv4Address::UNSPECIFIED,
-                    format!("IPv6 FIB: installed {} via {} dev {}", prefix, next_hop, iface),
+                    format!(
+                        "IPv6 FIB: installed {} via {} dev {}",
+                        prefix, next_hop, iface
+                    ),
                 );
             }
             self.ipv6_installed.insert(*prefix);
@@ -4125,10 +4125,7 @@ impl BgpRouter {
     // Export
     // ========================================================================
 
-    fn ipv6_attributes_for(
-        route: &Ipv6AdvertisedRoute,
-        four_octet_as: bool,
-    ) -> BgpPathAttributes {
+    fn ipv6_attributes_for(route: &Ipv6AdvertisedRoute, four_octet_as: bool) -> BgpPathAttributes {
         let mut attrs = BgpPathAttributes::new(
             route.origin,
             route.as_path.clone(),
@@ -4147,10 +4144,7 @@ impl BgpRouter {
         attrs
     }
 
-    fn compute_ipv6_adj_rib_out(
-        &self,
-        idx: usize,
-    ) -> BTreeMap<Ipv6Prefix, Ipv6AdvertisedRoute> {
+    fn compute_ipv6_adj_rib_out(&self, idx: usize) -> BTreeMap<Ipv6Prefix, Ipv6AdvertisedRoute> {
         let peer = &self.peers[idx];
         let is_ebgp_session = peer.remote_as != self.local_as;
         let mut out = BTreeMap::new();
@@ -4205,12 +4199,7 @@ impl BgpRouter {
         out
     }
 
-    fn advertise_ipv6_to_peer(
-        &mut self,
-        idx: usize,
-        now_ms: u64,
-        sockets: &mut SocketRuntime,
-    ) {
+    fn advertise_ipv6_to_peer(&mut self, idx: usize, now_ms: u64, sockets: &mut SocketRuntime) {
         if !self.peers[idx].carries(AfiSafi::IPV6_UNICAST) {
             return;
         }
@@ -4244,7 +4233,10 @@ impl BgpRouter {
                 self.log(
                     now_ms,
                     addr,
-                    format!("advertised withdrawal of {} IPv6 prefix(es)", withdrawn.len()),
+                    format!(
+                        "advertised withdrawal of {} IPv6 prefix(es)",
+                        withdrawn.len()
+                    ),
                 );
             } else if force_refresh {
                 refresh_complete = false;
@@ -4252,8 +4244,7 @@ impl BgpRouter {
         }
 
         let four_octet = self.peers[idx].negotiated.four_octet_as;
-        let mut groups: BTreeMap<Vec<u8>, (Ipv6AdvertisedRoute, Vec<Ipv6Prefix>)> =
-            BTreeMap::new();
+        let mut groups: BTreeMap<Vec<u8>, (Ipv6AdvertisedRoute, Vec<Ipv6Prefix>)> = BTreeMap::new();
         for (prefix, route) in &desired {
             if !force_refresh && self.ipv6_adj_rib_out.get(addr, prefix) == Some(route) {
                 continue;

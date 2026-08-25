@@ -31,7 +31,13 @@ pub struct FlowTuple {
 }
 
 impl FlowTuple {
-    pub fn new(src_ip: Ipv4Address, dst_ip: Ipv4Address, src_port: u16, dst_port: u16, protocol: u8) -> Self {
+    pub fn new(
+        src_ip: Ipv4Address,
+        dst_ip: Ipv4Address,
+        src_port: u16,
+        dst_port: u16,
+        protocol: u8,
+    ) -> Self {
         FlowTuple {
             src_ip,
             dst_ip,
@@ -118,7 +124,11 @@ impl QczCongestionEngine {
 
     /// Enqueues a packet and performs congestion evaluation and isolation.
     /// If uncongested queue crosses threshold, the offending flow is isolated and a CNM is generated.
-    pub fn enqueue_packet(&mut self, flow: FlowTuple, payload: Vec<u8>) -> Option<CongestionNotificationMessage> {
+    pub fn enqueue_packet(
+        &mut self,
+        flow: FlowTuple,
+        payload: Vec<u8>,
+    ) -> Option<CongestionNotificationMessage> {
         self.total_enqueued += 1;
         let mut cnm = None;
 
@@ -227,7 +237,11 @@ mod tests {
 
         // 3. Send 200B on victim flow2 -> UQ = 600 + 200 = 800B <= 1000B!
         // Victim flow is NOT blocked by flow1 and stays in UQ at line rate!
-        assert!(engine.enqueue_packet(flow2_victim, vec![0xBB; 200]).is_none());
+        assert!(
+            engine
+                .enqueue_packet(flow2_victim, vec![0xBB; 200])
+                .is_none()
+        );
         assert_eq!(engine.uncongested_queue.len(), 2); // Flow1 (600B) + Flow2 (200B)
 
         // 4. Drain UQ

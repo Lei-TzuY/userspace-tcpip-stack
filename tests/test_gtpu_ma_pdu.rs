@@ -5,7 +5,9 @@ use toy_tcpip::ipv4::Ipv4Address;
 fn test_gtpu_ma_pdu_atsss_load_balancing_and_fallback() {
     let mut ma_sess = MaPduSessionEngine::new(
         1001,
-        AtsssMode::LoadBalancing { ratio_3gpp_percent: 50 },
+        AtsssMode::LoadBalancing {
+            ratio_3gpp_percent: 50,
+        },
         Ipv4Address::new(10, 0, 0, 1),
         0x1111,
         Ipv4Address::new(192, 168, 1, 1),

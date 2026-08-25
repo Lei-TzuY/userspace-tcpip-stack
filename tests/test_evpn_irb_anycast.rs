@@ -18,13 +18,17 @@ fn test_evpn_irb_anycast_dual_mode_routing() {
     engine.learn_host(target_host_ip, target_host_mac, 20, remote_leaf);
 
     // Symmetric routing: overlay VNI is Transit L3VNI (5000)
-    let sym = engine.route_inter_subnet(10, target_host_ip, IrbMode::Symmetric).unwrap();
+    let sym = engine
+        .route_inter_subnet(10, target_host_ip, IrbMode::Symmetric)
+        .unwrap();
     assert_eq!(sym.overlay_vni, 5000);
     assert_eq!(sym.target_vtep, remote_leaf);
     assert_eq!(sym.inner_src_mac, router_mac);
 
     // Asymmetric routing: overlay VNI is Destination L2VNI (20)
-    let asym = engine.route_inter_subnet(10, target_host_ip, IrbMode::Asymmetric).unwrap();
+    let asym = engine
+        .route_inter_subnet(10, target_host_ip, IrbMode::Asymmetric)
+        .unwrap();
     assert_eq!(asym.overlay_vni, 20);
     assert_eq!(asym.inner_src_mac, DEFAULT_ANYCAST_GATEWAY_MAC);
     assert_eq!(asym.inner_dst_mac, target_host_mac);

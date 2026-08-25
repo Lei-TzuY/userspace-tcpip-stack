@@ -14,7 +14,11 @@ fn test_tsn_cqf_multicycle_peristaltic_shaper() {
     // Ingest 3 frames in Cycle 0 (at 10µs, 50µs, 100µs)
     assert!(engine.ingest_frame(101, 7, vec![0xAA; 128], 10_000).is_ok());
     assert!(engine.ingest_frame(101, 7, vec![0xBB; 256], 50_000).is_ok());
-    assert!(engine.ingest_frame(102, 6, vec![0xCC; 512], 100_000).is_ok());
+    assert!(
+        engine
+            .ingest_frame(102, 6, vec![0xCC; 512], 100_000)
+            .is_ok()
+    );
     assert_eq!(engine.queues[0].frames.len(), 3);
     assert_eq!(engine.queues[0].current_bytes, 128 + 256 + 512);
 

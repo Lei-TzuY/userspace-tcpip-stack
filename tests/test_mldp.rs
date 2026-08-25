@@ -1,5 +1,5 @@
 use toy_tcpip::ipv4::Ipv4Address;
-use toy_tcpip::mldp::{MldpEngine, MldpFecElement, MldpFecType, MLDP_OPAQUE_TYPE_GENERIC_LSP_ID};
+use toy_tcpip::mldp::{MLDP_OPAQUE_TYPE_GENERIC_LSP_ID, MldpEngine, MldpFecElement, MldpFecType};
 
 #[test]
 fn test_mldp_fec_element_codec() {

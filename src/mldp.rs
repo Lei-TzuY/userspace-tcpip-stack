@@ -104,12 +104,7 @@ impl MldpFecElement {
         if addr_len != 4 || data.len() < 2 + addr_len + 2 {
             return None;
         }
-        let root_node = Ipv4Address::new(
-            data[2],
-            data[3],
-            data[4],
-            data[5],
-        );
+        let root_node = Ipv4Address::new(data[2], data[3], data[4], data[5]);
         let opaque_type = data[6];
         let opaque_len = data[7] as usize;
         if data.len() < 8 + opaque_len {
@@ -156,14 +151,28 @@ impl MldpEngine {
     }
 
     /// Sets the upstream parent LSR and assigned label for this mLDP tree FEC.
-    pub fn set_upstream_parent(&mut self, fec: MldpFecElement, upstream_lsr: Ipv4Address, upstream_label: u32) {
-        self.upstream_bindings.insert(fec, (upstream_lsr, upstream_label));
+    pub fn set_upstream_parent(
+        &mut self,
+        fec: MldpFecElement,
+        upstream_lsr: Ipv4Address,
+        upstream_label: u32,
+    ) {
+        self.upstream_bindings
+            .insert(fec, (upstream_lsr, upstream_label));
     }
 
     /// Adds a downstream child branch to replicate packets towards.
-    pub fn add_downstream_branch(&mut self, fec: &MldpFecElement, out_interface: u32, out_label: u32) {
+    pub fn add_downstream_branch(
+        &mut self,
+        fec: &MldpFecElement,
+        out_interface: u32,
+        out_label: u32,
+    ) {
         let branches = self.downstream_branches.entry(fec.clone()).or_default();
-        if !branches.iter().any(|b| b.out_interface == out_interface && b.out_label == out_label) {
+        if !branches
+            .iter()
+            .any(|b| b.out_interface == out_interface && b.out_label == out_label)
+        {
             branches.push(MldpTreeBranch {
                 out_interface,
                 out_label,
@@ -172,7 +181,12 @@ impl MldpEngine {
     }
 
     /// Removes a downstream child branch (e.g. on prune/withdraw).
-    pub fn remove_downstream_branch(&mut self, fec: &MldpFecElement, out_interface: u32, out_label: u32) -> bool {
+    pub fn remove_downstream_branch(
+        &mut self,
+        fec: &MldpFecElement,
+        out_interface: u32,
+        out_label: u32,
+    ) -> bool {
         if let Some(branches) = self.downstream_branches.get_mut(fec) {
             let initial = branches.len();
             branches.retain(|b| !(b.out_interface == out_interface && b.out_label == out_label));
@@ -184,7 +198,11 @@ impl MldpEngine {
 
     /// Replicates an ingress multicast packet across all registered downstream tree branches.
     /// Returns a list of `(out_interface, out_label, encapsulated_packet_bytes)`.
-    pub fn replicate_multicast(&mut self, fec: &MldpFecElement, payload: &[u8]) -> Vec<(u32, u32, Vec<u8>)> {
+    pub fn replicate_multicast(
+        &mut self,
+        fec: &MldpFecElement,
+        payload: &[u8],
+    ) -> Vec<(u32, u32, Vec<u8>)> {
         let mut results = Vec::new();
         if let Some(branches) = self.downstream_branches.get(fec) {
             for b in branches {

@@ -1,6 +1,6 @@
 use toy_tcpip::geneve_telemetry_opt::{
-    GeneveTelemetryEngine, GeneveTelemetryOption, GENEVE_OPT_CLASS_INT_TELEMETRY,
-    GENEVE_OPT_TYPE_INT_HOP_METADATA,
+    GENEVE_OPT_CLASS_INT_TELEMETRY, GENEVE_OPT_TYPE_INT_HOP_METADATA, GeneveTelemetryEngine,
+    GeneveTelemetryOption,
 };
 
 #[test]

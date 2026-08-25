@@ -20,7 +20,8 @@ use crate::ethernet::MacAddress;
 use crate::ipv4::Ipv4Address;
 use std::collections::HashMap;
 
-pub const DEFAULT_ANYCAST_GATEWAY_MAC: MacAddress = MacAddress([0x00, 0x00, 0x5E, 0x00, 0x01, 0x01]);
+pub const DEFAULT_ANYCAST_GATEWAY_MAC: MacAddress =
+    MacAddress([0x00, 0x00, 0x5E, 0x00, 0x01, 0x01]);
 
 /// IRB Mode of an EVPN Fabric.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -84,13 +85,22 @@ impl EvpnAnycastIrbEngine {
     }
 
     /// Learns or syncs a host IP/MAC route from BGP EVPN Type 2.
-    pub fn learn_host(&mut self, ip: Ipv4Address, mac: MacAddress, l2_vni: u32, leaf_vtep: Ipv4Address) {
-        self.host_table.insert(ip, HostIrbBinding {
+    pub fn learn_host(
+        &mut self,
+        ip: Ipv4Address,
+        mac: MacAddress,
+        l2_vni: u32,
+        leaf_vtep: Ipv4Address,
+    ) {
+        self.host_table.insert(
             ip,
-            mac,
-            l2_vni,
-            leaf_vtep,
-        });
+            HostIrbBinding {
+                ip,
+                mac,
+                l2_vni,
+                leaf_vtep,
+            },
+        );
     }
 
     /// Routes an inter-subnet packet from source L2VNI to destination host IP.
@@ -149,7 +159,9 @@ mod tests {
         engine.learn_host(host_ip, host_mac, 200, remote_vtep);
 
         // 1. Route via Symmetric IRB
-        let sym_action = engine.route_inter_subnet(100, host_ip, IrbMode::Symmetric).expect("Symmetric IRB route");
+        let sym_action = engine
+            .route_inter_subnet(100, host_ip, IrbMode::Symmetric)
+            .expect("Symmetric IRB route");
         assert_eq!(sym_action.overlay_vni, 9000); // Uses Transit L3VNI
         assert_eq!(sym_action.target_vtep, remote_vtep);
         assert_eq!(sym_action.inner_src_mac, router_mac);
@@ -157,7 +169,9 @@ mod tests {
         assert_eq!(engine.total_symmetric_routed, 1);
 
         // 2. Route via Asymmetric IRB
-        let asym_action = engine.route_inter_subnet(100, host_ip, IrbMode::Asymmetric).expect("Asymmetric IRB route");
+        let asym_action = engine
+            .route_inter_subnet(100, host_ip, IrbMode::Asymmetric)
+            .expect("Asymmetric IRB route");
         assert_eq!(asym_action.overlay_vni, 200); // Direct destination L2VNI
         assert_eq!(asym_action.inner_dst_mac, host_mac);
         assert_eq!(asym_action.mode_used, IrbMode::Asymmetric);

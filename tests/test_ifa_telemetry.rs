@@ -1,6 +1,6 @@
 use toy_tcpip::ifa_telemetry::{
-    IfaHeader, IfaHopRecord, IfaPacket, IfaTelemetryEngine, IFA_REQ_LATENCY, IFA_REQ_NODE_ID,
-    IFA_REQ_PORTS, IFA_REQ_QUEUE_DEPTH, IFA_VERSION_2,
+    IFA_REQ_LATENCY, IFA_REQ_NODE_ID, IFA_REQ_PORTS, IFA_REQ_QUEUE_DEPTH, IFA_VERSION_2, IfaHeader,
+    IfaHopRecord, IfaPacket, IfaTelemetryEngine,
 };
 
 #[test]

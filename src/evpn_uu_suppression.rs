@@ -51,7 +51,11 @@ impl EvpnUuSuppressionEngine {
 
     /// Evaluates an incoming unicast frame against the UU suppression policy.
     pub fn evaluate_frame(&mut self, vni: u32, dst_mac: MacAddress) -> UuSuppressionDecision {
-        let is_suppression_active = self.vni_suppression_enabled.get(&vni).copied().unwrap_or(true);
+        let is_suppression_active = self
+            .vni_suppression_enabled
+            .get(&vni)
+            .copied()
+            .unwrap_or(true);
 
         if self.known_mac_table.contains(&(vni, dst_mac)) {
             self.allowed_packets_count += 1;

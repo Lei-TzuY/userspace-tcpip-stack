@@ -1,12 +1,16 @@
 use toy_tcpip::ethernet::MacAddress;
-use toy_tcpip::evpn_mac_flush::{EthernetSegmentId, EvpnMacEntry, EvpnMacFlushEngine, MacFlushScope};
+use toy_tcpip::evpn_mac_flush::{
+    EthernetSegmentId, EvpnMacEntry, EvpnMacFlushEngine, MacFlushScope,
+};
 use toy_tcpip::ipv4::Ipv4Address;
 
 #[test]
 fn test_evpn_mac_flush_lag_down_burst_purge() {
     let mut engine = EvpnMacFlushEngine::new();
-    let esi_es1 = EthernetSegmentId::new([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]);
-    let esi_es2 = EthernetSegmentId::new([0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13]);
+    let esi_es1 =
+        EthernetSegmentId::new([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]);
+    let esi_es2 =
+        EthernetSegmentId::new([0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10, 0x11, 0x12, 0x13]);
 
     let vtep = Ipv4Address::new(192, 168, 10, 1);
 
@@ -43,7 +47,11 @@ fn test_evpn_mac_flush_lag_down_burst_purge() {
 
     // Verify ES2 MACs are untouched
     for i in 0..5u8 {
-        assert!(engine.lookup(1000, MacAddress([0x52, 0x54, 0x00, 0x02, 0x00, i])).is_some());
+        assert!(
+            engine
+                .lookup(1000, MacAddress([0x52, 0x54, 0x00, 0x02, 0x00, i]))
+                .is_some()
+        );
     }
 }
 

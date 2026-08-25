@@ -155,11 +155,19 @@ impl MaPduSessionEngine {
         match chosen_leg {
             AccessLegType::ThreeGpp => {
                 self.leg_3gpp.total_packets_sent += 1;
-                Some((AccessLegType::ThreeGpp, self.leg_3gpp.remote_ip, self.leg_3gpp.teid))
+                Some((
+                    AccessLegType::ThreeGpp,
+                    self.leg_3gpp.remote_ip,
+                    self.leg_3gpp.teid,
+                ))
             }
             AccessLegType::NonThreeGpp => {
                 self.leg_non_3gpp.total_packets_sent += 1;
-                Some((AccessLegType::NonThreeGpp, self.leg_non_3gpp.remote_ip, self.leg_non_3gpp.teid))
+                Some((
+                    AccessLegType::NonThreeGpp,
+                    self.leg_non_3gpp.remote_ip,
+                    self.leg_non_3gpp.teid,
+                ))
             }
         }
     }

@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_sgd::{
-    SgdAvp, SgdMessage, SmDeliveryOutcome, SmsSgdEngine, DIAMETER_APPLICATION_SGD,
-    DIAMETER_CMD_MO_FORWARD_SM, DIAMETER_CMD_MT_FORWARD_SM,
+    DIAMETER_APPLICATION_SGD, DIAMETER_CMD_MO_FORWARD_SM, DIAMETER_CMD_MT_FORWARD_SM, SgdAvp,
+    SgdMessage, SmDeliveryOutcome, SmsSgdEngine,
 };
 
 #[test]
@@ -19,7 +19,13 @@ fn test_diameter_sgd_mo_and_mt_sms_routing() {
 
     let ofa = smsc.handle_mo_forward_sm(&ofr);
     assert!(!ofa.is_request);
-    let rc = ofa.avps.iter().find_map(|a| if let SgdAvp::ResultCode(c) = a { Some(*c) } else { None });
+    let rc = ofa.avps.iter().find_map(|a| {
+        if let SgdAvp::ResultCode(c) = a {
+            Some(*c)
+        } else {
+            None
+        }
+    });
     assert_eq!(rc, Some(2001));
     assert_eq!(smsc.total_mo_sms, 1);
 
@@ -33,7 +39,13 @@ fn test_diameter_sgd_mo_and_mt_sms_routing() {
     assert_eq!(tfr.command_code, DIAMETER_CMD_MT_FORWARD_SM);
 
     let tfa = smsc.handle_mt_forward_sm(&tfr, true);
-    let outcome = tfa.avps.iter().find_map(|a| if let SgdAvp::SmDeliveryOutcome(o) = a { Some(*o) } else { None });
+    let outcome = tfa.avps.iter().find_map(|a| {
+        if let SgdAvp::SmDeliveryOutcome(o) = a {
+            Some(*o)
+        } else {
+            None
+        }
+    });
     assert_eq!(outcome, Some(SmDeliveryOutcome::Success));
     assert_eq!(smsc.total_mt_sms, 1);
 }

@@ -1,6 +1,6 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_s9::{
-    PcrfS9Engine, SubsessionEnforcementInfo, DIAMETER_APPLICATION_S9, DIAMETER_CMD_CC,
+    DIAMETER_APPLICATION_S9, DIAMETER_CMD_CC, PcrfS9Engine, SubsessionEnforcementInfo,
 };
 
 #[test]
@@ -18,6 +18,9 @@ fn test_diameter_s9_subsession_grouped_avp_and_ccr() {
 
     assert_eq!(cca.header.command_code, DIAMETER_CMD_CC);
     assert_eq!(cca.header.application_id, DIAMETER_APPLICATION_S9);
-    assert_eq!(cca.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        cca.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
     assert_eq!(pcrf.roaming_subsessions.len(), 1);
 }

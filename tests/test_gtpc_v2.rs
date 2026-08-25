@@ -1,16 +1,11 @@
 use toy_tcpip::gtpc_v2::{
-    Gtpv2cMessage, SgwEngine, encode_imsi_tbcd, decode_imsi_tbcd,
-    GTPV2C_CREATE_SESSION_REQ, GTPV2C_CREATE_SESSION_RSP,
-    CAUSE_REQUEST_ACCEPTED, IE_IMSI, IE_APN, IE_FTEID, IE_CAUSE,
+    CAUSE_REQUEST_ACCEPTED, GTPV2C_CREATE_SESSION_REQ, GTPV2C_CREATE_SESSION_RSP, Gtpv2cMessage,
+    IE_APN, IE_CAUSE, IE_FTEID, IE_IMSI, SgwEngine, decode_imsi_tbcd, encode_imsi_tbcd,
 };
 
 #[test]
 fn test_imsi_tbcd_encoding_roundtrip() {
-    let cases = vec![
-        "310260123456789",
-        "46001234567890",
-        "001010123456789",
-    ];
+    let cases = vec!["310260123456789", "46001234567890", "001010123456789"];
     for imsi in cases {
         let encoded = encode_imsi_tbcd(imsi);
         let decoded = decode_imsi_tbcd(&encoded);
@@ -21,13 +16,13 @@ fn test_imsi_tbcd_encoding_roundtrip() {
 #[test]
 fn test_gtpv2c_create_session_request_response_flow() {
     let req = Gtpv2cMessage::create_session_request(
-        0,                      // TEID
-        42,                     // Sequence
-        "310260987654321",      // IMSI
+        0,                                 // TEID
+        42,                                // Sequence
+        "310260987654321",                 // IMSI
         "lte.internet.mnc260.mcc310.gprs", // APN
-        0x0001,                 // MME F-TEID
-        [10, 0, 0, 100],       // MME IP
-        5,                      // Default EBI
+        0x0001,                            // MME F-TEID
+        [10, 0, 0, 100],                   // MME IP
+        5,                                 // Default EBI
     );
 
     assert_eq!(req.header.msg_type, GTPV2C_CREATE_SESSION_REQ);
@@ -93,7 +88,13 @@ fn test_sgw_multi_session_teid_allocation() {
 
     for i in 0u32..5 {
         let req = Gtpv2cMessage::create_session_request(
-            0, i, &format!("31026000000000{}", i), "internet", i + 1, [10, 0, 0, 1], 5,
+            0,
+            i,
+            &format!("31026000000000{}", i),
+            "internet",
+            i + 1,
+            [10, 0, 0, 1],
+            5,
         );
         let rsp = sgw.process_create_session(&req);
         assert_eq!(rsp.header.msg_type, GTPV2C_CREATE_SESSION_RSP);

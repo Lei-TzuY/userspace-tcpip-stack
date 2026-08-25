@@ -48,12 +48,7 @@ impl GtpuJitterTelemetryEngine {
     }
 
     /// Records an arriving packet with its TX and RX timestamps in microseconds.
-    pub fn record_sample(
-        &mut self,
-        seq: u32,
-        tx_us: u64,
-        rx_us: u64,
-    ) -> GtpuLatencySample {
+    pub fn record_sample(&mut self, seq: u32, tx_us: u64, rx_us: u64) -> GtpuLatencySample {
         let delay_us = rx_us.saturating_sub(tx_us);
 
         self.min_delay_us = self.min_delay_us.min(delay_us);
@@ -61,7 +56,9 @@ impl GtpuJitterTelemetryEngine {
         self.sum_delay_us += delay_us;
         self.total_samples += 1;
 
-        if let (Some(prev_tx), Some(prev_rx)) = (self.last_tx_timestamp_us, self.last_rx_timestamp_us) {
+        if let (Some(prev_tx), Some(prev_rx)) =
+            (self.last_tx_timestamp_us, self.last_rx_timestamp_us)
+        {
             let prev_delay = (prev_rx as i64) - (prev_tx as i64);
             let curr_delay = (rx_us as i64) - (tx_us as i64);
             let diff = (curr_delay - prev_delay).abs() as f64;

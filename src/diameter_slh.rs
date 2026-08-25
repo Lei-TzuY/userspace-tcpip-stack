@@ -5,8 +5,8 @@
 //! RIR / RIA - Command 8388620) supporting emergency E911 and positioning services.
 
 use crate::diameter::{
-    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC,
-    DIAMETER_SUCCESS,
+    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
+    DiameterMessage,
 };
 use crate::diameter_gx::VENDOR_3GPP;
 use std::collections::HashMap;
@@ -108,10 +108,8 @@ impl HssSlhEngine {
 
     /// Registers a subscriber's current serving MME/AMF node.
     pub fn register_location(&mut self, imsi: &str, mme_name: &str, mme_realm: &str) {
-        self.subscriber_locations.insert(
-            imsi.to_string(),
-            ServingNodeInfo::new(mme_name, mme_realm),
-        );
+        self.subscriber_locations
+            .insert(imsi.to_string(), ServingNodeInfo::new(mme_name, mme_realm));
     }
 
     /// Handles an LCS-Routing-Info-Request (RIR) from a GMLC.

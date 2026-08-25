@@ -15,9 +15,9 @@ pub const PDU_SESSION_TYPE_UL: u8 = 0x01;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PduSessionTelemetry {
     pub pdu_type: u8,
-    pub qfi: u8,                     // 6-bit QoS Flow Identifier (0..63)
-    pub rqi: bool,                   // Reflective QoS Indication
-    pub ppi: Option<u8>,             // Optional Paging Policy Indicator
+    pub qfi: u8,                      // 6-bit QoS Flow Identifier (0..63)
+    pub rqi: bool,                    // Reflective QoS Indication
+    pub ppi: Option<u8>,              // Optional Paging Policy Indicator
     pub delay_result_us: Option<u32>, // In-band delay report in microseconds
 }
 

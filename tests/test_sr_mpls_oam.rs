@@ -1,7 +1,7 @@
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::sr_mpls_oam::{
-    SrLspEchoRequest, SrMplsOamEngine, SrTargetFecSubTlv, RETURN_CODE_LABEL_SWITCHED_AT_STACK_DEPTH,
-    RETURN_CODE_REPLYING_ROUTER_IS_EGRESS, RETURN_CODE_REPLYING_ROUTER_NO_MAPPING,
+    RETURN_CODE_LABEL_SWITCHED_AT_STACK_DEPTH, RETURN_CODE_REPLYING_ROUTER_IS_EGRESS,
+    RETURN_CODE_REPLYING_ROUTER_NO_MAPPING, SrLspEchoRequest, SrMplsOamEngine, SrTargetFecSubTlv,
 };
 
 #[test]
@@ -39,11 +39,7 @@ fn test_sr_mpls_oam_lsp_ping_validation() {
     // Register local Prefix SID & Remote Prefix SID
     engine.register_prefix_sid(local_router_ip, 16001);
     engine.register_prefix_sid(Ipv4Address::new(10, 1, 1, 2), 16002);
-    engine.register_adj_sid(
-        24001,
-        local_router_ip,
-        Ipv4Address::new(10, 1, 1, 2),
-    );
+    engine.register_adj_sid(24001, local_router_ip, Ipv4Address::new(10, 1, 1, 2));
 
     // 1. Ping targeting local router (Egress)
     let req_egress = SrLspEchoRequest {

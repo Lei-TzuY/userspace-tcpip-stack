@@ -66,6 +66,7 @@ struct PendingIpv6Dad {
     address: Ipv6Address,
     prefix_len: u8,
     gateway: Option<Ipv6Address>,
+    on_link: bool,
     deadline_ms: u64,
     preferred_until_ms: Option<u64>,
     valid_until_ms: Option<u64>,
@@ -349,6 +350,7 @@ impl NetStack {
         address: Ipv6Address,
         prefix_len: u8,
         gateway: Option<Ipv6Address>,
+        on_link: bool,
         preferred_lifetime: u32,
         valid_lifetime: u32,
         router_lifetime: u16,
@@ -380,6 +382,8 @@ impl NetStack {
             .filter(|dad| dad.address == address && dad.prefix_len == prefix_len)
         {
             dad.gateway = gateway;
+            // RFC 4861: L=0 makes no statement about on-link status.
+            dad.on_link |= on_link;
             dad.preferred_until_ms = preferred_until_ms;
             dad.valid_until_ms =
                 refreshed_ipv6_valid_deadline(now_ms, dad.valid_until_ms, valid_lifetime);
@@ -392,6 +396,7 @@ impl NetStack {
             address,
             prefix_len: prefix_len.min(128),
             gateway,
+            on_link,
             deadline_ms: now_ms.saturating_add(IPV6_DAD_RETRANS_TIMER_MS),
             preferred_until_ms,
             valid_until_ms: advertised_valid_until_ms,
@@ -732,6 +737,14 @@ impl NetStack {
                         .is_some_and(|deadline| now_ms < deadline)
                 });
                 self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);
+                // A configures the address; L independently declares the prefix on-link.
+                if !dad.on_link {
+                    self.ipv6_routing_table.remove_route(
+                        dad.address,
+                        dad.prefix_len,
+                        RouteSource::Connected,
+                    );
+                }
                 self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
                     address: dad.address,
                     preferred_until_ms: dad.preferred_until_ms,
@@ -1358,6 +1371,16 @@ impl NetStack {
                                             .then_some(ip6_pkt.header.src_ip);
                                         let now_ms = self.current_time_ms;
                                         if self.config.ipv6 == Some(address) {
+                                            // L=1 adds positive on-link knowledge; L=0 does not erase it.
+                                            if prefix.on_link {
+                                                self.ipv6_routing_table.add_route_from(
+                                                    address,
+                                                    prefix.prefix_length,
+                                                    None,
+                                                    "eth0",
+                                                    RouteSource::Connected,
+                                                );
+                                            }
                                             let old_valid = self
                                                 .ipv6_slaac_lifetimes
                                                 .filter(|lifetimes| lifetimes.address == address)
@@ -1403,6 +1426,7 @@ impl NetStack {
                                             address,
                                             prefix.prefix_length,
                                             gateway,
+                                            prefix.on_link,
                                             prefix.preferred_lifetime,
                                             prefix.valid_lifetime,
                                             ra.router_lifetime,

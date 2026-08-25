@@ -1,7 +1,7 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_slh::{
-    HssSlhEngine, ServingNodeInfo, AVP_SERVING_NODE, DIAMETER_APPLICATION_SLH,
-    DIAMETER_CMD_LCS_ROUTING_INFO,
+    AVP_SERVING_NODE, DIAMETER_APPLICATION_SLH, DIAMETER_CMD_LCS_ROUTING_INFO, HssSlhEngine,
+    ServingNodeInfo,
 };
 
 #[test]
@@ -17,7 +17,10 @@ fn test_diameter_slh_location_query() {
     let ria = hss.handle_rir(imsi);
     assert_eq!(ria.header.application_id, DIAMETER_APPLICATION_SLH);
     assert_eq!(ria.header.command_code, DIAMETER_CMD_LCS_ROUTING_INFO);
-    assert_eq!(ria.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        ria.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
 
     let serving_avp = ria.get_avp(AVP_SERVING_NODE).expect("Serving-Node AVP");
     let parsed_node = ServingNodeInfo::from_grouped_avp(&serving_avp).expect("parse grouped node");

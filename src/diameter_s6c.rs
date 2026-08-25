@@ -122,9 +122,17 @@ impl S6cHssEngine {
     /// Handles Send-Routing-Info-for-SM (SRR) and answers with Serving-Node in SRA.
     pub fn handle_srr(&mut self, srr: &S6cMessage) -> S6cMessage {
         self.total_srr_requests += 1;
-        let user = srr.avps.iter().find_map(|a| {
-            if let S6cAvp::UserName(u) = a { Some(u.clone()) } else { None }
-        }).unwrap_or_default();
+        let user = srr
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let S6cAvp::UserName(u) = a {
+                    Some(u.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
         if let Some(info) = self.routing_registry.get(&user) {
             let mut sra = S6cMessage::new_answer(srr, 2001); // DIAMETER_SUCCESS
@@ -163,17 +171,35 @@ mod tests {
 
         let sra = hss.handle_srr(&srr);
         assert!(!sra.is_request);
-        let rc = sra.avps.iter().find_map(|a| if let S6cAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = sra.avps.iter().find_map(|a| {
+            if let S6cAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
-        let node = sra.avps.iter().find_map(|a| if let S6cAvp::ServingNode(n) = a { Some(n.clone()) } else { None });
+        let node = sra.avps.iter().find_map(|a| {
+            if let S6cAvp::ServingNode(n) = a {
+                Some(n.clone())
+            } else {
+                None
+            }
+        });
         assert_eq!(node, Some(serving_mme));
         assert_eq!(hss.total_srr_requests, 1);
 
         // 2. RDR Report
         let rdr = S6cMessage::new_rdr("s6c-sess-02", "886912345678", 0);
         let rda = hss.handle_rdr(&rdr);
-        let rc_rdr = rda.avps.iter().find_map(|a| if let S6cAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc_rdr = rda.avps.iter().find_map(|a| {
+            if let S6cAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc_rdr, Some(2001));
         assert_eq!(hss.total_rdr_reports, 1);
     }

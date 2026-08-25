@@ -69,7 +69,11 @@ impl TsnCqfOffsetEngine {
     }
 
     /// Simulates forwarding a frame across all hops with CQF cycle phase alignment.
-    pub fn forward_frame_multihop(&mut self, stream_id: u32, payload_bytes: usize) -> CqfOffsetFrame {
+    pub fn forward_frame_multihop(
+        &mut self,
+        stream_id: u32,
+        payload_bytes: usize,
+    ) -> CqfOffsetFrame {
         let mut frame = CqfOffsetFrame {
             stream_id,
             payload_bytes,
@@ -81,7 +85,7 @@ impl TsnCqfOffsetEngine {
         for hop in &self.hops {
             frame.current_hop += 1;
             let hop_transit_ns = hop.link_propagation_delay_ns + hop.internal_processing_delay_ns;
-            
+
             // In CQF, a frame arriving at cycle i is forwarded at cycle i+1.
             // Minimum time spent at each hop is one cycle duration plus link/processing transit
             let cycle_delay = hop.cycle_time_ns;

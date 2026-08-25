@@ -1,6 +1,4 @@
-use toy_tcpip::gtpu_telemetry::{
-    GtpuTelemetryEngine, PduSessionTelemetry, PDU_SESSION_TYPE_UL,
-};
+use toy_tcpip::gtpu_telemetry::{GtpuTelemetryEngine, PDU_SESSION_TYPE_UL, PduSessionTelemetry};
 
 #[test]
 fn test_gtpu_pdu_session_container_telemetry_codec() {

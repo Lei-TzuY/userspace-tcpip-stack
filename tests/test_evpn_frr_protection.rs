@@ -14,8 +14,22 @@ fn test_evpn_frr_protection_primary_to_backup_steering() {
     let pe3_primary = Ipv4Address::new(10, 0, 0, 3);
     let pe4_backup = Ipv4Address::new(10, 0, 0, 4);
 
-    engine.add_protected_route(EvpnProtectedRoute::new(100, mac1, None, pe1_primary, pe2_backup, 100));
-    engine.add_protected_route(EvpnProtectedRoute::new(100, mac2, None, pe3_primary, pe4_backup, 100));
+    engine.add_protected_route(EvpnProtectedRoute::new(
+        100,
+        mac1,
+        None,
+        pe1_primary,
+        pe2_backup,
+        100,
+    ));
+    engine.add_protected_route(EvpnProtectedRoute::new(
+        100,
+        mac2,
+        None,
+        pe3_primary,
+        pe4_backup,
+        100,
+    ));
 
     // Both primary paths active
     assert_eq!(engine.forward_frame(100, mac1), Some((pe1_primary, 100)));

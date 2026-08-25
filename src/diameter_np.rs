@@ -104,7 +104,8 @@ impl RcafNpEngine {
 
         for avp in &ncr.avps {
             if let NpAvp::RanCongestion(info) = avp {
-                self.cell_congestion_map.insert((info.enodeb_id, info.cell_id), info.level);
+                self.cell_congestion_map
+                    .insert((info.enodeb_id, info.cell_id), info.level);
             }
         }
 
@@ -112,7 +113,10 @@ impl RcafNpEngine {
     }
 
     pub fn get_cell_congestion(&self, enodeb_id: u32, cell_id: u32) -> RanCongestionLevel {
-        self.cell_congestion_map.get(&(enodeb_id, cell_id)).copied().unwrap_or(RanCongestionLevel::None)
+        self.cell_congestion_map
+            .get(&(enodeb_id, cell_id))
+            .copied()
+            .unwrap_or(RanCongestionLevel::None)
     }
 }
 
@@ -135,7 +139,13 @@ mod tests {
 
         let nca = pcrf.handle_ncr(&ncr);
         assert!(!nca.is_request);
-        let rc = nca.avps.iter().find_map(|a| if let NpAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = nca.avps.iter().find_map(|a| {
+            if let NpAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
         assert_eq!(pcrf.get_cell_congestion(1001, 1), RanCongestionLevel::High);

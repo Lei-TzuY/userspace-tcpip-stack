@@ -140,10 +140,12 @@ mod tests {
         assert_eq!(t_upf.state, UpfHandoverState::IndirectForwarding);
 
         // 1. Two in-flight indirect G-PDUs arrive from S-UPF
-        let d1 = t_upf.handle_indirect_packet(HandoverGtpuPacket::new_gpdu(0x1000AAAA, b"P1".to_vec()));
+        let d1 =
+            t_upf.handle_indirect_packet(HandoverGtpuPacket::new_gpdu(0x1000AAAA, b"P1".to_vec()));
         assert_eq!(d1.len(), 0); // Buffered
 
-        let d2 = t_upf.handle_indirect_packet(HandoverGtpuPacket::new_gpdu(0x1000AAAA, b"P2".to_vec()));
+        let d2 =
+            t_upf.handle_indirect_packet(HandoverGtpuPacket::new_gpdu(0x1000AAAA, b"P2".to_vec()));
         assert_eq!(d2.len(), 0); // Buffered
         assert_eq!(t_upf.indirect_buffer.len(), 2);
 

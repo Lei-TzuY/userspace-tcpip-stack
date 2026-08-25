@@ -23,20 +23,30 @@ fn test_tsn_qcz_congestion_isolation_mitigation() {
     );
 
     // Initial packet 1000B on heavy flow -> UQ = 1000B (<= 1500B)
-    assert!(engine.enqueue_packet(flow_heavy, vec![0x11; 1000]).is_none());
+    assert!(
+        engine
+            .enqueue_packet(flow_heavy, vec![0x11; 1000])
+            .is_none()
+    );
     assert_eq!(engine.uncongested_queue.len(), 1);
     assert_eq!(engine.isolated_queue.len(), 0);
 
     // Second packet 800B on heavy flow -> 1000 + 800 = 1800B > 1500B threshold!
     // Triggers flow isolation into CIQ and emits CNM
-    let cnm = engine.enqueue_packet(flow_heavy, vec![0x11; 800]).expect("CNM must be generated");
+    let cnm = engine
+        .enqueue_packet(flow_heavy, vec![0x11; 800])
+        .expect("CNM must be generated");
     assert_eq!(cnm.offending_flow, flow_heavy);
     assert_eq!(cnm.cp_mac, cp_mac);
     assert_eq!(engine.isolated_queue.len(), 1);
     assert_eq!(engine.total_isolated, 1);
 
     // Latency sensitive packet 200B -> Enters UQ immediately without suffering HoL blocking!
-    assert!(engine.enqueue_packet(flow_latency_sensitive, vec![0x22; 200]).is_none());
+    assert!(
+        engine
+            .enqueue_packet(flow_latency_sensitive, vec![0x22; 200])
+            .is_none()
+    );
     assert_eq!(engine.uncongested_queue.len(), 2);
 
     let drained_uq = engine.drain_uncongested();

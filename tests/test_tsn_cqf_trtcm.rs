@@ -1,4 +1,4 @@
-use toy_tcpip::tsn_cqf_trtcm::{TsnCqfTrTcmEngine, TrTcmColor};
+use toy_tcpip::tsn_cqf_trtcm::{TrTcmColor, TsnCqfTrTcmEngine};
 
 #[test]
 fn test_tsn_cqf_trtcm_metering_lifecycle() {

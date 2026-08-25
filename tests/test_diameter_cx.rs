@@ -1,7 +1,6 @@
 use toy_tcpip::diameter_cx::{
-    CxAvp, CxMessage, HssCxEngine, ImsSub,
-    CMD_UAR, CMD_MAR, CMD_SAR, DIAMETER_APP_CX,
-    UserAuthorizationType, ServerAssignmentType,
+    CMD_MAR, CMD_SAR, CMD_UAR, CxAvp, CxMessage, DIAMETER_APP_CX, HssCxEngine, ImsSub,
+    ServerAssignmentType, UserAuthorizationType,
 };
 
 #[test]
@@ -17,7 +16,9 @@ fn test_diameter_cx_uar_known_subscriber() {
 
     let mut uar = CxMessage::new_request(CMD_UAR, "cx-sess-001");
     uar.add_avp(CxAvp::PublicIdentity("sip:alice@ims.example.com".into()));
-    uar.add_avp(CxAvp::UserAuthorizationType(UserAuthorizationType::Registration));
+    uar.add_avp(CxAvp::UserAuthorizationType(
+        UserAuthorizationType::Registration,
+    ));
 
     let uaa = hss.process_uar(&uar);
     assert!(!uaa.is_request);
@@ -25,7 +26,11 @@ fn test_diameter_cx_uar_known_subscriber() {
 
     // Should contain the assigned S-CSCF server name
     let srv = uaa.avps.iter().find_map(|a| {
-        if let CxAvp::ServerName(s) = a { Some(s.clone()) } else { None }
+        if let CxAvp::ServerName(s) = a {
+            Some(s.clone())
+        } else {
+            None
+        }
     });
     assert_eq!(srv, Some("sip:scscf1.ims.example.com".into()));
 }
@@ -40,7 +45,11 @@ fn test_diameter_cx_uar_unknown_subscriber() {
     let uaa = hss.process_uar(&uar);
     // Should contain DIAMETER_ERROR_USER_UNKNOWN (5001)
     let rc = uaa.avps.iter().find_map(|a| {
-        if let CxAvp::ResultCode(c) = a { Some(*c) } else { None }
+        if let CxAvp::ResultCode(c) = a {
+            Some(*c)
+        } else {
+            None
+        }
     });
     assert_eq!(rc, Some(5001));
 }
@@ -61,7 +70,11 @@ fn test_diameter_cx_mar_auth_vector_retrieval() {
 
     let maa = hss.process_mar(&mar);
     let auth_item = maa.avps.iter().find_map(|a| {
-        if let CxAvp::SipAuthDataItem { auth_scheme, auth_data } = a {
+        if let CxAvp::SipAuthDataItem {
+            auth_scheme,
+            auth_data,
+        } = a
+        {
             Some((auth_scheme.clone(), auth_data.clone()))
         } else {
             None
@@ -74,7 +87,11 @@ fn test_diameter_cx_mar_auth_vector_retrieval() {
 
     // Verify SIP-Number-Auth-Items AVP is present
     let count = maa.avps.iter().find_map(|a| {
-        if let CxAvp::SipNumberAuthItems(n) = a { Some(*n) } else { None }
+        if let CxAvp::SipNumberAuthItems(n) = a {
+            Some(*n)
+        } else {
+            None
+        }
     });
     assert_eq!(count, Some(1));
 }
@@ -97,24 +114,35 @@ fn test_diameter_cx_sar_assigns_scscf() {
     let mut sar = CxMessage::new_request(CMD_SAR, "cx-sess-004");
     sar.add_avp(CxAvp::PublicIdentity("sip:carol@ims.example.com".into()));
     sar.add_avp(CxAvp::ServerName("sip:scscf3.ims.example.com".into()));
-    sar.add_avp(CxAvp::ServerAssignmentType(ServerAssignmentType::Registration));
+    sar.add_avp(CxAvp::ServerAssignmentType(
+        ServerAssignmentType::Registration,
+    ));
 
     let saa = hss.process_sar(&sar);
     let srv = saa.avps.iter().find_map(|a| {
-        if let CxAvp::ServerName(s) = a { Some(s.clone()) } else { None }
+        if let CxAvp::ServerName(s) = a {
+            Some(s.clone())
+        } else {
+            None
+        }
     });
     assert_eq!(srv, Some("sip:scscf3.ims.example.com".into()));
 
     // Verify HSS recorded the assignment
     let sub = hss.subscribers.get("sip:carol@ims.example.com").unwrap();
-    assert_eq!(sub.assigned_scscf, Some("sip:scscf3.ims.example.com".into()));
+    assert_eq!(
+        sub.assigned_scscf,
+        Some("sip:scscf3.ims.example.com".into())
+    );
 }
 
 #[test]
 fn test_diameter_cx_message_serialization() {
     let mut msg = CxMessage::new_request(CMD_UAR, "test-session");
     msg.add_avp(CxAvp::PublicIdentity("sip:test@ims.example.com".into()));
-    msg.add_avp(CxAvp::UserAuthorizationType(UserAuthorizationType::Registration));
+    msg.add_avp(CxAvp::UserAuthorizationType(
+        UserAuthorizationType::Registration,
+    ));
 
     let wire = msg.serialize();
     // Verify basic structure: 4B cmd + 1B flags + 4B app + 4B h2h + 4B e2e + session + avps

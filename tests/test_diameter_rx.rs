@@ -1,7 +1,7 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_rx::{
-    AaRequest, MediaComponentDescription, MediaSubComponent, MediaType, PcrfRxEngine,
-    AVP_SPECIFIC_ACTION, DIAMETER_APPLICATION_RX, DIAMETER_CMD_AA,
+    AVP_SPECIFIC_ACTION, AaRequest, DIAMETER_APPLICATION_RX, DIAMETER_CMD_AA,
+    MediaComponentDescription, MediaSubComponent, MediaType, PcrfRxEngine,
 };
 
 #[test]
@@ -12,7 +12,8 @@ fn test_diameter_rx_aar_and_media_subcomponent_codec() {
     mc.max_bandwidth_dl = 64_000;
 
     let mut sub = MediaSubComponent::new(1);
-    sub.flow_descriptions.push("permit in ip from 192.168.1.10 to 192.168.1.20".to_string());
+    sub.flow_descriptions
+        .push("permit in ip from 192.168.1.10 to 192.168.1.20".to_string());
     mc.sub_components.push(sub);
     req.media_components.push(mc);
 
@@ -46,8 +47,18 @@ fn test_pcrf_rx_engine_admission_and_qci_authorization() {
     req1.media_components.push(video);
 
     let resp1 = pcrf.process_aar(&req1);
-    assert_eq!(resp1.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
-    assert_eq!(resp1.get_avp(AVP_SPECIFIC_ACTION).unwrap().as_u32().unwrap(), 1); // QCI 1 (Conversational Voice highest)
+    assert_eq!(
+        resp1.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
+    assert_eq!(
+        resp1
+            .get_avp(AVP_SPECIFIC_ACTION)
+            .unwrap()
+            .as_u32()
+            .unwrap(),
+        1
+    ); // QCI 1 (Conversational Voice highest)
 
     let state = pcrf.sessions.get("sess-call-01").unwrap();
     assert_eq!(state.authorized_qci, 1);
@@ -57,7 +68,10 @@ fn test_pcrf_rx_engine_admission_and_qci_authorization() {
 
     // 2. Terminate session
     let term_resp = pcrf.process_str("sess-call-01");
-    assert_eq!(term_resp.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        term_resp.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
     assert_eq!(pcrf.allocated_bandwidth_bps, 0);
     assert_eq!(pcrf.sessions.len(), 0);
 }

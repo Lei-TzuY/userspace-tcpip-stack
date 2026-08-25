@@ -6,7 +6,7 @@ fn test_frer_srf_vector_recovery_algorithm() {
     let mut engine = FrerSrfEngine::new(64);
 
     // Stream 1: in-order delivery
-    assert_eq!(engine.process_frame(1, 100), SrfVerdict::Accept);  // take_any
+    assert_eq!(engine.process_frame(1, 100), SrfVerdict::Accept); // take_any
     assert_eq!(engine.process_frame(1, 101), SrfVerdict::Accept);
     assert_eq!(engine.process_frame(1, 102), SrfVerdict::Accept);
 
@@ -29,7 +29,7 @@ fn test_frer_srf_vector_recovery_algorithm() {
     assert_eq!(engine.process_frame(1, 103), SrfVerdict::EliminateDuplicate);
 
     // ── Stream 2: independent state ──
-    assert_eq!(engine.process_frame(2, 0), SrfVerdict::Accept);  // take_any
+    assert_eq!(engine.process_frame(2, 0), SrfVerdict::Accept); // take_any
     assert_eq!(engine.process_frame(2, 1), SrfVerdict::Accept);
 
     // Verify per-stream stats

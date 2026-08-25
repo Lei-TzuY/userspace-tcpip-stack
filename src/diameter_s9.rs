@@ -5,8 +5,8 @@
 //! Subsession-Enforcement-Info (AVP 2201), Subsession-Decision-Info (AVP 2200), and dynamic QoS rules.
 
 use crate::diameter::{
-    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC,
-    DIAMETER_SUCCESS,
+    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
+    DiameterMessage,
 };
 use crate::diameter_gx::VENDOR_3GPP;
 use std::collections::HashMap;
@@ -90,13 +90,19 @@ impl SubsessionEnforcementInfo {
         for a in inners {
             match a.code {
                 AVP_SUBSESSION_ID if a.data.len() == 4 => {
-                    sub_id = Some(u32::from_be_bytes([a.data[0], a.data[1], a.data[2], a.data[3]]));
+                    sub_id = Some(u32::from_be_bytes([
+                        a.data[0], a.data[1], a.data[2], a.data[3],
+                    ]));
                 }
                 AVP_MAX_REQUESTED_BANDWIDTH_UL if a.data.len() == 4 => {
-                    ul = Some(u32::from_be_bytes([a.data[0], a.data[1], a.data[2], a.data[3]]));
+                    ul = Some(u32::from_be_bytes([
+                        a.data[0], a.data[1], a.data[2], a.data[3],
+                    ]));
                 }
                 AVP_MAX_REQUESTED_BANDWIDTH_DL if a.data.len() == 4 => {
-                    dl = Some(u32::from_be_bytes([a.data[0], a.data[1], a.data[2], a.data[3]]));
+                    dl = Some(u32::from_be_bytes([
+                        a.data[0], a.data[1], a.data[2], a.data[3],
+                    ]));
                 }
                 _ => {}
             }

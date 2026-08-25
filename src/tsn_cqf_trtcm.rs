@@ -110,12 +110,20 @@ impl TsnCqfTrTcmEngine {
 
         match color {
             TrTcmColor::Green => {
-                self.queue.push(ColorAwareCqfFrame { stream_id, bytes, color });
+                self.queue.push(ColorAwareCqfFrame {
+                    stream_id,
+                    bytes,
+                    color,
+                });
                 self.total_green_admitted += 1;
             }
             TrTcmColor::Yellow => {
                 if !self.drop_yellow_on_congestion {
-                    self.queue.push(ColorAwareCqfFrame { stream_id, bytes, color });
+                    self.queue.push(ColorAwareCqfFrame {
+                        stream_id,
+                        bytes,
+                        color,
+                    });
                     self.total_yellow_admitted += 1;
                 } else {
                     self.total_red_dropped += 1;

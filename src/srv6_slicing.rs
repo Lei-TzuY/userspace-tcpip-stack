@@ -72,7 +72,11 @@ impl Srv6SliceForwardingEngine {
     }
 
     /// Binds a subscriber / application source IP to a specific Network Slice.
-    pub fn bind_subscriber_to_slice(&mut self, sub_ip: Ipv4Address, slice_id: NetworkSliceId) -> bool {
+    pub fn bind_subscriber_to_slice(
+        &mut self,
+        sub_ip: Ipv4Address,
+        slice_id: NetworkSliceId,
+    ) -> bool {
         if self.slice_policies.contains_key(&slice_id) {
             self.subscriber_slice_bindings.insert(sub_ip, slice_id);
             true

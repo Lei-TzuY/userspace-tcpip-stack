@@ -4,7 +4,7 @@
 //! Group-to-RP hash-based deterministic selection, and SSM (232.0.0.0/8) source-tree routing.
 
 use crate::ipv4::Ipv4Address;
-use crate::pim::{PimHeader, PimPacket, PIM_TYPE_BOOTSTRAP};
+use crate::pim::{PIM_TYPE_BOOTSTRAP, PimHeader, PimPacket};
 
 /// PIM Message Type for Candidate-RP Advertisement (RFC 5059 Section 4).
 pub const PIM_TYPE_CANDIDATE_RP_ADV: u8 = 8;
@@ -85,7 +85,7 @@ impl CandidateRpRecord {
         buf[2..6].copy_from_slice(&self.rp_ip.0);
         buf[6] = self.priority;
         buf[7] = 0; // Reserved
-                    // Holdtime is packed separately or within structure
+        // Holdtime is packed separately or within structure
         buf
     }
 }
@@ -186,8 +186,12 @@ impl PimBootstrapMessage {
                 if data[offset] != 0x01 || data[offset + 1] != 0x00 {
                     return None;
                 }
-                let rp_ip =
-                    Ipv4Address([data[offset + 2], data[offset + 3], data[offset + 4], data[offset + 5]]);
+                let rp_ip = Ipv4Address([
+                    data[offset + 2],
+                    data[offset + 3],
+                    data[offset + 4],
+                    data[offset + 5],
+                ]);
                 let holdtime = u16::from_be_bytes([data[offset + 6], data[offset + 7]]);
                 let priority = data[offset + 8];
                 offset += 10;
@@ -315,8 +319,16 @@ impl PimBsrEngine {
             is_candidate_bsr,
             local_bsr_priority,
             hash_mask_len: 30,
-            elected_bsr: if is_candidate_bsr { Some(local_ip) } else { None },
-            elected_bsr_priority: if is_candidate_bsr { local_bsr_priority } else { 0 },
+            elected_bsr: if is_candidate_bsr {
+                Some(local_ip)
+            } else {
+                None
+            },
+            elected_bsr_priority: if is_candidate_bsr {
+                local_bsr_priority
+            } else {
+                0
+            },
             group_rp_set: Vec::new(),
         }
     }
@@ -464,7 +476,8 @@ impl PimBsrEngine {
         if !self.is_candidate_bsr || self.elected_bsr != Some(self.local_ip) {
             return None;
         }
-        let mut bsm = PimBootstrapMessage::new(self.local_ip, self.local_bsr_priority, self.hash_mask_len);
+        let mut bsm =
+            PimBootstrapMessage::new(self.local_ip, self.local_bsr_priority, self.hash_mask_len);
         bsm.group_mappings = self.group_rp_set.clone();
         Some(bsm)
     }

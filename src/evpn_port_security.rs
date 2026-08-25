@@ -50,7 +50,11 @@ pub struct PortSecurityConfig {
 }
 
 impl PortSecurityConfig {
-    pub fn new(max_macs: usize, violation_action: PortSecurityViolationAction, aging_timeout_sec: u64) -> Self {
+    pub fn new(
+        max_macs: usize,
+        violation_action: PortSecurityViolationAction,
+        aging_timeout_sec: u64,
+    ) -> Self {
         PortSecurityConfig {
             max_macs,
             violation_action,
@@ -86,7 +90,10 @@ impl EvpnPortSecurityEngine {
         violation: PortSecurityViolationAction,
         aging_sec: u64,
     ) {
-        self.ports.insert(iface.to_string(), PortSecurityConfig::new(max_macs, violation, aging_sec));
+        self.ports.insert(
+            iface.to_string(),
+            PortSecurityConfig::new(max_macs, violation, aging_sec),
+        );
     }
 
     /// Evaluates an incoming frame from `src_mac` on `iface`.
@@ -105,9 +112,8 @@ impl EvpnPortSecurityEngine {
         // Age out expired dynamic entries (skip sticky entries if aging is 0)
         if port.aging_timeout_sec > 0 {
             let timeout = port.aging_timeout_sec;
-            port.learned_macs.retain(|_, entry| {
-                now_sec.saturating_sub(entry.last_seen_sec) < timeout
-            });
+            port.learned_macs
+                .retain(|_, entry| now_sec.saturating_sub(entry.last_seen_sec) < timeout);
         }
 
         if let Some(entry) = port.learned_macs.get_mut(&src_mac) {

@@ -4,7 +4,9 @@
 //! populating proxy ARP caches from BGP EVPN Route Type 2 (MAC/IP Advertisement), and synthesizing local unicast
 //! ARP replies directly at the Top-of-Rack (ToR) leaf switches.
 
-use crate::arp::{ArpOpcode, ArpPacket, ARP_HLEN_ETHERNET, ARP_HTYPE_ETHERNET, ARP_PLEN_IPV4, ARP_PTYPE_IPV4};
+use crate::arp::{
+    ARP_HLEN_ETHERNET, ARP_HTYPE_ETHERNET, ARP_PLEN_IPV4, ARP_PTYPE_IPV4, ArpOpcode, ArpPacket,
+};
 use crate::ethernet::MacAddress;
 use crate::ipv4::Ipv4Address;
 use std::collections::HashMap;
@@ -74,7 +76,12 @@ impl EvpnProxyArpEngine {
     }
 
     /// Configures a Distributed Anycast Gateway for a given VNI.
-    pub fn add_anycast_gateway(&mut self, vni: u32, gateway_ip: Ipv4Address, gateway_mac: MacAddress) {
+    pub fn add_anycast_gateway(
+        &mut self,
+        vni: u32,
+        gateway_ip: Ipv4Address,
+        gateway_mac: MacAddress,
+    ) {
         self.anycast_gateways.insert(
             vni,
             AnycastGatewayConfig {
@@ -179,6 +186,7 @@ impl EvpnProxyArpEngine {
 
     /// Clears expired remote learned entries.
     pub fn purge_remote_entries(&mut self) {
-        self.table.retain(|_, v| v.is_local || v.state == ProxyArpState::Static);
+        self.table
+            .retain(|_, v| v.is_local || v.state == ProxyArpState::Static);
     }
 }

@@ -95,7 +95,11 @@ impl NshContextTlv {
         buf.push(self.tlv_type);
 
         let words_len = (self.data.len() / 4) as u8;
-        let flags_len = if self.critical { 0x40 | (words_len & 0x3F) } else { words_len & 0x3F };
+        let flags_len = if self.critical {
+            0x40 | (words_len & 0x3F)
+        } else {
+            words_len & 0x3F
+        };
         buf.push(flags_len);
 
         buf.extend_from_slice(&self.data);

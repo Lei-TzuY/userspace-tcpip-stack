@@ -58,7 +58,11 @@ fn test_pim_bsr_election_and_ssm_bypass() {
         group: grp,
         rp_count: 1,
         frag_tag: 0,
-        candidates: vec![CandidateRpRecord::new(Ipv4Address::new(10, 0, 0, 5), 10, 120)],
+        candidates: vec![CandidateRpRecord::new(
+            Ipv4Address::new(10, 0, 0, 5),
+            10,
+            120,
+        )],
     });
 
     assert!(engine.process_bootstrap_message(higher_bsm));
@@ -78,7 +82,8 @@ fn test_pim_bsr_election_and_ssm_bypass() {
 #[test]
 fn test_candidate_rp_adv_codec() {
     let mut adv = PimCandidateRpAdv::new(Ipv4Address::new(10, 0, 0, 1), 5, 120);
-    adv.group_prefixes.push(EncodedGroupAddress::new(Ipv4Address::new(239, 0, 0, 0), 8));
+    adv.group_prefixes
+        .push(EncodedGroupAddress::new(Ipv4Address::new(239, 0, 0, 0), 8));
     let wire = adv.serialize();
     assert_eq!(wire.len(), 10 + 8);
 

@@ -125,7 +125,10 @@ impl GtpuFastFailoverEngine {
     }
 
     /// Selects the current active GTP-U forwarding target for an outgoing user plane packet.
-    pub fn forward_user_plane(&mut self, session_id: u32) -> Option<(Ipv4Address, u32, ActivePath)> {
+    pub fn forward_user_plane(
+        &mut self,
+        session_id: u32,
+    ) -> Option<(Ipv4Address, u32, ActivePath)> {
         let sess = self.sessions.get_mut(&session_id)?;
         let (ip, teid) = sess.get_active_target();
         let path = sess.active_path;

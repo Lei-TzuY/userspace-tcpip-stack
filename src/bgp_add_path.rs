@@ -101,8 +101,16 @@ impl BgpAddPathCapability {
     /// Local SEND is enabled if local has Send/Both and peer has Receive/Both.
     /// Local RECEIVE is enabled if local has Receive/Both and peer has Send/Both.
     pub fn negotiate(&self, peer: &BgpAddPathCapability, family: AfiSafi) -> (bool, bool) {
-        let local_mode = self.families.iter().find(|f| f.afi_safi == family).map(|f| f.mode);
-        let peer_mode = peer.families.iter().find(|f| f.afi_safi == family).map(|f| f.mode);
+        let local_mode = self
+            .families
+            .iter()
+            .find(|f| f.afi_safi == family)
+            .map(|f| f.mode);
+        let peer_mode = peer
+            .families
+            .iter()
+            .find(|f| f.afi_safi == family)
+            .map(|f| f.mode);
 
         match (local_mode, peer_mode) {
             (Some(loc), Some(rem)) => {
@@ -190,12 +198,7 @@ pub struct AddPathRibEntry {
 }
 
 impl AddPathRibEntry {
-    pub fn new(
-        path_id: u32,
-        peer_ip: Ipv4Address,
-        next_hop: Ipv4Address,
-        as_path: AsPath,
-    ) -> Self {
+    pub fn new(path_id: u32, peer_ip: Ipv4Address, next_hop: Ipv4Address, as_path: AsPath) -> Self {
         AddPathRibEntry {
             path_id,
             peer_ip,
@@ -305,7 +308,10 @@ impl AddPathRib {
     }
 
     /// Returns the primary active next-hop and BGP PIC fast-reroute backup next-hop.
-    pub fn get_pic_forwarding(&self, prefix: &Ipv4Prefix) -> Option<(Ipv4Address, Option<Ipv4Address>)> {
+    pub fn get_pic_forwarding(
+        &self,
+        prefix: &Ipv4Prefix,
+    ) -> Option<(Ipv4Address, Option<Ipv4Address>)> {
         let list = self.routes.get(prefix)?;
         let best = list.iter().find(|e| e.is_best)?;
         let backup = list.iter().find(|e| e.is_backup).map(|e| e.next_hop);
@@ -315,7 +321,11 @@ impl AddPathRib {
     /// Returns up to `max_paths` best paths for ECMP/Add-Path advertisement.
     pub fn get_advertised_paths(&self, prefix: &Ipv4Prefix) -> Vec<AddPathRibEntry> {
         match self.routes.get(prefix) {
-            Some(list) => list.iter().take(self.max_paths_per_prefix).cloned().collect(),
+            Some(list) => list
+                .iter()
+                .take(self.max_paths_per_prefix)
+                .cloned()
+                .collect(),
             None => Vec::new(),
         }
     }

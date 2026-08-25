@@ -4,7 +4,7 @@
 //! messages (Command Code 272), Multiple-Services-Credit-Control (MSCC) grouped AVPs,
 //! Rating Groups, quota reservation, volume metering, and Online Charging System (OCS) state.
 
-use crate::diameter::{DiameterAvp, DiameterMessage, DIAMETER_SUCCESS};
+use crate::diameter::{DIAMETER_SUCCESS, DiameterAvp, DiameterMessage};
 use std::collections::HashMap;
 
 /// Diameter Credit Control Application ID (RFC 4006 Section 3).
@@ -145,7 +145,8 @@ impl MsccContainer {
                     let mut gsu = ServiceQuotaUnit::default();
                     let mut gsu_offset = 0;
                     while gsu_offset < inner_avp.data.len() {
-                        let (g_avp, g_consumed) = DiameterAvp::parse(&inner_avp.data[gsu_offset..])?;
+                        let (g_avp, g_consumed) =
+                            DiameterAvp::parse(&inner_avp.data[gsu_offset..])?;
                         gsu_offset += g_consumed;
                         if g_avp.code == AVP_CC_TOTAL_OCTETS && g_avp.data.len() >= 8 {
                             gsu.total_octets = u64::from_be_bytes(g_avp.data[..8].try_into().ok()?);
@@ -159,7 +160,8 @@ impl MsccContainer {
                     let mut usu = ServiceQuotaUnit::default();
                     let mut usu_offset = 0;
                     while usu_offset < inner_avp.data.len() {
-                        let (u_avp, u_consumed) = DiameterAvp::parse(&inner_avp.data[usu_offset..])?;
+                        let (u_avp, u_consumed) =
+                            DiameterAvp::parse(&inner_avp.data[usu_offset..])?;
                         usu_offset += u_consumed;
                         if u_avp.code == AVP_CC_TOTAL_OCTETS && u_avp.data.len() >= 8 {
                             usu.total_octets = u64::from_be_bytes(u_avp.data[..8].try_into().ok()?);
@@ -214,10 +216,20 @@ impl CreditControlRequest {
             hop_by_hop_id,
             end_to_end_id,
         );
-        msg.avps.push(DiameterAvp::new_string(263, &self.session_id)); // Session-Id
-        msg.avps.push(DiameterAvp::new_u32(AVP_CC_REQUEST_TYPE, self.request_type as u32));
-        msg.avps.push(DiameterAvp::new_u32(AVP_CC_REQUEST_NUMBER, self.request_number));
-        msg.avps.push(DiameterAvp::new_string(AVP_SUBSCRIPTION_ID_DATA, &self.subscriber_id));
+        msg.avps
+            .push(DiameterAvp::new_string(263, &self.session_id)); // Session-Id
+        msg.avps.push(DiameterAvp::new_u32(
+            AVP_CC_REQUEST_TYPE,
+            self.request_type as u32,
+        ));
+        msg.avps.push(DiameterAvp::new_u32(
+            AVP_CC_REQUEST_NUMBER,
+            self.request_number,
+        ));
+        msg.avps.push(DiameterAvp::new_string(
+            AVP_SUBSCRIPTION_ID_DATA,
+            &self.subscriber_id,
+        ));
 
         for mscc in &self.mscc {
             msg.avps.push(mscc.to_avp());
@@ -307,14 +319,22 @@ impl OnlineChargingEngine {
             1,
             1,
         );
-        resp.avps.push(DiameterAvp::new_string(263, &ccr.session_id));
-        resp.avps.push(DiameterAvp::new_u32(AVP_CC_REQUEST_TYPE, ccr.request_type as u32));
-        resp.avps.push(DiameterAvp::new_u32(AVP_CC_REQUEST_NUMBER, ccr.request_number));
+        resp.avps
+            .push(DiameterAvp::new_string(263, &ccr.session_id));
+        resp.avps.push(DiameterAvp::new_u32(
+            AVP_CC_REQUEST_TYPE,
+            ccr.request_type as u32,
+        ));
+        resp.avps.push(DiameterAvp::new_u32(
+            AVP_CC_REQUEST_NUMBER,
+            ccr.request_number,
+        ));
 
         let account = match self.accounts.get_mut(&ccr.subscriber_id) {
             Some(acc) => acc,
             None => {
-                resp.avps.push(DiameterAvp::new_u32(268, DIAMETER_USER_UNKNOWN));
+                resp.avps
+                    .push(DiameterAvp::new_u32(268, DIAMETER_USER_UNKNOWN));
                 return resp;
             }
         };
@@ -325,7 +345,9 @@ impl OnlineChargingEngine {
                 let mut mscc_resp = Vec::new();
                 for req_mscc in &ccr.mscc {
                     let mut ans_mscc = MsccContainer::new(req_mscc.rating_group);
-                    let available = account.total_balance_octets.saturating_sub(account.granted_reserved_octets);
+                    let available = account
+                        .total_balance_octets
+                        .saturating_sub(account.granted_reserved_octets);
                     if available > 0 {
                         let grant = available.min(self.default_grant_quota_octets);
                         account.granted_reserved_octets += grant;
@@ -349,14 +371,18 @@ impl OnlineChargingEngine {
                     if let Some(used) = req_mscc.used_units {
                         let used_octets = used.total_octets;
                         account.consumed_octets += used_octets;
-                        account.total_balance_octets = account.total_balance_octets.saturating_sub(used_octets);
-                        account.granted_reserved_octets = account.granted_reserved_octets.saturating_sub(used_octets);
+                        account.total_balance_octets =
+                            account.total_balance_octets.saturating_sub(used_octets);
+                        account.granted_reserved_octets =
+                            account.granted_reserved_octets.saturating_sub(used_octets);
                     }
                 }
                 let mut mscc_resp = Vec::new();
                 for req_mscc in &ccr.mscc {
                     let mut ans_mscc = MsccContainer::new(req_mscc.rating_group);
-                    let available = account.total_balance_octets.saturating_sub(account.granted_reserved_octets);
+                    let available = account
+                        .total_balance_octets
+                        .saturating_sub(account.granted_reserved_octets);
                     if available > 0 {
                         let grant = available.min(self.default_grant_quota_octets);
                         account.granted_reserved_octets += grant;
@@ -380,7 +406,8 @@ impl OnlineChargingEngine {
                     if let Some(used) = req_mscc.used_units {
                         let used_octets = used.total_octets;
                         account.consumed_octets += used_octets;
-                        account.total_balance_octets = account.total_balance_octets.saturating_sub(used_octets);
+                        account.total_balance_octets =
+                            account.total_balance_octets.saturating_sub(used_octets);
                     }
                 }
                 account.granted_reserved_octets = 0;

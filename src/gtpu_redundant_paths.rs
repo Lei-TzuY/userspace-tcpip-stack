@@ -64,7 +64,10 @@ impl GtpuRedundantEngine {
     }
 
     /// Replicates an outgoing user plane packet into two redundant GTP-U packets (one per leg).
-    pub fn replicate_outgoing(&mut self, payload: &[u8]) -> (RedundantGtpuPacket, RedundantGtpuPacket) {
+    pub fn replicate_outgoing(
+        &mut self,
+        payload: &[u8],
+    ) -> (RedundantGtpuPacket, RedundantGtpuPacket) {
         let seq = self.next_tx_seq;
         self.next_tx_seq = self.next_tx_seq.wrapping_add(1);
         self.total_duplicated_sent += 2;

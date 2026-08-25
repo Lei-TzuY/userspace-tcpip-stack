@@ -5,8 +5,8 @@
 //! and HSS subscriber database management over Application ID 16777251.
 
 use crate::diameter::{
-    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC,
-    DIAMETER_SUCCESS,
+    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
+    DiameterMessage,
 };
 use crate::diameter_gx::VENDOR_3GPP;
 use std::collections::HashMap;
@@ -16,8 +16,8 @@ pub const DIAMETER_APPLICATION_S6A: u32 = 16777251;
 
 /// Diameter S6a Command Codes.
 pub const DIAMETER_CMD_UPDATE_LOCATION: u32 = 316; // ULR / ULA
-pub const DIAMETER_CMD_AUTH_INFO: u32 = 318;       // AIR / AIA
-pub const DIAMETER_CMD_PURGE_UE: u32 = 321;         // PUR / PUA
+pub const DIAMETER_CMD_AUTH_INFO: u32 = 318; // AIR / AIA
+pub const DIAMETER_CMD_PURGE_UE: u32 = 321; // PUR / PUA
 
 /// 3GPP S6a AVP Codes.
 pub const AVP_USER_NAME: u32 = 1;
@@ -181,7 +181,11 @@ impl HssS6aEngine {
     }
 
     /// Handles an incoming Authentication-Information-Request (AIR) and generates EPS vectors.
-    pub fn handle_auth_info_request(&mut self, imsi: &str, plmn: &[u8; 3]) -> Option<DiameterMessage> {
+    pub fn handle_auth_info_request(
+        &mut self,
+        imsi: &str,
+        plmn: &[u8; 3],
+    ) -> Option<DiameterMessage> {
         let _sub = self.subscribers.get(imsi)?;
         self.auth_vectors_generated_count += 1;
 
@@ -211,7 +215,8 @@ impl HssS6aEngine {
             &auth_info_data,
         );
 
-        let mut aia = DiameterMessage::new_answer(DIAMETER_CMD_AUTH_INFO, DIAMETER_APPLICATION_S6A, 1, 1);
+        let mut aia =
+            DiameterMessage::new_answer(DIAMETER_CMD_AUTH_INFO, DIAMETER_APPLICATION_S6A, 1, 1);
         aia.add_avp(DiameterAvp::new_utf8(AVP_USER_NAME, imsi));
         aia.add_avp(DiameterAvp::new_u32(268, DIAMETER_SUCCESS));
         aia.add_avp(auth_info_avp);

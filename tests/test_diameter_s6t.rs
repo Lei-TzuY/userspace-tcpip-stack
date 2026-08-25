@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s6t::{
-    MonitoringEventConfig, MonitoringEventType, S6tAvp, S6tMessage, ScefS6tHssEngine,
-    DIAMETER_APPLICATION_S6T, DIAMETER_CMD_CONFIGURATION_INFORMATION,
+    DIAMETER_APPLICATION_S6T, DIAMETER_CMD_CONFIGURATION_INFORMATION, MonitoringEventConfig,
+    MonitoringEventType, S6tAvp, S6tMessage, ScefS6tHssEngine,
 };
 
 #[test]
@@ -16,7 +16,13 @@ fn test_diameter_s6t_ciot_monitoring_event() {
     assert_eq!(cir.command_code, DIAMETER_CMD_CONFIGURATION_INFORMATION);
 
     let cia = hss.handle_cir(&cir);
-    let rc = cia.avps.iter().find_map(|a| if let S6tAvp::ResultCode(c) = a { Some(*c) } else { None });
+    let rc = cia.avps.iter().find_map(|a| {
+        if let S6tAvp::ResultCode(c) = a {
+            Some(*c)
+        } else {
+            None
+        }
+    });
     assert_eq!(rc, Some(2001));
     assert_eq!(hss.total_cir_requests, 1);
 }

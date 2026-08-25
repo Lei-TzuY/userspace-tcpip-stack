@@ -106,16 +106,31 @@ impl ScefS6tHssEngine {
     pub fn handle_cir(&mut self, cir: &S6tMessage) -> S6tMessage {
         self.total_cir_requests += 1;
 
-        let user = cir.avps.iter().find_map(|a| {
-            if let S6tAvp::UserName(u) = a { Some(u.clone()) } else { None }
-        }).unwrap_or_default();
+        let user = cir
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let S6tAvp::UserName(u) = a {
+                    Some(u.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
         let config = cir.avps.iter().find_map(|a| {
-            if let S6tAvp::MonitoringConfig(c) = a { Some(c.clone()) } else { None }
+            if let S6tAvp::MonitoringConfig(c) = a {
+                Some(c.clone())
+            } else {
+                None
+            }
         });
 
         if let Some(cfg) = config {
-            self.user_monitoring_events.entry(user).or_default().push(cfg);
+            self.user_monitoring_events
+                .entry(user)
+                .or_default()
+                .push(cfg);
             S6tMessage::new_cia(cir, 2001) // DIAMETER_SUCCESS
         } else {
             S6tMessage::new_cia(cir, 5004) // DIAMETER_ERROR_INVALID_AVP_VALUE
@@ -143,7 +158,13 @@ mod tests {
 
         let cia = hss.handle_cir(&cir);
         assert!(!cia.is_request);
-        let rc = cia.avps.iter().find_map(|a| if let S6tAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = cia.avps.iter().find_map(|a| {
+            if let S6tAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
         let events = hss.user_monitoring_events.get("460041234567890").unwrap();

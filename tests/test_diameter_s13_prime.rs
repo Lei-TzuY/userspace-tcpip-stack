@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s13_prime::{
-    EirS13PrimeEngine, EquipmentStatus, S13PrimeAvp, S13PrimeMessage, TerminalInformation,
-    DIAMETER_APPLICATION_S13_PRIME, DIAMETER_CMD_ME_IDENTITY_CHECK,
+    DIAMETER_APPLICATION_S13_PRIME, DIAMETER_CMD_ME_IDENTITY_CHECK, EirS13PrimeEngine,
+    EquipmentStatus, S13PrimeAvp, S13PrimeMessage, TerminalInformation,
 };
 
 #[test]
@@ -20,7 +20,13 @@ fn test_diameter_s13_prime_blacklisted_stolen_device() {
     let eca = eir.process_ecr(&ecr);
     assert!(!eca.is_request);
 
-    let status = eca.avps.iter().find_map(|a| if let S13PrimeAvp::EquipmentStatus(s) = a { Some(*s) } else { None });
+    let status = eca.avps.iter().find_map(|a| {
+        if let S13PrimeAvp::EquipmentStatus(s) = a {
+            Some(*s)
+        } else {
+            None
+        }
+    });
     assert_eq!(status, Some(EquipmentStatus::Blacklisted));
     assert_eq!(eir.blacklisted_hits, 1);
 }

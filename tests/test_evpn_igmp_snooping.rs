@@ -1,6 +1,4 @@
-use toy_tcpip::evpn_igmp_snooping::{
-    EvpnIgmpSnoopingEngine, MulticastForwardingAction,
-};
+use toy_tcpip::evpn_igmp_snooping::{EvpnIgmpSnoopingEngine, MulticastForwardingAction};
 use toy_tcpip::ipv4::Ipv4Address;
 
 #[test]

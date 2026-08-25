@@ -32,17 +32,29 @@ fn test_tsn_psfp_cascaded_filtering_pipeline() {
     assert_eq!(engine.process_frame(100, 7, 300, 0), PsfpVerdict::Pass);
 
     // Test 2: Next frame 800B -> Exceeds CBS (700B remaining) but fits PBS (1700B remaining) -> MarkYellow
-    assert_eq!(engine.process_frame(100, 7, 800, 0), PsfpVerdict::MarkYellow);
+    assert_eq!(
+        engine.process_frame(100, 7, 800, 0),
+        PsfpVerdict::MarkYellow
+    );
 
     // Test 3: Next frame 1500B -> Exceeds Max SDU (1200B) -> DropMaxSduExceeded
-    assert_eq!(engine.process_frame(100, 7, 1500, 0), PsfpVerdict::DropMaxSduExceeded);
+    assert_eq!(
+        engine.process_frame(100, 7, 1500, 0),
+        PsfpVerdict::DropMaxSduExceeded
+    );
 
     // Test 4: Frame of 1000B when PBS tokens (900B) are insufficient -> DropMeterRed
-    assert_eq!(engine.process_frame(100, 7, 1000, 0), PsfpVerdict::DropMeterRed);
+    assert_eq!(
+        engine.process_frame(100, 7, 1000, 0),
+        PsfpVerdict::DropMeterRed
+    );
 
     // Test 5: Close Gate 1 -> frame is dropped at Gate stage
     engine.gates[0].is_open = false;
-    assert_eq!(engine.process_frame(100, 7, 100, 0), PsfpVerdict::DropGateClosed);
+    assert_eq!(
+        engine.process_frame(100, 7, 100, 0),
+        PsfpVerdict::DropGateClosed
+    );
 }
 
 #[test]

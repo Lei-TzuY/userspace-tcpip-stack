@@ -1,6 +1,6 @@
 use toy_tcpip::evpn_pref_df::{
-    CandidatePe, DfElectionAlgorithm, EvpnDfElectionExtCommunity, EvpnPrefDfEngine,
-    BGP_EXT_COMM_SUBTYPE_DF_ELECTION, BGP_EXT_COMM_TYPE_EVPN,
+    BGP_EXT_COMM_SUBTYPE_DF_ELECTION, BGP_EXT_COMM_TYPE_EVPN, CandidatePe, DfElectionAlgorithm,
+    EvpnDfElectionExtCommunity, EvpnPrefDfEngine,
 };
 use toy_tcpip::evpn_synch::EthernetSegmentId;
 use toy_tcpip::ipv4::Ipv4Address;

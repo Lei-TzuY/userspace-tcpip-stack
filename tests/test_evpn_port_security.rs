@@ -1,5 +1,7 @@
 use toy_tcpip::ethernet::MacAddress;
-use toy_tcpip::evpn_port_security::{EvpnPortSecurityEngine, PortSecurityViolationAction, PortState};
+use toy_tcpip::evpn_port_security::{
+    EvpnPortSecurityEngine, PortSecurityViolationAction, PortState,
+};
 
 #[test]
 fn test_evpn_port_security_lifecycle() {

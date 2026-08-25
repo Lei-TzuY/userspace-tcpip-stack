@@ -75,13 +75,23 @@ impl GtpuQosEnforcer {
         }
     }
 
-    pub fn register_qfi(&mut self, qfi: u8, five_qi: u8, resource_type: FiveQiResourceType, priority: u8, pdb_ms: u32) {
-        self.qfi_profiles.insert(qfi, FiveQiProfile {
-            five_qi,
-            resource_type,
-            priority_level: priority,
-            packet_delay_budget_ms: pdb_ms,
-        });
+    pub fn register_qfi(
+        &mut self,
+        qfi: u8,
+        five_qi: u8,
+        resource_type: FiveQiResourceType,
+        priority: u8,
+        pdb_ms: u32,
+    ) {
+        self.qfi_profiles.insert(
+            qfi,
+            FiveQiProfile {
+                five_qi,
+                resource_type,
+                priority_level: priority,
+                packet_delay_budget_ms: pdb_ms,
+            },
+        );
     }
 
     pub fn set_qfi_remap(&mut self, from_qfi: u8, to_qfi: u8) {
@@ -90,7 +100,9 @@ impl GtpuQosEnforcer {
 
     /// Evaluates an outgoing GTP-U PDU session packet against QoS profiles and Session-AMBR.
     pub fn enforce_packet(&mut self, qfi: u8, packet_bytes: usize, now_ns: u64) -> QosVerdict {
-        let is_non_gbr = self.qfi_profiles.get(&qfi)
+        let is_non_gbr = self
+            .qfi_profiles
+            .get(&qfi)
             .map(|p| p.resource_type == FiveQiResourceType::NonGbr)
             .unwrap_or(true);
 
@@ -103,7 +115,8 @@ impl GtpuQosEnforcer {
             let elapsed_ns = now_ns.saturating_sub(self.last_refill_ns);
             let refill_tokens = (elapsed_ns * self.session_ambr_bps) / 1_000_000_000;
             if refill_tokens > 0 {
-                self.current_tokens = (self.current_tokens + refill_tokens).min(self.burst_capacity_bytes);
+                self.current_tokens =
+                    (self.current_tokens + refill_tokens).min(self.burst_capacity_bytes);
                 self.last_refill_ns = now_ns;
             }
 
@@ -120,7 +133,10 @@ impl GtpuQosEnforcer {
         // 2. Check dynamic QFI remapping
         if let Some(&new_qfi) = self.qfi_remap_rules.get(&qfi) {
             self.total_remapped_packets += 1;
-            QosVerdict::Remapped { old_qfi: qfi, new_qfi }
+            QosVerdict::Remapped {
+                old_qfi: qfi,
+                new_qfi,
+            }
         } else {
             QosVerdict::Pass { qfi }
         }
@@ -141,20 +157,32 @@ mod tests {
         enforcer.register_qfi(2, 82, FiveQiResourceType::DelayCriticalGbr, 2, 10);
 
         // Frame 1 on QFI 1 (1500B at t=0) -> Pass (2000 - 1500 = 500B tokens left)
-        assert_eq!(enforcer.enforce_packet(1, 1500, 0), QosVerdict::Pass { qfi: 1 });
+        assert_eq!(
+            enforcer.enforce_packet(1, 1500, 0),
+            QosVerdict::Pass { qfi: 1 }
+        );
 
         // Frame 2 on QFI 1 (1000B at t=0) -> Exceeds 500B -> DropAmbrExceeded
-        assert_eq!(enforcer.enforce_packet(1, 1000, 0), QosVerdict::DropAmbrExceeded);
+        assert_eq!(
+            enforcer.enforce_packet(1, 1000, 0),
+            QosVerdict::DropAmbrExceeded
+        );
 
         // Frame 3 on QFI 2 (GBR bypasses Session-AMBR!) -> Pass
-        assert_eq!(enforcer.enforce_packet(2, 1500, 0), QosVerdict::Pass { qfi: 2 });
+        assert_eq!(
+            enforcer.enforce_packet(2, 1500, 0),
+            QosVerdict::Pass { qfi: 2 }
+        );
 
         // Set Remapping rule: QFI 1 -> QFI 3
         enforcer.set_qfi_remap(1, 3);
         // Advance time by 1 second to replenish tokens
         assert_eq!(
             enforcer.enforce_packet(1, 500, 1_000_000_000),
-            QosVerdict::Remapped { old_qfi: 1, new_qfi: 3 }
+            QosVerdict::Remapped {
+                old_qfi: 1,
+                new_qfi: 3
+            }
         );
     }
 }

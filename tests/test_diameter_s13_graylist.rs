@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s13_graylist::{
-    EirGraylistEngine, EirQosAction, EirStatus, S13GraylistAvp, S13GraylistMessage,
-    DIAMETER_APPLICATION_S13, DIAMETER_CMD_ME_IDENTITY_CHECK,
+    DIAMETER_APPLICATION_S13, DIAMETER_CMD_ME_IDENTITY_CHECK, EirGraylistEngine, EirQosAction,
+    EirStatus, S13GraylistAvp, S13GraylistMessage,
 };
 
 #[test]
@@ -13,7 +13,13 @@ fn test_diameter_s13_graylist_decision() {
     assert_eq!(ecr.command_code, DIAMETER_CMD_ME_IDENTITY_CHECK);
 
     let (eca, qos) = eir.handle_ecr(&ecr);
-    let st = eca.avps.iter().find_map(|a| if let S13GraylistAvp::EquipmentStatus(s) = a { Some(*s) } else { None });
+    let st = eca.avps.iter().find_map(|a| {
+        if let S13GraylistAvp::EquipmentStatus(s) = a {
+            Some(*s)
+        } else {
+            None
+        }
+    });
     assert_eq!(st, Some(EirStatus::GreyListed));
     assert_eq!(qos, EirQosAction::ThrottledAccess { max_kbps: 128 });
 }

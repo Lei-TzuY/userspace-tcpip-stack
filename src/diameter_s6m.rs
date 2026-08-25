@@ -64,10 +64,7 @@ impl S6mMessage {
             is_request: false,
             application_id: req.application_id,
             session_id: req.session_id.clone(),
-            avps: vec![
-                S6mAvp::ResultCode(result_code),
-                S6mAvp::SmsMiResult(auth),
-            ],
+            avps: vec![S6mAvp::ResultCode(result_code), S6mAvp::SmsMiResult(auth)],
         }
     }
 }
@@ -98,9 +95,17 @@ impl S6mHssEngine {
     pub fn handle_sir(&mut self, sir: &S6mMessage) -> S6mMessage {
         self.total_sir_requests += 1;
 
-        let user = sir.avps.iter().find_map(|a| {
-            if let S6mAvp::UserName(u) = a { Some(u.clone()) } else { None }
-        }).unwrap_or_default();
+        let user = sir
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let S6mAvp::UserName(u) = a {
+                    Some(u.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
         if let Some(&status) = self.subscriber_profiles.get(&user) {
             S6mMessage::new_sia(sir, 2001, status) // DIAMETER_SUCCESS
@@ -125,10 +130,22 @@ mod tests {
 
         let sia = hss.handle_sir(&sir);
         assert!(!sia.is_request);
-        let rc = sia.avps.iter().find_map(|a| if let S6mAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = sia.avps.iter().find_map(|a| {
+            if let S6mAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
-        let res = sia.avps.iter().find_map(|a| if let S6mAvp::SmsMiResult(r) = a { Some(*r) } else { None });
+        let res = sia.avps.iter().find_map(|a| {
+            if let S6mAvp::SmsMiResult(r) = a {
+                Some(*r)
+            } else {
+                None
+            }
+        });
         assert_eq!(res, Some(SmsMiResult::Authorized));
         assert_eq!(hss.total_sir_requests, 1);
     }
