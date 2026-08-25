@@ -82,6 +82,7 @@ fn later_on_link_assertion_adds_route_and_l_zero_does_not_withdraw_it() {
     let mut stack = host(host_mac);
     let prefix_addr = ip6("2001:db8:55::");
     let peer = ip6("2001:db8:55::beef");
+    // L=0 is not a negative/off-link assertion; it cannot erase prior L=1 knowledge.
     let off_link = PrefixInformationOption::new(prefix_addr, 64, false, true, 3600, 1800);
 
     stack.process_frame(&ra_frame(router_mac, off_link, 1800));
