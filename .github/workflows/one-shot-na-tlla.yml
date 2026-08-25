@@ -1,0 +1,40 @@
+name: One-shot NA TLLA processing
+
+on:
+  push:
+    branches:
+      - fix/ipv6-na-tlla-processing
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply RFC 4861 TLLA fix and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo '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' | base64 -d | gunzip > /tmp/patch_na_tlla.py
+          python3 /tmp/patch_na_tlla.py
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test --test test_ipv6_nud
+          cargo test --test test_ipv6_ndp_ingress_validation
+          cargo test --all-targets
+          cargo build --release
+          git diff --check
+          unexpected="$(git diff --name-only | grep -Ev '^(src/icmpv6.rs|src/stack.rs|tests/test_ipv6_nud.rs|\.github/workflows/one-shot-na-tlla\.yml)$' || true)"
+          test -z "$unexpected" || { echo "Unexpected changed files:"; echo "$unexpected"; exit 1; }
+          rm .github/workflows/one-shot-na-tlla.yml
+          git add -A
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git commit -m 'fix(ipv6): process NA Target Link-Layer Address'
+          git push origin HEAD:fix/ipv6-na-tlla-processing
