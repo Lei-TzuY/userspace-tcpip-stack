@@ -1426,18 +1426,19 @@ impl LabRouter {
                         .entry((egress_iface.name.clone(), next_hop))
                         .or_default()
                         .push(forwarded);
+                    let ns_dst = next_hop.solicited_node_multicast();
                     let ns = Icmpv6Packet::build_neighbor_solicitation(
                         egress_ip6,
-                        next_hop,
+                        ns_dst,
                         next_hop,
                         egress_iface.mac,
                     );
                     let ns_packet =
-                        Ipv6Packet::serialize(egress_ip6, next_hop, NEXT_HEADER_ICMPV6, 255, &ns);
+                        Ipv6Packet::serialize(egress_ip6, ns_dst, NEXT_HEADER_ICMPV6, 255, &ns);
                     out_transmissions.push((
                         egress_iface.link_name.clone(),
                         EthernetFrame::serialize(
-                            MacAddress::BROADCAST,
+                            ipv6_multicast_mac(ns_dst).unwrap_or(MacAddress::BROADCAST),
                             egress_iface.mac,
                             ETHERTYPE_IPV6,
                             &ns_packet,
