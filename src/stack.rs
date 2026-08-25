@@ -32,6 +32,25 @@ pub struct NetStackConfig {
     pub gateway: Option<Ipv4Address>,
 }
 
+/// One DAD probe followed by one retransmission interval is the default RFC 4862
+/// host behaviour modelled by this deterministic stack.
+pub const IPV6_DAD_RETRANS_TIMER_MS: u64 = 1_000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ipv6DadStatus {
+    Idle,
+    Tentative(Ipv6Address),
+    Duplicate(Ipv6Address),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PendingIpv6Dad {
+    address: Ipv6Address,
+    prefix_len: u8,
+    gateway: Option<Ipv6Address>,
+    deadline_ms: u64,
+}
+
 pub struct NetStack {
     pub config: NetStackConfig,
     pub arp_table: ArpTable,
@@ -40,6 +59,8 @@ pub struct NetStack {
     pub ipv6_routing_table: Ipv6RoutingTable,
     ipv6_prefix_len: Option<u8>,
     ipv6_gateway: Option<Ipv6Address>,
+    ipv6_dad: Option<PendingIpv6Dad>,
+    ipv6_dad_duplicate: Option<Ipv6Address>,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -82,6 +103,8 @@ impl NetStack {
             ipv6_routing_table: Ipv6RoutingTable::new(),
             ipv6_prefix_len: None,
             ipv6_gateway: None,
+            ipv6_dad: None,
+            ipv6_dad_duplicate: None,
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -115,6 +138,9 @@ impl NetStack {
         prefix_len: u8,
         gateway: Option<Ipv6Address>,
     ) {
+        // Explicit/manual configuration and successful DAD both make the address usable.
+        self.ipv6_dad = None;
+        self.ipv6_dad_duplicate = None;
         if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
         {
             self.ipv6_routing_table.remove_route(
@@ -170,7 +196,65 @@ impl NetStack {
         self.config.ipv6 = None;
         self.ipv6_prefix_len = None;
         self.ipv6_gateway = None;
+        self.ipv6_dad = None;
+        self.ipv6_dad_duplicate = None;
         self.pending_ndp_packets.clear();
+    }
+
+    pub fn ipv6_dad_status(&self) -> Ipv6DadStatus {
+        if let Some(dad) = self.ipv6_dad {
+            Ipv6DadStatus::Tentative(dad.address)
+        } else if let Some(address) = self.ipv6_dad_duplicate {
+            Ipv6DadStatus::Duplicate(address)
+        } else {
+            Ipv6DadStatus::Idle
+        }
+    }
+
+    fn start_ipv6_dad(
+        &mut self,
+        address: Ipv6Address,
+        prefix_len: u8,
+        gateway: Option<Ipv6Address>,
+    ) -> Option<Vec<u8>> {
+        if self.config.ipv6 == Some(address) {
+            self.configure_ipv6_interface(address, prefix_len, gateway);
+            return None;
+        }
+        if self.ipv6_dad.is_some_and(|dad| {
+            dad.address == address && dad.prefix_len == prefix_len && dad.gateway == gateway
+        }) {
+            return None;
+        }
+
+        self.ipv6_dad_duplicate = None;
+        self.ipv6_dad = Some(PendingIpv6Dad {
+            address,
+            prefix_len: prefix_len.min(128),
+            gateway,
+            deadline_ms: self
+                .current_time_ms
+                .saturating_add(IPV6_DAD_RETRANS_TIMER_MS),
+        });
+
+        let dst = address.solicited_node_multicast();
+        let ns = Icmpv6Packet::build_dad_neighbor_solicitation(dst, address);
+        let packet =
+            Ipv6Packet::serialize(Ipv6Address::UNSPECIFIED, dst, NEXT_HEADER_ICMPV6, 255, &ns);
+        let dst_mac = ipv6_multicast_mac(dst).unwrap_or(MacAddress::BROADCAST);
+        Some(EthernetFrame::serialize(
+            dst_mac,
+            self.config.mac,
+            ETHERTYPE_IPV6,
+            &packet,
+        ))
+    }
+
+    fn mark_ipv6_dad_duplicate(&mut self, address: Ipv6Address) {
+        if self.ipv6_dad.is_some_and(|dad| dad.address == address) {
+            self.ipv6_dad = None;
+            self.ipv6_dad_duplicate = Some(address);
+        }
     }
 
     /// Emits a Router Solicitation to ff02::2. An unconfigured host uses the
@@ -475,6 +559,13 @@ impl NetStack {
     pub fn step_timers(&mut self, now_ms: u64) -> Vec<Vec<u8>> {
         self.current_time_ms = now_ms;
         let mut out_frames = Vec::new();
+
+        // A tentative SLAAC address becomes usable only after its DAD interval
+        // expires without a conflicting NS/NA.
+        if self.ipv6_dad.is_some_and(|dad| now_ms >= dad.deadline_ms) {
+            let dad = self.ipv6_dad.take().unwrap();
+            self.configure_ipv6_interface(dad.address, dad.prefix_len, dad.gateway);
+        }
 
         // 1. Socket runtime: newly segmented data, retransmissions, FINs, UDP datagrams.
         for tx in self.sockets.step_timers(now_ms) {
@@ -1026,8 +1117,11 @@ impl NetStack {
 
             EtherType::IPv6 => {
                 if let Ok(ip6_pkt) = Ipv6Packet::parse(eth.payload) {
-                    // Update NDP Cache with sender
-                    self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                    // The unspecified source is used by DAD and is never a
+                    // neighbour-cache key (RFC 4861/4862).
+                    if !ip6_pkt.header.src_ip.is_unspecified() {
+                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                    }
 
                     let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
                     let dst6 = ip6_pkt.header.dst_ip;
@@ -1065,11 +1159,17 @@ impl NetStack {
                                 {
                                     let gateway =
                                         (ra.router_lifetime > 0).then_some(ip6_pkt.header.src_ip);
-                                    self.configure_ipv6_interface(
-                                        address,
-                                        prefix.prefix_length,
-                                        gateway,
-                                    );
+                                    if self.config.ipv6 == Some(address) {
+                                        self.configure_ipv6_interface(
+                                            address,
+                                            prefix.prefix_length,
+                                            gateway,
+                                        );
+                                    } else if let Some(dad_probe) =
+                                        self.start_ipv6_dad(address, prefix.prefix_length, gateway)
+                                    {
+                                        out_frames.push(dad_probe);
+                                    }
                                 }
                             }
 
@@ -1123,25 +1223,47 @@ impl NetStack {
                                     target_bytes.copy_from_slice(&icmp6.payload[4..20]);
                                     let target_ip6 = Ipv6Address(target_bytes);
 
+                                    // A competing DAD probe for our tentative target is
+                                    // itself evidence that the address is not unique.
+                                    if eth.src_mac != self.config.mac
+                                        && self
+                                            .ipv6_dad
+                                            .is_some_and(|dad| dad.address == target_ip6)
+                                    {
+                                        self.mark_ipv6_dad_duplicate(target_ip6);
+                                    }
+
                                     if target_ip6 == my_ip6 {
+                                        let dad_probe = ip6_pkt.header.src_ip.is_unspecified();
+                                        let reply_dst = if dad_probe {
+                                            Ipv6Address::LINK_LOCAL_ALL_NODES
+                                        } else {
+                                            ip6_pkt.header.src_ip
+                                        };
                                         let na = Icmpv6Packet::build_neighbor_advertisement(
                                             my_ip6,
-                                            ip6_pkt.header.src_ip,
+                                            reply_dst,
                                             my_ip6,
                                             self.config.mac,
                                             false,
-                                            true,
+                                            !dad_probe,
                                             true,
                                         );
                                         let ip6_out = Ipv6Packet::serialize(
                                             my_ip6,
-                                            ip6_pkt.header.src_ip,
+                                            reply_dst,
                                             NEXT_HEADER_ICMPV6,
-                                            64,
+                                            255,
                                             &na,
                                         );
+                                        let dst_mac = if dad_probe {
+                                            ipv6_multicast_mac(reply_dst)
+                                                .unwrap_or(MacAddress::BROADCAST)
+                                        } else {
+                                            eth.src_mac
+                                        };
                                         let eth_out = EthernetFrame::serialize(
-                                            eth.src_mac,
+                                            dst_mac,
                                             self.config.mac,
                                             ETHERTYPE_IPV6,
                                             &ip6_out,
@@ -1155,6 +1277,12 @@ impl NetStack {
                                 let mut target_bytes = [0u8; 16];
                                 target_bytes.copy_from_slice(&icmp6.payload[4..20]);
                                 let target_ip6 = Ipv6Address(target_bytes);
+
+                                if eth.src_mac != self.config.mac
+                                    && self.ipv6_dad.is_some_and(|dad| dad.address == target_ip6)
+                                {
+                                    self.mark_ipv6_dad_duplicate(target_ip6);
+                                }
 
                                 if let Some(queued_packets) =
                                     self.pending_ndp_packets.remove(&target_ip6)

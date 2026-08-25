@@ -400,6 +400,22 @@ impl<'a> Icmpv6Packet<'a> {
         buf
     }
 
+    /// Builds the Neighbor Solicitation used by Duplicate Address Detection
+    /// (RFC 4862 section 5.4.2). DAD uses the unspecified source address and MUST
+    /// omit the Source Link-Layer Address option.
+    pub fn build_dad_neighbor_solicitation(dst_ip: Ipv6Address, target_ip: Ipv6Address) -> Vec<u8> {
+        let src_ip = Ipv6Address::UNSPECIFIED;
+        let mut buf = Vec::with_capacity(24);
+        buf.push(ICMPV6_TYPE_NEIGHBOR_SOLICIT);
+        buf.push(0);
+        buf.extend_from_slice(&[0, 0]);
+        buf.extend_from_slice(&[0, 0, 0, 0]);
+        buf.extend_from_slice(&target_ip.0);
+        let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
+        buf
+    }
+
     /// Builds an NDP Neighbor Advertisement (NA - Type 136)
     pub fn build_neighbor_advertisement(
         src_ip: Ipv6Address,

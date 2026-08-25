@@ -9,7 +9,7 @@ use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use toy_tcpip::lab::{LabRouter, VirtualLab};
 use toy_tcpip::router::RouteSource;
-use toy_tcpip::stack::NetStackConfig;
+use toy_tcpip::stack::{IPV6_DAD_RETRANS_TIMER_MS, Ipv6DadStatus, NetStackConfig};
 
 fn ip6(text: &str) -> Ipv6Address {
     Ipv6Address::from_str(text).unwrap()
@@ -130,6 +130,17 @@ fn router_solicitation_configures_slaac_and_default_route_then_routes_ping6() {
     lab.run_until_quiescent(20);
 
     let expected_a = ip6("2001:db8:1::211:22ff:fe33:4455");
+    assert_eq!(
+        lab.host("host_a").unwrap().stack.ipv6_dad_status(),
+        Ipv6DadStatus::Tentative(expected_a)
+    );
+    assert_eq!(lab.host("host_a").unwrap().stack.config.ipv6, None);
+    let dad_done_at = lab.host("host_a").unwrap().stack.current_time_ms + IPV6_DAD_RETRANS_TIMER_MS;
+    lab.host_mut("host_a")
+        .unwrap()
+        .stack
+        .step_timers(dad_done_at);
+
     let router_ll = link_local_address(router_lan1_mac);
     let host_a = &lab.host("host_a").unwrap().stack;
     assert_eq!(host_a.config.ipv6, Some(expected_a));

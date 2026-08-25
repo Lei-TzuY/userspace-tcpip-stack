@@ -78,6 +78,17 @@ impl Ipv6Address {
     pub fn is_link_local(&self) -> bool {
         self.0[0] == 0xFE && (self.0[1] & 0xC0) == 0x80
     }
+
+    /// RFC 4291 solicited-node multicast address for this unicast/anycast target.
+    pub fn solicited_node_multicast(&self) -> Ipv6Address {
+        let mut bytes = [0u8; 16];
+        bytes[0] = 0xff;
+        bytes[1] = 0x02;
+        bytes[11] = 0x01;
+        bytes[12] = 0xff;
+        bytes[13..16].copy_from_slice(&self.0[13..16]);
+        Ipv6Address(bytes)
+    }
 }
 
 impl fmt::Display for Ipv6Address {
