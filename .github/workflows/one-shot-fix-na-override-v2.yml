@@ -1,0 +1,295 @@
+name: One-shot fix IPv6 NA Override semantics v2
+
+on:
+  push:
+    branches:
+      - fix/ipv6-na-override-semantics
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Patch RFC 4861 NA handling, test, and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git fetch origin main
+          git merge --no-edit origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_once(path, old, new):
+              p = Path(path)
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected one replacement, found {count}')
+              p.write_text(text.replace(old, new, 1))
+
+          replace_once(
+              'src/icmpv6.rs',
+              '''    pub fn mark_stale(&mut self, ip: Ipv6Address, mac: MacAddress) {
+                  self.entries.insert(ip, mac);
+                  self.nud.insert(
+                      ip,
+                      NudMetadata {
+                          state: NeighborState::Stale,
+                          deadline_ms: None,
+                          probes_sent: 0,
+                      },
+                  );
+              }
+
+              /// Records positive reachability confirmation, such as a solicited NA.
+          ''',
+              '''    pub fn mark_stale(&mut self, ip: Ipv6Address, mac: MacAddress) {
+                  self.entries.insert(ip, mac);
+                  self.nud.insert(
+                      ip,
+                      NudMetadata {
+                          state: NeighborState::Stale,
+                          deadline_ms: None,
+                          probes_sent: 0,
+                      },
+                  );
+              }
+
+              /// Demotes a dynamically REACHABLE neighbor to STALE without changing
+              /// its link-layer address. Static/external mappings are deliberately
+              /// left untouched.
+              pub fn demote_reachable_preserving_mac(&mut self, ip: Ipv6Address) -> bool {
+                  let Some(meta) = self.nud.get_mut(&ip) else {
+                      return false;
+                  };
+                  if meta.state != NeighborState::Reachable {
+                      return false;
+                  }
+                  meta.state = NeighborState::Stale;
+                  meta.deadline_ms = None;
+                  meta.probes_sent = 0;
+                  true
+              }
+
+              /// Records positive reachability confirmation, such as a solicited NA.
+          ''')
+
+          p = Path('src/stack.rs')
+          text = p.read_text()
+          start_marker = '                                let cached_mac = self.ndp_table.lookup(&target_ip6);\n'
+          end_marker = '                            }\n\n                            _ => {}\n'
+          start = text.find(start_marker)
+          end = text.find(end_marker, start)
+          if start < 0 or end < 0:
+              raise SystemExit(f'src/stack.rs: NA cache block markers missing: start={start}, end={end}')
+          replacement = '''                                let cached_mac = self.ndp_table.lookup(&target_ip6);
+                                  let resolving = self.pending_ndp_packets.contains_key(&target_ip6);
+                                  let solicited = icmp6.payload[0] & 0x40 != 0;
+                                  let override_flag = icmp6.payload[0] & 0x20 != 0;
+
+                                  if let Some(current_mac) = cached_mac {
+                                      if current_mac != eth.src_mac && !override_flag {
+                                          // RFC 4861 section 7.2.5: when Override is clear and
+                                          // the advertised link-layer address differs, do not
+                                          // replace it. Only a REACHABLE dynamic entry becomes
+                                          // STALE; other states and static mappings are ignored.
+                                          self.ndp_table
+                                              .demote_reachable_preserving_mac(target_ip6);
+                                      } else if solicited {
+                                          self.ndp_table.confirm_reachable(
+                                              target_ip6,
+                                              eth.src_mac,
+                                              self.current_time_ms,
+                                          );
+                                      } else if current_mac != eth.src_mac {
+                                          self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                      }
+                                  } else if resolving {
+                                      // INCOMPLETE resolution ignores Override. The NA supplies
+                                      // the missing link-layer address; Solicited determines
+                                      // whether it is immediately REACHABLE or merely STALE.
+                                      if solicited {
+                                          self.ndp_table.confirm_reachable(
+                                              target_ip6,
+                                              eth.src_mac,
+                                              self.current_time_ms,
+                                          );
+                                      } else {
+                                          self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                      }
+
+                                      if let Some(queued_packets) =
+                                          self.pending_ndp_packets.remove(&target_ip6)
+                                      {
+                                          for ip6_pkt_data in queued_packets {
+                                              let eth_out = EthernetFrame::serialize(
+                                                  eth.src_mac,
+                                                  self.config.mac,
+                                                  ETHERTYPE_IPV6,
+                                                  &ip6_pkt_data,
+                                              );
+                                              out_frames.push(eth_out);
+                                          }
+                                      }
+                                  }
+          '''
+          p.write_text(text[:start] + replacement + text[end:])
+
+          replace_once(
+              'tests/test_ipv6_nud.rs',
+              '''fn na_frame(
+              src: Ipv6Address,
+              dst: Ipv6Address,
+              target: Ipv6Address,
+              src_mac: MacAddress,
+              dst_mac: MacAddress,
+              solicited: bool,
+          ) -> Vec<u8> {
+              let na = Icmpv6Packet::build_neighbor_advertisement(
+                  src, dst, target, src_mac, false, solicited, true,
+              );
+              let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
+              EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
+          }
+          ''',
+              '''fn na_frame(
+              src: Ipv6Address,
+              dst: Ipv6Address,
+              target: Ipv6Address,
+              src_mac: MacAddress,
+              dst_mac: MacAddress,
+              solicited: bool,
+          ) -> Vec<u8> {
+              na_frame_with_override(src, dst, target, src_mac, dst_mac, solicited, true)
+          }
+
+          fn na_frame_with_override(
+              src: Ipv6Address,
+              dst: Ipv6Address,
+              target: Ipv6Address,
+              src_mac: MacAddress,
+              dst_mac: MacAddress,
+              solicited: bool,
+              override_flag: bool,
+          ) -> Vec<u8> {
+              let na = Icmpv6Packet::build_neighbor_advertisement(
+                  src,
+                  dst,
+                  target,
+                  src_mac,
+                  false,
+                  solicited,
+                  override_flag,
+              );
+              let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
+              EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
+          }
+          ''')
+
+          tests = Path('tests/test_ipv6_nud.rs')
+          text = tests.read_text()
+          marker = '''#[test]
+          fn unsolicited_na_without_cache_or_resolution_state_is_discarded() {
+          '''
+          if text.count(marker) != 1:
+              raise SystemExit('test insertion marker missing or ambiguous')
+          additions = r'''#[test]
+          fn override_clear_na_preserves_reachable_mapping_and_marks_it_stale() {
+              let host_ip = ip6("2001:db8:5:1::1");
+              let peer_ip = ip6("2001:db8:5:1::2");
+              let host_mac = mac(0x54);
+              let old_mac = mac(0x55);
+              let advertised_mac = mac(0x56);
+              let mut stack = host(host_ip, host_mac);
+              stack.ndp_table.confirm_reachable(peer_ip, old_mac, 0);
+
+              let frame = na_frame_with_override(
+                  peer_ip,
+                  host_ip,
+                  peer_ip,
+                  advertised_mac,
+                  host_mac,
+                  true,
+                  false,
+              );
+              assert!(stack.process_frame(&frame).is_empty());
+              assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+              assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+          }
+
+          #[test]
+          fn override_clear_na_with_changed_mac_is_ignored_for_delay_entry() {
+              let host_ip = ip6("2001:db8:5:2::1");
+              let peer_ip = ip6("2001:db8:5:2::2");
+              let host_mac = mac(0x57);
+              let old_mac = mac(0x58);
+              let advertised_mac = mac(0x59);
+              let mut stack = host(host_ip, host_mac);
+              stack.ndp_table.mark_stale(peer_ip, old_mac);
+              assert_eq!(stack.ndp_table.lookup_for_transmit(&peer_ip, 0), Some(old_mac));
+              assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Delay));
+
+              let frame = na_frame_with_override(
+                  peer_ip,
+                  host_ip,
+                  peer_ip,
+                  advertised_mac,
+                  host_mac,
+                  true,
+                  false,
+              );
+              assert!(stack.process_frame(&frame).is_empty());
+              assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+              assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Delay));
+          }
+
+          #[test]
+          fn override_clear_na_does_not_turn_static_mapping_into_dynamic_state() {
+              let host_ip = ip6("2001:db8:5:3::1");
+              let peer_ip = ip6("2001:db8:5:3::2");
+              let host_mac = mac(0x5a);
+              let old_mac = mac(0x5b);
+              let advertised_mac = mac(0x5c);
+              let mut stack = host(host_ip, host_mac);
+              stack.ndp_table.insert(peer_ip, old_mac);
+
+              let frame = na_frame_with_override(
+                  peer_ip,
+                  host_ip,
+                  peer_ip,
+                  advertised_mac,
+                  host_mac,
+                  true,
+                  false,
+              );
+              assert!(stack.process_frame(&frame).is_empty());
+              assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+              assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Reachable));
+              assert_eq!(stack.ndp_table.lookup_for_transmit(&peer_ip, 1), Some(old_mac));
+              assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Reachable));
+          }
+
+          '''
+          tests.write_text(text.replace(marker, additions + marker, 1))
+          PY
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test --test test_ipv6_nud --verbose
+          cargo test --all-targets --verbose
+          cargo build --release
+          git diff --check
+          rm .github/workflows/one-shot-fix-na-override-v2.yml
+          git add -A
+          git commit -m 'fix(ipv6): honor Neighbor Advertisement Override flag'
+          git push origin HEAD:fix/ipv6-na-override-semantics
