@@ -1183,26 +1183,29 @@ impl LabRouter {
                     return out_transmissions;
                 };
 
-                // Every valid IPv6 frame proves the sender's L2 reachability on
-                // this interface, just as IPv4 traffic refreshes the ARP cache.
-                self.ndp_tables
-                    .entry(ingress_iface.name.clone())
-                    .or_default()
-                    .insert(ip6_pkt.header.src_ip, eth.src_mac);
+                // The unspecified IPv6 source is used by initial Router
+                // Solicitations and Duplicate Address Detection. It is never a
+                // neighbour-cache key and cannot satisfy queued next-hop resolution.
+                if !ip6_pkt.header.src_ip.is_unspecified() {
+                    self.ndp_tables
+                        .entry(ingress_iface.name.clone())
+                        .or_default()
+                        .insert(ip6_pkt.header.src_ip, eth.src_mac);
 
-                // Learning a next hop releases packets that were waiting for NDP.
-                let pending_key = (ingress_iface.name.clone(), ip6_pkt.header.src_ip);
-                if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key) {
-                    for packet in queued {
-                        out_transmissions.push((
-                            ingress_link.to_string(),
-                            EthernetFrame::serialize(
-                                eth.src_mac,
-                                ingress_iface.mac,
-                                ETHERTYPE_IPV6,
-                                &packet,
-                            ),
-                        ));
+                    // Learning a real next hop releases packets that were waiting for NDP.
+                    let pending_key = (ingress_iface.name.clone(), ip6_pkt.header.src_ip);
+                    if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key) {
+                        for packet in queued {
+                            out_transmissions.push((
+                                ingress_link.to_string(),
+                                EthernetFrame::serialize(
+                                    eth.src_mac,
+                                    ingress_iface.mac,
+                                    ETHERTYPE_IPV6,
+                                    &packet,
+                                ),
+                            ));
+                        }
                     }
                 }
 
@@ -1259,7 +1262,10 @@ impl LabRouter {
                         return out_transmissions;
                     }
 
-                    if icmp6.msg_type == ICMPV6_TYPE_NEIGHBOR_SOLICIT && icmp6.payload.len() >= 20 {
+                    if icmp6.msg_type == ICMPV6_TYPE_NEIGHBOR_SOLICIT
+                        && ip6_pkt.header.hop_limit == 255
+                        && icmp6.payload.len() >= 20
+                    {
                         let mut bytes = [0u8; 16];
                         bytes.copy_from_slice(&icmp6.payload[4..20]);
                         let target = Ipv6Address(bytes);
@@ -1268,26 +1274,41 @@ impl LabRouter {
                                 || (ingress_iface.ipv6.is_some()
                                     && link_local_address(ingress_iface.mac) == target);
                         if owns_target {
+                            let dad_probe = ip6_pkt.header.src_ip.is_unspecified();
+                            if dad_probe
+                                && ip6_pkt.header.dst_ip != target.solicited_node_multicast()
+                            {
+                                return out_transmissions;
+                            }
+
+                            // RFC 4862 DAD probes have source ::. The owner defends the
+                            // address with an unsolicited NA to all-nodes multicast;
+                            // replying to :: would create an invalid IPv6 destination.
+                            let (na_dst, solicited, dst_mac) = if dad_probe {
+                                let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+                                (
+                                    dst,
+                                    false,
+                                    ipv6_multicast_mac(dst).unwrap_or(MacAddress::BROADCAST),
+                                )
+                            } else {
+                                (ip6_pkt.header.src_ip, true, eth.src_mac)
+                            };
                             let na = Icmpv6Packet::build_neighbor_advertisement(
                                 target,
-                                ip6_pkt.header.src_ip,
+                                na_dst,
                                 target,
                                 ingress_iface.mac,
                                 true,
-                                true,
+                                solicited,
                                 true,
                             );
-                            let reply = Ipv6Packet::serialize(
-                                target,
-                                ip6_pkt.header.src_ip,
-                                NEXT_HEADER_ICMPV6,
-                                255,
-                                &na,
-                            );
+                            let reply =
+                                Ipv6Packet::serialize(target, na_dst, NEXT_HEADER_ICMPV6, 255, &na);
                             out_transmissions.push((
                                 ingress_link.to_string(),
                                 EthernetFrame::serialize(
-                                    eth.src_mac,
+                                    dst_mac,
                                     ingress_iface.mac,
                                     ETHERTYPE_IPV6,
                                     &reply,
