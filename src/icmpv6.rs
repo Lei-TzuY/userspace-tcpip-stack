@@ -22,6 +22,14 @@ pub const NDP_OPT_SRC_LINK_LAYER_ADDR: u8 = 1;
 pub const NDP_OPT_TARGET_LINK_LAYER_ADDR: u8 = 2;
 pub const NDP_OPT_PREFIX_INFORMATION: u8 = 3;
 
+/// RFC 4861 Neighbor Unreachability Detection defaults. Reachable Time is
+/// normally randomized around BaseReachableTime; this deterministic simulator
+/// selects the 1.0 random factor so timer-driven behavior is reproducible.
+pub const NDP_REACHABLE_TIME_MS: u64 = 30_000;
+pub const NDP_DELAY_FIRST_PROBE_TIME_MS: u64 = 5_000;
+pub const NDP_RETRANS_TIMER_MS: u64 = 1_000;
+pub const NDP_MAX_UNICAST_SOLICIT: u8 = 3;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PrefixInformationOption {
     pub prefix_length: u8,
@@ -627,25 +635,166 @@ impl RouterAdvertisement {
     }
 }
 
-/// Dynamic Neighbor Cache Table (IPv6 NDP equivalent of ARP Cache)
+/// RFC 4861 Neighbor Unreachability Detection state for a resolved neighbor.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NeighborState {
+    Reachable,
+    Stale,
+    Delay,
+    Probe,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct NudMetadata {
+    state: NeighborState,
+    deadline_ms: Option<u64>,
+    probes_sent: u8,
+}
+
+/// Dynamic Neighbor Cache Table (IPv6 NDP equivalent of ARP Cache).
+///
+/// The existing MAC map API remains source-compatible. Direct `insert`
+/// calls are static/external mappings and therefore do not age; protocol
+/// paths opt into timed NUD with `learn_stale` and `confirm_reachable`.
 #[derive(Debug, Clone, Default)]
 pub struct NdpTable {
     entries: HashMap<Ipv6Address, MacAddress>,
+    nud: HashMap<Ipv6Address, NudMetadata>,
 }
 
 impl NdpTable {
     pub fn new() -> Self {
         NdpTable {
             entries: HashMap::new(),
+            nud: HashMap::new(),
         }
     }
 
     pub fn insert(&mut self, ip: Ipv6Address, mac: MacAddress) {
         self.entries.insert(ip, mac);
+        self.nud.remove(&ip);
+    }
+
+    /// Learns link-layer information without positive reachability evidence.
+    /// An unchanged mapping preserves its current NUD state; a new or changed
+    /// mapping becomes STALE.
+    pub fn learn_stale(&mut self, ip: Ipv6Address, mac: MacAddress) {
+        if self.entries.get(&ip).is_some_and(|current| *current == mac) {
+            return;
+        }
+        self.mark_stale(ip, mac);
+    }
+
+    pub fn mark_stale(&mut self, ip: Ipv6Address, mac: MacAddress) {
+        self.entries.insert(ip, mac);
+        self.nud.insert(
+            ip,
+            NudMetadata {
+                state: NeighborState::Stale,
+                deadline_ms: None,
+                probes_sent: 0,
+            },
+        );
+    }
+
+    /// Records positive reachability confirmation, such as a solicited NA.
+    pub fn confirm_reachable(&mut self, ip: Ipv6Address, mac: MacAddress, now_ms: u64) {
+        self.entries.insert(ip, mac);
+        self.nud.insert(
+            ip,
+            NudMetadata {
+                state: NeighborState::Reachable,
+                deadline_ms: Some(now_ms.saturating_add(NDP_REACHABLE_TIME_MS)),
+                probes_sent: 0,
+            },
+        );
     }
 
     pub fn lookup(&self, ip: &Ipv6Address) -> Option<MacAddress> {
         self.entries.get(ip).copied()
+    }
+
+    /// Returns a mapping for transmission and performs first-use STALE -> DELAY.
+    pub fn lookup_for_transmit(&mut self, ip: &Ipv6Address, now_ms: u64) -> Option<MacAddress> {
+        let mac = self.entries.get(ip).copied()?;
+        if let Some(meta) = self.nud.get_mut(ip) {
+            if meta.state == NeighborState::Reachable
+                && meta.deadline_ms.is_some_and(|deadline| now_ms >= deadline)
+            {
+                meta.state = NeighborState::Stale;
+                meta.deadline_ms = None;
+                meta.probes_sent = 0;
+            }
+            if meta.state == NeighborState::Stale {
+                meta.state = NeighborState::Delay;
+                meta.deadline_ms = Some(now_ms.saturating_add(NDP_DELAY_FIRST_PROBE_TIME_MS));
+                meta.probes_sent = 0;
+            }
+        }
+        Some(mac)
+    }
+
+    pub fn state(&self, ip: &Ipv6Address) -> Option<NeighborState> {
+        self.entries.get(ip)?;
+        Some(
+            self.nud
+                .get(ip)
+                .map(|meta| meta.state)
+                .unwrap_or(NeighborState::Reachable),
+        )
+    }
+
+    /// Advances NUD timers and returns due unicast probes as (target, MAC).
+    /// Coarse time jumps emit at most one probe per neighbor per timer pump.
+    pub fn step_nud(&mut self, now_ms: u64) -> Vec<(Ipv6Address, MacAddress)> {
+        let keys: Vec<Ipv6Address> = self.nud.keys().copied().collect();
+        let mut probes = Vec::new();
+        let mut remove = Vec::new();
+
+        for ip in keys {
+            let Some(meta) = self.nud.get_mut(&ip) else {
+                continue;
+            };
+            let Some(mac) = self.entries.get(&ip).copied() else {
+                remove.push(ip);
+                continue;
+            };
+
+            if meta.state == NeighborState::Reachable
+                && meta.deadline_ms.is_some_and(|deadline| now_ms >= deadline)
+            {
+                meta.state = NeighborState::Stale;
+                meta.deadline_ms = None;
+                meta.probes_sent = 0;
+                continue;
+            }
+
+            let due = meta.deadline_ms.is_some_and(|deadline| now_ms >= deadline);
+            match meta.state {
+                NeighborState::Delay if due => {
+                    meta.state = NeighborState::Probe;
+                    meta.probes_sent = 1;
+                    meta.deadline_ms = Some(now_ms.saturating_add(NDP_RETRANS_TIMER_MS));
+                    probes.push((ip, mac));
+                }
+                NeighborState::Probe if due => {
+                    if meta.probes_sent < NDP_MAX_UNICAST_SOLICIT {
+                        meta.probes_sent = meta.probes_sent.saturating_add(1);
+                        meta.deadline_ms = Some(now_ms.saturating_add(NDP_RETRANS_TIMER_MS));
+                        probes.push((ip, mac));
+                    } else {
+                        remove.push(ip);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        for ip in remove {
+            self.entries.remove(&ip);
+            self.nud.remove(&ip);
+        }
+        probes
     }
 
     pub fn entries(&self) -> &HashMap<Ipv6Address, MacAddress> {

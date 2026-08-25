@@ -582,7 +582,10 @@ impl NetStack {
             .map(|route| route.next_hop(dst_ip))
             .unwrap_or(dst_ip);
 
-        if let Some(dst_mac) = self.ndp_table.lookup(&next_hop) {
+        if let Some(dst_mac) = self
+            .ndp_table
+            .lookup_for_transmit(&next_hop, self.current_time_ms)
+        {
             Some(EthernetFrame::serialize(
                 dst_mac,
                 self.config.mac,
@@ -849,6 +852,26 @@ impl NetStack {
             }
         }
 
+        // RFC 4861 NUD probes a STALE neighbor only after first use and
+        // DELAY_FIRST_PROBE_TIME. PROBE retransmissions are unicast and the cached
+        // link-layer address remains usable while reachability is revalidated.
+        for (target, dst_mac) in self.ndp_table.step_nud(now_ms) {
+            if let Some(my_ip6) = self.config.ipv6 {
+                let ns = Icmpv6Packet::build_neighbor_solicitation(
+                    my_ip6,
+                    target,
+                    target,
+                    self.config.mac,
+                );
+                let packet = Ipv6Packet::serialize(my_ip6, target, NEXT_HEADER_ICMPV6, 255, &ns);
+                out_frames.push(EthernetFrame::serialize(
+                    dst_mac,
+                    self.config.mac,
+                    ETHERTYPE_IPV6,
+                    &packet,
+                ));
+            }
+        }
         // RFC 4861 Prefix List lifetimes are independent of SLAAC address
         // lifetimes. Expiry returns destinations to normal default-router selection.
         let expired_ra_prefixes: Vec<(Ipv6Address, u8)> = self
@@ -1585,7 +1608,8 @@ impl NetStack {
                                     // Only validated on-link NDP control traffic may create
                                     // Neighbor Cache state. Ordinary routed IPv6 data must not
                                     // make its remote source appear directly attached.
-                                    self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                                    self.ndp_table
+                                        .learn_stale(ip6_pkt.header.src_ip, eth.src_mac);
 
                                     // Any valid RA is a Router Discovery response, even
                                     // when Router Lifetime is zero or no autonomous prefix
@@ -1732,7 +1756,8 @@ impl NetStack {
                                     // DAD uses the unspecified source and deliberately teaches
                                     // no Neighbor Cache entry.
                                     if !ip6_pkt.header.src_ip.is_unspecified() {
-                                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                                        self.ndp_table
+                                            .learn_stale(ip6_pkt.header.src_ip, eth.src_mac);
                                     }
 
                                     // A competing DAD probe for our tentative target is
@@ -1795,27 +1820,41 @@ impl NetStack {
                                     return out_frames;
                                 };
 
-                                // A validated NA resolves the advertised target, not an
-                                // arbitrary IPv6 source address carried by the frame.
-                                self.ndp_table.insert(target_ip6, eth.src_mac);
-
                                 if eth.src_mac != self.config.mac
                                     && self.ipv6_dad.is_some_and(|dad| dad.address == target_ip6)
                                 {
                                     self.mark_ipv6_dad_duplicate(target_ip6);
                                 }
 
-                                if let Some(queued_packets) =
-                                    self.pending_ndp_packets.remove(&target_ip6)
-                                {
-                                    for ip6_pkt_data in queued_packets {
-                                        let eth_out = EthernetFrame::serialize(
+                                // RFC 4861 section 7.2.5: an NA does not create a cache
+                                // entry from nothing. A pending packet queue represents the
+                                // simulator's INCOMPLETE resolution state.
+                                let cached_mac = self.ndp_table.lookup(&target_ip6);
+                                let resolving = self.pending_ndp_packets.contains_key(&target_ip6);
+                                if cached_mac.is_some() || resolving {
+                                    let solicited = icmp6.payload[0] & 0x40 != 0;
+                                    if solicited {
+                                        self.ndp_table.confirm_reachable(
+                                            target_ip6,
                                             eth.src_mac,
-                                            self.config.mac,
-                                            ETHERTYPE_IPV6,
-                                            &ip6_pkt_data,
+                                            self.current_time_ms,
                                         );
-                                        out_frames.push(eth_out);
+                                    } else if cached_mac != Some(eth.src_mac) {
+                                        self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                    }
+
+                                    if let Some(queued_packets) =
+                                        self.pending_ndp_packets.remove(&target_ip6)
+                                    {
+                                        for ip6_pkt_data in queued_packets {
+                                            let eth_out = EthernetFrame::serialize(
+                                                eth.src_mac,
+                                                self.config.mac,
+                                                ETHERTYPE_IPV6,
+                                                &ip6_pkt_data,
+                                            );
+                                            out_frames.push(eth_out);
+                                        }
                                     }
                                 }
                             }

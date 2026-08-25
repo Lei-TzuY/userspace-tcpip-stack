@@ -1,0 +1,197 @@
+use std::str::FromStr;
+
+use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
+use toy_tcpip::icmpv6::{
+    ICMPV6_TYPE_NEIGHBOR_SOLICIT, Icmpv6Packet, NDP_DELAY_FIRST_PROBE_TIME_MS,
+    NDP_REACHABLE_TIME_MS, NDP_RETRANS_TIMER_MS, NdpTable, NeighborState, ipv6_multicast_mac,
+};
+use toy_tcpip::ipv4::Ipv4Address;
+use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
+use toy_tcpip::stack::{NetStack, NetStackConfig};
+
+fn ip6(text: &str) -> Ipv6Address {
+    Ipv6Address::from_str(text).unwrap()
+}
+
+fn mac(last: u8) -> MacAddress {
+    MacAddress([0x02, 0, 0, 0, 0, last])
+}
+
+fn host(address: Ipv6Address, host_mac: MacAddress) -> NetStack {
+    let mut stack = NetStack::new(NetStackConfig {
+        mac: host_mac,
+        ip: Ipv4Address::new(192, 0, 2, 2),
+        ipv6: None,
+        subnet_mask: 24,
+        gateway: None,
+    });
+    stack.configure_ipv6_interface(address, 64, None);
+    stack
+}
+
+fn na_frame(
+    src: Ipv6Address,
+    dst: Ipv6Address,
+    target: Ipv6Address,
+    src_mac: MacAddress,
+    dst_mac: MacAddress,
+    solicited: bool,
+) -> Vec<u8> {
+    let na = Icmpv6Packet::build_neighbor_advertisement(
+        src, dst, target, src_mac, false, solicited, true,
+    );
+    let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
+    EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
+}
+
+#[test]
+fn reachable_ages_to_stale_and_first_use_enters_delay() {
+    let neighbor = ip6("2001:db8:1::2");
+    let neighbor_mac = mac(2);
+    let mut table = NdpTable::new();
+    table.confirm_reachable(neighbor, neighbor_mac, 100);
+    assert_eq!(table.state(&neighbor), Some(NeighborState::Reachable));
+    assert!(table.step_nud(100 + NDP_REACHABLE_TIME_MS - 1).is_empty());
+    assert!(table.step_nud(100 + NDP_REACHABLE_TIME_MS).is_empty());
+    assert_eq!(table.state(&neighbor), Some(NeighborState::Stale));
+    assert_eq!(
+        table.lookup_for_transmit(&neighbor, 100 + NDP_REACHABLE_TIME_MS),
+        Some(neighbor_mac)
+    );
+    assert_eq!(table.state(&neighbor), Some(NeighborState::Delay));
+}
+
+#[test]
+fn delay_probes_three_times_then_removes_unreachable_neighbor() {
+    let neighbor = ip6("2001:db8:2::2");
+    let neighbor_mac = mac(3);
+    let mut table = NdpTable::new();
+    table.mark_stale(neighbor, neighbor_mac);
+    assert_eq!(table.lookup_for_transmit(&neighbor, 0), Some(neighbor_mac));
+    assert!(table.step_nud(NDP_DELAY_FIRST_PROBE_TIME_MS - 1).is_empty());
+    for now in [
+        NDP_DELAY_FIRST_PROBE_TIME_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + NDP_RETRANS_TIMER_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + 2 * NDP_RETRANS_TIMER_MS,
+    ] {
+        assert_eq!(table.step_nud(now), vec![(neighbor, neighbor_mac)]);
+        assert_eq!(table.state(&neighbor), Some(NeighborState::Probe));
+    }
+    assert!(
+        table
+            .step_nud(NDP_DELAY_FIRST_PROBE_TIME_MS + 3 * NDP_RETRANS_TIMER_MS)
+            .is_empty()
+    );
+    assert_eq!(table.lookup(&neighbor), None);
+}
+
+#[test]
+fn netstack_emits_unicast_nud_probes_and_then_restarts_resolution() {
+    let host_ip = ip6("2001:db8:3::1");
+    let peer_ip = ip6("2001:db8:3::2");
+    let host_mac = mac(0x31);
+    let peer_mac = mac(0x32);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.mark_stale(peer_ip, peer_mac);
+    let data = stack.ping6(peer_ip, 0x600d, 1, b"first").unwrap();
+    assert_eq!(EthernetFrame::parse(&data).unwrap().dst_mac, peer_mac);
+    for now in [
+        NDP_DELAY_FIRST_PROBE_TIME_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + NDP_RETRANS_TIMER_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + 2 * NDP_RETRANS_TIMER_MS,
+    ] {
+        let frames = stack.step_timers(now);
+        assert_eq!(frames.len(), 1);
+        let eth = EthernetFrame::parse(&frames[0]).unwrap();
+        assert_eq!(eth.dst_mac, peer_mac);
+        let ip = Ipv6Packet::parse(eth.payload).unwrap();
+        assert_eq!(ip.header.dst_ip, peer_ip);
+        assert_eq!(ip.header.hop_limit, 255);
+        let icmp =
+            Icmpv6Packet::parse(ip.header.src_ip, ip.header.dst_ip, ip.payload, true).unwrap();
+        assert_eq!(icmp.msg_type, ICMPV6_TYPE_NEIGHBOR_SOLICIT);
+    }
+    assert!(
+        stack
+            .step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS + 3 * NDP_RETRANS_TIMER_MS)
+            .is_empty()
+    );
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), None);
+    let resolution = stack.ping6(peer_ip, 0x600d, 2, b"retry").unwrap();
+    let eth = EthernetFrame::parse(&resolution).unwrap();
+    let solicited = peer_ip.solicited_node_multicast();
+    assert_eq!(eth.dst_mac, ipv6_multicast_mac(solicited).unwrap());
+    let ip = Ipv6Packet::parse(eth.payload).unwrap();
+    assert_eq!(ip.header.dst_ip, solicited);
+    assert_eq!(
+        stack.pending_ndp_packets.get(&peer_ip).map(Vec::len),
+        Some(1)
+    );
+}
+
+#[test]
+fn solicited_na_confirms_reachability_and_cancels_probe_cycle() {
+    let host_ip = ip6("2001:db8:4::1");
+    let peer_ip = ip6("2001:db8:4::2");
+    let host_mac = mac(0x41);
+    let peer_mac = mac(0x42);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.mark_stale(peer_ip, peer_mac);
+    stack.ping6(peer_ip, 0x4861, 1, b"nud").unwrap();
+    assert_eq!(stack.step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS).len(), 1);
+    let frame = na_frame(peer_ip, host_ip, peer_ip, peer_mac, host_mac, true);
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert!(
+        stack
+            .step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS + NDP_RETRANS_TIMER_MS)
+            .is_empty()
+    );
+}
+
+#[test]
+fn unsolicited_na_updates_changed_existing_mapping_to_stale() {
+    let host_ip = ip6("2001:db8:5::1");
+    let peer_ip = ip6("2001:db8:5::2");
+    let host_mac = mac(0x51);
+    let old_mac = mac(0x52);
+    let new_mac = mac(0x53);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.confirm_reachable(peer_ip, old_mac, 0);
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let frame = na_frame(
+        peer_ip,
+        dst,
+        peer_ip,
+        new_mac,
+        ipv6_multicast_mac(dst).unwrap(),
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(new_mac));
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+}
+
+#[test]
+fn unsolicited_na_without_cache_or_resolution_state_is_discarded() {
+    let host_ip = ip6("2001:db8:6::1");
+    let peer_ip = ip6("2001:db8:6::2");
+    let host_mac = mac(0x61);
+    let peer_mac = mac(0x62);
+    let mut stack = host(host_ip, host_mac);
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let frame = na_frame(
+        peer_ip,
+        dst,
+        peer_ip,
+        peer_mac,
+        ipv6_multicast_mac(dst).unwrap(),
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), None);
+    assert_eq!(stack.ndp_table.state(&peer_ip), None);
+}
