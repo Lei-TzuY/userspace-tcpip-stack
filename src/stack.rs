@@ -43,12 +43,66 @@ pub enum Ipv6DadStatus {
     Duplicate(Ipv6Address),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ipv6SlaacStatus {
+    Unconfigured,
+    Preferred(Ipv6Address),
+    Deprecated(Ipv6Address),
+}
+
+const IPV6_SLAAC_TWO_HOURS_MS: u64 = 2 * 60 * 60 * 1_000;
+
+#[derive(Debug, Clone, Copy)]
+struct Ipv6SlaacLifetimes {
+    address: Ipv6Address,
+    preferred_until_ms: Option<u64>,
+    valid_until_ms: Option<u64>,
+    router: Option<Ipv6Address>,
+    router_until_ms: Option<u64>,
+}
+
 #[derive(Debug, Clone, Copy)]
 struct PendingIpv6Dad {
     address: Ipv6Address,
     prefix_len: u8,
     gateway: Option<Ipv6Address>,
     deadline_ms: u64,
+    preferred_until_ms: Option<u64>,
+    valid_until_ms: Option<u64>,
+    router_until_ms: Option<u64>,
+}
+
+fn ipv6_lifetime_deadline(now_ms: u64, lifetime_secs: u32) -> Option<u64> {
+    if lifetime_secs == u32::MAX {
+        None
+    } else {
+        Some(now_ms.saturating_add((lifetime_secs as u64).saturating_mul(1_000)))
+    }
+}
+
+fn ipv6_remaining_lifetime_ms(deadline: Option<u64>, now_ms: u64) -> u64 {
+    deadline.map_or(u64::MAX, |deadline| deadline.saturating_sub(now_ms))
+}
+
+/// RFC 4862 section 5.5.3(e): unauthenticated RAs cannot collapse a long
+/// remaining Valid Lifetime below two hours in one step.
+fn refreshed_ipv6_valid_deadline(
+    now_ms: u64,
+    current_deadline: Option<u64>,
+    advertised_secs: u32,
+) -> Option<u64> {
+    if advertised_secs == u32::MAX {
+        return None;
+    }
+    let advertised_ms = (advertised_secs as u64).saturating_mul(1_000);
+    let remaining_ms = ipv6_remaining_lifetime_ms(current_deadline, now_ms);
+    if advertised_ms > IPV6_SLAAC_TWO_HOURS_MS || advertised_ms > remaining_ms {
+        Some(now_ms.saturating_add(advertised_ms))
+    } else if remaining_ms <= IPV6_SLAAC_TWO_HOURS_MS {
+        current_deadline
+    } else {
+        Some(now_ms.saturating_add(IPV6_SLAAC_TWO_HOURS_MS))
+    }
 }
 
 pub struct NetStack {
@@ -61,6 +115,7 @@ pub struct NetStack {
     ipv6_gateway: Option<Ipv6Address>,
     ipv6_dad: Option<PendingIpv6Dad>,
     ipv6_dad_duplicate: Option<Ipv6Address>,
+    ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -105,6 +160,7 @@ impl NetStack {
             ipv6_gateway: None,
             ipv6_dad: None,
             ipv6_dad_duplicate: None,
+            ipv6_slaac_lifetimes: None,
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -138,9 +194,12 @@ impl NetStack {
         prefix_len: u8,
         gateway: Option<Ipv6Address>,
     ) {
-        // Explicit/manual configuration and successful DAD both make the address usable.
+        // Explicit/manual configuration owns the interface until an RA explicitly
+        // adopts the same address again. Successful DAD restores SLAAC metadata after
+        // this helper returns.
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
+        self.ipv6_slaac_lifetimes = None;
         if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
         {
             self.ipv6_routing_table.remove_route(
@@ -198,6 +257,7 @@ impl NetStack {
         self.ipv6_gateway = None;
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
+        self.ipv6_slaac_lifetimes = None;
         self.pending_ndp_packets.clear();
     }
 
@@ -211,19 +271,119 @@ impl NetStack {
         }
     }
 
+    pub fn ipv6_slaac_status(&self) -> Ipv6SlaacStatus {
+        let Some(lifetimes) = self.ipv6_slaac_lifetimes else {
+            return Ipv6SlaacStatus::Unconfigured;
+        };
+        if lifetimes
+            .valid_until_ms
+            .is_some_and(|deadline| self.current_time_ms >= deadline)
+        {
+            return Ipv6SlaacStatus::Unconfigured;
+        }
+        if lifetimes
+            .preferred_until_ms
+            .is_some_and(|deadline| self.current_time_ms >= deadline)
+        {
+            Ipv6SlaacStatus::Deprecated(lifetimes.address)
+        } else {
+            Ipv6SlaacStatus::Preferred(lifetimes.address)
+        }
+    }
+
+    fn set_ipv6_default_gateway(&mut self, gateway: Option<Ipv6Address>) {
+        if self.ipv6_gateway.is_some() {
+            self.ipv6_routing_table
+                .remove_route(Ipv6Address::UNSPECIFIED, 0, RouteSource::Static);
+        }
+        self.ipv6_gateway = gateway;
+        if let Some(gateway) = gateway {
+            self.ipv6_routing_table.add_route_from(
+                Ipv6Address::UNSPECIFIED,
+                0,
+                Some(gateway),
+                "eth0",
+                RouteSource::Static,
+            );
+        }
+    }
+
+    fn refresh_slaac_default_router(&mut self, router: Ipv6Address, lifetime_secs: u16) {
+        let deadline = (lifetime_secs > 0).then(|| {
+            self.current_time_ms
+                .saturating_add((lifetime_secs as u64).saturating_mul(1_000))
+        });
+
+        let active_action = self.ipv6_slaac_lifetimes.map(|lifetimes| {
+            if lifetime_secs == 0 {
+                (lifetimes.router == Some(router), None)
+            } else {
+                (true, Some(router))
+            }
+        });
+        if let Some((change_route, gateway)) = active_action
+            && change_route
+        {
+            self.set_ipv6_default_gateway(gateway);
+            if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
+                lifetimes.router = gateway;
+                lifetimes.router_until_ms = gateway.and(deadline);
+            }
+        }
+
+        if let Some(dad) = self.ipv6_dad.as_mut() {
+            if lifetime_secs == 0 {
+                if dad.gateway == Some(router) {
+                    dad.gateway = None;
+                    dad.router_until_ms = None;
+                }
+            } else {
+                dad.gateway = Some(router);
+                dad.router_until_ms = deadline;
+            }
+        }
+    }
+
     fn start_ipv6_dad(
         &mut self,
         address: Ipv6Address,
         prefix_len: u8,
         gateway: Option<Ipv6Address>,
+        preferred_lifetime: u32,
+        valid_lifetime: u32,
+        router_lifetime: u16,
     ) -> Option<Vec<u8>> {
-        if self.config.ipv6 == Some(address) {
-            self.configure_ipv6_interface(address, prefix_len, gateway);
+        if valid_lifetime == 0 {
             return None;
         }
-        if self.ipv6_dad.is_some_and(|dad| {
-            dad.address == address && dad.prefix_len == prefix_len && dad.gateway == gateway
-        }) {
+        let now_ms = self.current_time_ms;
+        let preferred_until_ms = ipv6_lifetime_deadline(now_ms, preferred_lifetime);
+        let advertised_valid_until_ms = ipv6_lifetime_deadline(now_ms, valid_lifetime);
+        let router_until_ms = (router_lifetime > 0)
+            .then(|| now_ms.saturating_add((router_lifetime as u64).saturating_mul(1_000)));
+
+        if self.config.ipv6 == Some(address) {
+            self.set_ipv6_default_gateway(gateway);
+            self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
+                address,
+                preferred_until_ms,
+                valid_until_ms: advertised_valid_until_ms,
+                router: gateway,
+                router_until_ms,
+            });
+            return None;
+        }
+
+        if let Some(dad) = self
+            .ipv6_dad
+            .as_mut()
+            .filter(|dad| dad.address == address && dad.prefix_len == prefix_len)
+        {
+            dad.gateway = gateway;
+            dad.preferred_until_ms = preferred_until_ms;
+            dad.valid_until_ms =
+                refreshed_ipv6_valid_deadline(now_ms, dad.valid_until_ms, valid_lifetime);
+            dad.router_until_ms = router_until_ms;
             return None;
         }
 
@@ -232,9 +392,10 @@ impl NetStack {
             address,
             prefix_len: prefix_len.min(128),
             gateway,
-            deadline_ms: self
-                .current_time_ms
-                .saturating_add(IPV6_DAD_RETRANS_TIMER_MS),
+            deadline_ms: now_ms.saturating_add(IPV6_DAD_RETRANS_TIMER_MS),
+            preferred_until_ms,
+            valid_until_ms: advertised_valid_until_ms,
+            router_until_ms,
         });
 
         let dst = address.solicited_node_multicast();
@@ -564,7 +725,41 @@ impl NetStack {
         // expires without a conflicting NS/NA.
         if self.ipv6_dad.is_some_and(|dad| now_ms >= dad.deadline_ms) {
             let dad = self.ipv6_dad.take().unwrap();
-            self.configure_ipv6_interface(dad.address, dad.prefix_len, dad.gateway);
+            let valid = dad.valid_until_ms.is_none_or(|deadline| now_ms < deadline);
+            if valid {
+                let gateway = dad.gateway.filter(|_| {
+                    dad.router_until_ms
+                        .is_some_and(|deadline| now_ms < deadline)
+                });
+                self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);
+                self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
+                    address: dad.address,
+                    preferred_until_ms: dad.preferred_until_ms,
+                    valid_until_ms: dad.valid_until_ms,
+                    router: gateway,
+                    router_until_ms: gateway.and(dad.router_until_ms),
+                });
+            }
+        }
+
+        let slaac_valid_expired = self
+            .ipv6_slaac_lifetimes
+            .and_then(|lifetimes| lifetimes.valid_until_ms)
+            .is_some_and(|deadline| now_ms >= deadline);
+        if slaac_valid_expired {
+            self.clear_ipv6_interface();
+        } else {
+            let router_expired = self
+                .ipv6_slaac_lifetimes
+                .and_then(|lifetimes| lifetimes.router_until_ms)
+                .is_some_and(|deadline| now_ms >= deadline);
+            if router_expired {
+                self.set_ipv6_default_gateway(None);
+                if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
+                    lifetimes.router = None;
+                    lifetimes.router_until_ms = None;
+                }
+            }
         }
 
         // 1. Socket runtime: newly segmented data, retransmissions, FINs, UDP datagrams.
@@ -1146,29 +1341,74 @@ impl NetStack {
                                 if ip6_pkt.header.hop_limit == 255
                                     && ip6_pkt.header.src_ip.is_link_local()
                                     && let Some(ra) = RouterAdvertisement::parse(&icmp6)
-                                    && let Some(prefix) = ra.prefixes.iter().find(|prefix| {
-                                        prefix.autonomous
-                                            && prefix.prefix_length == 64
-                                            && prefix.valid_lifetime > 0
-                                    })
-                                    && let Some(address) = slaac_address(
+                                {
+                                    self.refresh_slaac_default_router(
+                                        ip6_pkt.header.src_ip,
+                                        ra.router_lifetime,
+                                    );
+
+                                    if let Some(prefix) = ra.prefixes.iter().find(|prefix| {
+                                        prefix.autonomous && prefix.prefix_length == 64
+                                    }) && let Some(address) = slaac_address(
                                         prefix.prefix,
                                         prefix.prefix_length,
                                         self.config.mac,
-                                    )
-                                {
-                                    let gateway =
-                                        (ra.router_lifetime > 0).then_some(ip6_pkt.header.src_ip);
-                                    if self.config.ipv6 == Some(address) {
-                                        self.configure_ipv6_interface(
+                                    ) {
+                                        let gateway = (ra.router_lifetime > 0)
+                                            .then_some(ip6_pkt.header.src_ip);
+                                        let now_ms = self.current_time_ms;
+                                        if self.config.ipv6 == Some(address) {
+                                            let old_valid = self
+                                                .ipv6_slaac_lifetimes
+                                                .filter(|lifetimes| lifetimes.address == address)
+                                                .map(|lifetimes| lifetimes.valid_until_ms);
+                                            let valid_until_ms = old_valid.map_or_else(
+                                                || {
+                                                    ipv6_lifetime_deadline(
+                                                        now_ms,
+                                                        prefix.valid_lifetime,
+                                                    )
+                                                },
+                                                |current| {
+                                                    refreshed_ipv6_valid_deadline(
+                                                        now_ms,
+                                                        current,
+                                                        prefix.valid_lifetime,
+                                                    )
+                                                },
+                                            );
+                                            let preferred_until_ms = ipv6_lifetime_deadline(
+                                                now_ms,
+                                                prefix.preferred_lifetime,
+                                            );
+                                            let router = if ra.router_lifetime > 0 {
+                                                Some(ip6_pkt.header.src_ip)
+                                            } else {
+                                                None
+                                            };
+                                            let router_until_ms = router.map(|_| {
+                                                now_ms.saturating_add(
+                                                    (ra.router_lifetime as u64)
+                                                        .saturating_mul(1_000),
+                                                )
+                                            });
+                                            self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
+                                                address,
+                                                preferred_until_ms,
+                                                valid_until_ms,
+                                                router,
+                                                router_until_ms,
+                                            });
+                                        } else if let Some(dad_probe) = self.start_ipv6_dad(
                                             address,
                                             prefix.prefix_length,
                                             gateway,
-                                        );
-                                    } else if let Some(dad_probe) =
-                                        self.start_ipv6_dad(address, prefix.prefix_length, gateway)
-                                    {
-                                        out_frames.push(dad_probe);
+                                            prefix.preferred_lifetime,
+                                            prefix.valid_lifetime,
+                                            ra.router_lifetime,
+                                        ) {
+                                            out_frames.push(dad_probe);
+                                        }
                                     }
                                 }
                             }
