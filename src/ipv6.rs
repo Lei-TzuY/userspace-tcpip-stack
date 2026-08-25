@@ -19,6 +19,9 @@ pub const NEXT_HEADER_ICMPV6: u8 = 58;
 pub const NEXT_HEADER_NO_NEXT: u8 = 59;
 pub const NEXT_HEADER_DEST_OPTS: u8 = 60;
 
+#[path = "ipv6_dad.rs"]
+pub mod dad;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct Ipv6Address(pub [u8; 16]);
 
