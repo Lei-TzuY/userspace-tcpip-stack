@@ -1841,15 +1841,36 @@ impl NetStack {
                                 // simulator's INCOMPLETE resolution state.
                                 let cached_mac = self.ndp_table.lookup(&target_ip6);
                                 let resolving = self.pending_ndp_packets.contains_key(&target_ip6);
-                                if cached_mac.is_some() || resolving {
-                                    let solicited = icmp6.payload[0] & 0x40 != 0;
+                                let solicited = icmp6.payload[0] & 0x40 != 0;
+                                let override_flag = icmp6.payload[0] & 0x20 != 0;
+
+                                if let Some(current_mac) = cached_mac {
+                                    if current_mac != eth.src_mac && !override_flag {
+                                        // RFC 4861 section 7.2.5: when Override is clear and
+                                        // the advertised link-layer address differs, do not
+                                        // replace it. Only a REACHABLE dynamic entry becomes
+                                        // STALE; other states and static mappings are ignored.
+                                        self.ndp_table.demote_reachable_preserving_mac(target_ip6);
+                                    } else if solicited {
+                                        self.ndp_table.confirm_reachable(
+                                            target_ip6,
+                                            eth.src_mac,
+                                            self.current_time_ms,
+                                        );
+                                    } else if current_mac != eth.src_mac {
+                                        self.ndp_table.mark_stale(target_ip6, eth.src_mac);
+                                    }
+                                } else if resolving {
+                                    // INCOMPLETE resolution ignores Override. The NA supplies
+                                    // the missing link-layer address; Solicited determines
+                                    // whether it is immediately REACHABLE or merely STALE.
                                     if solicited {
                                         self.ndp_table.confirm_reachable(
                                             target_ip6,
                                             eth.src_mac,
                                             self.current_time_ms,
                                         );
-                                    } else if cached_mac != Some(eth.src_mac) {
+                                    } else {
                                         self.ndp_table.mark_stale(target_ip6, eth.src_mac);
                                     }
 

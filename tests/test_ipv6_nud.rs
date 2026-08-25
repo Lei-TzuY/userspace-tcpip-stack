@@ -37,8 +37,26 @@ fn na_frame(
     dst_mac: MacAddress,
     solicited: bool,
 ) -> Vec<u8> {
+    na_frame_with_override(src, dst, target, src_mac, dst_mac, solicited, true)
+}
+
+fn na_frame_with_override(
+    src: Ipv6Address,
+    dst: Ipv6Address,
+    target: Ipv6Address,
+    src_mac: MacAddress,
+    dst_mac: MacAddress,
+    solicited: bool,
+    override_flag: bool,
+) -> Vec<u8> {
     let na = Icmpv6Packet::build_neighbor_advertisement(
-        src, dst, target, src_mac, false, solicited, true,
+        src,
+        dst,
+        target,
+        src_mac,
+        false,
+        solicited,
+        override_flag,
     );
     let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
     EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
@@ -173,6 +191,94 @@ fn unsolicited_na_updates_changed_existing_mapping_to_stale() {
     assert!(stack.process_frame(&frame).is_empty());
     assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(new_mac));
     assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+}
+
+#[test]
+fn override_clear_na_preserves_reachable_mapping_and_marks_it_stale() {
+    let host_ip = ip6("2001:db8:5:1::1");
+    let peer_ip = ip6("2001:db8:5:1::2");
+    let host_mac = mac(0x54);
+    let old_mac = mac(0x55);
+    let advertised_mac = mac(0x56);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.confirm_reachable(peer_ip, old_mac, 0);
+
+    let frame = na_frame_with_override(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        advertised_mac,
+        host_mac,
+        true,
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+}
+
+#[test]
+fn override_clear_na_with_changed_mac_is_ignored_for_delay_entry() {
+    let host_ip = ip6("2001:db8:5:2::1");
+    let peer_ip = ip6("2001:db8:5:2::2");
+    let host_mac = mac(0x57);
+    let old_mac = mac(0x58);
+    let advertised_mac = mac(0x59);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.mark_stale(peer_ip, old_mac);
+    assert_eq!(
+        stack.ndp_table.lookup_for_transmit(&peer_ip, 0),
+        Some(old_mac)
+    );
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Delay));
+
+    let frame = na_frame_with_override(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        advertised_mac,
+        host_mac,
+        true,
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Delay));
+}
+
+#[test]
+fn override_clear_na_does_not_turn_static_mapping_into_dynamic_state() {
+    let host_ip = ip6("2001:db8:5:3::1");
+    let peer_ip = ip6("2001:db8:5:3::2");
+    let host_mac = mac(0x5a);
+    let old_mac = mac(0x5b);
+    let advertised_mac = mac(0x5c);
+    let mut stack = host(host_ip, host_mac);
+    stack.ndp_table.insert(peer_ip, old_mac);
+
+    let frame = na_frame_with_override(
+        peer_ip,
+        host_ip,
+        peer_ip,
+        advertised_mac,
+        host_mac,
+        true,
+        false,
+    );
+    assert!(stack.process_frame(&frame).is_empty());
+    assert_eq!(stack.ndp_table.lookup(&peer_ip), Some(old_mac));
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert_eq!(
+        stack.ndp_table.lookup_for_transmit(&peer_ip, 1),
+        Some(old_mac)
+    );
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
 }
 
 #[test]

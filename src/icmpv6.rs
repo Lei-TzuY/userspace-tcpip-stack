@@ -739,6 +739,22 @@ impl NdpTable {
         );
     }
 
+    /// Demotes a dynamically REACHABLE neighbor to STALE without changing
+    /// its link-layer address. Static/external mappings are deliberately
+    /// left untouched.
+    pub fn demote_reachable_preserving_mac(&mut self, ip: Ipv6Address) -> bool {
+        let Some(meta) = self.nud.get_mut(&ip) else {
+            return false;
+        };
+        if meta.state != NeighborState::Reachable {
+            return false;
+        }
+        meta.state = NeighborState::Stale;
+        meta.deadline_ms = None;
+        meta.probes_sent = 0;
+        true
+    }
+
     /// Records positive reachability confirmation, such as a solicited NA.
     pub fn confirm_reachable(&mut self, ip: Ipv6Address, mac: MacAddress, now_ms: u64) {
         self.entries.insert(ip, mac);
