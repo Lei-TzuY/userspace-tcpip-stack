@@ -29,7 +29,7 @@ use crate::bgp::{
 };
 use crate::bgp_caps::{
     AfiSafi, BGP_SUB_UNSUPPORTED_CAPABILITY, BgpCapability, BgpCapabilitySet,
-    NegotiatedCapabilities, negotiate,
+    BgpGracefulRestartCapability, BgpGracefulRestartFamily, NegotiatedCapabilities, negotiate,
 };
 use crate::bgp_evpn::{
     EvpnAdjRibIn, EvpnAdjRibOut, EvpnAdvertisedRoute, EvpnLocRib, EvpnPath, EvpnRoute,
@@ -66,6 +66,8 @@ pub const MAX_EVENT_LOG: usize = 512;
 pub const DEFAULT_MAX_PREFIXES: usize = 4_096;
 /// NOTIFICATION subcode for "Maximum Number of Prefixes Reached" (RFC 4486).
 pub const BGP_SUB_MAX_PREFIXES: u8 = 1;
+/// Default RFC 4724 helper retention time advertised in OPEN, in seconds.
+pub const DEFAULT_GRACEFUL_RESTART_TIME: u16 = 120;
 
 /// BGP finite state machine states (RFC 4271 section 8).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -187,6 +189,12 @@ pub struct BgpPeerCounters {
     pub rr_suppressed: u64,
     /// Inbound connections refused or resolved away by collision handling.
     pub collisions_resolved: u64,
+    /// Unexpected transport losses for which RFC 4724 stale-route retention began.
+    pub graceful_restarts_started: u64,
+    /// Address-family End-of-RIB markers that completed graceful restart early.
+    pub graceful_restart_eors: u64,
+    /// Graceful-restart procedures that reached the Restart Time deadline.
+    pub graceful_restart_expirations: u64,
 }
 
 /// One configured BGP neighbour and the session state that belongs to it.
@@ -220,6 +228,14 @@ pub struct BgpPeer {
     /// Families the peer asked us to replay. Keeping this separate from the
     /// Adj-RIB-Out preserves the previous advertisement set for withdrawals.
     refresh_pending: BTreeSet<AfiSafi>,
+    /// Families whose routes are retained as RFC 4724 stale state after an
+    /// unexpected transport failure.
+    graceful_restart_stale: BTreeSet<AfiSafi>,
+    /// Absolute simulated deadline for stale-route retention.
+    graceful_restart_deadline: Option<u64>,
+    /// Time the restarting peer's replacement OPEN was accepted. Routes received
+    /// at or after this point are fresh; older ones remain stale until EOR.
+    graceful_restart_refresh_started_ms: Option<u64>,
     pub remote_router_id: Option<Ipv4Address>,
     pub established_since_ms: Option<u64>,
     pub import_policy: RoutePolicy,
@@ -264,6 +280,9 @@ impl BgpPeer {
             keepalive_interval_ms: 0,
             negotiated: NegotiatedCapabilities::default(),
             refresh_pending: BTreeSet::new(),
+            graceful_restart_stale: BTreeSet::new(),
+            graceful_restart_deadline: None,
+            graceful_restart_refresh_started_ms: None,
             remote_router_id: None,
             established_since_ms: None,
             import_policy: RoutePolicy::new(),
@@ -327,6 +346,20 @@ impl BgpPeer {
     /// collision resolution.
     pub fn has_collision(&self) -> bool {
         self.collision.is_some()
+    }
+
+    /// True while routes from this peer are being retained by RFC 4724 helper mode.
+    pub fn graceful_restart_active(&self) -> bool {
+        self.graceful_restart_deadline.is_some() && !self.graceful_restart_stale.is_empty()
+    }
+
+    pub fn graceful_restart_remaining_ms(&self, now_ms: u64) -> Option<u64> {
+        self.graceful_restart_deadline
+            .map(|d| d.saturating_sub(now_ms))
+    }
+
+    pub fn graceful_restart_stale_families(&self) -> Vec<AfiSafi> {
+        self.graceful_restart_stale.iter().copied().collect()
     }
 }
 
@@ -413,6 +446,10 @@ pub struct BgpRouter {
     /// Hold time proposed in our OPEN, in seconds.
     pub hold_time: u16,
     pub connect_retry_ms: u64,
+    /// Whether this speaker advertises and acts as an RFC 4724 helper.
+    pub graceful_restart_enabled: bool,
+    /// Restart Time advertised in the Graceful Restart capability.
+    pub graceful_restart_time: u16,
     peers: Vec<BgpPeer>,
     listener: Option<TcpListenerHandle>,
     pub adj_rib_in: AdjRibIn,
@@ -471,6 +508,8 @@ impl BgpRouter {
             router_id,
             hold_time: DEFAULT_HOLD_TIME,
             connect_retry_ms: DEFAULT_CONNECT_RETRY_MS,
+            graceful_restart_enabled: true,
+            graceful_restart_time: DEFAULT_GRACEFUL_RESTART_TIME,
             peers: Vec::new(),
             listener: None,
             adj_rib_in: AdjRibIn::new(),
@@ -625,6 +664,14 @@ impl BgpRouter {
 
     pub fn set_connect_retry_ms(&mut self, ms: u64) {
         self.connect_retry_ms = ms.max(1);
+    }
+
+    pub fn set_graceful_restart_enabled(&mut self, enabled: bool) {
+        self.graceful_restart_enabled = enabled;
+    }
+
+    pub fn set_graceful_restart_time(&mut self, seconds: u16) {
+        self.graceful_restart_time = seconds.min(crate::bgp_caps::BGP_GR_MAX_RESTART_TIME);
     }
 
     /// Configures a neighbour. Peers are kept sorted by address so every iteration
@@ -815,6 +862,8 @@ impl BgpRouter {
         for idx in 0..self.peers.len() {
             self.service_peer(idx, now_ms, sockets);
         }
+
+        self.expire_graceful_restarts(now_ms);
 
         if self.dirty {
             self.run_decision_process(now_ms);
@@ -1283,6 +1332,19 @@ impl BgpRouter {
         }
         caps.push(BgpCapability::FourOctetAs(self.local_as));
         caps.push(BgpCapability::RouteRefresh);
+        if self.graceful_restart_enabled {
+            caps.push(BgpCapability::GracefulRestart(
+                BgpGracefulRestartCapability::new(
+                    self.graceful_restart_time,
+                    false,
+                    self.families
+                        .iter()
+                        .copied()
+                        .map(|family| BgpGracefulRestartFamily::new(family, false))
+                        .collect(),
+                ),
+            ));
+        }
         caps
     }
 
@@ -1445,16 +1507,22 @@ impl BgpRouter {
                     now_ms,
                     addr,
                     format!(
-                        "capability negotiation: families [{}], 4-octet ASN {}, route refresh {}",
+                        "capability negotiation: families [{}], 4-octet ASN {}, route refresh {}, graceful restart {}",
                         families.join(", "),
                         if capabilities.four_octet_as {
                             "yes"
                         } else {
                             "no"
                         },
-                        if capabilities.route_refresh { "yes" } else { "no" }
+                        if capabilities.route_refresh { "yes" } else { "no" },
+                        if peer_caps.supports_graceful_restart() && self.graceful_restart_enabled {
+                            "yes"
+                        } else {
+                            "no"
+                        }
                     ),
                 );
+                self.reconcile_graceful_restart_open(idx, now_ms, &capabilities, &peer_caps);
                 self.peers[idx].negotiated = capabilities;
                 let negotiated = self.hold_time.min(open.hold_time);
                 self.peers[idx].remote_router_id = Some(open.bgp_id);
@@ -1502,11 +1570,31 @@ impl BgpRouter {
 
             (BgpState::Established, BgpPdu::Update(update)) => {
                 self.peers[idx].counters.updates_received += 1;
+                let ipv4_eor = update.is_end_of_rib();
+                let evpn_eor = update
+                    .mp_unreach()
+                    .is_some_and(|m| m.family() == AfiSafi::L2VPN_EVPN && m.nlri.is_empty());
                 if let Err(t) = self.import_mp_update(idx, now_ms, &update) {
                     return Some(t);
                 }
                 match self.import_update(idx, now_ms, update) {
-                    Ok(()) => None,
+                    Ok(()) => {
+                        if ipv4_eor {
+                            self.complete_graceful_restart_family(
+                                idx,
+                                AfiSafi::IPV4_UNICAST,
+                                now_ms,
+                            );
+                        }
+                        if evpn_eor {
+                            self.complete_graceful_restart_family(
+                                idx,
+                                AfiSafi::L2VPN_EVPN,
+                                now_ms,
+                            );
+                        }
+                        None
+                    }
                     Err(note) => {
                         let reason = format!(
                             "rejected UPDATE: code {}/{}",
@@ -1665,6 +1753,169 @@ impl BgpRouter {
         }
     }
 
+    fn route_is_graceful_restart_stale(
+        &self,
+        peer_addr: Ipv4Address,
+        family: AfiSafi,
+        received_at_ms: u64,
+    ) -> bool {
+        let Some(peer) = self.peer(peer_addr) else {
+            return false;
+        };
+        if !peer.graceful_restart_stale.contains(&family) {
+            return false;
+        }
+        peer.graceful_restart_refresh_started_ms
+            .is_none_or(|cutoff| received_at_ms < cutoff)
+    }
+
+    fn purge_graceful_restart_stale_family(&mut self, idx: usize, family: AfiSafi) -> usize {
+        let addr = self.peers[idx].addr;
+        let cutoff = self.peers[idx].graceful_restart_refresh_started_ms;
+        match family {
+            AfiSafi::IPV4_UNICAST => {
+                let stale: Vec<Ipv4Prefix> = self
+                    .adj_rib_in
+                    .peer_table(addr)
+                    .into_iter()
+                    .flat_map(|table| table.iter())
+                    .filter(|(_, path)| cutoff.is_none_or(|t| path.received_at_ms < t))
+                    .map(|(prefix, _)| *prefix)
+                    .collect();
+                for prefix in &stale {
+                    self.adj_rib_in.remove(addr, *prefix);
+                }
+                if !stale.is_empty() {
+                    self.dirty = true;
+                }
+                stale.len()
+            }
+            AfiSafi::L2VPN_EVPN => {
+                let stale: Vec<EvpnRouteKey> = self
+                    .evpn_adj_rib_in
+                    .peer_table(addr)
+                    .into_iter()
+                    .flat_map(|table| table.iter())
+                    .filter(|(_, path)| cutoff.is_none_or(|t| path.received_at_ms < t))
+                    .map(|(key, _)| key.clone())
+                    .collect();
+                for key in &stale {
+                    self.evpn_adj_rib_in.remove(addr, key);
+                }
+                if !stale.is_empty() {
+                    self.evpn_dirty = true;
+                }
+                stale.len()
+            }
+            _ => 0,
+        }
+    }
+
+    fn complete_graceful_restart_family(
+        &mut self,
+        idx: usize,
+        family: AfiSafi,
+        now_ms: u64,
+    ) {
+        if !self.peers[idx].graceful_restart_stale.contains(&family) {
+            return;
+        }
+        let addr = self.peers[idx].addr;
+        let purged = self.purge_graceful_restart_stale_family(idx, family);
+        self.peers[idx].graceful_restart_stale.remove(&family);
+        self.peers[idx].counters.graceful_restart_eors += 1;
+        if self.peers[idx].graceful_restart_stale.is_empty() {
+            self.peers[idx].graceful_restart_deadline = None;
+            self.peers[idx].graceful_restart_refresh_started_ms = None;
+        }
+        self.log(
+            now_ms,
+            addr,
+            format!(
+                "Graceful Restart EOR for {}; removed {} stale route(s)",
+                family, purged
+            ),
+        );
+    }
+
+    fn flush_graceful_restart(&mut self, idx: usize, now_ms: u64, reason: &str) {
+        let addr = self.peers[idx].addr;
+        let families: Vec<AfiSafi> = self.peers[idx]
+            .graceful_restart_stale
+            .iter()
+            .copied()
+            .collect();
+        let mut purged = 0usize;
+        for family in families {
+            purged += self.purge_graceful_restart_stale_family(idx, family);
+        }
+        self.peers[idx].graceful_restart_stale.clear();
+        self.peers[idx].graceful_restart_deadline = None;
+        self.peers[idx].graceful_restart_refresh_started_ms = None;
+        self.log(
+            now_ms,
+            addr,
+            format!("Graceful Restart ended: {}; purged {} stale route(s)", reason, purged),
+        );
+    }
+
+    fn reconcile_graceful_restart_open(
+        &mut self,
+        idx: usize,
+        now_ms: u64,
+        negotiated: &NegotiatedCapabilities,
+        peer_caps: &BgpCapabilitySet,
+    ) {
+        if !self.peers[idx].graceful_restart_active() {
+            return;
+        }
+        let Some(gr) = peer_caps.graceful_restart() else {
+            self.flush_graceful_restart(idx, now_ms, "peer reconnected without RFC 4724");
+            return;
+        };
+        if !gr.restarting {
+            self.flush_graceful_restart(idx, now_ms, "peer did not set Restart State");
+            return;
+        }
+
+        let supported: BTreeSet<AfiSafi> = gr
+            .families
+            .iter()
+            .map(|f| f.family)
+            .filter(|family| negotiated.supports(*family))
+            .collect();
+        let dropped: Vec<AfiSafi> = self.peers[idx]
+            .graceful_restart_stale
+            .difference(&supported)
+            .copied()
+            .collect();
+        for family in dropped {
+            self.purge_graceful_restart_stale_family(idx, family);
+            self.peers[idx].graceful_restart_stale.remove(&family);
+        }
+        self.peers[idx].graceful_restart_refresh_started_ms = Some(now_ms);
+        if self.peers[idx].graceful_restart_stale.is_empty() {
+            self.peers[idx].graceful_restart_deadline = None;
+            self.peers[idx].graceful_restart_refresh_started_ms = None;
+        } else {
+            self.log(now_ms, self.peers[idx].addr, "peer signalled RFC 4724 Restart State; waiting for End-of-RIB");
+        }
+    }
+
+    fn expire_graceful_restarts(&mut self, now_ms: u64) {
+        let expired: Vec<usize> = self
+            .peers
+            .iter()
+            .enumerate()
+            .filter(|(_, peer)| peer.graceful_restart_deadline.is_some_and(|d| now_ms >= d))
+            .map(|(idx, _)| idx)
+            .collect();
+        for idx in expired {
+            self.peers[idx].counters.graceful_restart_expirations += 1;
+            self.flush_graceful_restart(idx, now_ms, "Restart Time expired");
+        }
+    }
+
     /// Writes a message, but only if the send buffer can take all of it: a BGP
     /// message must never be split across a partial write.
     fn send_pdu(&mut self, idx: usize, sockets: &mut SocketRuntime, pdu: &BgpPdu) -> bool {
@@ -1691,11 +1942,15 @@ impl BgpRouter {
         }
     }
 
-    /// Ends a session: tell the peer if we still can, drop the transport, purge
-    /// everything learned from that peer, and go back to Idle with the
-    /// ConnectRetryTimer armed.
+    /// Ends a session. RFC 4724 changes one important part of the ordinary
+    /// teardown: an unexpected transport loss from a GR-capable established peer
+    /// retains negotiated-family routes until its Restart Time expires. Protocol
+    /// errors, NOTIFICATIONs, and administrative shutdowns still purge immediately.
     fn teardown(&mut self, idx: usize, now_ms: u64, sockets: &mut SocketRuntime, why: Teardown) {
         let addr = self.peers[idx].addr;
+        let transport_failure = matches!(&why, Teardown::Transport(_));
+        let was_established = self.peers[idx].state == BgpState::Established;
+        let already_restarting = self.peers[idx].graceful_restart_active();
         let reason = match &why {
             Teardown::Transport(r) => r.clone(),
             Teardown::Protocol(_, r) => r.clone(),
@@ -1709,31 +1964,58 @@ impl BgpRouter {
             self.peers[idx].counters.notifications_sent += 1;
         }
 
-        // Abort rather than close: the NOTIFICATION just queued is flushed first, then
-        // the 4-tuple and the ephemeral port are reclaimed immediately. A graceful close
-        // would leave a half-open connection behind on every failed reconnect attempt.
         if let Some(stream) = self.peers[idx].stream.take() {
             sockets.tcp_abort(stream, now_ms);
         }
-        // A collision candidate held for a session that is going down anyway has
-        // nothing left to be a candidate for, and leaving it would strand a TCP
-        // connection nothing owns.
         if let Some(collision) = self.peers[idx].collision.take() {
             sockets.tcp_abort(collision.stream, now_ms);
         }
 
-        let purged = self.adj_rib_in.clear_peer(addr);
+        let mut preserve = BTreeSet::new();
+        let mut deadline = None;
+        let mut refresh_started = None;
+        if transport_failure && already_restarting {
+            preserve = self.peers[idx].graceful_restart_stale.clone();
+            deadline = self.peers[idx].graceful_restart_deadline;
+            refresh_started = self.peers[idx].graceful_restart_refresh_started_ms;
+        } else if transport_failure && was_established && self.graceful_restart_enabled {
+            if let Some(gr) = self.peers[idx].negotiated.peer.graceful_restart()
+                && gr.restart_time > 0
+            {
+                preserve = gr
+                    .families
+                    .iter()
+                    .map(|f| f.family)
+                    .filter(|family| self.peers[idx].negotiated.supports(*family))
+                    .filter(|family| {
+                        *family == AfiSafi::IPV4_UNICAST || *family == AfiSafi::L2VPN_EVPN
+                    })
+                    .collect();
+                if !preserve.is_empty() {
+                    deadline = Some(now_ms + gr.restart_time as u64 * 1_000);
+                }
+            }
+        }
+
+        let preserve_ipv4 = preserve.contains(&AfiSafi::IPV4_UNICAST);
+        let preserve_evpn = preserve.contains(&AfiSafi::L2VPN_EVPN);
+        let purged = if preserve_ipv4 {
+            0
+        } else {
+            self.adj_rib_in.clear_peer(addr)
+        };
         self.adj_rib_out.clear_peer(addr);
-        // EVPN state learned from this peer goes with it. Leaving it behind would
-        // keep the VTEP encapsulating tenant traffic towards a leaf whose session
-        // is gone, which is exactly the black hole the control plane exists to
-        // avoid.
-        let evpn_purged = self.evpn_adj_rib_in.clear_peer(addr);
+        let evpn_purged = if preserve_evpn {
+            0
+        } else {
+            self.evpn_adj_rib_in.clear_peer(addr)
+        };
         self.evpn_adj_rib_out.clear_peer(addr);
         if evpn_purged > 0 {
             self.evpn_dirty = true;
         }
 
+        let started_new_gr = !already_restarting && !preserve.is_empty();
         let peer = &mut self.peers[idx];
         peer.framer.reset();
         peer.state = BgpState::Idle;
@@ -1749,16 +2031,35 @@ impl BgpRouter {
         peer.tx_desynced = false;
         peer.last_error = Some(reason.clone());
         peer.connect_retry_deadline = Some(now_ms + self.connect_retry_ms);
+        peer.graceful_restart_stale = preserve.clone();
+        peer.graceful_restart_deadline = deadline;
+        peer.graceful_restart_refresh_started_ms = refresh_started;
+        if started_new_gr {
+            peer.counters.graceful_restarts_started += 1;
+        }
 
         self.dirty = true;
-        self.log(
-            now_ms,
-            addr,
-            format!(
-                "session down ({}); purged {} learned path(s) and {} EVPN route(s)",
-                reason, purged, evpn_purged
-            ),
-        );
+        if preserve.is_empty() {
+            self.log(
+                now_ms,
+                addr,
+                format!(
+                    "session down ({}); purged {} learned path(s) and {} EVPN route(s)",
+                    reason, purged, evpn_purged
+                ),
+            );
+        } else {
+            self.log(
+                now_ms,
+                addr,
+                format!(
+                    "session down ({}); Graceful Restart retaining {} family/families until {}ms",
+                    reason,
+                    preserve.len(),
+                    deadline.unwrap_or(now_ms)
+                ),
+            );
+        }
     }
 
     // ========================================================================
@@ -2389,12 +2690,23 @@ impl BgpRouter {
 
         for key in keys {
             let learned = self.evpn_adj_rib_in.candidates(&key);
+            let fresh: Vec<&EvpnPath> = learned
+                .iter()
+                .copied()
+                .filter(|path| {
+                    !self.route_is_graceful_restart_stale(
+                        path.peer_addr,
+                        AfiSafi::L2VPN_EVPN,
+                        path.received_at_ms,
+                    )
+                })
+                .collect();
             let local = self
                 .evpn_originated
                 .get(&key)
                 .map(|r| EvpnPath::local(r.clone(), self.router_id, now_ms));
 
-            let mut candidates: Vec<&EvpnPath> = learned;
+            let mut candidates: Vec<&EvpnPath> = if fresh.is_empty() { learned } else { fresh };
             if let Some(ref l) = local {
                 candidates.push(l);
             }
@@ -2689,12 +3001,23 @@ impl BgpRouter {
 
         for prefix in prefixes {
             let learned = self.adj_rib_in.candidates(prefix);
+            let fresh: Vec<&BgpPath> = learned
+                .iter()
+                .copied()
+                .filter(|path| {
+                    !self.route_is_graceful_restart_stale(
+                        path.peer_addr,
+                        AfiSafi::IPV4_UNICAST,
+                        path.received_at_ms,
+                    )
+                })
+                .collect();
             let local = self
                 .originated
                 .get(&prefix)
                 .map(|nh| BgpPath::local(prefix, *nh, self.router_id));
 
-            let mut candidates: Vec<&BgpPath> = learned;
+            let mut candidates: Vec<&BgpPath> = if fresh.is_empty() { learned } else { fresh };
             if let Some(ref l) = local {
                 candidates.push(l);
             }
@@ -3208,6 +3531,15 @@ impl BgpRouter {
                 "  prefixes received {}  advertised {}\n",
                 p.prefixes_received, p.prefixes_advertised
             ));
+            if let Some(peer) = self.peer(p.addr)
+                && peer.graceful_restart_active()
+            {
+                s.push_str(&format!(
+                    "  graceful-restart stale {:?} remaining {}ms\n",
+                    peer.graceful_restart_stale_families(),
+                    peer.graceful_restart_remaining_ms(now_ms).unwrap_or(0)
+                ));
+            }
             s.push_str(&format!(
                 "  messages open {}/{} update {}/{} keepalive {}/{} route-refresh {}/{} notification {}/{} (rcvd/sent)\n",
                 p.counters.opens_received,

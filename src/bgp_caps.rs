@@ -27,8 +27,17 @@ pub const BGP_OPT_PARAM_CAPABILITY: u8 = 2;
 pub const BGP_CAP_MULTIPROTOCOL: u8 = 1;
 /// Route Refresh (RFC 2918).
 pub const BGP_CAP_ROUTE_REFRESH: u8 = 2;
+/// Graceful Restart (RFC 4724).
+pub const BGP_CAP_GRACEFUL_RESTART: u8 = 64;
 /// Support for 4-octet AS numbers (RFC 6793).
 pub const BGP_CAP_FOUR_OCTET_AS: u8 = 65;
+
+/// Restart State bit in the Graceful Restart flags/time word.
+pub const BGP_GR_RESTART_STATE: u16 = 0x8000;
+/// Largest restart time representable by RFC 4724's 12-bit field.
+pub const BGP_GR_MAX_RESTART_TIME: u16 = 0x0fff;
+/// Forwarding State bit in one AFI/SAFI tuple.
+pub const BGP_GR_FORWARDING_STATE: u8 = 0x80;
 
 /// NOTIFICATION subcode for a capability the receiver requires but did not get
 /// (RFC 5492 section 5).
@@ -91,6 +100,96 @@ impl fmt::Display for AfiSafi {
     }
 }
 
+/// Per-address-family state carried inside RFC 4724 Graceful Restart.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BgpGracefulRestartFamily {
+    pub family: AfiSafi,
+    pub forwarding_state: bool,
+}
+
+impl BgpGracefulRestartFamily {
+    pub const fn new(family: AfiSafi, forwarding_state: bool) -> Self {
+        BgpGracefulRestartFamily {
+            family,
+            forwarding_state,
+        }
+    }
+}
+
+/// RFC 4724 Graceful Restart capability.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BgpGracefulRestartCapability {
+    /// True when the sender is reconnecting after a control-plane restart.
+    pub restarting: bool,
+    /// Time a helper may retain stale routes, in seconds.
+    pub restart_time: u16,
+    /// Families for which graceful-restart state is advertised.
+    pub families: Vec<BgpGracefulRestartFamily>,
+}
+
+impl BgpGracefulRestartCapability {
+    pub fn new(
+        restart_time: u16,
+        restarting: bool,
+        families: Vec<BgpGracefulRestartFamily>,
+    ) -> Self {
+        BgpGracefulRestartCapability {
+            restarting,
+            restart_time: restart_time.min(BGP_GR_MAX_RESTART_TIME),
+            families,
+        }
+    }
+
+    pub fn supports(&self, family: AfiSafi) -> bool {
+        self.families.iter().any(|f| f.family == family)
+    }
+
+    fn encode_value(&self) -> Vec<u8> {
+        let mut out = Vec::with_capacity(2 + self.families.len() * 4);
+        let word = (self.restart_time & BGP_GR_MAX_RESTART_TIME)
+            | if self.restarting { BGP_GR_RESTART_STATE } else { 0 };
+        out.extend_from_slice(&word.to_be_bytes());
+        for family in &self.families {
+            out.extend_from_slice(&family.family.afi.to_be_bytes());
+            out.push(family.family.safi);
+            out.push(if family.forwarding_state {
+                BGP_GR_FORWARDING_STATE
+            } else {
+                0
+            });
+        }
+        out
+    }
+
+    fn decode_value(value: &[u8]) -> Result<Self, BgpParseError> {
+        if value.len() < 2 || (value.len() - 2) % 4 != 0 {
+            return Err(BgpParseError::open(
+                BGP_SUB_UNSUPPORTED_OPT_PARAM,
+                format!(
+                    "Graceful Restart capability is {} bytes; expected 2 + 4*N",
+                    value.len()
+                ),
+            ));
+        }
+        let word = u16::from_be_bytes([value[0], value[1]]);
+        let mut families = Vec::new();
+        for chunk in value[2..].chunks_exact(4) {
+            let family = BgpGracefulRestartFamily::new(
+                AfiSafi::new(u16::from_be_bytes([chunk[0], chunk[1]]), chunk[2]),
+                chunk[3] & BGP_GR_FORWARDING_STATE != 0,
+            );
+            if !families.contains(&family) {
+                families.push(family);
+            }
+        }
+        Ok(BgpGracefulRestartCapability {
+            restarting: word & BGP_GR_RESTART_STATE != 0,
+            restart_time: word & BGP_GR_MAX_RESTART_TIME,
+            families,
+        })
+    }
+}
+
 /// One decoded capability.
 ///
 /// A capability this speaker does not implement is kept as [`BgpCapability::Unknown`]
@@ -101,6 +200,7 @@ pub enum BgpCapability {
     MultiProtocol(AfiSafi),
     FourOctetAs(u32),
     RouteRefresh,
+    GracefulRestart(BgpGracefulRestartCapability),
     Unknown { code: u8, value: Vec<u8> },
 }
 
@@ -110,6 +210,7 @@ impl BgpCapability {
             BgpCapability::MultiProtocol(_) => BGP_CAP_MULTIPROTOCOL,
             BgpCapability::FourOctetAs(_) => BGP_CAP_FOUR_OCTET_AS,
             BgpCapability::RouteRefresh => BGP_CAP_ROUTE_REFRESH,
+            BgpCapability::GracefulRestart(_) => BGP_CAP_GRACEFUL_RESTART,
             BgpCapability::Unknown { code, .. } => *code,
         }
     }
@@ -126,6 +227,7 @@ impl BgpCapability {
             }
             BgpCapability::FourOctetAs(asn) => asn.to_be_bytes().to_vec(),
             BgpCapability::RouteRefresh => Vec::new(),
+            BgpCapability::GracefulRestart(gr) => gr.encode_value(),
             BgpCapability::Unknown { value, .. } => value.clone(),
         }
     }
@@ -183,6 +285,9 @@ impl BgpCapability {
                 }
                 Ok(BgpCapability::RouteRefresh)
             }
+            BGP_CAP_GRACEFUL_RESTART => Ok(BgpCapability::GracefulRestart(
+                BgpGracefulRestartCapability::decode_value(value)?,
+            )),
             other => Ok(BgpCapability::Unknown {
                 code: other,
                 value: value.to_vec(),
@@ -197,6 +302,13 @@ impl fmt::Display for BgpCapability {
             BgpCapability::MultiProtocol(af) => write!(f, "Multiprotocol {}", af),
             BgpCapability::FourOctetAs(asn) => write!(f, "Four-Octet AS {}", asn),
             BgpCapability::RouteRefresh => write!(f, "Route Refresh"),
+            BgpCapability::GracefulRestart(gr) => write!(
+                f,
+                "Graceful Restart {}s{} ({} families)",
+                gr.restart_time,
+                if gr.restarting { " restarting" } else { "" },
+                gr.families.len()
+            ),
             BgpCapability::Unknown { code, value } => {
                 write!(f, "unknown capability {} ({} bytes)", code, value.len())
             }
@@ -268,6 +380,18 @@ impl BgpCapabilitySet {
         self.capabilities
             .iter()
             .any(|c| matches!(c, BgpCapability::RouteRefresh))
+    }
+
+    /// The RFC 4724 capability advertised by the speaker, if any.
+    pub fn graceful_restart(&self) -> Option<&BgpGracefulRestartCapability> {
+        self.capabilities.iter().find_map(|c| match c {
+            BgpCapability::GracefulRestart(gr) => Some(gr),
+            _ => None,
+        })
+    }
+
+    pub fn supports_graceful_restart(&self) -> bool {
+        self.graceful_restart().is_some()
     }
 
     /// Encodes the whole set as an OPEN optional parameter block.
@@ -452,6 +576,12 @@ mod tests {
         set.advertise(AfiSafi::L2VPN_EVPN);
         set.push(BgpCapability::FourOctetAs(4_200_000_001));
         set.push(BgpCapability::RouteRefresh);
+        set.push(BgpCapability::GracefulRestart(
+            BgpGracefulRestartCapability::new(120, false, vec![
+                BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
+                BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
+            ]),
+        ));
         set
     }
 
@@ -509,6 +639,26 @@ mod tests {
         assert!(negotiate(&full, &full).supports_route_refresh());
         assert!(!negotiate(&full, &without_refresh).supports_route_refresh());
         assert!(!negotiate(&without_refresh, &full).supports_route_refresh());
+    }
+
+    #[test]
+    fn test_graceful_restart_round_trips_restart_and_forwarding_state() {
+        let gr = BgpGracefulRestartCapability::new(300, true, vec![
+            BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
+            BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
+        ]);
+        let mut set = BgpCapabilitySet::new();
+        set.push(BgpCapability::GracefulRestart(gr.clone()));
+        let decoded = BgpCapabilitySet::parse_opt_params(&set.encode_opt_params()).unwrap();
+        assert_eq!(decoded.graceful_restart(), Some(&gr));
+        assert!(decoded.supports_graceful_restart());
+        assert!(decoded.graceful_restart().unwrap().supports(AfiSafi::IPV4_UNICAST));
+    }
+
+    #[test]
+    fn test_malformed_graceful_restart_lengths_are_rejected() {
+        assert!(BgpCapability::decode(BGP_CAP_GRACEFUL_RESTART, &[]).is_err());
+        assert!(BgpCapability::decode(BGP_CAP_GRACEFUL_RESTART, &[0, 10, 0]).is_err());
     }
 
     #[test]
