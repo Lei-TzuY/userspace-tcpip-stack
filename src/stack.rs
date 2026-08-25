@@ -1877,6 +1877,13 @@ impl NetStack {
                                             self.ndp_table.mark_stale(target_ip6, selected_mac);
                                         }
                                     }
+
+                                    // RFC 4861 section 7.2.5: if a cached neighbor that is the
+                                    // current default router advertises Router=0, remove it from
+                                    // the Default Router List without invalidating SLAAC state.
+                                    if icmp6.payload[0] & 0x80 == 0 {
+                                        self.refresh_slaac_default_router(target_ip6, 0);
+                                    }
                                 } else if resolving {
                                     // An INCOMPLETE Ethernet Neighbor Cache entry MUST ignore an
                                     // NA that omits TLLA. Override is ignored in INCOMPLETE state.
