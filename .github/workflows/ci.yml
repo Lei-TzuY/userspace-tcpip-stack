@@ -17,7 +17,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
-      - name: Cargo Test
-        run: cargo test --verbose
+        with:
+          components: rustfmt
+      - name: Cargo Fmt Check
+        run: cargo fmt --all -- --check
+      - name: Cargo Test All Targets
+        run: cargo test --all-targets --verbose
       - name: Cargo Build Release
         run: cargo build --release --verbose
