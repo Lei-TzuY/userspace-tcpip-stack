@@ -562,7 +562,9 @@ fn test_a_keepalive_with_a_body_is_rejected() {
 
 #[test]
 fn test_unsupported_message_types_are_rejected_by_type_not_by_accident() {
-    for bad_type in [0u8, 5, 6, 200, 255] {
+    // Type 5 is ROUTE-REFRESH (RFC 2918), so only genuinely undefined types
+    // belong in this negative-control sweep.
+    for bad_type in [0u8, 6, 200, 255] {
         let mut frame = BGP_MARKER.to_vec();
         frame.extend_from_slice(&19u16.to_be_bytes());
         frame.push(bad_type);
@@ -570,6 +572,17 @@ fn test_unsupported_message_types_are_rejected_by_type_not_by_accident() {
         assert_eq!(err.code, BGP_ERR_MESSAGE_HEADER, "type {}", bad_type);
         assert_eq!(err.subcode, 3, "type {}", bad_type); // Bad Message Type
     }
+
+    // Type 5 is recognised, but its body has exactly the RFC 2918 four-byte
+    // AFI/reserved/SAFI shape. A header-only message is therefore a length error,
+    // not a Bad Message Type error.
+    let mut refresh = BGP_MARKER.to_vec();
+    refresh.extend_from_slice(&19u16.to_be_bytes());
+    refresh.push(toy_tcpip::bgp::BGP_MSG_ROUTE_REFRESH);
+    let err = BgpPdu::parse(&refresh).unwrap_err();
+    assert_eq!(err.code, BGP_ERR_MESSAGE_HEADER);
+    assert_eq!(err.subcode, 2); // Bad Message Length
+
     // An OPEN whose declared length cannot hold the fixed part is caught too.
     let mut frame = BGP_MARKER.to_vec();
     frame.extend_from_slice(&20u16.to_be_bytes());
