@@ -1,5 +1,5 @@
 use toy_tcpip::arp::{
-    ArpOpcode, ArpPacket, ARP_HLEN_ETHERNET, ARP_HTYPE_ETHERNET, ARP_PLEN_IPV4, ARP_PTYPE_IPV4,
+    ARP_HLEN_ETHERNET, ARP_HTYPE_ETHERNET, ARP_PLEN_IPV4, ARP_PTYPE_IPV4, ArpOpcode, ArpPacket,
 };
 use toy_tcpip::ethernet::MacAddress;
 use toy_tcpip::evpn_proxy_arp::{ArpSuppressionAction, EvpnProxyArpEngine};

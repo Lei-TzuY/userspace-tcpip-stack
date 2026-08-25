@@ -5,8 +5,8 @@
 //! Supports dynamic PCC rule installation, QoS-Information, Flow-Information filters, and traffic gating.
 
 use crate::diameter::{
-    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY,
-    DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS,
+    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
+    DiameterMessage,
 };
 use crate::diameter_charging::CcRequestType;
 use std::collections::HashMap;
@@ -225,7 +225,13 @@ pub struct GxCreditControlRequest {
 }
 
 impl GxCreditControlRequest {
-    pub fn new(session_id: &str, req_type: CcRequestType, req_num: u32, sub_id: &str, ip_can: IpCanType) -> Self {
+    pub fn new(
+        session_id: &str,
+        req_type: CcRequestType,
+        req_num: u32,
+        sub_id: &str,
+        ip_can: IpCanType,
+    ) -> Self {
         GxCreditControlRequest {
             session_id: session_id.to_string(),
             cc_request_type: req_type,
@@ -282,28 +288,37 @@ impl PcefGxEngine {
         subscriber_id: &str,
         ip_can: IpCanType,
     ) -> DiameterMessage {
-        self.active_sessions.insert(session_id.to_string(), subscriber_id.to_string());
+        self.active_sessions
+            .insert(session_id.to_string(), subscriber_id.to_string());
 
         let mut default_rules = Vec::new();
         // Default Internet Best-Effort Rule (QCI 9)
         let mut r_default = PccRule::new("rule-default-internet", 9, 20_000_000, 100_000_000);
-        r_default.flow_descriptions.push("permit out ip from any to any".to_string());
+        r_default
+            .flow_descriptions
+            .push("permit out ip from any to any".to_string());
         default_rules.push(r_default);
 
         // If 5GS or EPS, provision IMS Signalling Rule (QCI 5)
         if ip_can == IpCanType::ThreeGpp5Gs || ip_can == IpCanType::ThreeGppEps {
             let mut r_ims = PccRule::new("rule-ims-signalling", 5, 512_000, 512_000);
-            r_ims.flow_descriptions.push("permit out udp from any to 10.0.0.1 5060".to_string());
+            r_ims
+                .flow_descriptions
+                .push("permit out udp from any to 10.0.0.1 5060".to_string());
             default_rules.push(r_ims);
         }
 
-        self.installed_rules.insert(session_id.to_string(), default_rules.clone());
+        self.installed_rules
+            .insert(session_id.to_string(), default_rules.clone());
 
         // Construct Gx Credit-Control-Answer (CCA)
         let mut cca = DiameterMessage::new_answer(DIAMETER_CMD_CC, DIAMETER_APPLICATION_GX, 1, 1);
         cca.add_avp(DiameterAvp::new_utf8(263, session_id));
         cca.add_avp(DiameterAvp::new_u32(268, DIAMETER_SUCCESS));
-        cca.add_avp(DiameterAvp::new_u32(416, CcRequestType::InitialRequest as u32));
+        cca.add_avp(DiameterAvp::new_u32(
+            416,
+            CcRequestType::InitialRequest as u32,
+        ));
 
         // Install rules in CCA
         for rule in &default_rules {

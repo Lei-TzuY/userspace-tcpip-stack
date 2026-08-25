@@ -137,7 +137,7 @@ impl SyncEEsmcPacket {
 #[derive(Debug, Clone, Default)]
 pub struct SyncEEsmcEngine {
     pub port_ql: HashMap<u32, QualityLevel>, // Port ID -> Current Quality Level
-    pub port_priority: HashMap<u32, u8>,    // Port ID -> Configured Priority (1..255)
+    pub port_priority: HashMap<u32, u8>,     // Port ID -> Configured Priority (1..255)
     pub selected_port: Option<u32>,
     pub selected_ql: QualityLevel,
     pub event_messages_received: usize,

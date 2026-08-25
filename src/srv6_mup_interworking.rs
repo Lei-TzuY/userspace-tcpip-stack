@@ -72,7 +72,11 @@ impl Srv6MupInterworkingEngine {
 
     /// Registers a session translation mapping.
     pub fn register_mapping(&mut self, mapping: MupSessionMapping) {
-        if let Some(pos) = self.mappings.iter().position(|m| m.gtp_teid == mapping.gtp_teid && m.gnodeb_ip == mapping.gnodeb_ip) {
+        if let Some(pos) = self
+            .mappings
+            .iter()
+            .position(|m| m.gtp_teid == mapping.gtp_teid && m.gnodeb_ip == mapping.gnodeb_ip)
+        {
             self.mappings[pos] = mapping;
         } else {
             self.mappings.push(mapping);
@@ -89,7 +93,10 @@ impl Srv6MupInterworkingEngine {
         qfi: u8,
         inner_payload: Vec<u8>,
     ) -> Option<Srv6MupPacket> {
-        let mapping = self.mappings.iter().find(|m| m.gtp_teid == gtp_teid && m.gnodeb_ip == gnodeb_ip)?;
+        let mapping = self
+            .mappings
+            .iter()
+            .find(|m| m.gtp_teid == gtp_teid && m.gnodeb_ip == gnodeb_ip)?;
 
         self.translations_to_srv6 += 1;
         let dst_ip = *mapping.srv6_segments.first()?;
@@ -145,7 +152,9 @@ mod tests {
         });
 
         // 1. Uplink translation: GTP-U from gNodeB -> SRv6 Packet
-        let srv6_pkt = engine.end_m_gtp6_d(gnodeb, 0x12345678, 9, b"HTTP/3 Uplink Payload".to_vec()).unwrap();
+        let srv6_pkt = engine
+            .end_m_gtp6_d(gnodeb, 0x12345678, 9, b"HTTP/3 Uplink Payload".to_vec())
+            .unwrap();
         assert_eq!(srv6_pkt.src_ip, gnodeb);
         assert_eq!(srv6_pkt.dst_ip, sid_upf_anchor);
         assert_eq!(srv6_pkt.segment_list.len(), 2);
@@ -154,7 +163,13 @@ mod tests {
 
         // 2. Downlink translation: SRv6 -> GTP-U to gNodeB
         let local_pe = Ipv6Address::new([0x2001, 0x0db8, 0x0002, 0, 0, 0, 0, 1]);
-        let gtpu_pkt = engine.end_m_gtp6_e(local_pe, gnodeb, 0x87654321, 9, b"HTTP/3 Downlink Payload".to_vec());
+        let gtpu_pkt = engine.end_m_gtp6_e(
+            local_pe,
+            gnodeb,
+            0x87654321,
+            9,
+            b"HTTP/3 Downlink Payload".to_vec(),
+        );
         assert_eq!(gtpu_pkt.src_ip, local_pe);
         assert_eq!(gtpu_pkt.dst_ip, gnodeb);
         assert_eq!(gtpu_pkt.teid, 0x87654321);

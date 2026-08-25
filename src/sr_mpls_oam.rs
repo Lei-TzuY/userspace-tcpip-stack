@@ -181,9 +181,7 @@ impl SrMplsOamEngine {
     pub fn process_echo_request(&self, req: &SrLspEchoRequest) -> SrLspEchoReply {
         let return_code = match &req.target_fec {
             SrTargetFecSubTlv::Ipv4PrefixSid {
-                prefix,
-                sid_label,
-                ..
+                prefix, sid_label, ..
             } => {
                 if let Some(registered_label) = self.local_prefix_sids.get(prefix) {
                     if registered_label == sid_label {

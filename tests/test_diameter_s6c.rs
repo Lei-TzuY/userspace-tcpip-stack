@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s6c::{
-    S6cAvp, S6cMessage, S6cHssEngine, S6cServingNodeInfo, S6cServingNodeType,
-    DIAMETER_APPLICATION_S6C, DIAMETER_CMD_SEND_ROUTING_INFO_FOR_SM,
+    DIAMETER_APPLICATION_S6C, DIAMETER_CMD_SEND_ROUTING_INFO_FOR_SM, S6cAvp, S6cHssEngine,
+    S6cMessage, S6cServingNodeInfo, S6cServingNodeType,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 
@@ -19,10 +19,22 @@ fn test_diameter_s6c_sms_routing_lookup() {
     assert_eq!(srr.command_code, DIAMETER_CMD_SEND_ROUTING_INFO_FOR_SM);
 
     let sra = hss.handle_srr(&srr);
-    let rc = sra.avps.iter().find_map(|a| if let S6cAvp::ResultCode(c) = a { Some(*c) } else { None });
+    let rc = sra.avps.iter().find_map(|a| {
+        if let S6cAvp::ResultCode(c) = a {
+            Some(*c)
+        } else {
+            None
+        }
+    });
     assert_eq!(rc, Some(2001));
 
-    let node = sra.avps.iter().find_map(|a| if let S6cAvp::ServingNode(n) = a { Some(n.clone()) } else { None });
+    let node = sra.avps.iter().find_map(|a| {
+        if let S6cAvp::ServingNode(n) = a {
+            Some(n.clone())
+        } else {
+            None
+        }
+    });
     assert_eq!(node, Some(info));
     assert_eq!(hss.total_srr_requests, 1);
 }

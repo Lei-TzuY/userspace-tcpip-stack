@@ -82,11 +82,8 @@ impl EvpnVrfLeakingEngine {
 
     /// Runs cross-VRF Route Leaking synchronization based on Route Target intersection.
     pub fn sync_route_leaking(&mut self) {
-        let all_routes: Vec<LeakedRouteEntry> = self
-            .vrfs
-            .values()
-            .flat_map(|v| v.routes.clone())
-            .collect();
+        let all_routes: Vec<LeakedRouteEntry> =
+            self.vrfs.values().flat_map(|v| v.routes.clone()).collect();
 
         for entry in all_routes {
             for vrf in self.vrfs.values_mut() {
@@ -95,10 +92,17 @@ impl EvpnVrfLeakingEngine {
                 }
 
                 // Check if any export RT from the route intersects with this VRF's import RTs
-                let intersects = entry.route_targets.iter().any(|rt| vrf.import_rts.contains(rt));
+                let intersects = entry
+                    .route_targets
+                    .iter()
+                    .any(|rt| vrf.import_rts.contains(rt));
                 if intersects {
                     // Check if already present
-                    if !vrf.routes.iter().any(|r| r.prefix == entry.prefix && r.prefix_len == entry.prefix_len) {
+                    if !vrf
+                        .routes
+                        .iter()
+                        .any(|r| r.prefix == entry.prefix && r.prefix_len == entry.prefix_len)
+                    {
                         vrf.routes.push(entry.clone());
                         self.leaked_routes_count += 1;
                     }

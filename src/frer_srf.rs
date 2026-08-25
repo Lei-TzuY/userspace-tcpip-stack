@@ -24,7 +24,11 @@ pub fn seq_lt(a: u16, b: u16) -> bool {
 #[inline]
 pub fn seq_distance(a: u16, b: u16) -> i32 {
     let d = b.wrapping_sub(a);
-    if d <= 0x7FFF { d as i32 } else { d as i32 - 0x10000 }
+    if d <= 0x7FFF {
+        d as i32
+    } else {
+        d as i32 - 0x10000
+    }
 }
 
 // ── Sequence History bit-vector ──────────────────────────────────────────

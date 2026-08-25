@@ -5,7 +5,7 @@
 //! Supports AA-Request/Answer (AAR/AAA - Command 265), Session Termination (STR/STA - Command 275),
 //! dynamic Media-Component-Description grouped AVPs, Flow-Description IPFilterRules, and QCI bearer authorization.
 
-use crate::diameter::{DiameterAvp, DiameterMessage, DIAMETER_SUCCESS};
+use crate::diameter::{DIAMETER_SUCCESS, DiameterAvp, DiameterMessage};
 use std::collections::HashMap;
 
 /// Diameter Rx Application ID (3GPP TS 29.214 Section 5.1).
@@ -150,13 +150,22 @@ impl MediaComponentDescription {
 
     pub fn to_avp(&self) -> DiameterAvp {
         let mut inner = Vec::new();
-        inner.push(DiameterAvp::new_u32(AVP_MEDIA_COMPONENT_NUMBER, self.component_number));
+        inner.push(DiameterAvp::new_u32(
+            AVP_MEDIA_COMPONENT_NUMBER,
+            self.component_number,
+        ));
         inner.push(DiameterAvp::new_u32(AVP_MEDIA_TYPE, self.media_type as u32));
         if self.max_bandwidth_ul > 0 {
-            inner.push(DiameterAvp::new_u32(AVP_MAX_REQUESTED_BANDWIDTH_UL, self.max_bandwidth_ul));
+            inner.push(DiameterAvp::new_u32(
+                AVP_MAX_REQUESTED_BANDWIDTH_UL,
+                self.max_bandwidth_ul,
+            ));
         }
         if self.max_bandwidth_dl > 0 {
-            inner.push(DiameterAvp::new_u32(AVP_MAX_REQUESTED_BANDWIDTH_DL, self.max_bandwidth_dl));
+            inner.push(DiameterAvp::new_u32(
+                AVP_MAX_REQUESTED_BANDWIDTH_DL,
+                self.max_bandwidth_dl,
+            ));
         }
         for sub in &self.sub_components {
             inner.push(sub.to_avp());
@@ -224,12 +233,8 @@ impl AaRequest {
     }
 
     pub fn to_diameter_message(&self, hop_id: u32, end_id: u32) -> DiameterMessage {
-        let mut msg = DiameterMessage::new_request(
-            DIAMETER_CMD_AA,
-            DIAMETER_APPLICATION_RX,
-            hop_id,
-            end_id,
-        );
+        let mut msg =
+            DiameterMessage::new_request(DIAMETER_CMD_AA, DIAMETER_APPLICATION_RX, hop_id, end_id);
         msg.avps.push(DiameterAvp::new_utf8(263, &self.session_id)); // Session-Id
         msg.avps.push(DiameterAvp::new_utf8(
             AVP_AF_APPLICATION_IDENTIFIER,
@@ -347,14 +352,16 @@ impl PcrfRxEngine {
 
         if self.allocated_bandwidth_bps - current_session_bw + needed_bw > self.total_capacity_bps {
             // Insufficient resources -> DIAMETER_UNABLE_TO_COMPLY (5012)
-            let mut ans = DiameterMessage::new_answer(DIAMETER_CMD_AA, DIAMETER_APPLICATION_RX, 0, 0);
+            let mut ans =
+                DiameterMessage::new_answer(DIAMETER_CMD_AA, DIAMETER_APPLICATION_RX, 0, 0);
             ans.avps.push(DiameterAvp::new_utf8(263, &req.session_id));
             ans.avps.push(DiameterAvp::new_u32(268, 5012)); // Result-Code
             return ans;
         }
 
         // Commit bandwidth reservation
-        self.allocated_bandwidth_bps = self.allocated_bandwidth_bps - current_session_bw + needed_bw;
+        self.allocated_bandwidth_bps =
+            self.allocated_bandwidth_bps - current_session_bw + needed_bw;
         self.sessions.insert(
             req.session_id.clone(),
             PcrfSessionState {
@@ -370,7 +377,10 @@ impl PcrfRxEngine {
         let mut ans = DiameterMessage::new_answer(DIAMETER_CMD_AA, DIAMETER_APPLICATION_RX, 0, 0);
         ans.avps.push(DiameterAvp::new_utf8(263, &req.session_id));
         ans.avps.push(DiameterAvp::new_u32(268, DIAMETER_SUCCESS)); // 2001
-        ans.avps.push(DiameterAvp::new_u32(AVP_SPECIFIC_ACTION, highest_qci as u32)); // Authorized QCI
+        ans.avps.push(DiameterAvp::new_u32(
+            AVP_SPECIFIC_ACTION,
+            highest_qci as u32,
+        )); // Authorized QCI
 
         ans
     }
@@ -378,7 +388,8 @@ impl PcrfRxEngine {
     /// Processes a Session-Termination-Request (STR).
     pub fn process_str(&mut self, session_id: &str) -> DiameterMessage {
         if let Some(s) = self.sessions.remove(session_id) {
-            let session_bw = (s.granted_bandwidth_ul_bps as u64) + (s.granted_bandwidth_dl_bps as u64);
+            let session_bw =
+                (s.granted_bandwidth_ul_bps as u64) + (s.granted_bandwidth_dl_bps as u64);
             self.allocated_bandwidth_bps = self.allocated_bandwidth_bps.saturating_sub(session_bw);
         }
 

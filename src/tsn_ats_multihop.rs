@@ -59,7 +59,10 @@ impl FlowRegulator {
         let transmission_duration_ns = (length_bytes as u64 * 1_000_000_000) / self.cir_bps.max(1);
         let max_burst_credit_ns = (self.cbs_bytes * 1_000_000_000) / self.cir_bps.max(1);
 
-        let baseline_ns = arrival_ns.max(self.last_eligibility_time_ns.saturating_sub(max_burst_credit_ns));
+        let baseline_ns = arrival_ns.max(
+            self.last_eligibility_time_ns
+                .saturating_sub(max_burst_credit_ns),
+        );
         let eligibility_ns = baseline_ns + transmission_duration_ns;
         self.last_eligibility_time_ns = eligibility_ns;
         eligibility_ns
@@ -87,7 +90,8 @@ impl AtsBridgeHop {
     }
 
     pub fn register_flow(&mut self, stream_id: u32, cir_bps: u64, cbs_bytes: u64) {
-        self.regulators.push(FlowRegulator::new(stream_id, cir_bps, cbs_bytes));
+        self.regulators
+            .push(FlowRegulator::new(stream_id, cir_bps, cbs_bytes));
     }
 
     /// Ingests a frame, regulates its eligibility time, and queues it.
@@ -95,7 +99,11 @@ impl AtsBridgeHop {
         let stream_id = frame.stream_id;
         let len = frame.payload_bytes;
 
-        let elig = if let Some(reg) = self.regulators.iter_mut().find(|r| r.stream_id == stream_id) {
+        let elig = if let Some(reg) = self
+            .regulators
+            .iter_mut()
+            .find(|r| r.stream_id == stream_id)
+        {
             reg.compute_eligibility(current_time_ns, len)
         } else {
             current_time_ns
@@ -150,7 +158,13 @@ impl AtsMultiHopPipeline {
     }
 
     /// Ingests a frame at ingress Hop 0.
-    pub fn ingest_ingress(&mut self, stream_id: u32, priority: u8, payload_bytes: usize, arrival_ns: u64) {
+    pub fn ingest_ingress(
+        &mut self,
+        stream_id: u32,
+        priority: u8,
+        payload_bytes: usize,
+        arrival_ns: u64,
+    ) {
         let frame = AtsMultiHopFrame {
             stream_id,
             priority,

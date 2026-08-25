@@ -2,8 +2,7 @@ use std::str::FromStr;
 
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
 use toy_tcpip::icmpv6::{
-    Icmpv6Packet, PrefixInformationOption, ipv6_multicast_mac, link_local_address,
-    slaac_address,
+    Icmpv6Packet, PrefixInformationOption, ipv6_multicast_mac, link_local_address, slaac_address,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -57,7 +56,11 @@ fn on_link_only_pio_installs_route_without_slaac_and_expires() {
     let pio = PrefixInformationOption::new(prefix, 64, true, false, 2, 0);
     let mut stack = host(host_mac);
 
-    assert!(stack.process_frame(&ra_frame(router_mac, pio, 0)).is_empty());
+    assert!(
+        stack
+            .process_frame(&ra_frame(router_mac, pio, 0))
+            .is_empty()
+    );
     assert_eq!(stack.config.ipv6, None, "A=0 must not configure an address");
     let route = stack.ipv6_routing_table.lookup(peer).unwrap();
     assert_eq!(route.prefix_len, 64);
@@ -65,7 +68,10 @@ fn on_link_only_pio_installs_route_without_slaac_and_expires() {
     assert_eq!(route.gateway, None);
 
     stack.step_timers(1_999);
-    assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
+    assert_eq!(
+        stack.ipv6_routing_table.lookup(peer).unwrap().source,
+        RouteSource::Ra
+    );
     stack.step_timers(2_000);
     assert!(stack.ipv6_routing_table.lookup(peer).is_none());
 }
@@ -80,7 +86,10 @@ fn l_zero_does_not_withdraw_but_l_one_zero_lifetime_does() {
 
     let on_link = PrefixInformationOption::new(prefix, 64, true, false, 3600, 0);
     stack.process_frame(&ra_frame(router_mac, on_link, 0));
-    assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
+    assert_eq!(
+        stack.ipv6_routing_table.lookup(peer).unwrap().source,
+        RouteSource::Ra
+    );
 
     let no_statement = PrefixInformationOption::new(prefix, 64, false, false, 0, 0);
     stack.process_frame(&ra_frame(router_mac, no_statement, 0));
@@ -110,10 +119,17 @@ fn slaac_prefix_withdrawal_falls_back_to_router_while_address_survives() {
     assert_eq!(dad.len(), 1);
     stack.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
     assert_eq!(stack.config.ipv6, Some(expected));
-    assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
+    assert_eq!(
+        stack.ipv6_routing_table.lookup(peer).unwrap().source,
+        RouteSource::Ra
+    );
 
     let withdraw = PrefixInformationOption::new(prefix, 64, true, true, 0, 0);
-    assert!(stack.process_frame(&ra_frame(router_mac, withdraw, 1_800)).is_empty());
+    assert!(
+        stack
+            .process_frame(&ra_frame(router_mac, withdraw, 1_800))
+            .is_empty()
+    );
     assert_eq!(
         stack.config.ipv6,
         Some(expected),

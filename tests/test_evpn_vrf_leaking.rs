@@ -6,9 +6,19 @@ fn test_evpn_vrf_leaking_and_cross_vrf_lpm() {
     let mut engine = EvpnVrfLeakingEngine::new();
 
     // Tenant VRF 10 (Red)
-    engine.add_vrf(10, "VRF_TENANT_RED", &["65000:10"], &["65000:10", "65000:999"]);
+    engine.add_vrf(
+        10,
+        "VRF_TENANT_RED",
+        &["65000:10"],
+        &["65000:10", "65000:999"],
+    );
     // Tenant VRF 20 (Blue)
-    engine.add_vrf(20, "VRF_TENANT_BLUE", &["65000:20"], &["65000:20", "65000:999"]);
+    engine.add_vrf(
+        20,
+        "VRF_TENANT_BLUE",
+        &["65000:20"],
+        &["65000:20", "65000:999"],
+    );
     // Shared Services VRF 999 (Internet / DNS Gateway)
     engine.add_vrf(999, "VRF_SHARED_SERVICES", &["65000:999"], &["65000:999"]);
 
@@ -17,10 +27,18 @@ fn test_evpn_vrf_leaking_and_cross_vrf_lpm() {
     engine.add_direct_route(999, Ipv4Address::new(8, 8, 8, 8), 32, gw_ip);
 
     // Direct local tenant route in VRF 10: 10.10.1.0/24 -> 10.10.1.1
-    engine.add_direct_route(10, Ipv4Address::new(10, 10, 1, 0), 24, Ipv4Address::new(10, 10, 1, 1));
+    engine.add_direct_route(
+        10,
+        Ipv4Address::new(10, 10, 1, 0),
+        24,
+        Ipv4Address::new(10, 10, 1, 1),
+    );
 
     // Before sync: VRF 10 doesn't have 8.8.8.8
-    assert_eq!(engine.lookup_vrf_lpm(10, Ipv4Address::new(8, 8, 8, 8)), None);
+    assert_eq!(
+        engine.lookup_vrf_lpm(10, Ipv4Address::new(8, 8, 8, 8)),
+        None
+    );
 
     // Run RT intersection route leaking sync
     engine.sync_route_leaking();

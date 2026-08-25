@@ -21,7 +21,13 @@ pub struct GeneveIntHop {
 }
 
 impl GeneveIntHop {
-    pub fn new(switch_id: u32, in_port: u16, out_port: u16, latency_ns: u32, queue_bytes: u32) -> Self {
+    pub fn new(
+        switch_id: u32,
+        in_port: u16,
+        out_port: u16,
+        latency_ns: u32,
+        queue_bytes: u32,
+    ) -> Self {
         GeneveIntHop {
             switch_id,
             ingress_port: in_port,
@@ -89,7 +95,9 @@ impl GeneveTelemetryOption {
 
     /// Parses a GeneveOption TLV into GeneveTelemetryOption.
     pub fn from_geneve_option(opt: &GeneveOption) -> Result<Self, String> {
-        if opt.class != GENEVE_OPT_CLASS_INT_TELEMETRY || opt.opt_type != GENEVE_OPT_TYPE_INT_HOP_METADATA {
+        if opt.class != GENEVE_OPT_CLASS_INT_TELEMETRY
+            || opt.opt_type != GENEVE_OPT_TYPE_INT_HOP_METADATA
+        {
             return Err("Not a Geneve INT option".to_string());
         }
 

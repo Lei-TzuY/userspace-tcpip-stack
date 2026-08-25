@@ -1,7 +1,7 @@
 use toy_tcpip::ethernet::MacAddress;
 use toy_tcpip::evpn_etree::{
-    ETreeDecision, ETreeRole, EvpnETreeEngine, EvpnETreeExtCommunity,
-    BGP_EXT_COMM_SUBTYPE_ETREE, BGP_EXT_COMM_TYPE_EVPN,
+    BGP_EXT_COMM_SUBTYPE_ETREE, BGP_EXT_COMM_TYPE_EVPN, ETreeDecision, ETreeRole, EvpnETreeEngine,
+    EvpnETreeExtCommunity,
 };
 
 #[test]

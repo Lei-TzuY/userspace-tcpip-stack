@@ -19,9 +19,14 @@ fn restarted_router_discovery_schedules_retries_from_current_clock() {
     let mut stack = host_stack();
 
     stack.start_router_discovery();
-    assert_eq!(stack.step_timers(IPV6_RTR_SOLICITATION_INTERVAL_MS).len(), 1);
     assert_eq!(
-        stack.step_timers(IPV6_RTR_SOLICITATION_INTERVAL_MS * 2).len(),
+        stack.step_timers(IPV6_RTR_SOLICITATION_INTERVAL_MS).len(),
+        1
+    );
+    assert_eq!(
+        stack
+            .step_timers(IPV6_RTR_SOLICITATION_INTERVAL_MS * 2)
+            .len(),
         1
     );
     assert_eq!(

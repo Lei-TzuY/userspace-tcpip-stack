@@ -54,7 +54,12 @@ pub struct CreditBasedShaperQueue {
 }
 
 impl CreditBasedShaperQueue {
-    pub fn new(sr_class: SrClass, idle_slope_bps: i64, port_rate_bps: i64, max_frame_size: usize) -> Self {
+    pub fn new(
+        sr_class: SrClass,
+        idle_slope_bps: i64,
+        port_rate_bps: i64,
+        max_frame_size: usize,
+    ) -> Self {
         let send_slope_bps = idle_slope_bps - port_rate_bps;
         let hi_credit = (max_frame_size as i64 * idle_slope_bps) / port_rate_bps.max(1);
         let lo_credit = (max_frame_size as i64 * send_slope_bps) / port_rate_bps.max(1);
@@ -147,8 +152,18 @@ pub struct TsnQavBridgePort {
 impl TsnQavBridgePort {
     pub fn new(port_rate_bps: i64, class_a_bw_bps: i64, class_b_bw_bps: i64) -> Self {
         TsnQavBridgePort {
-            class_a: CreditBasedShaperQueue::new(SrClass::ClassA, class_a_bw_bps, port_rate_bps, 1500),
-            class_b: CreditBasedShaperQueue::new(SrClass::ClassB, class_b_bw_bps, port_rate_bps, 1500),
+            class_a: CreditBasedShaperQueue::new(
+                SrClass::ClassA,
+                class_a_bw_bps,
+                port_rate_bps,
+                1500,
+            ),
+            class_b: CreditBasedShaperQueue::new(
+                SrClass::ClassB,
+                class_b_bw_bps,
+                port_rate_bps,
+                1500,
+            ),
         }
     }
 }

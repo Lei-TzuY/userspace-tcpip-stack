@@ -82,7 +82,11 @@ impl EvpnSelectiveIrEngine {
 
     /// Adds a remote Leaf VTEP to the selective $(S, G)$ receiver list upon receiving Route Type 6 (SMET).
     pub fn add_smet_receiver(&mut self, channel: MulticastChannel, leaf_vtep: Ipv4Address) {
-        if let Some(entry) = self.selective_entries.iter_mut().find(|e| e.channel == channel) {
+        if let Some(entry) = self
+            .selective_entries
+            .iter_mut()
+            .find(|e| e.channel == channel)
+        {
             if !entry.receiver_vteps.contains(&leaf_vtep) {
                 entry.receiver_vteps.push(leaf_vtep);
             }
@@ -97,8 +101,16 @@ impl EvpnSelectiveIrEngine {
     }
 
     /// Removes a remote Leaf VTEP upon receiving Route Type 6 withdrawal.
-    pub fn remove_smet_receiver(&mut self, channel: &MulticastChannel, leaf_vtep: &Ipv4Address) -> bool {
-        if let Some(entry) = self.selective_entries.iter_mut().find(|e| e.channel == *channel) {
+    pub fn remove_smet_receiver(
+        &mut self,
+        channel: &MulticastChannel,
+        leaf_vtep: &Ipv4Address,
+    ) -> bool {
+        if let Some(entry) = self
+            .selective_entries
+            .iter_mut()
+            .find(|e| e.channel == *channel)
+        {
             if let Some(pos) = entry.receiver_vteps.iter().position(|v| v == leaf_vtep) {
                 entry.receiver_vteps.remove(pos);
                 return true;
@@ -115,14 +127,20 @@ impl EvpnSelectiveIrEngine {
         src_ip: Ipv4Address,
         dst_ip: Ipv4Address,
     ) -> (Vec<Ipv4Address>, bool) {
-        let total_inclusive = self.inclusive_vteps.iter()
+        let total_inclusive = self
+            .inclusive_vteps
+            .iter()
             .find(|(v, _)| *v == vni)
             .map(|(_, vteps)| vteps.len())
             .unwrap_or(0);
 
         // 1. Check SSM match (VNI, S, G)
         let ssm_channel = MulticastChannel::new_ssm(vni, src_ip, dst_ip);
-        if let Some(entry) = self.selective_entries.iter_mut().find(|e| e.channel == ssm_channel && !e.receiver_vteps.is_empty()) {
+        if let Some(entry) = self
+            .selective_entries
+            .iter_mut()
+            .find(|e| e.channel == ssm_channel && !e.receiver_vteps.is_empty())
+        {
             entry.packets_forwarded += 1;
             entry.replications_sent += entry.receiver_vteps.len() as u64;
             let pruned = total_inclusive.saturating_sub(entry.receiver_vteps.len());
@@ -132,7 +150,11 @@ impl EvpnSelectiveIrEngine {
 
         // 2. Check ASM match (VNI, *, G)
         let asm_channel = MulticastChannel::new_asm(vni, dst_ip);
-        if let Some(entry) = self.selective_entries.iter_mut().find(|e| e.channel == asm_channel && !e.receiver_vteps.is_empty()) {
+        if let Some(entry) = self
+            .selective_entries
+            .iter_mut()
+            .find(|e| e.channel == asm_channel && !e.receiver_vteps.is_empty())
+        {
             entry.packets_forwarded += 1;
             entry.replications_sent += entry.receiver_vteps.len() as u64;
             let pruned = total_inclusive.saturating_sub(entry.receiver_vteps.len());
@@ -141,7 +163,9 @@ impl EvpnSelectiveIrEngine {
         }
 
         // 3. Fallback to default inclusive IMET list
-        let fallback = self.inclusive_vteps.iter()
+        let fallback = self
+            .inclusive_vteps
+            .iter()
             .find(|(v, _)| *v == vni)
             .map(|(_, vteps)| vteps.clone())
             .unwrap_or_default();
@@ -188,10 +212,7 @@ mod tests {
     #[test]
     fn test_evpn_multicast_fallback_to_imet_when_no_smet() {
         let mut engine = EvpnSelectiveIrEngine::new();
-        let vteps = vec![
-            Ipv4Address::new(10, 0, 0, 1),
-            Ipv4Address::new(10, 0, 0, 2),
-        ];
+        let vteps = vec![Ipv4Address::new(10, 0, 0, 1), Ipv4Address::new(10, 0, 0, 2)];
         engine.set_inclusive_vteps(200, vteps);
 
         let (targets, is_selective) = engine.resolve_replication_targets(

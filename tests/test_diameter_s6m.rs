@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s6m::{
-    S6mAvp, S6mHssEngine, S6mMessage, SmsMiResult,
-    DIAMETER_APPLICATION_S6M, DIAMETER_CMD_SUBSCRIBER_INFORMATION,
+    DIAMETER_APPLICATION_S6M, DIAMETER_CMD_SUBSCRIBER_INFORMATION, S6mAvp, S6mHssEngine,
+    S6mMessage, SmsMiResult,
 };
 
 #[test]
@@ -13,9 +13,21 @@ fn test_diameter_s6m_sms_authorization() {
     assert_eq!(req.command_code, DIAMETER_CMD_SUBSCRIBER_INFORMATION);
 
     let resp = hss.handle_sir(&req);
-    let rc = resp.avps.iter().find_map(|a| if let S6mAvp::ResultCode(c) = a { Some(*c) } else { None });
+    let rc = resp.avps.iter().find_map(|a| {
+        if let S6mAvp::ResultCode(c) = a {
+            Some(*c)
+        } else {
+            None
+        }
+    });
     assert_eq!(rc, Some(2001));
 
-    let auth = resp.avps.iter().find_map(|a| if let S6mAvp::SmsMiResult(r) = a { Some(*r) } else { None });
+    let auth = resp.avps.iter().find_map(|a| {
+        if let S6mAvp::SmsMiResult(r) = a {
+            Some(*r)
+        } else {
+            None
+        }
+    });
     assert_eq!(auth, Some(SmsMiResult::Authorized));
 }

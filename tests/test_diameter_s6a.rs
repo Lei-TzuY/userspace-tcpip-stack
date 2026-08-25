@@ -1,7 +1,7 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_s6a::{
-    EpsAuthVector, HssS6aEngine, HssSubscriberProfile, DIAMETER_APPLICATION_S6A,
-    DIAMETER_CMD_AUTH_INFO, DIAMETER_CMD_UPDATE_LOCATION,
+    DIAMETER_APPLICATION_S6A, DIAMETER_CMD_AUTH_INFO, DIAMETER_CMD_UPDATE_LOCATION, EpsAuthVector,
+    HssS6aEngine, HssSubscriberProfile,
 };
 
 #[test]
@@ -42,7 +42,10 @@ fn test_hss_s6a_air_and_ulr_flows() {
         .expect("handle AIR");
     assert_eq!(aia.header.command_code, DIAMETER_CMD_AUTH_INFO);
     assert_eq!(aia.header.application_id, DIAMETER_APPLICATION_S6A);
-    assert_eq!(aia.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        aia.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
     assert_eq!(hss.auth_vectors_generated_count, 1);
 
     // 2. Update-Location-Request (ULR) -> ULA

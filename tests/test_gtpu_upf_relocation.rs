@@ -1,5 +1,5 @@
 use toy_tcpip::gtpu_upf_relocation::{
-    HandoverGtpuPacket, TargetUpfRelocationEngine, UpfHandoverState, GTPU_MSG_END_MARKER,
+    GTPU_MSG_END_MARKER, HandoverGtpuPacket, TargetUpfRelocationEngine, UpfHandoverState,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 

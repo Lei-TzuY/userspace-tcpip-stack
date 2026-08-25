@@ -137,34 +137,65 @@ impl SmsSgdEngine {
     /// Handles Mobile-Originated Short Message (OFR -> OFA).
     pub fn handle_mo_forward_sm(&mut self, ofr: &SgdMessage) -> SgdMessage {
         self.total_mo_sms += 1;
-        let imsi = ofr.avps.iter().find_map(|a| {
-            if let SgdAvp::UserName(u) = a { Some(u.clone()) } else { None }
-        }).unwrap_or_default();
+        let imsi = ofr
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let SgdAvp::UserName(u) = a {
+                    Some(u.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
-        let sc_addr = ofr.avps.iter().find_map(|a| {
-            if let SgdAvp::ScAddress(s) = a { Some(s.clone()) } else { None }
-        }).unwrap_or_default();
+        let sc_addr = ofr
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let SgdAvp::ScAddress(s) = a {
+                    Some(s.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
-        let tpdu = ofr.avps.iter().find_map(|a| {
-            if let SgdAvp::SmRpUi(t) = a { Some(t.clone()) } else { None }
-        }).unwrap_or_default();
+        let tpdu = ofr
+            .avps
+            .iter()
+            .find_map(|a| {
+                if let SgdAvp::SmRpUi(t) = a {
+                    Some(t.clone())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
 
         let msg_id = self.next_msg_id;
         self.next_msg_id += 1;
 
-        self.messages.insert(msg_id, DeliveredSms {
-            message_id: msg_id,
-            imsi,
-            sc_address: sc_addr,
-            tpdu,
-            outcome: SmDeliveryOutcome::Success,
-        });
+        self.messages.insert(
+            msg_id,
+            DeliveredSms {
+                message_id: msg_id,
+                imsi,
+                sc_address: sc_addr,
+                tpdu,
+                outcome: SmDeliveryOutcome::Success,
+            },
+        );
 
         SgdMessage::new_answer(ofr, SmDeliveryOutcome::Success, 2001) // DIAMETER_SUCCESS
     }
 
     /// Handles Mobile-Terminated Short Message (TFR -> TFA).
-    pub fn handle_mt_forward_sm(&mut self, tfr: &SgdMessage, is_user_reachable: bool) -> SgdMessage {
+    pub fn handle_mt_forward_sm(
+        &mut self,
+        tfr: &SgdMessage,
+        is_user_reachable: bool,
+    ) -> SgdMessage {
         self.total_mt_sms += 1;
         let outcome = if is_user_reachable {
             SmDeliveryOutcome::Success
@@ -186,14 +217,25 @@ mod tests {
         let mut engine = SmsSgdEngine::new("+886912345678");
         let tpdu = b"Hello from 5G UE!".to_vec();
 
-        let ofr = SgdMessage::new_ofr("sess-sgd-01", "460011234567890", "+886912345678", tpdu.clone());
+        let ofr = SgdMessage::new_ofr(
+            "sess-sgd-01",
+            "460011234567890",
+            "+886912345678",
+            tpdu.clone(),
+        );
         assert_eq!(ofr.application_id, DIAMETER_APPLICATION_SGD);
         assert_eq!(ofr.command_code, DIAMETER_CMD_MO_FORWARD_SM);
 
         let ofa = engine.handle_mo_forward_sm(&ofr);
         assert!(!ofa.is_request);
 
-        let rc = ofa.avps.iter().find_map(|a| if let SgdAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = ofa.avps.iter().find_map(|a| {
+            if let SgdAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
         assert_eq!(engine.total_mo_sms, 1);
         assert_eq!(engine.messages.len(), 1);
@@ -203,10 +245,21 @@ mod tests {
     #[test]
     fn test_sgd_mt_sms_absent_subscriber() {
         let mut engine = SmsSgdEngine::new("+886912345678");
-        let tfr = SgdMessage::new_tfr("sess-sgd-02", "460019999999999", "+886912345678", vec![0x00, 0x01]);
+        let tfr = SgdMessage::new_tfr(
+            "sess-sgd-02",
+            "460019999999999",
+            "+886912345678",
+            vec![0x00, 0x01],
+        );
         let tfa = engine.handle_mt_forward_sm(&tfr, false); // UE not reachable
 
-        let outcome = tfa.avps.iter().find_map(|a| if let SgdAvp::SmDeliveryOutcome(o) = a { Some(*o) } else { None });
+        let outcome = tfa.avps.iter().find_map(|a| {
+            if let SgdAvp::SmDeliveryOutcome(o) = a {
+                Some(*o)
+            } else {
+                None
+            }
+        });
         assert_eq!(outcome, Some(SmDeliveryOutcome::AbsentSubscriber));
     }
 }

@@ -1,4 +1,4 @@
-use toy_tcpip::gtpu_reordering::{seq_gt, seq_lt, GtpuReorderingEngine};
+use toy_tcpip::gtpu_reordering::{GtpuReorderingEngine, seq_gt, seq_lt};
 
 #[test]
 fn test_gtpu_sequence_modular_arithmetic() {

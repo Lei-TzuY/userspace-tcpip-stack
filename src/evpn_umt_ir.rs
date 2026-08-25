@@ -48,18 +48,29 @@ impl EvpnUmtEngine {
 
     pub fn add_selective_receiver(&mut self, vni: u32, group_ip: Ipv4Address, vtep: Ipv4Address) {
         if vtep != self.local_vtep {
-            self.selective_vtep_map.entry((vni, group_ip)).or_default().insert(vtep);
+            self.selective_vtep_map
+                .entry((vni, group_ip))
+                .or_default()
+                .insert(vtep);
         }
     }
 
     /// Resolves target replication VTEP list for an ingress multicast frame.
-    pub fn resolve_replication_targets(&mut self, vni: u32, group_ip: Ipv4Address) -> Vec<Ipv4Address> {
+    pub fn resolve_replication_targets(
+        &mut self,
+        vni: u32,
+        group_ip: Ipv4Address,
+    ) -> Vec<Ipv4Address> {
         self.total_multicast_frames_ingressed += 1;
 
         if let Some(selective_leaves) = self.selective_vtep_map.get(&(vni, group_ip)) {
             // Selective tree exists: replicate only to interested leaves!
             let targets: Vec<Ipv4Address> = selective_leaves.iter().copied().collect();
-            let total_imet = self.inclusive_vtep_map.get(&vni).map(|s| s.len()).unwrap_or(0);
+            let total_imet = self
+                .inclusive_vtep_map
+                .get(&vni)
+                .map(|s| s.len())
+                .unwrap_or(0);
             if total_imet > targets.len() {
                 self.total_leaves_pruned += (total_imet - targets.len()) as u64;
             }

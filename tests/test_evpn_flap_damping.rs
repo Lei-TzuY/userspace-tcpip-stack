@@ -6,9 +6,18 @@ fn test_evpn_flap_damping_lifecycle() {
 
     // 3 rapid flaps within 1 second
     assert_eq!(engine.record_flap("port_ce2", 0), DampState::Unsuppressed);
-    assert_eq!(engine.record_flap("port_ce2", 500_000_000), DampState::Unsuppressed);
-    assert_eq!(engine.record_flap("port_ce2", 1_000_000_000), DampState::Suppressed);
+    assert_eq!(
+        engine.record_flap("port_ce2", 500_000_000),
+        DampState::Unsuppressed
+    );
+    assert_eq!(
+        engine.record_flap("port_ce2", 1_000_000_000),
+        DampState::Suppressed
+    );
 
     // After 15 seconds (3 half-lives) -> penalty decays below 500
-    assert_eq!(engine.evaluate_state("port_ce2", 16_000_000_000), DampState::Unsuppressed);
+    assert_eq!(
+        engine.evaluate_state("port_ce2", 16_000_000_000),
+        DampState::Unsuppressed
+    );
 }

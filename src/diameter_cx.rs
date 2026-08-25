@@ -34,8 +34,8 @@ pub const AVP_SERVER_ASSIGNMENT_TYPE: u32 = 614;
 /// User-Authorization-Type enumeration per TS 29.229 Section 6.3.24.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UserAuthorizationType {
-    Registration,           // 0
-    DeRegistration,         // 1
+    Registration,                // 0
+    DeRegistration,              // 1
     RegistrationAndCapabilities, // 2
 }
 
@@ -61,18 +61,18 @@ impl UserAuthorizationType {
 /// Server-Assignment-Type enumeration per TS 29.229 Section 6.3.15.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ServerAssignmentType {
-    NoAssignment,               // 0
-    Registration,               // 1
-    ReRegistration,             // 2
-    UnregisteredUser,           // 3
-    TimeoutDeregistration,      // 4
-    UserDeregistration,         // 5
-    TimeoutDeregStoreSrvName,   // 6
-    UserDeregStoreSrvName,      // 7
-    AdminDeregistration,        // 8
-    AuthenticationFailure,      // 9
-    AuthenticationTimeout,      // 10
-    Deregistration,             // 11
+    NoAssignment,             // 0
+    Registration,             // 1
+    ReRegistration,           // 2
+    UnregisteredUser,         // 3
+    TimeoutDeregistration,    // 4
+    UserDeregistration,       // 5
+    TimeoutDeregStoreSrvName, // 6
+    UserDeregStoreSrvName,    // 7
+    AdminDeregistration,      // 8
+    AuthenticationFailure,    // 9
+    AuthenticationTimeout,    // 10
+    Deregistration,           // 11
 }
 
 impl ServerAssignmentType {
@@ -211,7 +211,10 @@ impl CxMessage {
                     buf.extend_from_slice(&4u16.to_be_bytes());
                     buf.extend_from_slice(&n.to_be_bytes());
                 }
-                CxAvp::SipAuthDataItem { auth_scheme, auth_data } => {
+                CxAvp::SipAuthDataItem {
+                    auth_scheme,
+                    auth_data,
+                } => {
                     buf.extend_from_slice(&AVP_SIP_AUTH_DATA_ITEM.to_be_bytes());
                     let scheme_b = auth_scheme.as_bytes();
                     let total = 2 + scheme_b.len() + 2 + auth_data.len();
@@ -268,7 +271,11 @@ impl HssCxEngine {
     pub fn process_uar(&mut self, uar: &CxMessage) -> CxMessage {
         self.transactions += 1;
         let pub_id = uar.avps.iter().find_map(|a| {
-            if let CxAvp::PublicIdentity(s) = a { Some(s.clone()) } else { None }
+            if let CxAvp::PublicIdentity(s) = a {
+                Some(s.clone())
+            } else {
+                None
+            }
         });
 
         let mut uaa = CxMessage::new_answer(uar, 2001);
@@ -293,7 +300,11 @@ impl HssCxEngine {
     pub fn process_mar(&mut self, mar: &CxMessage) -> CxMessage {
         self.transactions += 1;
         let pub_id = mar.avps.iter().find_map(|a| {
-            if let CxAvp::PublicIdentity(s) = a { Some(s.clone()) } else { None }
+            if let CxAvp::PublicIdentity(s) = a {
+                Some(s.clone())
+            } else {
+                None
+            }
         });
 
         let mut maa = CxMessage::new_answer(mar, 2001);
@@ -320,10 +331,18 @@ impl HssCxEngine {
     pub fn process_sar(&mut self, sar: &CxMessage) -> CxMessage {
         self.transactions += 1;
         let pub_id = sar.avps.iter().find_map(|a| {
-            if let CxAvp::PublicIdentity(s) = a { Some(s.clone()) } else { None }
+            if let CxAvp::PublicIdentity(s) = a {
+                Some(s.clone())
+            } else {
+                None
+            }
         });
         let server_name = sar.avps.iter().find_map(|a| {
-            if let CxAvp::ServerName(s) = a { Some(s.clone()) } else { None }
+            if let CxAvp::ServerName(s) = a {
+                Some(s.clone())
+            } else {
+                None
+            }
         });
 
         let mut saa = CxMessage::new_answer(sar, 2001);
@@ -361,7 +380,9 @@ mod tests {
 
         let mut uar = CxMessage::new_request(CMD_UAR, "cx-sess-001");
         uar.add_avp(CxAvp::PublicIdentity("sip:alice@ims.example.com".into()));
-        uar.add_avp(CxAvp::UserAuthorizationType(UserAuthorizationType::Registration));
+        uar.add_avp(CxAvp::UserAuthorizationType(
+            UserAuthorizationType::Registration,
+        ));
 
         let uaa = hss.process_uar(&uar);
         assert!(!uaa.is_request);
@@ -385,7 +406,11 @@ mod tests {
 
         let maa = hss.process_mar(&mar);
         let auth_item = maa.avps.iter().find_map(|a| {
-            if let CxAvp::SipAuthDataItem { auth_scheme, auth_data } = a {
+            if let CxAvp::SipAuthDataItem {
+                auth_scheme,
+                auth_data,
+            } = a
+            {
                 Some((auth_scheme.clone(), auth_data.clone()))
             } else {
                 None
@@ -411,16 +436,25 @@ mod tests {
         let mut sar = CxMessage::new_request(CMD_SAR, "cx-sess-003");
         sar.add_avp(CxAvp::PublicIdentity("sip:carol@ims.example.com".into()));
         sar.add_avp(CxAvp::ServerName("sip:scscf2.ims.example.com".into()));
-        sar.add_avp(CxAvp::ServerAssignmentType(ServerAssignmentType::Registration));
+        sar.add_avp(CxAvp::ServerAssignmentType(
+            ServerAssignmentType::Registration,
+        ));
 
         let saa = hss.process_sar(&sar);
         let server = saa.avps.iter().find_map(|a| {
-            if let CxAvp::ServerName(s) = a { Some(s.clone()) } else { None }
+            if let CxAvp::ServerName(s) = a {
+                Some(s.clone())
+            } else {
+                None
+            }
         });
         assert_eq!(server, Some("sip:scscf2.ims.example.com".into()));
 
         // Verify HSS recorded the assignment
         let sub = hss.subscribers.get("sip:carol@ims.example.com").unwrap();
-        assert_eq!(sub.assigned_scscf, Some("sip:scscf2.ims.example.com".into()));
+        assert_eq!(
+            sub.assigned_scscf,
+            Some("sip:scscf2.ims.example.com".into())
+        );
     }
 }

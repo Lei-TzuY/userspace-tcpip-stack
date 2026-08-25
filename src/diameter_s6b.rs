@@ -87,7 +87,12 @@ impl Mip6AgentInfo {
         let mut pgw_fqdn = String::new();
 
         while offset + 6 <= data.len() {
-            let avp_code = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let avp_code = u32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             let len = u16::from_be_bytes([data[offset + 4], data[offset + 5]]) as usize;
             offset += 6;
             if offset + len > data.len() {
@@ -249,17 +254,27 @@ impl AaaS6bEngine {
     pub fn handle_aar(&mut self, aar: &S6bMessage) -> S6bMessage {
         self.total_transactions += 1;
         let user_name = aar.avps.iter().find_map(|a| {
-            if let S6bAvp::UserName(u) = a { Some(u.clone()) } else { None }
+            if let S6bAvp::UserName(u) = a {
+                Some(u.clone())
+            } else {
+                None
+            }
         });
         let anid = aar.avps.iter().find_map(|a| {
-            if let S6bAvp::Anid(an) = a { Some(an.clone()) } else { None }
+            if let S6bAvp::Anid(an) = a {
+                Some(an.clone())
+            } else {
+                None
+            }
         });
 
         if let Some(imsi) = user_name {
             if let Some(sub) = self.subscribers.get_mut(&imsi) {
                 // Check if ANID is authorized
                 let anid_ok = match anid {
-                    Some(ref a) => sub.authorized_anid.is_empty() || sub.authorized_anid.contains(a),
+                    Some(ref a) => {
+                        sub.authorized_anid.is_empty() || sub.authorized_anid.contains(a)
+                    }
                     None => true,
                 };
 
@@ -324,10 +339,22 @@ mod tests {
         assert_eq!(ans.command_code, DIAMETER_CMD_AA);
         assert!(!ans.is_request);
 
-        let rc = ans.avps.iter().find_map(|a| if let S6bAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = ans.avps.iter().find_map(|a| {
+            if let S6bAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
-        let agent = ans.avps.iter().find_map(|a| if let S6bAvp::Mip6AgentInfo(info) = a { Some(info.clone()) } else { None });
+        let agent = ans.avps.iter().find_map(|a| {
+            if let S6bAvp::Mip6AgentInfo(info) = a {
+                Some(info.clone())
+            } else {
+                None
+            }
+        });
         assert!(agent.is_some());
         let info = agent.unwrap();
         assert_eq!(info.pgw_ip, [10, 100, 1, 1]);
@@ -351,7 +378,13 @@ mod tests {
         aar.add_avp(S6bAvp::Anid("CDMA2000_1xRTT".into())); // Unauthorized ANID
 
         let ans = aaa_server.handle_aar(&aar);
-        let rc = ans.avps.iter().find_map(|a| if let S6bAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = ans.avps.iter().find_map(|a| {
+            if let S6bAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(5003)); // DIAMETER_AUTHORIZATION_REJECTED
     }
 
@@ -372,13 +405,33 @@ mod tests {
         aaa_server.handle_aar(&aar);
 
         // Session is active
-        assert_eq!(aaa_server.subscribers.get("208950000000001").unwrap().status, Non3gppUserStatus::UserActive);
+        assert_eq!(
+            aaa_server
+                .subscribers
+                .get("208950000000001")
+                .unwrap()
+                .status,
+            Non3gppUserStatus::UserActive
+        );
 
         // Send STR
         let str_msg = S6bMessage::new_request(DIAMETER_CMD_SESSION_TERMINATION, "sess-01");
         let sta = aaa_server.handle_str(&str_msg);
-        let rc = sta.avps.iter().find_map(|a| if let S6bAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = sta.avps.iter().find_map(|a| {
+            if let S6bAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
-        assert_eq!(aaa_server.subscribers.get("208950000000001").unwrap().status, Non3gppUserStatus::UserDeregistered);
+        assert_eq!(
+            aaa_server
+                .subscribers
+                .get("208950000000001")
+                .unwrap()
+                .status,
+            Non3gppUserStatus::UserDeregistered
+        );
     }
 }

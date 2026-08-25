@@ -120,8 +120,14 @@ mod tests {
         let oper_schedule = QbvSchedule::new(
             0,
             vec![
-                QbvGateEntry { gate_states: 0x80, time_interval_ns: 30_000 },
-                QbvGateEntry { gate_states: 0xFF, time_interval_ns: 70_000 },
+                QbvGateEntry {
+                    gate_states: 0x80,
+                    time_interval_ns: 30_000,
+                },
+                QbvGateEntry {
+                    gate_states: 0xFF,
+                    time_interval_ns: 70_000,
+                },
             ],
         );
         let mut engine = QbvDynamicReconfigEngine::new(oper_schedule);
@@ -136,8 +142,14 @@ mod tests {
         let admin_schedule = QbvSchedule::new(
             200_000,
             vec![
-                QbvGateEntry { gate_states: 0xC0, time_interval_ns: 50_000 },
-                QbvGateEntry { gate_states: 0xFF, time_interval_ns: 50_000 },
+                QbvGateEntry {
+                    gate_states: 0xC0,
+                    time_interval_ns: 50_000,
+                },
+                QbvGateEntry {
+                    gate_states: 0xFF,
+                    time_interval_ns: 50_000,
+                },
             ],
         );
         engine.submit_admin_gcl(admin_schedule);

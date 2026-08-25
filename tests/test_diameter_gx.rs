@@ -1,8 +1,8 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_charging::CcRequestType;
 use toy_tcpip::diameter_gx::{
-    GxCreditControlRequest, IpCanType, PccRule, PcefGxEngine, DIAMETER_APPLICATION_GX,
-    DIAMETER_CMD_CC,
+    DIAMETER_APPLICATION_GX, DIAMETER_CMD_CC, GxCreditControlRequest, IpCanType, PccRule,
+    PcefGxEngine,
 };
 
 #[test]
@@ -17,13 +17,17 @@ fn test_diameter_gx_ccr_message_formatting() {
     let msg = ccr.to_diameter_message(101, 202);
     assert_eq!(msg.header.command_code, DIAMETER_CMD_CC);
     assert_eq!(msg.header.application_id, DIAMETER_APPLICATION_GX);
-    assert_eq!(msg.get_avp(263).unwrap().as_string().unwrap(), "gx-session-12345");
+    assert_eq!(
+        msg.get_avp(263).unwrap().as_string().unwrap(),
+        "gx-session-12345"
+    );
 }
 
 #[test]
 fn test_diameter_gx_pcc_rule_grouped_avp_codec() {
     let mut rule = PccRule::new("rule-video-streaming", 2, 2_000_000, 10_000_000);
-    rule.flow_descriptions.push("permit out ip from any to 10.200.0.1".to_string());
+    rule.flow_descriptions
+        .push("permit out ip from any to 10.200.0.1".to_string());
 
     let avp = rule.to_grouped_avp();
     let parsed = PccRule::from_grouped_avp(&avp).expect("parse PCC rule");
@@ -45,7 +49,10 @@ fn test_pcef_gx_session_lifecycle_and_rule_installation() {
     let cca = pcef.handle_session_establishment(sess_id, imsi, IpCanType::ThreeGpp5Gs);
     assert_eq!(cca.header.command_code, DIAMETER_CMD_CC);
     assert_eq!(cca.header.application_id, DIAMETER_APPLICATION_GX);
-    assert_eq!(cca.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        cca.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
 
     let installed = pcef.installed_rules.get(sess_id).unwrap();
     assert_eq!(installed.len(), 2); // Default Internet (QCI 9) + IMS (QCI 5)

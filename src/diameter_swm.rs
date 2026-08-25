@@ -126,16 +126,25 @@ impl AaaSwmEngine {
     /// Processes a Diameter-EAP-Request (DER) and returns Diameter-EAP-Answer (DEA).
     pub fn handle_der(&mut self, der: &SwmMessage) -> SwmMessage {
         let user_name = der.avps.iter().find_map(|a| {
-            if let SwmAvp::UserName(u) = a { Some(u.clone()) } else { None }
+            if let SwmAvp::UserName(u) = a {
+                Some(u.clone())
+            } else {
+                None
+            }
         });
         let eap_payload = der.avps.iter().find_map(|a| {
-            if let SwmAvp::EapPayload(p) = a { Some(p.clone()) } else { None }
+            if let SwmAvp::EapPayload(p) = a {
+                Some(p.clone())
+            } else {
+                None
+            }
         });
 
         if let (Some(imsi), Some(payload)) = (user_name, eap_payload) {
             if let Some(sub) = self.subscribers.get_mut(&imsi) {
                 // Verify EAP payload (simple authentication check)
-                if !payload.is_empty() && payload[0] == 0x02 { // EAP-Response
+                if !payload.is_empty() && payload[0] == 0x02 {
+                    // EAP-Response
                     sub.authenticated = true;
                     self.successful_authentications += 1;
                     self.active_sessions.insert(der.session_id.clone(), imsi);
@@ -180,10 +189,22 @@ mod tests {
         assert_eq!(dea.command_code, DIAMETER_CMD_EAP);
         assert!(!dea.is_request);
 
-        let rc = dea.avps.iter().find_map(|a| if let SwmAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = dea.avps.iter().find_map(|a| {
+            if let SwmAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(2001));
 
-        let msk = dea.avps.iter().find_map(|a| if let SwmAvp::EapMasterSessionKey(k) = a { Some(k.clone()) } else { None });
+        let msk = dea.avps.iter().find_map(|a| {
+            if let SwmAvp::EapMasterSessionKey(k) = a {
+                Some(k.clone())
+            } else {
+                None
+            }
+        });
         assert!(msk.is_some());
         assert_eq!(msk.unwrap().len(), 64);
         assert_eq!(aaa.successful_authentications, 1);
@@ -199,7 +220,13 @@ mod tests {
             vec![0x02, 0x01, 0x00, 0x04],
         );
         let dea = aaa.handle_der(&der);
-        let rc = dea.avps.iter().find_map(|a| if let SwmAvp::ResultCode(c) = a { Some(*c) } else { None });
+        let rc = dea.avps.iter().find_map(|a| {
+            if let SwmAvp::ResultCode(c) = a {
+                Some(*c)
+            } else {
+                None
+            }
+        });
         assert_eq!(rc, Some(5001));
         assert_eq!(aaa.failed_authentications, 1);
     }

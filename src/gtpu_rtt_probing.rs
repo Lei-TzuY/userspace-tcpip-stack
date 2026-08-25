@@ -42,7 +42,7 @@ impl GtpuRttProbingEngine {
         GtpuRttProbingEngine {
             session_id,
             next_probe_id: 1,
-            smoothed_rtt_3gpp_us: 20_000.0, // Default 20ms
+            smoothed_rtt_3gpp_us: 20_000.0,    // Default 20ms
             smoothed_rtt_non3gpp_us: 15_000.0, // Default 15ms
             total_probes_sent: 0,
             total_probes_received: 0,
@@ -69,11 +69,13 @@ impl GtpuRttProbingEngine {
 
         match probe.leg {
             ProbeAccessLeg::ThreeGpp => {
-                self.smoothed_rtt_3gpp_us = self.ewma_alpha * self.smoothed_rtt_3gpp_us + (1.0 - self.ewma_alpha) * sample_rtt;
+                self.smoothed_rtt_3gpp_us = self.ewma_alpha * self.smoothed_rtt_3gpp_us
+                    + (1.0 - self.ewma_alpha) * sample_rtt;
                 self.smoothed_rtt_3gpp_us
             }
             ProbeAccessLeg::NonThreeGpp => {
-                self.smoothed_rtt_non3gpp_us = self.ewma_alpha * self.smoothed_rtt_non3gpp_us + (1.0 - self.ewma_alpha) * sample_rtt;
+                self.smoothed_rtt_non3gpp_us = self.ewma_alpha * self.smoothed_rtt_non3gpp_us
+                    + (1.0 - self.ewma_alpha) * sample_rtt;
                 self.smoothed_rtt_non3gpp_us
             }
         }

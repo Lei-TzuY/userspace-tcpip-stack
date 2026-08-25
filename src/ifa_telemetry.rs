@@ -191,7 +191,12 @@ impl IfaTelemetryEngine {
     }
 
     /// Ingress Encapsulation: Generates a new IFA packet with telemetry request vector.
-    pub fn ingress_encapsulate(&mut self, payload: &[u8], hop_limit: u8, req_vector: u8) -> IfaPacket {
+    pub fn ingress_encapsulate(
+        &mut self,
+        payload: &[u8],
+        hop_limit: u8,
+        req_vector: u8,
+    ) -> IfaPacket {
         self.probes_encapsulated += 1;
         let header = IfaHeader::new(hop_limit, req_vector);
         IfaPacket::new(header, payload.to_vec())

@@ -61,7 +61,8 @@ impl BumTokenBucket {
         let refill_tokens = (elapsed_ns * self.max_rate_bytes_per_sec) / 1_000_000_000;
 
         if refill_tokens > 0 {
-            self.current_tokens = (self.current_tokens + refill_tokens).min(self.burst_capacity_bytes);
+            self.current_tokens =
+                (self.current_tokens + refill_tokens).min(self.burst_capacity_bytes);
             self.last_refill_timestamp_ns = now_ns;
         }
 
@@ -102,8 +103,17 @@ impl EvpnBumPolicerEngine {
         }
     }
 
-    pub fn set_rate_limit(&mut self, vni: u32, bum_type: BumType, max_rate_bps: u64, burst_bytes: u64) {
-        self.policers.insert((vni, bum_type), BumTokenBucket::new(max_rate_bps, burst_bytes));
+    pub fn set_rate_limit(
+        &mut self,
+        vni: u32,
+        bum_type: BumType,
+        max_rate_bps: u64,
+        burst_bytes: u64,
+    ) {
+        self.policers.insert(
+            (vni, bum_type),
+            BumTokenBucket::new(max_rate_bps, burst_bytes),
+        );
     }
 
     /// Evaluates an incoming BUM frame against the policer and storm defense engine.
@@ -148,7 +158,11 @@ impl EvpnBumPolicerEngine {
 
     /// Unquarantines a source MAC.
     pub fn unquarantine_mac(&mut self, vni: u32, src_mac: &MacAddress) -> bool {
-        if let Some(pos) = self.quarantined_macs.iter().position(|(v, m)| *v == vni && m == src_mac) {
+        if let Some(pos) = self
+            .quarantined_macs
+            .iter()
+            .position(|(v, m)| *v == vni && m == src_mac)
+        {
             self.quarantined_macs.remove(pos);
             self.mac_drop_counters.remove(&(vni, *src_mac));
             true

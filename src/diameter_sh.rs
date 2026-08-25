@@ -5,8 +5,8 @@
 //! (SNR/SNA - Command 308) for transparent service profile exchanges between IMS AS and HSS.
 
 use crate::diameter::{
-    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC,
-    DIAMETER_SUCCESS,
+    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
+    DiameterMessage,
 };
 use crate::diameter_gx::VENDOR_3GPP;
 use std::collections::HashMap;
@@ -68,18 +68,15 @@ impl HssShEngine {
 
     /// Adds or updates a subscriber profile in HSS.
     pub fn register_subscriber(&mut self, profile: HssShSubscriberProfile) {
-        self.subscribers.insert(profile.public_identity.clone(), profile);
+        self.subscribers
+            .insert(profile.public_identity.clone(), profile);
     }
 
     /// Handles a User-Data-Request (UDR) from an IMS Application Server.
     pub fn handle_udr(&mut self, public_id: &str, data_ref: u32) -> DiameterMessage {
         self.total_udr_count += 1;
-        let mut uda = DiameterMessage::new_answer(
-            DIAMETER_CMD_USER_DATA,
-            DIAMETER_APPLICATION_SH,
-            1,
-            1,
-        );
+        let mut uda =
+            DiameterMessage::new_answer(DIAMETER_CMD_USER_DATA, DIAMETER_APPLICATION_SH, 1, 1);
 
         if let Some(sub) = self.subscribers.get(public_id) {
             uda.add_avp(DiameterAvp::new_u32(268, DIAMETER_SUCCESS));

@@ -143,7 +143,11 @@ pub struct Gtpv2cIe {
 
 impl Gtpv2cIe {
     pub fn new(ie_type: u8, instance: u8, data: Vec<u8>) -> Self {
-        Gtpv2cIe { ie_type, instance, data }
+        Gtpv2cIe {
+            ie_type,
+            instance,
+            data,
+        }
     }
 
     /// Serialize to wire format: [1B type][2B length][1B CR+instance][data...]
@@ -182,15 +186,26 @@ impl Gtpv2cIe {
 
 /// Encodes IMSI as TBCD (Telephony Binary Coded Decimal).
 pub fn encode_imsi_tbcd(imsi: &str) -> Vec<u8> {
-    let digits: Vec<u8> = imsi.bytes().filter_map(|b| {
-        if b.is_ascii_digit() { Some(b - b'0') } else { None }
-    }).collect();
+    let digits: Vec<u8> = imsi
+        .bytes()
+        .filter_map(|b| {
+            if b.is_ascii_digit() {
+                Some(b - b'0')
+            } else {
+                None
+            }
+        })
+        .collect();
 
     let mut buf = Vec::new();
     let mut i = 0;
     while i < digits.len() {
         let lo = digits[i];
-        let hi = if i + 1 < digits.len() { digits[i + 1] } else { 0x0F };
+        let hi = if i + 1 < digits.len() {
+            digits[i + 1]
+        } else {
+            0x0F
+        };
         buf.push((hi << 4) | lo);
         i += 2;
     }
@@ -383,32 +398,44 @@ impl SgwEngine {
         let fteid_ie = req.find_ie(IE_FTEID);
         let ebi_ie = req.find_ie(IE_EBI);
 
-        let imsi = imsi_ie.map(|ie| decode_imsi_tbcd(&ie.data)).unwrap_or_default();
-        let apn = apn_ie.map(|ie| {
-            // Decode label-length APN
-            let mut s = String::new();
-            let mut i = 0;
-            let d = &ie.data;
-            while i < d.len() {
-                let label_len = d[i] as usize;
-                i += 1;
-                if i + label_len > d.len() { break; }
-                if !s.is_empty() { s.push('.'); }
-                s.push_str(&String::from_utf8_lossy(&d[i..i + label_len]));
-                i += label_len;
-            }
-            s
-        }).unwrap_or_default();
+        let imsi = imsi_ie
+            .map(|ie| decode_imsi_tbcd(&ie.data))
+            .unwrap_or_default();
+        let apn = apn_ie
+            .map(|ie| {
+                // Decode label-length APN
+                let mut s = String::new();
+                let mut i = 0;
+                let d = &ie.data;
+                while i < d.len() {
+                    let label_len = d[i] as usize;
+                    i += 1;
+                    if i + label_len > d.len() {
+                        break;
+                    }
+                    if !s.is_empty() {
+                        s.push('.');
+                    }
+                    s.push_str(&String::from_utf8_lossy(&d[i..i + label_len]));
+                    i += label_len;
+                }
+                s
+            })
+            .unwrap_or_default();
 
-        let mme_teid = fteid_ie.map(|ie| {
-            if ie.data.len() >= 5 {
-                u32::from_be_bytes([ie.data[1], ie.data[2], ie.data[3], ie.data[4]])
-            } else {
-                0
-            }
-        }).unwrap_or(0);
+        let mme_teid = fteid_ie
+            .map(|ie| {
+                if ie.data.len() >= 5 {
+                    u32::from_be_bytes([ie.data[1], ie.data[2], ie.data[3], ie.data[4]])
+                } else {
+                    0
+                }
+            })
+            .unwrap_or(0);
 
-        let ebi = ebi_ie.map(|ie| ie.data.first().copied().unwrap_or(5)).unwrap_or(5);
+        let ebi = ebi_ie
+            .map(|ie| ie.data.first().copied().unwrap_or(5))
+            .unwrap_or(5);
 
         let sgw_teid = self.next_teid;
         self.next_teid += 1;
@@ -459,13 +486,13 @@ mod tests {
     #[test]
     fn test_create_session_flow() {
         let req = Gtpv2cMessage::create_session_request(
-            0,                     // TEID (0 for initial)
-            1,                     // Sequence
-            "310260123456789",     // IMSI
-            "internet.lte.com",    // APN
-            0x0001,                // MME F-TEID
-            [10, 0, 0, 1],        // MME IP
-            5,                     // EBI
+            0,                  // TEID (0 for initial)
+            1,                  // Sequence
+            "310260123456789",  // IMSI
+            "internet.lte.com", // APN
+            0x0001,             // MME F-TEID
+            [10, 0, 0, 1],      // MME IP
+            5,                  // EBI
         );
 
         assert_eq!(req.header.msg_type, GTPV2C_CREATE_SESSION_REQ);

@@ -139,7 +139,11 @@ impl EvpnFrrEngine {
 
     /// Adds or updates a protected EVPN route.
     pub fn add_protected_route(&mut self, route: EvpnProtectedRoute) {
-        if let Some(pos) = self.routes.iter().position(|r| r.vni == route.vni && r.mac == route.mac) {
+        if let Some(pos) = self
+            .routes
+            .iter()
+            .position(|r| r.vni == route.vni && r.mac == route.mac)
+        {
             self.routes[pos] = route;
         } else {
             self.routes.push(route);
@@ -172,7 +176,11 @@ impl EvpnFrrEngine {
 
     /// Forwards a frame by resolving the active (Primary or FRR Backup) path.
     pub fn forward_frame(&mut self, vni: u32, mac: MacAddress) -> Option<(Ipv4Address, u32)> {
-        if let Some(route) = self.routes.iter_mut().find(|r| r.vni == vni && r.mac == mac) {
+        if let Some(route) = self
+            .routes
+            .iter_mut()
+            .find(|r| r.vni == vni && r.mac == mac)
+        {
             route.resolve_forwarding_path()
         } else {
             None
@@ -181,7 +189,10 @@ impl EvpnFrrEngine {
 
     /// Returns the number of routes currently running on the backup path.
     pub fn backup_active_count(&self) -> usize {
-        self.routes.iter().filter(|r| r.state == FrrPathState::BackupActive).count()
+        self.routes
+            .iter()
+            .filter(|r| r.state == FrrPathState::BackupActive)
+            .count()
     }
 }
 
@@ -227,7 +238,14 @@ mod tests {
         let primary_vtep = Ipv4Address::new(10, 0, 0, 1);
         let backup_vtep = Ipv4Address::new(10, 0, 0, 2);
 
-        engine.add_protected_route(EvpnProtectedRoute::new(200, mac, None, primary_vtep, backup_vtep, 200));
+        engine.add_protected_route(EvpnProtectedRoute::new(
+            200,
+            mac,
+            None,
+            primary_vtep,
+            backup_vtep,
+            200,
+        ));
 
         // Fail primary
         engine.trigger_link_down(primary_vtep);

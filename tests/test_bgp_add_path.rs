@@ -56,28 +56,13 @@ fn test_add_path_rib_multi_path_and_pic_failover() {
     let peer2 = Ipv4Address::new(192, 0, 2, 2);
     let peer3 = Ipv4Address::new(192, 0, 2, 3);
 
-    let mut path1 = AddPathRibEntry::new(
-        1,
-        peer1,
-        peer1,
-        AsPath::sequence(vec![65001, 65100]),
-    );
+    let mut path1 = AddPathRibEntry::new(1, peer1, peer1, AsPath::sequence(vec![65001, 65100]));
     path1.local_pref = Some(200);
 
-    let mut path2 = AddPathRibEntry::new(
-        2,
-        peer2,
-        peer2,
-        AsPath::sequence(vec![65002, 65100]),
-    );
+    let mut path2 = AddPathRibEntry::new(2, peer2, peer2, AsPath::sequence(vec![65002, 65100]));
     path2.local_pref = Some(150);
 
-    let mut path3 = AddPathRibEntry::new(
-        3,
-        peer3,
-        peer3,
-        AsPath::sequence(vec![65003, 65100]),
-    );
+    let mut path3 = AddPathRibEntry::new(3, peer3, peer3, AsPath::sequence(vec![65003, 65100]));
     path3.local_pref = Some(100);
 
     rib.insert_path(prefix, path1);

@@ -76,7 +76,12 @@ pub struct EvpnFlapDampingEngine {
 }
 
 impl EvpnFlapDampingEngine {
-    pub fn new(flap_penalty: f64, suppress_threshold: f64, reuse_threshold: f64, half_life_seconds: u64) -> Self {
+    pub fn new(
+        flap_penalty: f64,
+        suppress_threshold: f64,
+        reuse_threshold: f64,
+        half_life_seconds: u64,
+    ) -> Self {
         EvpnFlapDampingEngine {
             flap_penalty,
             suppress_threshold,
@@ -92,7 +97,10 @@ impl EvpnFlapDampingEngine {
         let flap_penalty = self.flap_penalty;
         let suppress_threshold = self.suppress_threshold;
 
-        let entry = self.entries.entry(name.to_string()).or_insert_with(|| DampEntry::new(name));
+        let entry = self
+            .entries
+            .entry(name.to_string())
+            .or_insert_with(|| DampEntry::new(name));
 
         // 1. Decay previous penalty
         let decayed = entry.current_penalty(now_ns, half_life_ns);
@@ -142,13 +150,22 @@ mod tests {
         assert_eq!(engine.record_flap("eth1", 0), DampState::Unsuppressed);
 
         // Flap 2 at t=1s -> penalty ≈ 1000 * 0.93 + 1000 = 1930 (Unsuppressed)
-        assert_eq!(engine.record_flap("eth1", 1_000_000_000), DampState::Unsuppressed);
+        assert_eq!(
+            engine.record_flap("eth1", 1_000_000_000),
+            DampState::Unsuppressed
+        );
 
         // Flap 3 at t=2s -> penalty > 2000 -> Suppressed!
-        assert_eq!(engine.record_flap("eth1", 2_000_000_000), DampState::Suppressed);
+        assert_eq!(
+            engine.record_flap("eth1", 2_000_000_000),
+            DampState::Suppressed
+        );
 
         // Advance time to t=25s (23 seconds since flap 3):
         // 23s is > 2 half-lives (20s). Penalty decays from ~2800 to < 700 (< 750 ReuseThreshold) -> Unsuppressed!
-        assert_eq!(engine.evaluate_state("eth1", 25_000_000_000), DampState::Unsuppressed);
+        assert_eq!(
+            engine.evaluate_state("eth1", 25_000_000_000),
+            DampState::Unsuppressed
+        );
     }
 }

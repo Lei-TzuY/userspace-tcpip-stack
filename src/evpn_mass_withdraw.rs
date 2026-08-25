@@ -17,7 +17,7 @@ pub struct EvpnPerEsAdRoute {
     pub rd: RouteDistinguisher,
     pub esi: EthernetSegmentId,
     pub ethernet_tag_id: u32, // Must be 0xFFFFFFFF for per-ES route
-    pub mpls_label: u32,       // Set to 0
+    pub mpls_label: u32,      // Set to 0
     pub next_hop: Ipv4Address,
 }
 

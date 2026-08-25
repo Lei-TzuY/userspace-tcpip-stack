@@ -5,8 +5,14 @@ fn test_tsn_qbv_dynamic_gcl_reconfiguration_cycle() {
     let oper = QbvSchedule::new(
         0,
         vec![
-            QbvGateEntry { gate_states: 0x80, time_interval_ns: 20_000 },
-            QbvGateEntry { gate_states: 0x01, time_interval_ns: 80_000 },
+            QbvGateEntry {
+                gate_states: 0x80,
+                time_interval_ns: 20_000,
+            },
+            QbvGateEntry {
+                gate_states: 0x01,
+                time_interval_ns: 80_000,
+            },
         ],
     );
     let mut engine = QbvDynamicReconfigEngine::new(oper);
@@ -19,8 +25,14 @@ fn test_tsn_qbv_dynamic_gcl_reconfiguration_cycle() {
     let admin = QbvSchedule::new(
         500_000,
         vec![
-            QbvGateEntry { gate_states: 0xF0, time_interval_ns: 50_000 },
-            QbvGateEntry { gate_states: 0x0F, time_interval_ns: 50_000 },
+            QbvGateEntry {
+                gate_states: 0xF0,
+                time_interval_ns: 50_000,
+            },
+            QbvGateEntry {
+                gate_states: 0x0F,
+                time_interval_ns: 50_000,
+            },
         ],
     );
     engine.submit_admin_gcl(admin);
