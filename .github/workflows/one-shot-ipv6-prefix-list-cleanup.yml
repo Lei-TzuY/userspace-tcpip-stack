@@ -1,0 +1,76 @@
+name: One-shot IPv6 prefix-list cleanup
+
+on:
+  push:
+    branches:
+      - feat/ipv6-ra-prefix-list
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Remove redundant DAD on-link state and verify
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('src/stack.rs')
+          s = p.read_text()
+
+          def one(old, new):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one match, found {count}: {old[:120]!r}')
+              s = s.replace(old, new, 1)
+
+          one('''    gateway: Option<Ipv6Address>,
+              on_link: bool,
+              deadline_ms: u64,''', '''    gateway: Option<Ipv6Address>,
+              deadline_ms: u64,''')
+          one('''        gateway: Option<Ipv6Address>,
+              on_link: bool,
+              preferred_lifetime: u32,''', '''        gateway: Option<Ipv6Address>,
+              preferred_lifetime: u32,''')
+          one('''            dad.gateway = gateway;
+              // RFC 4861: L=0 makes no statement about on-link status.
+              dad.on_link |= on_link;
+              dad.preferred_until_ms = preferred_until_ms;''', '''            dad.gateway = gateway;
+              dad.preferred_until_ms = preferred_until_ms;''')
+          one('''            prefix_len: prefix_len.min(128),
+              gateway,
+              on_link,
+              deadline_ms:''', '''            prefix_len: prefix_len.min(128),
+              gateway,
+              deadline_ms:''')
+          one('''                                            prefix.prefix_length,
+                                              gateway,
+                                              prefix.on_link,
+                                              prefix.preferred_lifetime,''', '''                                            prefix.prefix_length,
+                                              gateway,
+                                              prefix.preferred_lifetime,''')
+
+          p.write_text(s)
+          PY
+
+          git diff --check
+          cargo test --test test_ipv6_ra_prefix_list
+          cargo test --test test_ipv6_ra_onlink
+          cargo test --all-targets
+          cargo build --release
+
+          rm .github/workflows/one-shot-ipv6-prefix-list-cleanup.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'refactor(ipv6): keep PIO on-link state out of DAD'
+          git push origin HEAD:feat/ipv6-ra-prefix-list
