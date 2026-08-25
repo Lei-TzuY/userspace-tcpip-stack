@@ -1,0 +1,33 @@
+name: Apply TSN Baseline Fix
+
+on:
+  push:
+    branches: [ fix/tsn-baseline-ci ]
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tsn-baseline-ci
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply TSN fixes
+        run: python scripts/fix_tsn_baseline.py
+      - name: Verify focused TSN tests
+        run: cargo test --lib tsn_ats_multihop::tests::test_ats_multihop_cascaded_propagation tsn_qav_cbs::tests::test_tsn_qav_cbs_transmission_and_credit_depletion
+      - name: Commit fixes
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            echo "No source changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/tsn_ats_multihop.rs src/tsn_qav_cbs.rs
+          git commit -m "fix(tsn): restore ATS and CBS timing invariants"
+          git push
