@@ -13,7 +13,7 @@ use crate::icmpv6::{
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use crate::nat::NatTable;
-use crate::router::RoutingTable;
+use crate::router::{RouteSource, RoutingTable};
 use crate::router_ipv6::Ipv6RoutingTable;
 use crate::socket::{
     SocketError, SocketRuntime, TcpDiagnostics, TcpListenerHandle, TcpStreamHandle, UdpSocketHandle,
@@ -37,6 +37,8 @@ pub struct NetStack {
     pub ndp_table: NdpTable,
     pub routing_table: RoutingTable,
     pub ipv6_routing_table: Ipv6RoutingTable,
+    ipv6_prefix_len: Option<u8>,
+    ipv6_gateway: Option<Ipv6Address>,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -77,6 +79,8 @@ impl NetStack {
             ndp_table: NdpTable::new(),
             routing_table,
             ipv6_routing_table: Ipv6RoutingTable::new(),
+            ipv6_prefix_len: None,
+            ipv6_gateway: None,
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -95,6 +99,77 @@ impl NetStack {
             received_icmpv6_replies: Vec::new(),
             received_udp_payloads: Vec::new(),
         }
+    }
+
+    /// Configures the single host-facing IPv6 interface and programs the routes
+    /// that make on-link versus routed delivery unambiguous.
+    ///
+    /// The public `NetStackConfig` is intentionally left unchanged so existing
+    /// struct-literal callers remain source-compatible. Reconfiguration removes
+    /// only the connected/default routes previously owned by this method; other
+    /// static or dynamically learned routes are preserved.
+    pub fn configure_ipv6_interface(
+        &mut self,
+        address: Ipv6Address,
+        prefix_len: u8,
+        gateway: Option<Ipv6Address>,
+    ) {
+        if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
+        {
+            self.ipv6_routing_table.remove_route(
+                old_address,
+                old_prefix_len,
+                RouteSource::Connected,
+            );
+        }
+        if self.ipv6_gateway.is_some() {
+            self.ipv6_routing_table
+                .remove_route(Ipv6Address::UNSPECIFIED, 0, RouteSource::Static);
+        }
+
+        let prefix_len = prefix_len.min(128);
+        self.config.ipv6 = Some(address);
+        self.ipv6_prefix_len = Some(prefix_len);
+        self.ipv6_gateway = gateway;
+        self.ipv6_routing_table.add_route_from(
+            address,
+            prefix_len,
+            None,
+            "eth0",
+            RouteSource::Connected,
+        );
+        if let Some(gateway) = gateway {
+            self.ipv6_routing_table.add_route_from(
+                Ipv6Address::UNSPECIFIED,
+                0,
+                Some(gateway),
+                "eth0",
+                RouteSource::Static,
+            );
+        }
+    }
+
+    pub fn ipv6_prefix_len(&self) -> Option<u8> {
+        self.ipv6_prefix_len
+    }
+
+    pub fn ipv6_gateway(&self) -> Option<Ipv6Address> {
+        self.ipv6_gateway
+    }
+
+    pub fn clear_ipv6_interface(&mut self) {
+        if let (Some(address), Some(prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len) {
+            self.ipv6_routing_table
+                .remove_route(address, prefix_len, RouteSource::Connected);
+        }
+        if self.ipv6_gateway.is_some() {
+            self.ipv6_routing_table
+                .remove_route(Ipv6Address::UNSPECIFIED, 0, RouteSource::Static);
+        }
+        self.config.ipv6 = None;
+        self.ipv6_prefix_len = None;
+        self.ipv6_gateway = None;
+        self.pending_ndp_packets.clear();
     }
 
     pub fn enable_nat(&mut self, public_ip: Ipv4Address) {
@@ -166,8 +241,7 @@ impl NetStack {
                 next_hop,
                 self.config.mac,
             );
-            let ip6_ns =
-                Ipv6Packet::serialize(my_ip6, next_hop, NEXT_HEADER_ICMPV6, 255, &ns);
+            let ip6_ns = Ipv6Packet::serialize(my_ip6, next_hop, NEXT_HEADER_ICMPV6, 255, &ns);
             Some(EthernetFrame::serialize(
                 MacAddress::BROADCAST,
                 self.config.mac,
