@@ -23,8 +23,8 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT, ICMPV6_TYPE_NEIGHBOR_SOLICIT,
-    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, PrefixInformationOption,
-    ipv6_multicast_mac, link_local_address,
+    ICMPV6_TYPE_ROUTER_ADVERT, ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable,
+    PrefixInformationOption, ipv6_multicast_mac, link_local_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -1227,6 +1227,16 @@ impl LabRouter {
                                         ip6_pkt.header.hop_limit,
                                     )
                                     .is_some(),
+                                ICMPV6_TYPE_ROUTER_SOLICIT => icmp6.is_valid_router_solicitation(
+                                    ip6_pkt.header.src_ip,
+                                    ip6_pkt.header.hop_limit,
+                                ),
+                                ICMPV6_TYPE_ROUTER_ADVERT => icmp6
+                                    .validated_router_advertisement(
+                                        ip6_pkt.header.src_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                    .is_some(),
                                 _ => true,
                             };
                             if !valid {
@@ -1238,6 +1248,8 @@ impl LabRouter {
                                 raw_type,
                                 Some(ICMPV6_TYPE_NEIGHBOR_SOLICIT)
                                     | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
+                                    | Some(ICMPV6_TYPE_ROUTER_SOLICIT)
+                                    | Some(ICMPV6_TYPE_ROUTER_ADVERT)
                             ) =>
                         {
                             return out_transmissions;
@@ -1246,28 +1258,64 @@ impl LabRouter {
                     }
                 }
 
-                // The unspecified IPv6 source is used by initial Router
-                // Solicitations and Duplicate Address Detection. It is never a
-                // neighbour-cache key and cannot satisfy queued next-hop resolution.
-                if !ip6_pkt.header.src_ip.is_unspecified() {
-                    self.ndp_tables
-                        .entry(ingress_iface.name.clone())
-                        .or_default()
-                        .insert(ip6_pkt.header.src_ip, eth.src_mac);
+                // Learn L2 neighbors only from validated NDP control traffic. Ordinary
+                // routed IPv6 data may carry a remote source behind the previous hop and
+                // therefore must never create a directly-attached Neighbor Cache entry.
+                if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
+                    && let Ok(icmp6) = Icmpv6Packet::parse(
+                        ip6_pkt.header.src_ip,
+                        ip6_pkt.header.dst_ip,
+                        ip6_pkt.payload,
+                        true,
+                    )
+                {
+                    let neighbor_ip = match icmp6.msg_type {
+                        ICMPV6_TYPE_ROUTER_SOLICIT
+                            if icmp6.is_valid_router_solicitation(
+                                ip6_pkt.header.src_ip,
+                                ip6_pkt.header.hop_limit,
+                            ) && !ip6_pkt.header.src_ip.is_unspecified() =>
+                        {
+                            Some(ip6_pkt.header.src_ip)
+                        }
+                        ICMPV6_TYPE_NEIGHBOR_SOLICIT => icmp6
+                            .validated_neighbor_solicitation_target(
+                                ip6_pkt.header.src_ip,
+                                ip6_pkt.header.dst_ip,
+                                ip6_pkt.header.hop_limit,
+                            )
+                            .and_then(|_| {
+                                (!ip6_pkt.header.src_ip.is_unspecified())
+                                    .then_some(ip6_pkt.header.src_ip)
+                            }),
+                        ICMPV6_TYPE_NEIGHBOR_ADVERT => icmp6
+                            .validated_neighbor_advertisement_target(
+                                ip6_pkt.header.dst_ip,
+                                ip6_pkt.header.hop_limit,
+                            ),
+                        _ => None,
+                    };
 
-                    // Learning a real next hop releases packets that were waiting for NDP.
-                    let pending_key = (ingress_iface.name.clone(), ip6_pkt.header.src_ip);
-                    if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key) {
-                        for packet in queued {
-                            out_transmissions.push((
-                                ingress_link.to_string(),
-                                EthernetFrame::serialize(
-                                    eth.src_mac,
-                                    ingress_iface.mac,
-                                    ETHERTYPE_IPV6,
-                                    &packet,
-                                ),
-                            ));
+                    if let Some(neighbor_ip) = neighbor_ip {
+                        self.ndp_tables
+                            .entry(ingress_iface.name.clone())
+                            .or_default()
+                            .insert(neighbor_ip, eth.src_mac);
+
+                        let pending_key = (ingress_iface.name.clone(), neighbor_ip);
+                        if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key)
+                        {
+                            for packet in queued {
+                                out_transmissions.push((
+                                    ingress_link.to_string(),
+                                    EthernetFrame::serialize(
+                                        eth.src_mac,
+                                        ingress_iface.mac,
+                                        ETHERTYPE_IPV6,
+                                        &packet,
+                                    ),
+                                ));
+                            }
                         }
                     }
                 }
@@ -1289,7 +1337,10 @@ impl LabRouter {
                     )
                 {
                     if icmp6.msg_type == ICMPV6_TYPE_ROUTER_SOLICIT
-                        && ip6_pkt.header.hop_limit == 255
+                        && icmp6.is_valid_router_solicitation(
+                            ip6_pkt.header.src_ip,
+                            ip6_pkt.header.hop_limit,
+                        )
                         && ip6_pkt.header.dst_ip == Ipv6Address::LINK_LOCAL_ALL_ROUTERS
                         && let Some((router_address, prefix_len)) = ingress_iface.ipv6
                     {
