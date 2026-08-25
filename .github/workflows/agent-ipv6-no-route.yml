@@ -1,0 +1,149 @@
+name: Agent IPv6 No Route
+
+on:
+  push:
+    branches:
+      - feat/ipv6-no-route-unreachable
+
+permissions:
+  contents: write
+
+jobs:
+  apply-and-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply focused implementation and tests
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          lab = Path('src/lab.rs')
+          text = lab.read_text()
+          old = '''                let Some(route) = self
+                    .ipv6_routing_table
+                    .lookup(ip6_pkt.header.dst_ip)
+                    .cloned()
+                else {
+                    return out_transmissions;
+                };
+'''
+          new = '''                let Some(route) = self
+                    .ipv6_routing_table
+                    .lookup(ip6_pkt.header.dst_ip)
+                    .cloned()
+                else {
+                    // RFC 4443 section 3.1: a router that cannot forward a
+                    // unicast packet because no route exists returns Destination
+                    // Unreachable, Code 0 (No route to destination). Never answer
+                    // an ICMPv6 error with another ICMPv6 error.
+                    let invoking_is_icmpv6_error = ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
+                        && ip6_pkt.payload.first().is_some_and(|msg_type| *msg_type < 128);
+                    if !ip6_pkt.header.src_ip.is_unspecified()
+                        && !ip6_pkt.header.src_ip.is_multicast()
+                        && !ip6_pkt.header.dst_ip.is_multicast()
+                        && !invoking_is_icmpv6_error
+                        && let Some((src, _)) = ingress_iface.ipv6
+                    {
+                        let unreachable = Icmpv6Packet::build_destination_unreachable(
+                            src,
+                            ip6_pkt.header.src_ip,
+                            0,
+                            eth.payload,
+                        );
+                        let reply = Ipv6Packet::serialize(
+                            src,
+                            ip6_pkt.header.src_ip,
+                            NEXT_HEADER_ICMPV6,
+                            64,
+                            &unreachable,
+                        );
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &reply,
+                            ),
+                        ));
+                    }
+                    return out_transmissions;
+                };
+'''
+          if old not in text:
+              raise SystemExit('lab.rs target block not found')
+          lab.write_text(text.replace(old, new, 1))
+
+          test = Path('tests/test_lab_ipv6_routing.rs')
+          text = test.read_text()
+          old_import = 'use toy_tcpip::icmpv6::{ICMPV6_TYPE_TIME_EXCEEDED, Icmpv6Packet};\n'
+          new_import = '''use toy_tcpip::icmpv6::{
+    ICMPV6_TYPE_DEST_UNREACHABLE, ICMPV6_TYPE_TIME_EXCEEDED, Icmpv6Packet,
+};
+'''
+          if old_import not in text:
+              raise SystemExit('test import target not found')
+          text = text.replace(old_import, new_import, 1)
+
+          marker = '''#[test]
+fn bgp_learned_ipv6_routes_drive_real_two_as_ping6() {
+'''
+          added = '''#[test]
+fn lab_router_returns_icmpv6_destination_unreachable_when_no_route_exists() {
+    let mut router = LabRouter::new("r1");
+    let ingress_mac = mac(1, 0);
+    let host_mac = mac(0x0a, 2);
+    let ingress_ip = ip6("2001:db8:1::1");
+    let host_ip = ip6("2001:db8:1::2");
+    router.add_interface(
+        "eth0",
+        ingress_mac,
+        Ipv4Address::new(10, 1, 0, 1),
+        24,
+        "lan1",
+    );
+    router.set_interface_ipv6("eth0", ingress_ip, 64);
+
+    let invoking = Ipv6Packet::serialize(host_ip, ip6("2001:db8:ffff::1"), 17, 64, b"no-route");
+    let raw = EthernetFrame::serialize(ingress_mac, host_mac, ETHERTYPE_IPV6, &invoking);
+    let out = router.process_incoming_frame("lan1", &raw);
+    assert_eq!(out.len(), 1);
+
+    let eth = EthernetFrame::parse(&out[0].1).unwrap();
+    assert_eq!(eth.dst_mac, host_mac);
+    let ip = Ipv6Packet::parse(eth.payload).unwrap();
+    assert_eq!(ip.header.src_ip, ingress_ip);
+    assert_eq!(ip.header.dst_ip, host_ip);
+    assert_eq!(ip.header.next_header, NEXT_HEADER_ICMPV6);
+    let icmp = Icmpv6Packet::parse(ip.header.src_ip, ip.header.dst_ip, ip.payload, true).unwrap();
+    assert_eq!(icmp.msg_type, ICMPV6_TYPE_DEST_UNREACHABLE);
+    assert_eq!(icmp.code, 0);
+    assert_eq!(&icmp.payload[4..], invoking.as_slice());
+}
+
+#[test]
+fn bgp_learned_ipv6_routes_drive_real_two_as_ping6() {
+'''
+          if marker not in text:
+              raise SystemExit('test insertion marker not found')
+          test.write_text(text.replace(marker, added, 1))
+          PY
+
+          cargo fmt --all
+          cargo test --test test_lab_ipv6_routing --verbose
+          cargo test --quiet
+          cargo build --release --verbose
+
+      - name: Commit verified tree
+        shell: bash
+        run: |
+          rm -f .github/workflows/agent-ipv6-no-route.yml
+          git config user.name "Lei-TzuY"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/lab.rs tests/test_lab_ipv6_routing.rs .github/workflows/agent-ipv6-no-route.yml
+          git commit -m "feat(ipv6): return unreachable when no route exists"
+          git push origin HEAD:feat/ipv6-no-route-unreachable
