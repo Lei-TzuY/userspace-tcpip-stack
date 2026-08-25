@@ -258,6 +258,7 @@ pub struct LabRouter {
     pub ndp_tables: HashMap<String, NdpTable>,
     pub pending_transit_packets: HashMap<(String, Ipv4Address), Vec<Vec<u8>>>,
     pub pending_ipv6_transit_packets: HashMap<(String, Ipv6Address), Vec<Vec<u8>>>,
+    ipv6_interface_mtu: HashMap<String, u32>,
     pub nat_table: Option<NatTable>,
     pub nat_lan_iface: Option<String>,
     pub nat_wan_iface: Option<String>,
@@ -293,6 +294,7 @@ impl LabRouter {
             ndp_tables: HashMap::new(),
             pending_transit_packets: HashMap::new(),
             pending_ipv6_transit_packets: HashMap::new(),
+            ipv6_interface_mtu: HashMap::new(),
             nat_table: None,
             nat_lan_iface: None,
             nat_wan_iface: None,
@@ -790,6 +792,7 @@ impl LabRouter {
         };
         self.arp_tables.insert(name.to_string(), ArpTable::new());
         self.ndp_tables.insert(name.to_string(), NdpTable::new());
+        self.ipv6_interface_mtu.insert(name.to_string(), 1500);
 
         // Add local connected subnet route
         let subnet_net = ip.mask(subnet_mask);
@@ -820,6 +823,23 @@ impl LabRouter {
             RouteSource::Connected,
         );
         true
+    }
+
+    /// Sets the IPv6 MTU used by the router forwarding plane on an interface.
+    /// RFC 8200 requires every IPv6 link to support at least 1280 octets.
+    pub fn set_interface_ipv6_mtu(&mut self, name: &str, mtu: u32) -> bool {
+        if mtu < 1280 || !self.interfaces.iter().any(|iface| iface.name == name) {
+            return false;
+        }
+        self.ipv6_interface_mtu.insert(name.to_string(), mtu);
+        true
+    }
+
+    pub fn interface_ipv6_mtu(&self, name: &str) -> Option<u32> {
+        self.interfaces
+            .iter()
+            .any(|iface| iface.name == name)
+            .then(|| self.ipv6_interface_mtu.get(name).copied().unwrap_or(1500))
     }
 
     fn next_ip_id(&mut self) -> u16 {
@@ -1446,6 +1466,49 @@ impl LabRouter {
                 let Some((egress_ip6, _)) = egress_iface.ipv6 else {
                     return out_transmissions;
                 };
+
+                let egress_mtu = self
+                    .ipv6_interface_mtu
+                    .get(&egress_iface.name)
+                    .copied()
+                    .unwrap_or(1500);
+                if eth.payload.len() > egress_mtu as usize {
+                    let invoking_is_icmpv6_error = ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
+                        && ip6_pkt
+                            .payload
+                            .first()
+                            .is_some_and(|msg_type| *msg_type < 128);
+                    if !ip6_pkt.header.src_ip.is_unspecified() && !invoking_is_icmpv6_error {
+                        let ptb_src = ingress_iface
+                            .ipv6
+                            .map(|(address, _)| address)
+                            .unwrap_or_else(|| link_local_address(ingress_iface.mac));
+                        let ptb = Icmpv6Packet::build_packet_too_big(
+                            ptb_src,
+                            ip6_pkt.header.src_ip,
+                            egress_mtu,
+                            eth.payload,
+                        );
+                        let reply = Ipv6Packet::serialize(
+                            ptb_src,
+                            ip6_pkt.header.src_ip,
+                            NEXT_HEADER_ICMPV6,
+                            64,
+                            &ptb,
+                        );
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &reply,
+                            ),
+                        ));
+                    }
+                    return out_transmissions;
+                }
+
                 let next_hop = route.next_hop(ip6_pkt.header.dst_ip);
                 let mut forwarded = eth.payload.to_vec();
                 forwarded[7] = ip6_pkt.header.hop_limit - 1;
