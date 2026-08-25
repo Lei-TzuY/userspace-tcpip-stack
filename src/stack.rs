@@ -14,6 +14,7 @@ use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Add
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use crate::nat::NatTable;
 use crate::router::RoutingTable;
+use crate::router_ipv6::Ipv6RoutingTable;
 use crate::socket::{
     SocketError, SocketRuntime, TcpDiagnostics, TcpListenerHandle, TcpStreamHandle, UdpSocketHandle,
 };
@@ -35,6 +36,7 @@ pub struct NetStack {
     pub arp_table: ArpTable,
     pub ndp_table: NdpTable,
     pub routing_table: RoutingTable,
+    pub ipv6_routing_table: Ipv6RoutingTable,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -74,6 +76,7 @@ impl NetStack {
             arp_table: ArpTable::new(),
             ndp_table: NdpTable::new(),
             routing_table,
+            ipv6_routing_table: Ipv6RoutingTable::new(),
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -134,7 +137,17 @@ impl NetStack {
     }
 
     pub fn send_ip6_packet(&mut self, dst_ip: Ipv6Address, ip6_bytes: Vec<u8>) -> Option<Vec<u8>> {
-        if let Some(dst_mac) = self.ndp_table.lookup(&dst_ip) {
+        // Preserve the historical on-link fallback when no IPv6 route exists, but
+        // once a route is present resolve NDP against the route's next hop rather
+        // than against the final destination. That is the IPv6 equivalent of the
+        // ARP/gateway path used by `send_ip_packet`.
+        let next_hop = self
+            .ipv6_routing_table
+            .lookup(dst_ip)
+            .map(|route| route.next_hop(dst_ip))
+            .unwrap_or(dst_ip);
+
+        if let Some(dst_mac) = self.ndp_table.lookup(&next_hop) {
             Some(EthernetFrame::serialize(
                 dst_mac,
                 self.config.mac,
@@ -143,13 +156,18 @@ impl NetStack {
             ))
         } else {
             self.pending_ndp_packets
-                .entry(dst_ip)
+                .entry(next_hop)
                 .or_default()
                 .push(ip6_bytes);
             let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
-            let ns =
-                Icmpv6Packet::build_neighbor_solicitation(my_ip6, dst_ip, dst_ip, self.config.mac);
-            let ip6_ns = Ipv6Packet::serialize(my_ip6, dst_ip, NEXT_HEADER_ICMPV6, 255, &ns);
+            let ns = Icmpv6Packet::build_neighbor_solicitation(
+                my_ip6,
+                next_hop,
+                next_hop,
+                self.config.mac,
+            );
+            let ip6_ns =
+                Ipv6Packet::serialize(my_ip6, next_hop, NEXT_HEADER_ICMPV6, 255, &ns);
             Some(EthernetFrame::serialize(
                 MacAddress::BROADCAST,
                 self.config.mac,

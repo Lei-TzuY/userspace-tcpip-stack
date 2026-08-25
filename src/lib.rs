@@ -187,6 +187,7 @@ pub mod radius;
 pub mod rip;
 pub mod roce;
 pub mod router;
+pub mod router_ipv6;
 pub mod rsvp;
 pub mod rtp;
 pub mod sai;
@@ -692,6 +693,7 @@ pub use roce::{
     RdmaQueuePair, RethHeader, RocePacket,
 };
 pub use router::{RouteEntry, RouteSource, RoutingTable};
+pub use router_ipv6::{Ipv6RouteEntry, Ipv6RoutingTable};
 pub use rsvp::{IP_PROTO_RSVP, RSVP_MSG_PATH, RSVP_MSG_RESV, RsvpHeader, RsvpObject, RsvpPacket};
 pub use rtp::{RTP_PT_DYNAMIC, RTP_PT_PCMA, RTP_PT_PCMU, RtcpSenderReport, RtpPacket};
 pub use sai::{

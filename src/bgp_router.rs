@@ -50,6 +50,7 @@ use crate::bgp_rib::{
 use crate::ipv4::Ipv4Address;
 use crate::ipv6::Ipv6Address;
 use crate::router::{RouteSource, RoutingTable};
+use crate::router_ipv6::Ipv6RoutingTable;
 use crate::socket::{SocketError, SocketRuntime, TcpListenerHandle, TcpStreamHandle};
 use crate::tcp::{SocketAddrV4, TcpState};
 use std::collections::{BTreeMap, BTreeSet};
@@ -564,8 +565,12 @@ pub struct BgpRouter {
     originated: BTreeMap<Ipv4Prefix, Ipv4Address>,
     /// Prefixes this speaker currently has installed in the FIB.
     installed: BTreeSet<Ipv4Prefix>,
+    /// IPv6-Unicast prefixes this speaker currently has installed in an IPv6 FIB.
+    ipv6_installed: BTreeSet<Ipv6Prefix>,
     /// Best paths whose NEXT_HOP could not be resolved to an egress interface.
     unresolved: BTreeSet<Ipv4Prefix>,
+    /// Same unresolved set for IPv6-Unicast best paths.
+    ipv6_unresolved: BTreeSet<Ipv6Prefix>,
     events: Vec<BgpEvent>,
     /// Set whenever the Adj-RIB-In or the originated set changes, so the decision
     /// process runs once per poll instead of once per UPDATE.
@@ -619,7 +624,9 @@ impl BgpRouter {
             evpn_dirty: true,
             originated: BTreeMap::new(),
             installed: BTreeSet::new(),
+            ipv6_installed: BTreeSet::new(),
             unresolved: BTreeSet::new(),
+            ipv6_unresolved: BTreeSet::new(),
             events: Vec::new(),
             dirty: true,
             decision_runs: 0,
@@ -4002,6 +4009,106 @@ impl BgpRouter {
             .iter()
             .find(|r| r.source != RouteSource::Bgp && r.matches(next_hop))?;
         Some((route.gateway.unwrap_or(next_hop), route.interface.clone()))
+    }
+
+    /// Reconciles the IPv6-Unicast Loc-RIB into an IPv6 forwarding table.
+    ///
+    /// This mirrors the IPv4 FIB reconciliation without changing the long-standing
+    /// `poll` signature. Callers that own an IPv6 data plane can either invoke this
+    /// after `poll` or use `poll_with_ipv6_fib`.
+    pub fn sync_ipv6_fib(&mut self, now_ms: u64, fib: &mut Ipv6RoutingTable) {
+        let mut desired: BTreeMap<Ipv6Prefix, (Ipv6Address, String)> = BTreeMap::new();
+        let mut unresolved = BTreeSet::new();
+
+        for (prefix, path) in self.ipv6_loc_rib.iter() {
+            if path.is_local() {
+                continue;
+            }
+            let Some((next_hop, iface)) = Self::resolve_ipv6_next_hop(fib, path.next_hop) else {
+                unresolved.insert(*prefix);
+                continue;
+            };
+            desired.insert(*prefix, (next_hop, iface));
+        }
+
+        let stale: Vec<Ipv6Prefix> = self
+            .ipv6_installed
+            .iter()
+            .filter(|prefix| !desired.contains_key(prefix))
+            .copied()
+            .collect();
+        for prefix in stale {
+            if fib.remove_route(prefix.address, prefix.length, RouteSource::Bgp) {
+                self.log(
+                    now_ms,
+                    Ipv4Address::UNSPECIFIED,
+                    format!("IPv6 FIB: removed {}", prefix),
+                );
+            }
+            self.ipv6_installed.remove(&prefix);
+        }
+
+        for (prefix, (next_hop, iface)) in &desired {
+            let already = fib
+                .routes_from(RouteSource::Bgp)
+                .into_iter()
+                .find(|route| {
+                    route.destination == prefix.address && route.prefix_len == prefix.length
+                })
+                .is_some_and(|route| {
+                    route.gateway == Some(*next_hop) && route.interface == *iface
+                });
+            if !already {
+                fib.add_route_from(
+                    prefix.address,
+                    prefix.length,
+                    Some(*next_hop),
+                    iface,
+                    RouteSource::Bgp,
+                );
+                self.log(
+                    now_ms,
+                    Ipv4Address::UNSPECIFIED,
+                    format!("IPv6 FIB: installed {} via {} dev {}", prefix, next_hop, iface),
+                );
+            }
+            self.ipv6_installed.insert(*prefix);
+        }
+
+        self.ipv6_unresolved = unresolved;
+    }
+
+    fn resolve_ipv6_next_hop(
+        fib: &Ipv6RoutingTable,
+        next_hop: Ipv6Address,
+    ) -> Option<(Ipv6Address, String)> {
+        let route = fib
+            .all_routes()
+            .iter()
+            .find(|route| route.source != RouteSource::Bgp && route.matches(next_hop))?;
+        Some((route.gateway.unwrap_or(next_hop), route.interface.clone()))
+    }
+
+    /// Runs the normal BGP poll and immediately reconciles IPv6-Unicast into `fib6`.
+    pub fn poll_with_ipv6_fib(
+        &mut self,
+        now_ms: u64,
+        sockets: &mut SocketRuntime,
+        fib4: &mut RoutingTable,
+        fib6: &mut Ipv6RoutingTable,
+    ) {
+        self.poll(now_ms, sockets, fib4);
+        self.sync_ipv6_fib(now_ms, fib6);
+    }
+
+    /// IPv6 prefixes whose selected BGP next hop is not recursively resolvable.
+    pub fn ipv6_unresolved_prefixes(&self) -> Vec<Ipv6Prefix> {
+        self.ipv6_unresolved.iter().copied().collect()
+    }
+
+    /// IPv6 prefixes this speaker currently has installed in the FIB.
+    pub fn ipv6_installed_prefixes(&self) -> Vec<Ipv6Prefix> {
+        self.ipv6_installed.iter().copied().collect()
     }
 
     /// Prefixes whose best path could not be resolved to an egress interface.
