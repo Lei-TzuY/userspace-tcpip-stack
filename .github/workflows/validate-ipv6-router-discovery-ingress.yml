@@ -1,0 +1,55 @@
+name: Validate IPv6 Router Discovery Ingress
+
+on:
+  push:
+    branches:
+      - fix/ipv6-router-discovery-validation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: "${{ github.event.head_commit.message == 'chore: validate IPv6 Router Discovery ingress' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply Router Discovery validation
+        run: python scripts/apply_ipv6_router_discovery_validation.py
+      - name: Format touched files
+        run: rustfmt --edition 2024 src/icmpv6.rs src/stack.rs src/lab.rs tests/test_ipv6_router_discovery_ingress_validation.rs
+      - name: Router Discovery ingress validation
+        run: cargo test --test test_ipv6_router_discovery_ingress_validation --verbose
+      - name: Router Discovery retry regression
+        run: cargo test --test test_ipv6_router_discovery --verbose
+      - name: Router rediscovery regression
+        run: cargo test --test test_ipv6_router_rediscovery --verbose
+      - name: RA SLAAC regression
+        run: cargo test --test test_ipv6_ra_slaac --verbose
+      - name: RA lifetime regression
+        run: cargo test --test test_ipv6_ra_lifetimes --verbose
+      - name: RA Prefix List regression
+        run: cargo test --test test_ipv6_ra_prefix_list --verbose
+      - name: NDP ingress regression
+        run: cargo test --test test_ipv6_ndp_ingress_validation --verbose
+      - name: Complete test suite
+        run: cargo test --quiet
+      - name: Release build
+        run: cargo build --release
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git add src/icmpv6.rs src/stack.rs src/lab.rs tests/test_ipv6_router_discovery_ingress_validation.rs
+          git commit -m 'fix(ipv6): validate Router Discovery before neighbor learning'
+          git push origin HEAD:fix/ipv6-router-discovery-validation
+      - name: Remove staging files
+        shell: bash
+        run: |
+          git rm .github/workflows/validate-ipv6-router-discovery-ingress.yml scripts/apply_ipv6_router_discovery_validation.py
+          git commit -m 'chore: remove Router Discovery validation staging'
+          git push origin HEAD:fix/ipv6-router-discovery-validation
