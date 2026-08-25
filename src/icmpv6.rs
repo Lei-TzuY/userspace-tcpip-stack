@@ -183,6 +183,37 @@ fn ndp_options_contain(options: &[u8], option_type: u8) -> bool {
     false
 }
 
+/// RFC 2464 section 6 fixes Source/Target Link-Layer Address options to one
+/// 8-octet unit on Ethernet. Validate only the LLA option relevant to the
+/// current NDP message; RFC 4861 requires options that do not belong to that
+/// message type to be ignored rather than turning the whole packet invalid.
+fn ndp_ethernet_lla_option_length_valid(options: &[u8], option_type: u8) -> bool {
+    let mut offset = 0usize;
+    while offset < options.len() {
+        if options.len() - offset < 2 {
+            return false;
+        }
+        let units = options[offset + 1] as usize;
+        if units == 0 {
+            return false;
+        }
+        let Some(option_len) = units.checked_mul(8) else {
+            return false;
+        };
+        let Some(end) = offset.checked_add(option_len) else {
+            return false;
+        };
+        if end > options.len() {
+            return false;
+        }
+        if options[offset] == option_type && units != 1 {
+            return false;
+        }
+        offset = end;
+    }
+    true
+}
+
 impl<'a> Icmpv6Packet<'a> {
     pub fn parse(
         src_ip: Ipv6Address,
@@ -237,7 +268,13 @@ impl<'a> Icmpv6Packet<'a> {
         let mut target = [0u8; 16];
         target.copy_from_slice(&self.payload[4..20]);
         let target = Ipv6Address(target);
-        if target.is_multicast() || !ndp_options_well_formed(&self.payload[20..]) {
+        if target.is_multicast()
+            || !ndp_options_well_formed(&self.payload[20..])
+            || !ndp_ethernet_lla_option_length_valid(
+                &self.payload[20..],
+                NDP_OPT_SRC_LINK_LAYER_ADDR,
+            )
+        {
             return None;
         }
 
@@ -270,7 +307,13 @@ impl<'a> Icmpv6Packet<'a> {
         let mut target = [0u8; 16];
         target.copy_from_slice(&self.payload[4..20]);
         let target = Ipv6Address(target);
-        if target.is_multicast() || !ndp_options_well_formed(&self.payload[20..]) {
+        if target.is_multicast()
+            || !ndp_options_well_formed(&self.payload[20..])
+            || !ndp_ethernet_lla_option_length_valid(
+                &self.payload[20..],
+                NDP_OPT_TARGET_LINK_LAYER_ADDR,
+            )
+        {
             return None;
         }
 
@@ -334,6 +377,10 @@ impl<'a> Icmpv6Packet<'a> {
             || hop_limit != 255
             || self.payload.len() < 4
             || !ndp_options_well_formed(&self.payload[4..])
+            || !ndp_ethernet_lla_option_length_valid(
+                &self.payload[4..],
+                NDP_OPT_SRC_LINK_LAYER_ADDR,
+            )
         {
             return false;
         }
@@ -358,6 +405,10 @@ impl<'a> Icmpv6Packet<'a> {
             || !src_ip.is_link_local()
             || self.payload.len() < 12
             || !ndp_options_well_formed(&self.payload[12..])
+            || !ndp_ethernet_lla_option_length_valid(
+                &self.payload[12..],
+                NDP_OPT_SRC_LINK_LAYER_ADDR,
+            )
         {
             return None;
         }
