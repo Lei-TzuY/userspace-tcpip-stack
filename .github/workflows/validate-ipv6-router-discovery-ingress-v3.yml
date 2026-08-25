@@ -1,0 +1,65 @@
+name: Validate IPv6 Router Discovery Ingress v3
+
+on:
+  push:
+    branches:
+      - fix/ipv6-router-discovery-ingress-validation-v3
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    if: "${{ github.event.head_commit.message == 'chore: validate Router Discovery ingress v3' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply v3 hardening
+        run: python scripts/apply_ipv6_router_discovery_ingress_v3.py
+      - name: Format touched files
+        run: rustfmt --edition 2024 src/icmpv6.rs src/stack.rs src/lab.rs tests/test_ipv6_router_discovery_ingress_validation.rs
+      - name: Formatting gate
+        run: cargo fmt --all -- --check
+      - name: Router Discovery ingress validation
+        run: cargo test --test test_ipv6_router_discovery_ingress_validation --verbose
+      - name: NUD regression
+        run: cargo test --test test_ipv6_nud --verbose
+      - name: Host NDP learning regression
+        run: cargo test --test test_ipv6_ndp_learning --verbose
+      - name: NDP ingress regression
+        run: cargo test --test test_ipv6_ndp_ingress_validation --verbose
+      - name: Router NDP multicast regression
+        run: cargo test --test test_lab_ipv6_ndp_solicitation --verbose
+      - name: Router Discovery regression
+        run: cargo test --test test_ipv6_router_discovery --verbose
+      - name: Router rediscovery regression
+        run: cargo test --test test_ipv6_router_rediscovery --verbose
+      - name: RA SLAAC regression
+        run: cargo test --test test_ipv6_ra_slaac --verbose
+      - name: RA lifetime regression
+        run: cargo test --test test_ipv6_ra_lifetimes --verbose
+      - name: RA Prefix List regression
+        run: cargo test --test test_ipv6_ra_prefix_list --verbose
+      - name: Complete test suite
+        run: cargo test --all-targets --quiet
+      - name: Release build
+        run: cargo build --release
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git add src/icmpv6.rs src/stack.rs src/lab.rs tests/test_ipv6_router_discovery_ingress_validation.rs
+          git commit -m 'fix(ipv6): harden Router Discovery with NUD-safe learning'
+          git push origin HEAD:fix/ipv6-router-discovery-ingress-validation-v3
+      - name: Remove staging files
+        shell: bash
+        run: |
+          git rm .github/workflows/validate-ipv6-router-discovery-ingress-v3.yml scripts/apply_ipv6_router_discovery_ingress_v3.py
+          git commit -m 'chore: remove Router Discovery v3 staging'
+          git push origin HEAD:fix/ipv6-router-discovery-ingress-validation-v3
