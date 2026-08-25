@@ -1,0 +1,37 @@
+name: One-shot sync RA prefix-list
+
+on:
+  push:
+    branches:
+      - feat/ipv6-ra-prefix-list
+
+permissions:
+  contents: write
+
+jobs:
+  sync-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Merge latest main and verify integrated IPv6 lifecycle
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git merge origin/main --no-edit
+          git diff --check origin/main...HEAD
+          cargo test --test test_ipv6_ra_prefix_list
+          cargo test --test test_ipv6_ra_onlink
+          cargo test --test test_ipv6_router_rediscovery
+          cargo test --test test_ipv6_router_discovery
+          cargo test --test test_ipv6_ra_lifetimes
+          cargo test --all-targets
+          cargo build --release
+          rm .github/workflows/one-shot-sync-ra-prefix-list.yml
+          git add -A
+          git commit -m 'chore: finish RA prefix-list integration validation'
+          git push origin HEAD:feat/ipv6-ra-prefix-list
