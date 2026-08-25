@@ -779,6 +779,11 @@ impl NetStack {
     pub fn step_timers(&mut self, now_ms: u64) -> Vec<Vec<u8>> {
         self.current_time_ms = now_ms;
         let mut out_frames = Vec::new();
+        // Remember whether discovery was already active at the start of this timer
+        // pump. If its third solicitation happens to exhaust on the same tick that
+        // a default router expires, do not immediately open a fresh discovery cycle
+        // and emit a second RS in the same pump.
+        let router_discovery_was_active = self.ipv6_router_discovery.is_some();
 
         // RFC 4861 host Router Discovery sends at most three solicitations, four
         // seconds apart. A coarse simulator time jump emits at most one retry per
@@ -845,6 +850,18 @@ impl NetStack {
                 if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
                     lifetimes.router = None;
                     lifetimes.router_until_ms = None;
+                }
+
+                // The SLAAC address/prefix can remain perfectly valid after the
+                // selected default router expires. Re-run Router Discovery so the
+                // host can refresh that router or discover a replacement instead of
+                // remaining indefinitely address-configured but gateway-less.
+                //
+                // An already active discovery cycle is left untouched. A previously
+                // Exhausted cycle, however, represents an older discovery event and
+                // is explicitly restarted by this new router-expiry event.
+                if !router_discovery_was_active {
+                    out_frames.push(self.start_router_discovery());
                 }
             }
         }
