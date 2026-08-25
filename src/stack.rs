@@ -1452,12 +1452,6 @@ impl NetStack {
 
             EtherType::IPv6 => {
                 if let Ok(ip6_pkt) = Ipv6Packet::parse(eth.payload) {
-                    // The unspecified source is used by DAD and is never a
-                    // neighbour-cache key (RFC 4861/4862).
-                    if !ip6_pkt.header.src_ip.is_unspecified() {
-                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
-                    }
-
                     let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
                     let dst6 = ip6_pkt.header.dst_ip;
 
@@ -1482,6 +1476,11 @@ impl NetStack {
                                     && ip6_pkt.header.src_ip.is_link_local()
                                     && let Some(ra) = RouterAdvertisement::parse(&icmp6)
                                 {
+                                    // A valid on-link RA identifies the router as a real
+                                    // neighbour. Learn it only after the RFC 4861 source
+                                    // and Hop Limit checks above have succeeded.
+                                    self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+
                                     // Any valid RA is a Router Discovery response, even
                                     // when Router Lifetime is zero or no autonomous prefix
                                     // is present. Invalid RAs never cancel retransmission.
@@ -1615,11 +1614,20 @@ impl NetStack {
                                 }
                             }
 
-                            ICMPV6_TYPE_NEIGHBOR_SOLICIT => {
+                            ICMPV6_TYPE_NEIGHBOR_SOLICIT
+                                if ip6_pkt.header.hop_limit == 255 && icmp6.code == 0 =>
+                            {
                                 if icmp6.payload.len() >= 20 {
                                     let mut target_bytes = [0u8; 16];
                                     target_bytes.copy_from_slice(&icmp6.payload[4..20]);
                                     let target_ip6 = Ipv6Address(target_bytes);
+
+                                    // RFC 4861 NDP messages are strictly on-link. Only a
+                                    // validated NS may teach us the source neighbour; DAD
+                                    // uses :: and therefore deliberately teaches nothing.
+                                    if !ip6_pkt.header.src_ip.is_unspecified() {
+                                        self.ndp_table.insert(ip6_pkt.header.src_ip, eth.src_mac);
+                                    }
 
                                     // A competing DAD probe for our tentative target is
                                     // itself evidence that the address is not unique.
@@ -1671,10 +1679,19 @@ impl NetStack {
                                 }
                             }
 
-                            ICMPV6_TYPE_NEIGHBOR_ADVERT if icmp6.payload.len() >= 20 => {
+                            ICMPV6_TYPE_NEIGHBOR_ADVERT
+                                if ip6_pkt.header.hop_limit == 255
+                                    && icmp6.code == 0
+                                    && icmp6.payload.len() >= 20 =>
+                            {
                                 let mut target_bytes = [0u8; 16];
                                 target_bytes.copy_from_slice(&icmp6.payload[4..20]);
                                 let target_ip6 = Ipv6Address(target_bytes);
+
+                                // Learn and resolve only from a validated on-link NA.
+                                // This prevents low-Hop-Limit spoofing from poisoning the
+                                // cache or releasing packets queued for another neighbour.
+                                self.ndp_table.insert(target_ip6, eth.src_mac);
 
                                 if eth.src_mac != self.config.mac
                                     && self.ipv6_dad.is_some_and(|dad| dad.address == target_ip6)
