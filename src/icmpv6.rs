@@ -8,6 +8,7 @@ use crate::ipv6::{Ipv6Address, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checks
 use std::collections::HashMap;
 use std::fmt;
 
+pub const ICMPV6_TYPE_TIME_EXCEEDED: u8 = 3;
 pub const ICMPV6_TYPE_ECHO_REQUEST: u8 = 128;
 pub const ICMPV6_TYPE_ECHO_REPLY: u8 = 129;
 pub const ICMPV6_TYPE_ROUTER_SOLICIT: u8 = 133;
@@ -125,6 +126,27 @@ impl<'a> Icmpv6Packet<'a> {
         let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
         buf[2..4].copy_from_slice(&csum.to_be_bytes());
 
+        buf
+    }
+
+    /// Builds ICMPv6 Time Exceeded (RFC 4443, Type 3 Code 0).
+    /// The invoking packet is capped so the resulting IPv6 packet fits the
+    /// minimum IPv6 MTU of 1280 bytes.
+    pub fn build_time_exceeded(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        invoking_packet: &[u8],
+    ) -> Vec<u8> {
+        const MAX_INVOKING_BYTES: usize = 1232; // 1280 - IPv6(40) - ICMPv6(8)
+        let quoted = invoking_packet.len().min(MAX_INVOKING_BYTES);
+        let mut buf = Vec::with_capacity(8 + quoted);
+        buf.push(ICMPV6_TYPE_TIME_EXCEEDED);
+        buf.push(0);
+        buf.extend_from_slice(&[0, 0]);
+        buf.extend_from_slice(&[0, 0, 0, 0]);
+        buf.extend_from_slice(&invoking_packet[..quoted]);
+        let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
         buf
     }
 

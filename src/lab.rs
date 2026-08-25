@@ -14,19 +14,25 @@ use crate::bgp_caps::AfiSafi;
 use crate::bgp_evpn::RouteTarget;
 use crate::bgp_router::{BgpPeerMode, BgpRouter};
 use crate::ethernet::{
-    ETHERTYPE_ARP, ETHERTYPE_IPV4, ETHERTYPE_MPLS, EtherType, EthernetFrame, MacAddress,
+    ETHERTYPE_ARP, ETHERTYPE_IPV4, ETHERTYPE_IPV6, ETHERTYPE_MPLS, EtherType, EthernetFrame,
+    MacAddress,
 };
 use crate::evpn::RouteDistinguisher;
 use crate::evpn_vtep::{OverlayDecision, Vtep};
 use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
+use crate::icmpv6::{
+    ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_SOLICIT, Icmpv6Packet, NdpTable,
+};
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
+use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use crate::mpls::{LfibAction, LfibTable, MplsHeader, MplsPacket};
 use crate::nat::NatTable;
 use crate::ospf::OspfLsdb;
 use crate::pcap::{LINKTYPE_ETHERNET, PcapWriter};
 use crate::rip::{RIP_PORT, RipEngine, RipPacket};
 use crate::router::{RouteSource, RoutingTable};
+use crate::router_ipv6::Ipv6RoutingTable;
 use crate::socket::SocketRuntime;
 use crate::stack::{NetStack, NetStackConfig};
 use crate::tcp::TcpSegment;
@@ -233,6 +239,8 @@ pub struct RouterInterface {
     pub mac: MacAddress,
     pub ip: Ipv4Address,
     pub subnet_mask: u8,
+    /// Optional IPv6 address and prefix length on the same physical interface.
+    pub ipv6: Option<(Ipv6Address, u8)>,
     pub link_name: String,
 }
 
@@ -243,8 +251,11 @@ pub struct LabRouter {
     pub name: String,
     pub interfaces: Vec<RouterInterface>,
     pub routing_table: RoutingTable,
+    pub ipv6_routing_table: Ipv6RoutingTable,
     pub arp_tables: HashMap<String, ArpTable>,
+    pub ndp_tables: HashMap<String, NdpTable>,
     pub pending_transit_packets: HashMap<(String, Ipv4Address), Vec<Vec<u8>>>,
+    pub pending_ipv6_transit_packets: HashMap<(String, Ipv6Address), Vec<Vec<u8>>>,
     pub nat_table: Option<NatTable>,
     pub nat_lan_iface: Option<String>,
     pub nat_wan_iface: Option<String>,
@@ -275,8 +286,11 @@ impl LabRouter {
             name: name.to_string(),
             interfaces: Vec::new(),
             routing_table: RoutingTable::new(),
+            ipv6_routing_table: Ipv6RoutingTable::new(),
             arp_tables: HashMap::new(),
+            ndp_tables: HashMap::new(),
             pending_transit_packets: HashMap::new(),
+            pending_ipv6_transit_packets: HashMap::new(),
             nat_table: None,
             nat_lan_iface: None,
             nat_wan_iface: None,
@@ -541,7 +555,12 @@ impl LabRouter {
         self.sync_evpn_origination();
 
         if let (Some(bgp), Some(sockets)) = (self.bgp.as_mut(), self.sockets.as_mut()) {
-            bgp.poll(now_ms, sockets, &mut self.routing_table);
+            bgp.poll_with_ipv6_fib(
+                now_ms,
+                sockets,
+                &mut self.routing_table,
+                &mut self.ipv6_routing_table,
+            );
         }
 
         // ...and whatever the speaker decided is programmed into the data plane
@@ -764,9 +783,11 @@ impl LabRouter {
             mac,
             ip,
             subnet_mask,
+            ipv6: None,
             link_name: link_name.to_string(),
         };
         self.arp_tables.insert(name.to_string(), ArpTable::new());
+        self.ndp_tables.insert(name.to_string(), NdpTable::new());
 
         // Add local connected subnet route
         let subnet_net = ip.mask(subnet_mask);
@@ -778,6 +799,30 @@ impl LabRouter {
             RouteSource::Connected,
         );
         self.interfaces.push(iface);
+    }
+
+    /// Assigns an IPv6 address to an existing router interface and installs its
+    /// connected route into the IPv6 FIB.
+    pub fn set_interface_ipv6(
+        &mut self,
+        name: &str,
+        address: Ipv6Address,
+        prefix_len: u8,
+    ) -> bool {
+        let Some(index) = self.interfaces.iter().position(|iface| iface.name == name) else {
+            return false;
+        };
+        let prefix_len = prefix_len.min(128);
+        self.interfaces[index].ipv6 = Some((address, prefix_len));
+        self.ndp_tables.entry(name.to_string()).or_default();
+        self.ipv6_routing_table.add_route_from(
+            address,
+            prefix_len,
+            None,
+            name,
+            RouteSource::Connected,
+        );
+        true
     }
 
     fn next_ip_id(&mut self) -> u16 {
@@ -1135,6 +1180,216 @@ impl LabRouter {
                         None | Some(LfibAction::Push(_)) => {}
                     }
                 }
+            }
+
+            EtherType::IPv6 => {
+                let Ok(ip6_pkt) = Ipv6Packet::parse(eth.payload) else {
+                    return out_transmissions;
+                };
+
+                // Every valid IPv6 frame proves the sender's L2 reachability on
+                // this interface, just as IPv4 traffic refreshes the ARP cache.
+                self.ndp_tables
+                    .entry(ingress_iface.name.clone())
+                    .or_default()
+                    .insert(ip6_pkt.header.src_ip, eth.src_mac);
+
+                // Learning a next hop releases packets that were waiting for NDP.
+                let pending_key = (ingress_iface.name.clone(), ip6_pkt.header.src_ip);
+                if let Some(queued) = self.pending_ipv6_transit_packets.remove(&pending_key) {
+                    for packet in queued {
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &packet,
+                            ),
+                        ));
+                    }
+                }
+
+                let own_destination = self
+                    .interfaces
+                    .iter()
+                    .any(|iface| iface.ipv6.is_some_and(|(addr, _)| addr == ip6_pkt.header.dst_ip));
+
+                if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
+                    && let Ok(icmp6) = Icmpv6Packet::parse(
+                        ip6_pkt.header.src_ip,
+                        ip6_pkt.header.dst_ip,
+                        ip6_pkt.payload,
+                        true,
+                    )
+                {
+                    if icmp6.msg_type == ICMPV6_TYPE_NEIGHBOR_SOLICIT
+                        && icmp6.payload.len() >= 20
+                    {
+                        let mut bytes = [0u8; 16];
+                        bytes.copy_from_slice(&icmp6.payload[4..20]);
+                        let target = Ipv6Address(bytes);
+                        if ingress_iface.ipv6.is_some_and(|(addr, _)| addr == target) {
+                            let na = Icmpv6Packet::build_neighbor_advertisement(
+                                target,
+                                ip6_pkt.header.src_ip,
+                                target,
+                                ingress_iface.mac,
+                                true,
+                                true,
+                                true,
+                            );
+                            let reply = Ipv6Packet::serialize(
+                                target,
+                                ip6_pkt.header.src_ip,
+                                NEXT_HEADER_ICMPV6,
+                                255,
+                                &na,
+                            );
+                            out_transmissions.push((
+                                ingress_link.to_string(),
+                                EthernetFrame::serialize(
+                                    eth.src_mac,
+                                    ingress_iface.mac,
+                                    ETHERTYPE_IPV6,
+                                    &reply,
+                                ),
+                            ));
+                            return out_transmissions;
+                        }
+                    }
+
+                    if own_destination && icmp6.msg_type == ICMPV6_TYPE_ECHO_REQUEST
+                        && icmp6.payload.len() >= 4
+                    {
+                        let id = u16::from_be_bytes([icmp6.payload[0], icmp6.payload[1]]);
+                        let seq = u16::from_be_bytes([icmp6.payload[2], icmp6.payload[3]]);
+                        let reply_payload = Icmpv6Packet::build_echo_reply(
+                            ip6_pkt.header.dst_ip,
+                            ip6_pkt.header.src_ip,
+                            id,
+                            seq,
+                            &icmp6.payload[4..],
+                        );
+                        let reply = Ipv6Packet::serialize(
+                            ip6_pkt.header.dst_ip,
+                            ip6_pkt.header.src_ip,
+                            NEXT_HEADER_ICMPV6,
+                            64,
+                            &reply_payload,
+                        );
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &reply,
+                            ),
+                        ));
+                        return out_transmissions;
+                    }
+                }
+
+                if own_destination {
+                    return out_transmissions;
+                }
+
+                // Routers decrement Hop Limit exactly once. IPv6 has no header
+                // checksum, so mutating byte 7 preserves traffic class, flow label,
+                // extension headers and the transport payload byte-for-byte.
+                if ip6_pkt.header.hop_limit <= 1 {
+                    if let Some((src, _)) = ingress_iface.ipv6 {
+                        let exceeded = Icmpv6Packet::build_time_exceeded(
+                            src,
+                            ip6_pkt.header.src_ip,
+                            eth.payload,
+                        );
+                        let reply = Ipv6Packet::serialize(
+                            src,
+                            ip6_pkt.header.src_ip,
+                            NEXT_HEADER_ICMPV6,
+                            64,
+                            &exceeded,
+                        );
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &reply,
+                            ),
+                        ));
+                    }
+                    return out_transmissions;
+                }
+
+                let Some(route) = self
+                    .ipv6_routing_table
+                    .lookup(ip6_pkt.header.dst_ip)
+                    .cloned()
+                else {
+                    return out_transmissions;
+                };
+                let Some(egress_iface) = self
+                    .interfaces
+                    .iter()
+                    .find(|iface| iface.name == route.interface)
+                    .cloned()
+                else {
+                    return out_transmissions;
+                };
+                let Some((egress_ip6, _)) = egress_iface.ipv6 else {
+                    return out_transmissions;
+                };
+                let next_hop = route.next_hop(ip6_pkt.header.dst_ip);
+                let mut forwarded = eth.payload.to_vec();
+                forwarded[7] = ip6_pkt.header.hop_limit - 1;
+
+                let ndp = self
+                    .ndp_tables
+                    .entry(egress_iface.name.clone())
+                    .or_default();
+                if let Some(dst_mac) = ndp.lookup(&next_hop) {
+                    out_transmissions.push((
+                        egress_iface.link_name.clone(),
+                        EthernetFrame::serialize(
+                            dst_mac,
+                            egress_iface.mac,
+                            ETHERTYPE_IPV6,
+                            &forwarded,
+                        ),
+                    ));
+                } else {
+                    self.pending_ipv6_transit_packets
+                        .entry((egress_iface.name.clone(), next_hop))
+                        .or_default()
+                        .push(forwarded);
+                    let ns = Icmpv6Packet::build_neighbor_solicitation(
+                        egress_ip6,
+                        next_hop,
+                        next_hop,
+                        egress_iface.mac,
+                    );
+                    let ns_packet = Ipv6Packet::serialize(
+                        egress_ip6,
+                        next_hop,
+                        NEXT_HEADER_ICMPV6,
+                        255,
+                        &ns,
+                    );
+                    out_transmissions.push((
+                        egress_iface.link_name.clone(),
+                        EthernetFrame::serialize(
+                            MacAddress::BROADCAST,
+                            egress_iface.mac,
+                            ETHERTYPE_IPV6,
+                            &ns_packet,
+                        ),
+                    ));
+                }
+                return out_transmissions;
             }
 
             EtherType::IPv4 => {
