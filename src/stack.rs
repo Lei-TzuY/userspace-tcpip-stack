@@ -384,13 +384,8 @@ impl NetStack {
 
         let valid_until_ms = ipv6_lifetime_deadline(self.current_time_ms, valid_lifetime);
         self.ipv6_ra_on_link_prefixes.insert(key, valid_until_ms);
-        self.ipv6_routing_table.add_route_from(
-            prefix,
-            prefix_len,
-            None,
-            "eth0",
-            RouteSource::Ra,
-        );
+        self.ipv6_routing_table
+            .add_route_from(prefix, prefix_len, None, "eth0", RouteSource::Ra);
     }
 
     fn start_ipv6_dad(
@@ -576,15 +571,16 @@ impl NetStack {
                 .or_default()
                 .push(ip6_bytes);
             let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
+            let ns_dst = next_hop.solicited_node_multicast();
             let ns = Icmpv6Packet::build_neighbor_solicitation(
                 my_ip6,
-                next_hop,
+                ns_dst,
                 next_hop,
                 self.config.mac,
             );
-            let ip6_ns = Ipv6Packet::serialize(my_ip6, next_hop, NEXT_HEADER_ICMPV6, 255, &ns);
+            let ip6_ns = Ipv6Packet::serialize(my_ip6, ns_dst, NEXT_HEADER_ICMPV6, 255, &ns);
             Some(EthernetFrame::serialize(
-                MacAddress::BROADCAST,
+                ipv6_multicast_mac(ns_dst).unwrap_or(MacAddress::BROADCAST),
                 self.config.mac,
                 ETHERTYPE_IPV6,
                 &ip6_ns,
