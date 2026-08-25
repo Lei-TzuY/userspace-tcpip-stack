@@ -1,6 +1,6 @@
 use toy_tcpip::evpn_synch::{
-    EVPN_ROUTE_TYPE_JOIN_SYNCH, EVPN_ROUTE_TYPE_LEAVE_SYNCH, EthernetSegmentId, EvpnJoinSynchRoute,
-    EvpnLeaveSynchRoute, EvpnMulticastSynchEngine,
+    EthernetSegmentId, EvpnJoinSynchRoute, EvpnLeaveSynchRoute, EvpnMulticastSynchEngine,
+    EVPN_ROUTE_TYPE_JOIN_SYNCH, EVPN_ROUTE_TYPE_LEAVE_SYNCH,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 

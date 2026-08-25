@@ -1,6 +1,6 @@
 use toy_tcpip::evpn_mac_mobility::{
-    EXT_COMM_SUBTYPE_MAC_MOBILITY, EXT_COMM_TYPE_MAC_MOBILITY, EvpnMacMobilityEngine,
-    MacMobilityExtComm,
+    EvpnMacMobilityEngine, MacMobilityExtComm,
+    EXT_COMM_TYPE_MAC_MOBILITY, EXT_COMM_SUBTYPE_MAC_MOBILITY,
 };
 
 #[test]

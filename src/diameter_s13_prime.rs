@@ -82,12 +82,7 @@ impl TerminalInformation {
         let mut software_version = None;
 
         while offset + 6 <= data.len() {
-            let code = u32::from_be_bytes([
-                data[offset],
-                data[offset + 1],
-                data[offset + 2],
-                data[offset + 3],
-            ]);
+            let code = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
             let len = u16::from_be_bytes([data[offset + 4], data[offset + 5]]) as usize;
             offset += 6;
             if offset + len > data.len() {
@@ -105,10 +100,7 @@ impl TerminalInformation {
         if imei.is_empty() {
             None
         } else {
-            Some(TerminalInformation {
-                imei,
-                software_version,
-            })
+            Some(TerminalInformation { imei, software_version })
         }
     }
 }
@@ -195,11 +187,7 @@ impl EirS13PrimeEngine {
     pub fn process_ecr(&mut self, ecr: &S13PrimeMessage) -> S13PrimeMessage {
         self.total_checks += 1;
         let term_info = ecr.avps.iter().find_map(|a| {
-            if let S13PrimeAvp::TerminalInformation(t) = a {
-                Some(t.clone())
-            } else {
-                None
-            }
+            if let S13PrimeAvp::TerminalInformation(t) = a { Some(t.clone()) } else { None }
         });
 
         if let Some(info) = term_info {
@@ -210,11 +198,7 @@ impl EirS13PrimeEngine {
                 }
             }
 
-            let status = self
-                .equipment_db
-                .get(&info.imei)
-                .copied()
-                .unwrap_or(EquipmentStatus::Whitelisted);
+            let status = self.equipment_db.get(&info.imei).copied().unwrap_or(EquipmentStatus::Whitelisted);
             if status == EquipmentStatus::Blacklisted {
                 self.blacklisted_hits += 1;
             }
@@ -246,13 +230,7 @@ mod tests {
         assert_eq!(eca.command_code, DIAMETER_CMD_ME_IDENTITY_CHECK);
         assert!(!eca.is_request);
 
-        let status = eca.avps.iter().find_map(|a| {
-            if let S13PrimeAvp::EquipmentStatus(s) = a {
-                Some(*s)
-            } else {
-                None
-            }
-        });
+        let status = eca.avps.iter().find_map(|a| if let S13PrimeAvp::EquipmentStatus(s) = a { Some(*s) } else { None });
         assert_eq!(status, Some(EquipmentStatus::Whitelisted));
         assert_eq!(eir.total_checks, 1);
     }
@@ -271,13 +249,7 @@ mod tests {
         let ecr = S13PrimeMessage::new_ecr("sess-s13p-2", "001010000000002", term_info);
         let eca = eir.process_ecr(&ecr);
 
-        let status = eca.avps.iter().find_map(|a| {
-            if let S13PrimeAvp::EquipmentStatus(s) = a {
-                Some(*s)
-            } else {
-                None
-            }
-        });
+        let status = eca.avps.iter().find_map(|a| if let S13PrimeAvp::EquipmentStatus(s) = a { Some(*s) } else { None });
         assert_eq!(status, Some(EquipmentStatus::Greylisted));
     }
 }

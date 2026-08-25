@@ -5,8 +5,8 @@
 //! and stolen/unapproved mobile equipment barring policies for 5G/4G core networks.
 
 use crate::diameter::{
-    DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC, DIAMETER_SUCCESS, DiameterAvp,
-    DiameterMessage,
+    DiameterAvp, DiameterMessage, DIAMETER_FLAG_MANDATORY, DIAMETER_FLAG_VENDOR_SPECIFIC,
+    DIAMETER_SUCCESS,
 };
 use crate::diameter_gx::VENDOR_3GPP;
 use std::collections::HashMap;
@@ -69,11 +69,7 @@ impl EirS13Engine {
     /// Queries the equipment status for an IMEI.
     pub fn query_imei(&mut self, imei: &str) -> EquipmentStatus {
         self.total_checks_count += 1;
-        let status = self
-            .imei_status_db
-            .get(imei)
-            .copied()
-            .unwrap_or(EquipmentStatus::Whitelisted);
+        let status = self.imei_status_db.get(imei).copied().unwrap_or(EquipmentStatus::Whitelisted);
         if status == EquipmentStatus::Blacklisted {
             self.blacklisted_drops_count += 1;
         }

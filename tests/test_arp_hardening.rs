@@ -1,5 +1,5 @@
 use toy_tcpip::arp::{
-    ARP_DEFAULT_DYNAMIC_TTL_MS, ArpEntryKind, ArpLearnOutcome, ArpPacket, ArpTable,
+    ArpEntryKind, ArpLearnOutcome, ArpPacket, ArpTable, ARP_DEFAULT_DYNAMIC_TTL_MS,
 };
 use toy_tcpip::ethernet::MacAddress;
 

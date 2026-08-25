@@ -1,6 +1,6 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_s13::{
-    DIAMETER_APPLICATION_S13, DIAMETER_CMD_ME_IDENTITY_CHECK, EirS13Engine, EquipmentStatus,
+    EirS13Engine, EquipmentStatus, DIAMETER_APPLICATION_S13, DIAMETER_CMD_ME_IDENTITY_CHECK,
 };
 
 #[test]
@@ -24,10 +24,7 @@ fn test_diameter_s13_ecr_and_status_checks() {
 
     // 2. Check stolen phone
     let eca_stolen = eir.handle_ecr(imei_stolen);
-    assert_eq!(
-        eca_stolen.header.command_code,
-        DIAMETER_CMD_ME_IDENTITY_CHECK
-    );
+    assert_eq!(eca_stolen.header.command_code, DIAMETER_CMD_ME_IDENTITY_CHECK);
     assert_eq!(eir.query_imei(imei_stolen), EquipmentStatus::Blacklisted);
     assert!(eir.blacklisted_drops_count >= 1);
 }

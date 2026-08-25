@@ -1,5 +1,5 @@
 use toy_tcpip::synce_esmc::{
-    ESMC_SUBTYPE, ITU_T_ESMC_SUBTYPE, ITU_T_OUI, QualityLevel, SyncEEsmcEngine, SyncEEsmcPacket,
+    QualityLevel, SyncEEsmcEngine, SyncEEsmcPacket, ESMC_SUBTYPE, ITU_T_ESMC_SUBTYPE, ITU_T_OUI,
 };
 
 #[test]
