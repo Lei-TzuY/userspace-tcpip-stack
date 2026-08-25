@@ -138,6 +138,43 @@ impl fmt::Display for Icmpv6Error {
 
 impl std::error::Error for Icmpv6Error {}
 
+fn ndp_options_well_formed(options: &[u8]) -> bool {
+    let mut offset = 0usize;
+    while offset < options.len() {
+        if options.len() - offset < 2 {
+            return false;
+        }
+        let units = options[offset + 1] as usize;
+        if units == 0 {
+            return false;
+        }
+        let Some(option_len) = units.checked_mul(8) else {
+            return false;
+        };
+        let Some(end) = offset.checked_add(option_len) else {
+            return false;
+        };
+        if end > options.len() {
+            return false;
+        }
+        offset = end;
+    }
+    true
+}
+
+fn ndp_options_contain(options: &[u8], option_type: u8) -> bool {
+    let mut offset = 0usize;
+    while offset < options.len() {
+        let units = options[offset + 1] as usize;
+        let option_len = units * 8;
+        if options[offset] == option_type {
+            return true;
+        }
+        offset += option_len;
+    }
+    false
+}
+
 impl<'a> Icmpv6Packet<'a> {
     pub fn parse(
         src_ip: Ipv6Address,
@@ -169,6 +206,72 @@ impl<'a> Icmpv6Packet<'a> {
             checksum,
             payload,
         })
+    }
+
+    /// Validates an RFC 4861 Neighbor Solicitation and returns its Target Address.
+    ///
+    /// The checks here are deliberately performed before a caller learns the sender
+    /// into its Neighbor Cache: off-link or malformed NDP must not become a cache hint.
+    pub fn validated_neighbor_solicitation_target(
+        &self,
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        hop_limit: u8,
+    ) -> Option<Ipv6Address> {
+        if self.msg_type != ICMPV6_TYPE_NEIGHBOR_SOLICIT
+            || self.code != 0
+            || hop_limit != 255
+            || self.payload.len() < 20
+        {
+            return None;
+        }
+
+        let mut target = [0u8; 16];
+        target.copy_from_slice(&self.payload[4..20]);
+        let target = Ipv6Address(target);
+        if target.is_multicast() || !ndp_options_well_formed(&self.payload[20..]) {
+            return None;
+        }
+
+        // RFC 4861 section 7.1.1 / RFC 4862 DAD: an unspecified-source NS
+        // must target the solicited-node multicast address and must omit SLLA.
+        if src_ip.is_unspecified()
+            && (dst_ip != target.solicited_node_multicast()
+                || ndp_options_contain(&self.payload[20..], NDP_OPT_SRC_LINK_LAYER_ADDR))
+        {
+            return None;
+        }
+
+        Some(target)
+    }
+
+    /// Validates an RFC 4861 Neighbor Advertisement and returns its Target Address.
+    pub fn validated_neighbor_advertisement_target(
+        &self,
+        dst_ip: Ipv6Address,
+        hop_limit: u8,
+    ) -> Option<Ipv6Address> {
+        if self.msg_type != ICMPV6_TYPE_NEIGHBOR_ADVERT
+            || self.code != 0
+            || hop_limit != 255
+            || self.payload.len() < 20
+        {
+            return None;
+        }
+
+        let mut target = [0u8; 16];
+        target.copy_from_slice(&self.payload[4..20]);
+        let target = Ipv6Address(target);
+        if target.is_multicast() || !ndp_options_well_formed(&self.payload[20..]) {
+            return None;
+        }
+
+        let solicited = self.payload[0] & 0x40 != 0;
+        if dst_ip.is_multicast() && solicited {
+            return None;
+        }
+
+        Some(target)
     }
 
     /// Builds an ICMPv6 Echo Request (Ping6)

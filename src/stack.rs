@@ -1452,6 +1452,51 @@ impl NetStack {
 
             EtherType::IPv6 => {
                 if let Ok(ip6_pkt) = Ipv6Packet::parse(eth.payload) {
+                    // Validate Neighbor Discovery before using the source as a
+                    // Neighbor Cache hint. In particular, Hop Limit 255 prevents
+                    // off-link spoofed NS/NA from influencing local resolution.
+                    if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6 {
+                        let raw_type = ip6_pkt.payload.first().copied();
+                        match Icmpv6Packet::parse(
+                            ip6_pkt.header.src_ip,
+                            ip6_pkt.header.dst_ip,
+                            ip6_pkt.payload,
+                            true,
+                        ) {
+                            Ok(icmp6) => {
+                                let valid = match icmp6.msg_type {
+                                    ICMPV6_TYPE_NEIGHBOR_SOLICIT => icmp6
+                                        .validated_neighbor_solicitation_target(
+                                            ip6_pkt.header.src_ip,
+                                            ip6_pkt.header.dst_ip,
+                                            ip6_pkt.header.hop_limit,
+                                        )
+                                        .is_some(),
+                                    ICMPV6_TYPE_NEIGHBOR_ADVERT => icmp6
+                                        .validated_neighbor_advertisement_target(
+                                            ip6_pkt.header.dst_ip,
+                                            ip6_pkt.header.hop_limit,
+                                        )
+                                        .is_some(),
+                                    _ => true,
+                                };
+                                if !valid {
+                                    return out_frames;
+                                }
+                            }
+                            Err(_)
+                                if matches!(
+                                    raw_type,
+                                    Some(ICMPV6_TYPE_NEIGHBOR_SOLICIT)
+                                        | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
+                                ) =>
+                            {
+                                return out_frames;
+                            }
+                            Err(_) => {}
+                        }
+                    }
+
                     // The unspecified source is used by DAD and is never a
                     // neighbour-cache key (RFC 4861/4862).
                     if !ip6_pkt.header.src_ip.is_unspecified() {
@@ -1616,11 +1661,13 @@ impl NetStack {
                             }
 
                             ICMPV6_TYPE_NEIGHBOR_SOLICIT => {
-                                if icmp6.payload.len() >= 20 {
-                                    let mut target_bytes = [0u8; 16];
-                                    target_bytes.copy_from_slice(&icmp6.payload[4..20]);
-                                    let target_ip6 = Ipv6Address(target_bytes);
-
+                                if let Some(target_ip6) = icmp6
+                                    .validated_neighbor_solicitation_target(
+                                        ip6_pkt.header.src_ip,
+                                        ip6_pkt.header.dst_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                {
                                     // A competing DAD probe for our tentative target is
                                     // itself evidence that the address is not unique.
                                     if eth.src_mac != self.config.mac
@@ -1671,10 +1718,15 @@ impl NetStack {
                                 }
                             }
 
-                            ICMPV6_TYPE_NEIGHBOR_ADVERT if icmp6.payload.len() >= 20 => {
-                                let mut target_bytes = [0u8; 16];
-                                target_bytes.copy_from_slice(&icmp6.payload[4..20]);
-                                let target_ip6 = Ipv6Address(target_bytes);
+                            ICMPV6_TYPE_NEIGHBOR_ADVERT => {
+                                let Some(target_ip6) = icmp6
+                                    .validated_neighbor_advertisement_target(
+                                        ip6_pkt.header.dst_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                else {
+                                    return out_frames;
+                                };
 
                                 if eth.src_mac != self.config.mac
                                     && self.ipv6_dad.is_some_and(|dad| dad.address == target_ip6)

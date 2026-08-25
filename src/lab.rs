@@ -22,8 +22,9 @@ use crate::evpn_vtep::{OverlayDecision, Vtep};
 use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
-    ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_ROUTER_SOLICIT,
-    Icmpv6Packet, NdpTable, PrefixInformationOption, ipv6_multicast_mac, link_local_address,
+    ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT, ICMPV6_TYPE_NEIGHBOR_SOLICIT,
+    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, PrefixInformationOption,
+    ipv6_multicast_mac, link_local_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -1183,6 +1184,48 @@ impl LabRouter {
                     return out_transmissions;
                 };
 
+                if ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6 {
+                    let raw_type = ip6_pkt.payload.first().copied();
+                    match Icmpv6Packet::parse(
+                        ip6_pkt.header.src_ip,
+                        ip6_pkt.header.dst_ip,
+                        ip6_pkt.payload,
+                        true,
+                    ) {
+                        Ok(icmp6) => {
+                            let valid = match icmp6.msg_type {
+                                ICMPV6_TYPE_NEIGHBOR_SOLICIT => icmp6
+                                    .validated_neighbor_solicitation_target(
+                                        ip6_pkt.header.src_ip,
+                                        ip6_pkt.header.dst_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                    .is_some(),
+                                ICMPV6_TYPE_NEIGHBOR_ADVERT => icmp6
+                                    .validated_neighbor_advertisement_target(
+                                        ip6_pkt.header.dst_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                    .is_some(),
+                                _ => true,
+                            };
+                            if !valid {
+                                return out_transmissions;
+                            }
+                        }
+                        Err(_)
+                            if matches!(
+                                raw_type,
+                                Some(ICMPV6_TYPE_NEIGHBOR_SOLICIT)
+                                    | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
+                            ) =>
+                        {
+                            return out_transmissions;
+                        }
+                        Err(_) => {}
+                    }
+                }
+
                 // The unspecified IPv6 source is used by initial Router
                 // Solicitations and Duplicate Address Detection. It is never a
                 // neighbour-cache key and cannot satisfy queued next-hop resolution.
@@ -1263,12 +1306,12 @@ impl LabRouter {
                     }
 
                     if icmp6.msg_type == ICMPV6_TYPE_NEIGHBOR_SOLICIT
-                        && ip6_pkt.header.hop_limit == 255
-                        && icmp6.payload.len() >= 20
+                        && let Some(target) = icmp6.validated_neighbor_solicitation_target(
+                            ip6_pkt.header.src_ip,
+                            ip6_pkt.header.dst_ip,
+                            ip6_pkt.header.hop_limit,
+                        )
                     {
-                        let mut bytes = [0u8; 16];
-                        bytes.copy_from_slice(&icmp6.payload[4..20]);
-                        let target = Ipv6Address(bytes);
                         let owns_target =
                             ingress_iface.ipv6.is_some_and(|(addr, _)| addr == target)
                                 || (ingress_iface.ipv6.is_some()
