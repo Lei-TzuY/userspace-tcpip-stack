@@ -274,6 +274,45 @@ impl<'a> Icmpv6Packet<'a> {
         Some(target)
     }
 
+    /// Validates an RFC 4861 Router Solicitation before a router uses
+    /// the packet as a Neighbor Cache hint or generates a Router Advertisement.
+    pub fn is_valid_router_solicitation(&self, src_ip: Ipv6Address, hop_limit: u8) -> bool {
+        if self.msg_type != ICMPV6_TYPE_ROUTER_SOLICIT
+            || self.code != 0
+            || hop_limit != 255
+            || self.payload.len() < 4
+            || !ndp_options_well_formed(&self.payload[4..])
+        {
+            return false;
+        }
+
+        // RFC 4861 section 6.1.1: initial RS packets sourced from :: MUST NOT
+        // include the Source Link-Layer Address option.
+        !(src_ip.is_unspecified()
+            && ndp_options_contain(&self.payload[4..], NDP_OPT_SRC_LINK_LAYER_ADDR))
+    }
+
+    /// Validates an RFC 4861 Router Advertisement and returns the parsed body.
+    /// Callers use this before passive Neighbor Cache learning so an off-link or
+    /// malformed RA cannot leave a cache entry behind even though its SLAAC data
+    /// is subsequently rejected.
+    pub fn validated_router_advertisement(
+        &self,
+        src_ip: Ipv6Address,
+        hop_limit: u8,
+    ) -> Option<RouterAdvertisement> {
+        if self.msg_type != ICMPV6_TYPE_ROUTER_ADVERT
+            || self.code != 0
+            || hop_limit != 255
+            || !src_ip.is_link_local()
+            || self.payload.len() < 12
+            || !ndp_options_well_formed(&self.payload[12..])
+        {
+            return None;
+        }
+        RouterAdvertisement::parse(self)
+    }
+
     /// Builds an ICMPv6 Echo Request (Ping6)
     pub fn build_echo_request(
         src_ip: Ipv6Address,
@@ -602,6 +641,10 @@ impl RouterAdvertisement {
                 let option_flags = option[3];
                 let valid_lifetime = u32::from_be_bytes(option[4..8].try_into().ok()?);
                 let preferred_lifetime = u32::from_be_bytes(option[8..12].try_into().ok()?);
+                if preferred_lifetime > valid_lifetime {
+                    offset += option_len;
+                    continue;
+                }
                 let mut prefix_bytes = [0u8; 16];
                 prefix_bytes.copy_from_slice(&option[16..32]);
                 prefixes.push(PrefixInformationOption::new(

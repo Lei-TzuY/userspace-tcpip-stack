@@ -8,8 +8,8 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
-    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_ROUTER_ADVERT, Icmpv6Packet, NdpTable,
-    RouterAdvertisement, ipv6_multicast_mac, slaac_address,
+    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_ROUTER_ADVERT, ICMPV6_TYPE_ROUTER_SOLICIT,
+    Icmpv6Packet, NdpTable, ipv6_multicast_mac, slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -1478,6 +1478,15 @@ impl NetStack {
                                             ip6_pkt.header.hop_limit,
                                         )
                                         .is_some(),
+                                    // RFC 4861: hosts silently discard Router
+                                    // Solicitations; do so before passive NDP learning.
+                                    ICMPV6_TYPE_ROUTER_SOLICIT => false,
+                                    ICMPV6_TYPE_ROUTER_ADVERT => icmp6
+                                        .validated_router_advertisement(
+                                            ip6_pkt.header.src_ip,
+                                            ip6_pkt.header.hop_limit,
+                                        )
+                                        .is_some(),
                                     _ => true,
                                 };
                                 if !valid {
@@ -1489,6 +1498,8 @@ impl NetStack {
                                     raw_type,
                                     Some(ICMPV6_TYPE_NEIGHBOR_SOLICIT)
                                         | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
+                                        | Some(ICMPV6_TYPE_ROUTER_SOLICIT)
+                                        | Some(ICMPV6_TYPE_ROUTER_ADVERT)
                                 ) =>
                             {
                                 return out_frames;
@@ -1523,10 +1534,10 @@ impl NetStack {
                     {
                         match icmp6.msg_type {
                             ICMPV6_TYPE_ROUTER_ADVERT => {
-                                if ip6_pkt.header.hop_limit == 255
-                                    && ip6_pkt.header.src_ip.is_link_local()
-                                    && let Some(ra) = RouterAdvertisement::parse(&icmp6)
-                                {
+                                if let Some(ra) = icmp6.validated_router_advertisement(
+                                    ip6_pkt.header.src_ip,
+                                    ip6_pkt.header.hop_limit,
+                                ) {
                                     // Any valid RA is a Router Discovery response, even
                                     // when Router Lifetime is zero or no autonomous prefix
                                     // is present. Invalid RAs never cancel retransmission.

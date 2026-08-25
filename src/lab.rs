@@ -23,8 +23,8 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT, ICMPV6_TYPE_NEIGHBOR_SOLICIT,
-    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, PrefixInformationOption,
-    ipv6_multicast_mac, link_local_address,
+    ICMPV6_TYPE_ROUTER_ADVERT, ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable,
+    PrefixInformationOption, ipv6_multicast_mac, link_local_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -1207,6 +1207,16 @@ impl LabRouter {
                                         ip6_pkt.header.hop_limit,
                                     )
                                     .is_some(),
+                                ICMPV6_TYPE_ROUTER_SOLICIT => icmp6.is_valid_router_solicitation(
+                                    ip6_pkt.header.src_ip,
+                                    ip6_pkt.header.hop_limit,
+                                ),
+                                ICMPV6_TYPE_ROUTER_ADVERT => icmp6
+                                    .validated_router_advertisement(
+                                        ip6_pkt.header.src_ip,
+                                        ip6_pkt.header.hop_limit,
+                                    )
+                                    .is_some(),
                                 _ => true,
                             };
                             if !valid {
@@ -1218,6 +1228,8 @@ impl LabRouter {
                                 raw_type,
                                 Some(ICMPV6_TYPE_NEIGHBOR_SOLICIT)
                                     | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
+                                    | Some(ICMPV6_TYPE_ROUTER_SOLICIT)
+                                    | Some(ICMPV6_TYPE_ROUTER_ADVERT)
                             ) =>
                         {
                             return out_transmissions;
@@ -1269,7 +1281,10 @@ impl LabRouter {
                     )
                 {
                     if icmp6.msg_type == ICMPV6_TYPE_ROUTER_SOLICIT
-                        && ip6_pkt.header.hop_limit == 255
+                        && icmp6.is_valid_router_solicitation(
+                            ip6_pkt.header.src_ip,
+                            ip6_pkt.header.hop_limit,
+                        )
                         && ip6_pkt.header.dst_ip == Ipv6Address::LINK_LOCAL_ALL_ROUTERS
                         && let Some((router_address, prefix_len)) = ingress_iface.ipv6
                     {
