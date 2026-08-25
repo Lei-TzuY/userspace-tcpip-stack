@@ -35,6 +35,22 @@ pub struct NetStackConfig {
 /// One DAD probe followed by one retransmission interval is the default RFC 4862
 /// host behaviour modelled by this deterministic stack.
 pub const IPV6_DAD_RETRANS_TIMER_MS: u64 = 1_000;
+/// RFC 4861 section 10 constants for host Router Solicitation discovery.
+pub const IPV6_MAX_RTR_SOLICITATIONS: u8 = 3;
+pub const IPV6_RTR_SOLICITATION_INTERVAL_MS: u64 = 4_000;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Ipv6RouterDiscoveryStatus {
+    Idle,
+    Soliciting { solicitations_sent: u8 },
+    Exhausted,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct Ipv6RouterDiscovery {
+    solicitations_sent: u8,
+    next_solicitation_ms: u64,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ipv6DadStatus {
@@ -116,6 +132,8 @@ pub struct NetStack {
     ipv6_dad: Option<PendingIpv6Dad>,
     ipv6_dad_duplicate: Option<Ipv6Address>,
     ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
+    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
+    ipv6_router_discovery_exhausted: bool,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -161,6 +179,8 @@ impl NetStack {
             ipv6_dad: None,
             ipv6_dad_duplicate: None,
             ipv6_slaac_lifetimes: None,
+            ipv6_router_discovery: None,
+            ipv6_router_discovery_exhausted: false,
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -418,8 +438,42 @@ impl NetStack {
         }
     }
 
+    pub fn ipv6_router_discovery_status(&self) -> Ipv6RouterDiscoveryStatus {
+        if let Some(discovery) = self.ipv6_router_discovery {
+            Ipv6RouterDiscoveryStatus::Soliciting {
+                solicitations_sent: discovery.solicitations_sent,
+            }
+        } else if self.ipv6_router_discovery_exhausted {
+            Ipv6RouterDiscoveryStatus::Exhausted
+        } else {
+            Ipv6RouterDiscoveryStatus::Idle
+        }
+    }
+
+    /// Starts RFC 4861 Router Discovery and emits the first Router Solicitation.
+    ///
+    /// RFC 4861 allows a random initial delay of up to one second. The deterministic
+    /// simulator chooses zero, then follows MAX_RTR_SOLICITATIONS=3 and a four-second
+    /// RTR_SOLICITATION_INTERVAL. A valid Router Advertisement cancels the retry state.
+    pub fn start_router_discovery(&mut self) -> Vec<u8> {
+        self.ipv6_router_discovery_exhausted = false;
+        self.ipv6_router_discovery = Some(Ipv6RouterDiscovery {
+            solicitations_sent: 1,
+            next_solicitation_ms: self
+                .current_time_ms
+                .saturating_add(IPV6_RTR_SOLICITATION_INTERVAL_MS),
+        });
+        self.router_solicitation()
+    }
+
+    pub fn cancel_router_discovery(&mut self) {
+        self.ipv6_router_discovery = None;
+        self.ipv6_router_discovery_exhausted = false;
+    }
+
     /// Emits a Router Solicitation to ff02::2. An unconfigured host uses the
     /// unspecified IPv6 source and therefore omits the source-link-layer option.
+    /// This is a stateless packet builder; use `start_router_discovery` to arm retries.
     pub fn router_solicitation(&self) -> Vec<u8> {
         let src = self.config.ipv6.unwrap_or(Ipv6Address::UNSPECIFIED);
         let dst = Ipv6Address::LINK_LOCAL_ALL_ROUTERS;
@@ -720,6 +774,26 @@ impl NetStack {
     pub fn step_timers(&mut self, now_ms: u64) -> Vec<Vec<u8>> {
         self.current_time_ms = now_ms;
         let mut out_frames = Vec::new();
+
+        // RFC 4861 host Router Discovery sends at most three solicitations, four
+        // seconds apart. A coarse simulator time jump emits at most one retry per
+        // timer pump and schedules the next interval from the observed current time,
+        // avoiding a burst of stale catch-up solicitations.
+        if let Some(discovery) = self.ipv6_router_discovery
+            && now_ms >= discovery.next_solicitation_ms
+        {
+            let solicitations_sent = discovery.solicitations_sent.saturating_add(1);
+            out_frames.push(self.router_solicitation());
+            if solicitations_sent >= IPV6_MAX_RTR_SOLICITATIONS {
+                self.ipv6_router_discovery = None;
+                self.ipv6_router_discovery_exhausted = true;
+            } else {
+                self.ipv6_router_discovery = Some(Ipv6RouterDiscovery {
+                    solicitations_sent,
+                    next_solicitation_ms: now_ms.saturating_add(IPV6_RTR_SOLICITATION_INTERVAL_MS),
+                });
+            }
+        }
 
         // A tentative SLAAC address becomes usable only after its DAD interval
         // expires without a conflicting NS/NA.
@@ -1342,6 +1416,10 @@ impl NetStack {
                                     && ip6_pkt.header.src_ip.is_link_local()
                                     && let Some(ra) = RouterAdvertisement::parse(&icmp6)
                                 {
+                                    // Any valid RA is a Router Discovery response, even
+                                    // when Router Lifetime is zero or no autonomous prefix
+                                    // is present. Invalid RAs never cancel retransmission.
+                                    self.cancel_router_discovery();
                                     self.refresh_slaac_default_router(
                                         ip6_pkt.header.src_ip,
                                         ra.router_lifetime,
