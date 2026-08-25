@@ -43,6 +43,9 @@ pub struct CreditBasedShaperQueue {
     pub current_credit: i64,
     /// Last simulation timestamp in nanoseconds.
     pub last_update_ns: u64,
+    /// Whether `last_update_ns` has been initialised. Timestamp zero is valid,
+    /// so it cannot double as an uninitialised sentinel.
+    time_initialized: bool,
     /// Number of queued frames.
     pub queued_frames: Vec<usize>, // Frame sizes in bytes
     pub is_transmitting: bool,
@@ -65,6 +68,7 @@ impl CreditBasedShaperQueue {
             lo_credit,
             current_credit: 0,
             last_update_ns: 0,
+            time_initialized: false,
             queued_frames: Vec::new(),
             is_transmitting: false,
             total_transmitted_frames: 0,
@@ -74,8 +78,9 @@ impl CreditBasedShaperQueue {
 
     /// Advances time and updates accumulated credit.
     pub fn advance_time(&mut self, now_ns: u64) {
-        if self.last_update_ns == 0 {
+        if !self.time_initialized {
             self.last_update_ns = now_ns;
+            self.time_initialized = true;
             return;
         }
 

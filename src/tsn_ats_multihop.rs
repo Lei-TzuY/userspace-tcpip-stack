@@ -173,7 +173,7 @@ impl AtsMultiHopPipeline {
             if i + 1 < self.hops.len() {
                 // Forward to next hop
                 for frame in ready_frames {
-                    let next_arrival = current_time_ns + latency;
+                    let next_arrival = frame.eligibility_time_ns.saturating_add(latency);
                     self.hops[i + 1].ingest_frame(frame, next_arrival);
                 }
             } else {
