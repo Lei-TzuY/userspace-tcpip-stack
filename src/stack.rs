@@ -82,7 +82,6 @@ struct PendingIpv6Dad {
     address: Ipv6Address,
     prefix_len: u8,
     gateway: Option<Ipv6Address>,
-    on_link: bool,
     deadline_ms: u64,
     preferred_until_ms: Option<u64>,
     valid_until_ms: Option<u64>,
@@ -399,7 +398,6 @@ impl NetStack {
         address: Ipv6Address,
         prefix_len: u8,
         gateway: Option<Ipv6Address>,
-        on_link: bool,
         preferred_lifetime: u32,
         valid_lifetime: u32,
         router_lifetime: u16,
@@ -431,8 +429,6 @@ impl NetStack {
             .filter(|dad| dad.address == address && dad.prefix_len == prefix_len)
         {
             dad.gateway = gateway;
-            // RFC 4861: L=0 makes no statement about on-link status.
-            dad.on_link |= on_link;
             dad.preferred_until_ms = preferred_until_ms;
             dad.valid_until_ms =
                 refreshed_ipv6_valid_deadline(now_ms, dad.valid_until_ms, valid_lifetime);
@@ -445,7 +441,6 @@ impl NetStack {
             address,
             prefix_len: prefix_len.min(128),
             gateway,
-            on_link,
             deadline_ms: now_ms.saturating_add(IPV6_DAD_RETRANS_TIMER_MS),
             preferred_until_ms,
             valid_until_ms: advertised_valid_until_ms,
@@ -1553,7 +1548,6 @@ impl NetStack {
                                             address,
                                             prefix.prefix_length,
                                             gateway,
-                                            prefix.on_link,
                                             prefix.preferred_lifetime,
                                             prefix.valid_lifetime,
                                             ra.router_lifetime,
