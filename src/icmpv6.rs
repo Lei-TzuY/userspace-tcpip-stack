@@ -8,6 +8,8 @@ use crate::ipv6::{Ipv6Address, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checks
 use std::collections::HashMap;
 use std::fmt;
 
+pub const ICMPV6_TYPE_DEST_UNREACHABLE: u8 = 1;
+pub const ICMPV6_TYPE_PACKET_TOO_BIG: u8 = 2;
 pub const ICMPV6_TYPE_TIME_EXCEEDED: u8 = 3;
 pub const ICMPV6_TYPE_ECHO_REQUEST: u8 = 128;
 pub const ICMPV6_TYPE_ECHO_REPLY: u8 = 129;
@@ -129,6 +131,48 @@ impl<'a> Icmpv6Packet<'a> {
         buf
     }
 
+    /// Builds ICMPv6 Destination Unreachable (RFC 4443, Type 1).
+    ///
+    /// `code` is kept explicit because RFC 4443 defines several independently useful
+    /// unreachable reasons (no route, administratively prohibited, address unreachable,
+    /// port unreachable, and others). The invoking packet is quoted up to the IPv6
+    /// minimum-MTU limit required for ICMPv6 error messages.
+    pub fn build_destination_unreachable(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        code: u8,
+        invoking_packet: &[u8],
+    ) -> Vec<u8> {
+        Self::build_error_message(
+            src_ip,
+            dst_ip,
+            ICMPV6_TYPE_DEST_UNREACHABLE,
+            code,
+            0,
+            invoking_packet,
+        )
+    }
+
+    /// Builds ICMPv6 Packet Too Big (RFC 4443, Type 2 Code 0).
+    ///
+    /// The 32-bit `mtu` field tells the sender the maximum packet size accepted by the
+    /// constraining link and is the signal IPv6 Path MTU Discovery relies on.
+    pub fn build_packet_too_big(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        mtu: u32,
+        invoking_packet: &[u8],
+    ) -> Vec<u8> {
+        Self::build_error_message(
+            src_ip,
+            dst_ip,
+            ICMPV6_TYPE_PACKET_TOO_BIG,
+            0,
+            mtu,
+            invoking_packet,
+        )
+    }
+
     /// Builds ICMPv6 Time Exceeded (RFC 4443, Type 3 Code 0).
     /// The invoking packet is capped so the resulting IPv6 packet fits the
     /// minimum IPv6 MTU of 1280 bytes.
@@ -137,13 +181,35 @@ impl<'a> Icmpv6Packet<'a> {
         dst_ip: Ipv6Address,
         invoking_packet: &[u8],
     ) -> Vec<u8> {
+        Self::build_error_message(
+            src_ip,
+            dst_ip,
+            ICMPV6_TYPE_TIME_EXCEEDED,
+            0,
+            0,
+            invoking_packet,
+        )
+    }
+
+    /// Common RFC 4443 error-message framing. Every current ICMPv6 error type has a
+    /// four-byte type-specific field after the checksum, followed by as much of the
+    /// invoking packet as can fit without making the resulting IPv6 packet exceed the
+    /// minimum IPv6 MTU (1280 bytes).
+    fn build_error_message(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        msg_type: u8,
+        code: u8,
+        type_specific: u32,
+        invoking_packet: &[u8],
+    ) -> Vec<u8> {
         const MAX_INVOKING_BYTES: usize = 1232; // 1280 - IPv6(40) - ICMPv6(8)
         let quoted = invoking_packet.len().min(MAX_INVOKING_BYTES);
         let mut buf = Vec::with_capacity(8 + quoted);
-        buf.push(ICMPV6_TYPE_TIME_EXCEEDED);
-        buf.push(0);
+        buf.push(msg_type);
+        buf.push(code);
         buf.extend_from_slice(&[0, 0]);
-        buf.extend_from_slice(&[0, 0, 0, 0]);
+        buf.extend_from_slice(&type_specific.to_be_bytes());
         buf.extend_from_slice(&invoking_packet[..quoted]);
         let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
         buf[2..4].copy_from_slice(&csum.to_be_bytes());
@@ -266,6 +332,37 @@ mod tests {
 
         assert_eq!(parsed_reply.msg_type, ICMPV6_TYPE_ECHO_REPLY);
         assert_eq!(parsed_reply.code, 0);
+    }
+
+    #[test]
+    fn test_icmpv6_error_messages_checksum_fields_and_quote_limit() {
+        let router = Ipv6Address::from_str("2001:db8::1").unwrap();
+        let host = Ipv6Address::from_str("2001:db8::2").unwrap();
+        let invoking = vec![0x5a; 1600];
+
+        let unreachable =
+            Icmpv6Packet::build_destination_unreachable(router, host, 0, &invoking);
+        let parsed = Icmpv6Packet::parse(router, host, &unreachable, true).unwrap();
+        assert_eq!(parsed.msg_type, ICMPV6_TYPE_DEST_UNREACHABLE);
+        assert_eq!(parsed.code, 0);
+        assert_eq!(&parsed.payload[..4], &[0, 0, 0, 0]);
+        assert_eq!(unreachable.len(), 1240);
+        assert_eq!(&parsed.payload[4..], &invoking[..1232]);
+
+        let too_big = Icmpv6Packet::build_packet_too_big(router, host, 1280, &invoking);
+        let parsed = Icmpv6Packet::parse(router, host, &too_big, true).unwrap();
+        assert_eq!(parsed.msg_type, ICMPV6_TYPE_PACKET_TOO_BIG);
+        assert_eq!(parsed.code, 0);
+        assert_eq!(u32::from_be_bytes(parsed.payload[..4].try_into().unwrap()), 1280);
+        assert_eq!(too_big.len(), 1240);
+        assert_eq!(&parsed.payload[4..], &invoking[..1232]);
+
+        let exceeded = Icmpv6Packet::build_time_exceeded(router, host, &invoking);
+        let parsed = Icmpv6Packet::parse(router, host, &exceeded, true).unwrap();
+        assert_eq!(parsed.msg_type, ICMPV6_TYPE_TIME_EXCEEDED);
+        assert_eq!(parsed.code, 0);
+        assert_eq!(&parsed.payload[..4], &[0, 0, 0, 0]);
+        assert_eq!(exceeded.len(), 1240);
     }
 
     #[test]
