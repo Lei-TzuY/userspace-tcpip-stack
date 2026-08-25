@@ -31,7 +31,7 @@ jobs:
               global s
               count = s.count(old)
               if count != 1:
-                  raise SystemExit(f'expected exactly one match, found {count}: {old[:80]!r}')
+                  raise SystemExit(f'expected exactly one match, found {count}: {old[:100]!r}')
               s = s.replace(old, new, 1)
 
           replace_once(
@@ -49,75 +49,75 @@ jobs:
 
           replace_once(
           '''        gateway: Option<Ipv6Address>,
-              preferred_lifetime: u32,
-              valid_lifetime: u32,''',
+                  preferred_lifetime: u32,
+                  valid_lifetime: u32,''',
           '''        gateway: Option<Ipv6Address>,
-              on_link: bool,
-              preferred_lifetime: u32,
-              valid_lifetime: u32,''')
+                  on_link: bool,
+                  preferred_lifetime: u32,
+                  valid_lifetime: u32,''')
 
           replace_once(
           '''            dad.gateway = gateway;
-              dad.preferred_until_ms = preferred_until_ms;''',
+                      dad.preferred_until_ms = preferred_until_ms;''',
           '''            dad.gateway = gateway;
-              // RFC 4861 section 6.3.4: L=0 makes no statement about
-              // on-link status, so it must not undo a previously learned L=1.
-              dad.on_link |= on_link;
-              dad.preferred_until_ms = preferred_until_ms;''')
+                      // RFC 4861 section 6.3.4: L=0 makes no statement about
+                      // on-link status, so it must not undo a previously learned L=1.
+                      dad.on_link |= on_link;
+                      dad.preferred_until_ms = preferred_until_ms;''')
 
           replace_once(
           '''            prefix_len: prefix_len.min(128),
-              gateway,
-              deadline_ms:''',
+                      gateway,
+                      deadline_ms:''',
           '''            prefix_len: prefix_len.min(128),
-              gateway,
-              on_link,
-              deadline_ms:''')
+                      gateway,
+                      on_link,
+                      deadline_ms:''')
 
           replace_once(
           '''                self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);
-              self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {''',
+                      self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {''',
           '''                self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);
-              // SLAAC's Autonomous (A) flag configures the address; the On-link
-              // (L) flag independently controls whether the advertised prefix is
-              // installed as directly reachable. configure_ipv6_interface() is
-              // intentionally on-link for manual callers, so remove only the
-              // RA-created connected route when this PIO did not assert L.
-              if !dad.on_link {
-                  self.ipv6_routing_table.remove_route(
-                      dad.address,
-                      dad.prefix_len,
-                      RouteSource::Connected,
-                  );
-              }
-              self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {''')
+                      // SLAAC's Autonomous (A) flag configures the address; the On-link
+                      // (L) flag independently controls whether the advertised prefix is
+                      // installed as directly reachable. configure_ipv6_interface() is
+                      // intentionally on-link for manual callers, so remove only the
+                      // RA-created connected route when this PIO did not assert L.
+                      if !dad.on_link {
+                          self.ipv6_routing_table.remove_route(
+                              dad.address,
+                              dad.prefix_len,
+                              RouteSource::Connected,
+                          );
+                      }
+                      self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {''')
 
           replace_once(
           '''                                        if self.config.ipv6 == Some(address) {
-                                              let old_valid = self''',
+                                                      let old_valid = self''',
           '''                                        if self.config.ipv6 == Some(address) {
-                                              // L and A are independent. L=1 can add on-link
-                                              // knowledge after SLAAC completes; L=0 must not
-                                              // withdraw existing on-link knowledge.
-                                              if prefix.on_link {
-                                                  self.ipv6_routing_table.add_route_from(
-                                                      address,
-                                                      prefix.prefix_length,
-                                                      None,
-                                                      "eth0",
-                                                      RouteSource::Connected,
-                                                  );
-                                              }
-                                              let old_valid = self''')
+                                                      // L and A are independent. L=1 can add on-link
+                                                      // knowledge after SLAAC completes; L=0 must not
+                                                      // withdraw existing on-link knowledge.
+                                                      if prefix.on_link {
+                                                          self.ipv6_routing_table.add_route_from(
+                                                              address,
+                                                              prefix.prefix_length,
+                                                              None,
+                                                              "eth0",
+                                                              RouteSource::Connected,
+                                                          );
+                                                      }
+                                                      let old_valid = self''')
 
           replace_once(
           '''                                            prefix.prefix_length,
-                                              gateway,
-                                              prefix.preferred_lifetime,''',
+                                                      gateway,
+                                                      prefix.preferred_lifetime,''',
           '''                                            prefix.prefix_length,
-                                              gateway,
-                                              prefix.on_link,
-                                              prefix.preferred_lifetime,''')
+                                                      gateway,
+                                                      prefix.on_link,
+                                                      prefix.preferred_lifetime,''')
 
           path.write_text(s)
           PY
