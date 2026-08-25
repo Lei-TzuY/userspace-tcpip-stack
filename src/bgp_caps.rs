@@ -263,6 +263,13 @@ impl BgpCapabilitySet {
         self.four_octet_as().is_some()
     }
 
+    /// True when the speaker advertised RFC 2918 Route Refresh.
+    pub fn supports_route_refresh(&self) -> bool {
+        self.capabilities
+            .iter()
+            .any(|c| matches!(c, BgpCapability::RouteRefresh))
+    }
+
     /// Encodes the whole set as an OPEN optional parameter block.
     ///
     /// All capabilities go into a single parameter, which is what every modern
@@ -384,6 +391,8 @@ pub struct NegotiatedCapabilities {
     /// True when both ends sent the Four-Octet AS capability, which is what
     /// decides whether AS_PATH on this session carries 2- or 4-octet ASNs.
     pub four_octet_as: bool,
+    /// True when both ends advertised RFC 2918 Route Refresh.
+    pub route_refresh: bool,
     /// Everything the peer offered, kept verbatim for diagnostics.
     pub peer: BgpCapabilitySet,
 }
@@ -395,6 +404,10 @@ impl NegotiatedCapabilities {
 
     pub fn supports_evpn(&self) -> bool {
         self.supports(AfiSafi::L2VPN_EVPN)
+    }
+
+    pub fn supports_route_refresh(&self) -> bool {
+        self.route_refresh
     }
 }
 
@@ -424,6 +437,7 @@ pub fn negotiate(local: &BgpCapabilitySet, peer: &BgpCapabilitySet) -> Negotiate
             .copied()
             .collect(),
         four_octet_as: local.supports_four_octet_as() && peer.supports_four_octet_as(),
+        route_refresh: local.supports_route_refresh() && peer.supports_route_refresh(),
         peer: peer.clone(),
     }
 }
@@ -437,6 +451,7 @@ mod tests {
         set.advertise(AfiSafi::IPV4_UNICAST);
         set.advertise(AfiSafi::L2VPN_EVPN);
         set.push(BgpCapability::FourOctetAs(4_200_000_001));
+        set.push(BgpCapability::RouteRefresh);
         set
     }
 
@@ -470,6 +485,7 @@ mod tests {
         assert_eq!(n.families, BTreeSet::from([AfiSafi::IPV4_UNICAST]));
         assert!(!n.supports_evpn());
         assert!(!n.four_octet_as);
+        assert!(!n.route_refresh);
     }
 
     #[test]
@@ -480,6 +496,19 @@ mod tests {
         assert!(!negotiate(&full_set(), &ipv4_only).supports_evpn());
         assert!(negotiate(&full_set(), &full_set()).supports_evpn());
         assert!(negotiate(&full_set(), &full_set()).four_octet_as);
+    }
+
+    #[test]
+    fn test_route_refresh_is_negotiated_only_when_both_ends_offer_it() {
+        let full = full_set();
+        let mut without_refresh = full_set();
+        without_refresh
+            .capabilities
+            .retain(|c| !matches!(c, BgpCapability::RouteRefresh));
+
+        assert!(negotiate(&full, &full).supports_route_refresh());
+        assert!(!negotiate(&full, &without_refresh).supports_route_refresh());
+        assert!(!negotiate(&without_refresh, &full).supports_route_refresh());
     }
 
     #[test]

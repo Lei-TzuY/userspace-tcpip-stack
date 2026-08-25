@@ -24,7 +24,8 @@ use crate::bgp::{
     BGP_SUB_BAD_PEER_AS, BGP_SUB_INVALID_NEXT_HOP, BGP_SUB_MALFORMED_AS_PATH,
     BGP_SUB_OPTIONAL_ATTRIBUTE_ERROR, BGP_SUB_UNACCEPTABLE_HOLD_TIME, BGP_SUB_UNSUPPORTED_VERSION,
     BGP_VERSION, BgpFramer, BgpNotificationMessage, BgpOpenMessage, BgpParseError,
-    BgpPathAttributes, BgpPdu, BgpUpdateMessage, Ipv4Prefix, MAX_CLUSTER_LIST_LEN,
+    BgpPathAttributes, BgpPdu, BgpRouteRefreshMessage, BgpUpdateMessage, Ipv4Prefix,
+    MAX_CLUSTER_LIST_LEN,
 };
 use crate::bgp_caps::{
     AfiSafi, BGP_SUB_UNSUPPORTED_CAPABILITY, BgpCapability, BgpCapabilitySet,
@@ -152,6 +153,10 @@ pub struct BgpPeerCounters {
     pub updates_received: u64,
     pub keepalives_sent: u64,
     pub keepalives_received: u64,
+    /// RFC 2918 requests sent to this peer.
+    pub route_refreshes_sent: u64,
+    /// RFC 2918 requests received from this peer.
+    pub route_refreshes_received: u64,
     pub notifications_sent: u64,
     pub notifications_received: u64,
     /// NLRI discarded because the local ASN already appeared in AS_PATH.
@@ -212,6 +217,9 @@ pub struct BgpPeer {
     /// What the two OPENs agreed to carry. Empty until the peer's OPEN arrives,
     /// which is what stops an EVPN route being advertised before negotiation.
     pub negotiated: NegotiatedCapabilities,
+    /// Families the peer asked us to replay. Keeping this separate from the
+    /// Adj-RIB-Out preserves the previous advertisement set for withdrawals.
+    refresh_pending: BTreeSet<AfiSafi>,
     pub remote_router_id: Option<Ipv4Address>,
     pub established_since_ms: Option<u64>,
     pub import_policy: RoutePolicy,
@@ -255,6 +263,7 @@ impl BgpPeer {
             negotiated_hold_ms: 0,
             keepalive_interval_ms: 0,
             negotiated: NegotiatedCapabilities::default(),
+            refresh_pending: BTreeSet::new(),
             remote_router_id: None,
             established_since_ms: None,
             import_policy: RoutePolicy::new(),
@@ -740,6 +749,38 @@ impl BgpRouter {
             p.admin_up = true;
             p.connect_retry_deadline = None;
         }
+    }
+
+    /// Requests a soft outbound replay from a peer without resetting the TCP/BGP
+    /// session. The request is sent only for a negotiated family and only when
+    /// both ends advertised the RFC 2918 capability.
+    pub fn request_route_refresh(
+        &mut self,
+        addr: Ipv4Address,
+        family: AfiSafi,
+        now_ms: u64,
+        sockets: &mut SocketRuntime,
+    ) -> bool {
+        let Some(idx) = self.peers.iter().position(|p| p.addr == addr) else {
+            return false;
+        };
+        let allowed = {
+            let peer = &self.peers[idx];
+            peer.is_established()
+                && peer.negotiated.supports_route_refresh()
+                && peer.negotiated.supports(family)
+        };
+        if !allowed {
+            return false;
+        }
+
+        let pdu = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::new(family));
+        if !self.send_pdu(idx, sockets, &pdu) {
+            return false;
+        }
+        self.peers[idx].counters.route_refreshes_sent += 1;
+        self.log(now_ms, addr, format!("sent ROUTE-REFRESH for {}", family));
+        true
     }
 
     pub fn events(&self) -> &[BgpEvent] {
@@ -1241,6 +1282,7 @@ impl BgpRouter {
             caps.advertise(*family);
         }
         caps.push(BgpCapability::FourOctetAs(self.local_as));
+        caps.push(BgpCapability::RouteRefresh);
         caps
     }
 
@@ -1403,13 +1445,14 @@ impl BgpRouter {
                     now_ms,
                     addr,
                     format!(
-                        "capability negotiation: families [{}], 4-octet ASN {}",
+                        "capability negotiation: families [{}], 4-octet ASN {}, route refresh {}",
                         families.join(", "),
                         if capabilities.four_octet_as {
                             "yes"
                         } else {
                             "no"
-                        }
+                        },
+                        if capabilities.route_refresh { "yes" } else { "no" }
                     ),
                 );
                 self.peers[idx].negotiated = capabilities;
@@ -1472,6 +1515,39 @@ impl BgpRouter {
                         Some(Teardown::Protocol(note, reason))
                     }
                 }
+            }
+
+            (BgpState::Established, BgpPdu::RouteRefresh(refresh)) => {
+                if !self.peers[idx].negotiated.supports_route_refresh() {
+                    self.log(
+                        now_ms,
+                        addr,
+                        format!(
+                            "ignored ROUTE-REFRESH for {}: capability was not negotiated",
+                            refresh.family
+                        ),
+                    );
+                    return None;
+                }
+                if !self.peers[idx].negotiated.supports(refresh.family) {
+                    self.log(
+                        now_ms,
+                        addr,
+                        format!(
+                            "ignored ROUTE-REFRESH for {}: family was not negotiated",
+                            refresh.family
+                        ),
+                    );
+                    return None;
+                }
+                self.peers[idx].counters.route_refreshes_received += 1;
+                self.peers[idx].refresh_pending.insert(refresh.family);
+                self.log(
+                    now_ms,
+                    addr,
+                    format!("received ROUTE-REFRESH for {}; scheduling replay", refresh.family),
+                );
+                None
             }
 
             (_, BgpPdu::Notification(note)) => {
@@ -1667,6 +1743,7 @@ impl BgpRouter {
         peer.negotiated_hold_ms = 0;
         peer.keepalive_interval_ms = 0;
         peer.negotiated = NegotiatedCapabilities::default();
+        peer.refresh_pending.clear();
         peer.remote_router_id = None;
         peer.established_since_ms = None;
         peer.tx_desynced = false;
@@ -2356,12 +2433,14 @@ impl BgpRouter {
     /// Sends `idx` the EVPN routes it should be hearing, and withdraws the ones
     /// it should not.
     fn advertise_evpn_to_peer(&mut self, idx: usize, now_ms: u64, sockets: &mut SocketRuntime) {
-        // The capability gate. A peer that did not negotiate AFI 25 / SAFI 70
-        // never sees an EVPN route, no matter what the Loc-RIB holds.
         if !self.peers[idx].carries_evpn() {
             return;
         }
         let addr = self.peers[idx].addr;
+        let force_refresh = self.peers[idx]
+            .refresh_pending
+            .contains(&AfiSafi::L2VPN_EVPN);
+        let mut refresh_complete = true;
         let desired = self.compute_evpn_adj_rib_out(idx);
 
         let withdrawn: Vec<EvpnRouteKey> = self
@@ -2392,26 +2471,16 @@ impl BgpRouter {
                     addr,
                     format!("withdrew {} EVPN route(s) via MP_UNREACH", withdrawn.len()),
                 );
+            } else if force_refresh {
+                refresh_complete = false;
             }
         }
 
-        // Announcements are grouped so one UPDATE can carry several NLRI, which
-        // is what a real speaker does and what keeps a large fabric from sending
-        // one message per MAC.
-        //
-        // Two routes may share an UPDATE only if *everything* outside the NLRI
-        // list is identical, and the next hop is part of that. It lives inside
-        // MP_REACH_NLRI alongside the NLRI, so the grouping key is built from
-        // the attributes with MP_REACH removed and the next hop appended
-        // explicitly. Deriving the key by trimming the encoded MP_REACH would
-        // take the next hop out with it, and routes for different VTEPs would
-        // merge into one UPDATE and all be advertised with whichever VTEP
-        // happened to be first.
         let four_octet = self.peers[idx].negotiated.four_octet_as;
         let mut groups: BTreeMap<(Ipv4Address, Vec<u8>), (BgpPathAttributes, Vec<EvpnRouteKey>)> =
             BTreeMap::new();
         for (key, advert) in &desired {
-            if self.evpn_adj_rib_out.get(addr, key) == Some(advert) {
+            if !force_refresh && self.evpn_adj_rib_out.get(addr, key) == Some(advert) {
                 continue;
             }
             let mut attrs = Self::evpn_attributes_for(advert, four_octet);
@@ -2451,12 +2520,22 @@ impl BgpRouter {
                     now_ms,
                     addr,
                     format!(
-                        "advertised {} EVPN route(s) in one UPDATE ({} reflected)",
+                        "advertised {} EVPN route(s) in one UPDATE ({} reflected){}",
                         keys.len(),
-                        reflected
+                        reflected,
+                        if force_refresh { " (refresh)" } else { "" }
                     ),
                 );
+            } else if force_refresh {
+                refresh_complete = false;
             }
+        }
+
+        if force_refresh && refresh_complete {
+            self.peers[idx]
+                .refresh_pending
+                .remove(&AfiSafi::L2VPN_EVPN);
+            self.log(now_ms, addr, "completed L2VPN EVPN route refresh");
         }
     }
 
@@ -2748,9 +2827,15 @@ impl BgpRouter {
             return;
         }
         let addr = self.peers[idx].addr;
+        let force_refresh = self.peers[idx]
+            .refresh_pending
+            .contains(&AfiSafi::IPV4_UNICAST);
+        let mut refresh_complete = true;
         let desired = self.compute_adj_rib_out(idx);
 
-        // Withdrawals: everything we previously advertised that is no longer desired.
+        // Withdrawals still compare against the real Adj-RIB-Out, even during a
+        // refresh. Clearing it to force a replay would forget stale routes and
+        // make it impossible to withdraw them.
         let withdrawn: Vec<Ipv4Prefix> = self
             .adj_rib_out
             .prefixes(addr)
@@ -2770,15 +2855,18 @@ impl BgpRouter {
                     addr,
                     format!("advertised withdrawal of {} prefix(es)", withdrawn.len()),
                 );
+            } else if force_refresh {
+                refresh_complete = false;
             }
         }
 
-        // Announcements: new or changed routes, grouped by identical attribute set so
-        // one UPDATE can carry several NLRI, exactly as a real speaker packs them.
+        // During a route refresh, unchanged routes are deliberately included: the
+        // peer asked for a replay of the current outbound view. Outside a refresh,
+        // the Adj-RIB-Out continues to suppress duplicate advertisements.
         let four_octet = self.peers[idx].negotiated.four_octet_as;
         let mut groups: BTreeMap<Vec<u8>, (AdvertisedRoute, Vec<Ipv4Prefix>)> = BTreeMap::new();
         for (prefix, route) in &desired {
-            if self.adj_rib_out.get(addr, prefix) == Some(route) {
+            if !force_refresh && self.adj_rib_out.get(addr, prefix) == Some(route) {
                 continue;
             }
             let attrs = Self::attributes_for(route, four_octet);
@@ -2806,20 +2894,27 @@ impl BgpRouter {
                     now_ms,
                     addr,
                     format!(
-                        "advertised {} prefix(es) with AS_PATH [{}] next-hop {}{}",
+                        "advertised {} prefix(es) with AS_PATH [{}] next-hop {}{}{}",
                         prefixes.len(),
                         route.as_path,
                         route.next_hop,
-                        if reflected { " (reflected)" } else { "" }
+                        if reflected { " (reflected)" } else { "" },
+                        if force_refresh { " (refresh)" } else { "" }
                     ),
                 );
+            } else if force_refresh {
+                refresh_complete = false;
             }
         }
 
-        // Suppression is recounted from scratch each run rather than accumulated,
-        // so the number always describes the fabric as it is now and not the sum
-        // of every transient state it passed through on the way here.
         self.peers[idx].counters.rr_suppressed = self.rr_suppressed_count(idx) as u64;
+
+        if force_refresh && refresh_complete {
+            self.peers[idx]
+                .refresh_pending
+                .remove(&AfiSafi::IPV4_UNICAST);
+            self.log(now_ms, addr, "completed IPv4 Unicast route refresh");
+        }
     }
 
     /// How many IPv4 prefixes the RFC 4456 rules are currently withholding from
@@ -3058,10 +3153,12 @@ impl BgpRouter {
             let msg_rcd = p.counters.opens_received
                 + p.counters.updates_received
                 + p.counters.keepalives_received
+                + p.counters.route_refreshes_received
                 + p.counters.notifications_received;
             let msg_sent = p.counters.opens_sent
                 + p.counters.updates_sent
                 + p.counters.keepalives_sent
+                + p.counters.route_refreshes_sent
                 + p.counters.notifications_sent;
             s.push_str(&format!(
                 "{:<15} {:>5}  {:<11} {:>7} {:>5} {:>7} {:>7} {:>7} {:>8}\n",
@@ -3112,13 +3209,15 @@ impl BgpRouter {
                 p.prefixes_received, p.prefixes_advertised
             ));
             s.push_str(&format!(
-                "  messages open {}/{} update {}/{} keepalive {}/{} notification {}/{} (rcvd/sent)\n",
+                "  messages open {}/{} update {}/{} keepalive {}/{} route-refresh {}/{} notification {}/{} (rcvd/sent)\n",
                 p.counters.opens_received,
                 p.counters.opens_sent,
                 p.counters.updates_received,
                 p.counters.updates_sent,
                 p.counters.keepalives_received,
                 p.counters.keepalives_sent,
+                p.counters.route_refreshes_received,
+                p.counters.route_refreshes_sent,
                 p.counters.notifications_received,
                 p.counters.notifications_sent
             ));

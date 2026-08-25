@@ -3,7 +3,7 @@
 //! Inter-domain path-vector routing protocol over TCP port 179.
 //! Features 19-byte BGP framing, OPEN, UPDATE (AS_PATH / NEXT_HOP), and KEEPALIVE messages.
 
-use crate::bgp_caps::BgpCapabilitySet;
+use crate::bgp_caps::{AfiSafi, BgpCapabilitySet};
 use crate::bgp_mp::{
     BGP_ATTR_AS4_PATH, BGP_ATTR_EXT_COMMUNITIES, BGP_ATTR_MP_REACH_NLRI, BGP_ATTR_MP_UNREACH_NLRI,
     MpReachNlri, MpUnreachNlri,
@@ -21,6 +21,8 @@ pub const BGP_MSG_OPEN: u8 = 1;
 pub const BGP_MSG_UPDATE: u8 = 2;
 pub const BGP_MSG_NOTIFICATION: u8 = 3;
 pub const BGP_MSG_KEEPALIVE: u8 = 4;
+/// ROUTE-REFRESH (RFC 2918).
+pub const BGP_MSG_ROUTE_REFRESH: u8 = 5;
 
 // BGP Path Attribute Types
 pub const BGP_ATTR_ORIGIN: u8 = 1;
@@ -1692,6 +1694,42 @@ impl BgpNotificationMessage {
     }
 }
 
+/// RFC 2918 ROUTE-REFRESH request. The four-byte body names exactly one
+/// address family whose routes the peer asks us to advertise again.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BgpRouteRefreshMessage {
+    pub family: AfiSafi,
+}
+
+impl BgpRouteRefreshMessage {
+    pub const fn new(family: AfiSafi) -> Self {
+        BgpRouteRefreshMessage { family }
+    }
+
+    fn encode_body(&self) -> Vec<u8> {
+        let mut body = Vec::with_capacity(4);
+        body.extend_from_slice(&self.family.afi.to_be_bytes());
+        body.push(0); // Reserved, sent as zero and ignored by receivers.
+        body.push(self.family.safi);
+        body
+    }
+
+    fn parse_body(body: &[u8]) -> Result<Self, BgpParseError> {
+        if body.len() != 4 {
+            return Err(BgpParseError::header(
+                BGP_SUB_BAD_MESSAGE_LENGTH,
+                format!(
+                    "ROUTE-REFRESH body is {} bytes, must be exactly 4",
+                    body.len()
+                ),
+            ));
+        }
+        Ok(BgpRouteRefreshMessage {
+            family: AfiSafi::new(u16::from_be_bytes([body[0], body[1]]), body[3]),
+        })
+    }
+}
+
 /// A fully decoded BGP protocol data unit.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BgpPdu {
@@ -1699,6 +1737,7 @@ pub enum BgpPdu {
     Update(BgpUpdateMessage),
     Notification(BgpNotificationMessage),
     Keepalive,
+    RouteRefresh(BgpRouteRefreshMessage),
 }
 
 impl BgpPdu {
@@ -1708,6 +1747,7 @@ impl BgpPdu {
             BgpPdu::Update(_) => BGP_MSG_UPDATE,
             BgpPdu::Notification(_) => BGP_MSG_NOTIFICATION,
             BgpPdu::Keepalive => BGP_MSG_KEEPALIVE,
+            BgpPdu::RouteRefresh(_) => BGP_MSG_ROUTE_REFRESH,
         }
     }
 
@@ -1717,6 +1757,7 @@ impl BgpPdu {
             BgpPdu::Update(_) => "UPDATE",
             BgpPdu::Notification(_) => "NOTIFICATION",
             BgpPdu::Keepalive => "KEEPALIVE",
+            BgpPdu::RouteRefresh(_) => "ROUTE-REFRESH",
         }
     }
 
@@ -1731,6 +1772,7 @@ impl BgpPdu {
                 b
             }
             BgpPdu::Keepalive => Vec::new(),
+            BgpPdu::RouteRefresh(r) => r.encode_body(),
         };
         let total = BGP_HEADER_LEN + body.len();
         let mut out = Vec::with_capacity(total);
@@ -1779,6 +1821,9 @@ impl BgpPdu {
                 }
                 Ok(BgpPdu::Keepalive)
             }
+            BGP_MSG_ROUTE_REFRESH => Ok(BgpPdu::RouteRefresh(
+                BgpRouteRefreshMessage::parse_body(body)?,
+            )),
             other => Err(BgpParseError::header(
                 BGP_SUB_BAD_MESSAGE_TYPE,
                 format!("unsupported message type {}", other),
@@ -1818,6 +1863,7 @@ pub fn parse_bgp_header(frame: &[u8]) -> Result<(u8, &[u8]), BgpParseError> {
         BGP_MSG_UPDATE => BGP_HEADER_LEN + 4,
         BGP_MSG_NOTIFICATION => BGP_HEADER_LEN + 2,
         BGP_MSG_KEEPALIVE => BGP_HEADER_LEN,
+        BGP_MSG_ROUTE_REFRESH => BGP_HEADER_LEN + 4,
         other => {
             return Err(BgpParseError::header(
                 BGP_SUB_BAD_MESSAGE_TYPE,
@@ -2004,6 +2050,24 @@ mod tests {
         let raw_ka = keepalive.serialize();
         assert_eq!(raw_ka.len(), 19);
         assert_eq!(BgpMessage::parse(&raw_ka).unwrap(), BgpMessage::Keepalive);
+    }
+
+    #[test]
+    fn test_route_refresh_round_trips_and_has_an_exact_four_byte_body() {
+        let sent = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::new(AfiSafi::L2VPN_EVPN));
+        let mut raw = sent.serialize();
+        assert_eq!(raw.len(), BGP_HEADER_LEN + 4);
+        assert_eq!(raw[18], BGP_MSG_ROUTE_REFRESH);
+        assert_eq!(BgpPdu::parse(&raw).unwrap(), sent);
+
+        // The reserved octet is ignored on receipt as RFC 2918 requires.
+        raw[21] = 0x7f;
+        assert_eq!(BgpPdu::parse(&raw).unwrap(), sent);
+
+        // A fifth body byte is not padding: the message has exactly one shape.
+        raw.push(0);
+        raw[16..18].copy_from_slice(&((BGP_HEADER_LEN + 5) as u16).to_be_bytes());
+        assert!(BgpPdu::parse(&raw).is_err());
     }
 
     #[test]
