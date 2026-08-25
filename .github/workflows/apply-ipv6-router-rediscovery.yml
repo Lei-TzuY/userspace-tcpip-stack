@@ -1,0 +1,51 @@
+name: Apply IPv6 Router Rediscovery
+
+on:
+  push:
+    branches:
+      - feat/ipv6-router-rediscovery
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply router rediscovery patch
+        run: python scripts/apply_ipv6_router_rediscovery.py
+      - name: Format touched files
+        run: cargo fmt -- src/stack.rs tests/test_ipv6_router_rediscovery.rs
+      - name: Router rediscovery integration
+        run: cargo test --quiet --test test_ipv6_router_rediscovery
+      - name: Router discovery regression
+        run: cargo test --quiet --test test_ipv6_router_discovery
+      - name: RA lifetime regression
+        run: cargo test --quiet --test test_ipv6_ra_lifetimes
+      - name: Host DAD regression
+        run: cargo test --quiet --test test_ipv6_dad
+      - name: Lab router DAD regression
+        run: cargo test --quiet --test test_lab_ipv6_dad
+      - name: RA SLAAC regression
+        run: cargo test --quiet --test test_ipv6_ra_slaac
+      - name: Routed IPv6 lab regression
+        run: cargo test --quiet --test test_lab_ipv6_routing
+      - name: Complete test suite
+        run: cargo test --quiet
+      - name: Release build
+        run: cargo build --release --quiet
+      - name: Commit verified implementation
+        shell: bash
+        run: |
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/stack.rs tests/test_ipv6_router_rediscovery.rs
+          git commit -m "feat(ipv6): rediscover expired default routers"
+          git push origin HEAD:feat/ipv6-router-rediscovery
+          git rm scripts/apply_ipv6_router_rediscovery.py .github/workflows/apply-ipv6-router-rediscovery.yml
+          git commit -m "chore: remove router rediscovery staging workflow"
+          git push origin HEAD:feat/ipv6-router-rediscovery
