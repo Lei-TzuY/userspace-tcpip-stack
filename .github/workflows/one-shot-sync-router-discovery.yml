@@ -1,0 +1,41 @@
+name: One-shot sync Router Discovery with NUD
+
+on:
+  push:
+    branches:
+      - fix/ipv6-router-discovery-ingress-validation
+
+permissions:
+  contents: write
+
+jobs:
+  sync-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Merge main, verify, and push
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git fetch origin main
+          git merge --no-edit origin/main
+          cargo fmt --all -- --check
+          cargo test --test test_ipv6_router_discovery_ingress_validation
+          cargo test --test test_ipv6_nud
+          cargo test --test test_ipv6_ndp_learning
+          cargo test --test test_ipv6_pmtud
+          cargo test --all-targets
+          cargo build --release
+          git diff --check
+          rm .github/workflows/one-shot-sync-router-discovery.yml
+          git add -A
+          git commit -m 'chore: remove Router Discovery sync workflow'
+          git push origin HEAD:fix/ipv6-router-discovery-ingress-validation
