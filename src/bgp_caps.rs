@@ -27,6 +27,8 @@ pub const BGP_OPT_PARAM_CAPABILITY: u8 = 2;
 pub const BGP_CAP_MULTIPROTOCOL: u8 = 1;
 /// Route Refresh (RFC 2918).
 pub const BGP_CAP_ROUTE_REFRESH: u8 = 2;
+/// Enhanced Route Refresh (RFC 7313).
+pub const BGP_CAP_ENHANCED_ROUTE_REFRESH: u8 = 70;
 /// Graceful Restart (RFC 4724).
 pub const BGP_CAP_GRACEFUL_RESTART: u8 = 64;
 /// Support for 4-octet AS numbers (RFC 6793).
@@ -147,7 +149,11 @@ impl BgpGracefulRestartCapability {
     fn encode_value(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(2 + self.families.len() * 4);
         let word = (self.restart_time & BGP_GR_MAX_RESTART_TIME)
-            | if self.restarting { BGP_GR_RESTART_STATE } else { 0 };
+            | if self.restarting {
+                BGP_GR_RESTART_STATE
+            } else {
+                0
+            };
         out.extend_from_slice(&word.to_be_bytes());
         for family in &self.families {
             out.extend_from_slice(&family.family.afi.to_be_bytes());
@@ -200,6 +206,7 @@ pub enum BgpCapability {
     MultiProtocol(AfiSafi),
     FourOctetAs(u32),
     RouteRefresh,
+    EnhancedRouteRefresh,
     GracefulRestart(BgpGracefulRestartCapability),
     Unknown { code: u8, value: Vec<u8> },
 }
@@ -210,6 +217,7 @@ impl BgpCapability {
             BgpCapability::MultiProtocol(_) => BGP_CAP_MULTIPROTOCOL,
             BgpCapability::FourOctetAs(_) => BGP_CAP_FOUR_OCTET_AS,
             BgpCapability::RouteRefresh => BGP_CAP_ROUTE_REFRESH,
+            BgpCapability::EnhancedRouteRefresh => BGP_CAP_ENHANCED_ROUTE_REFRESH,
             BgpCapability::GracefulRestart(_) => BGP_CAP_GRACEFUL_RESTART,
             BgpCapability::Unknown { code, .. } => *code,
         }
@@ -227,6 +235,7 @@ impl BgpCapability {
             }
             BgpCapability::FourOctetAs(asn) => asn.to_be_bytes().to_vec(),
             BgpCapability::RouteRefresh => Vec::new(),
+            BgpCapability::EnhancedRouteRefresh => Vec::new(),
             BgpCapability::GracefulRestart(gr) => gr.encode_value(),
             BgpCapability::Unknown { value, .. } => value.clone(),
         }
@@ -285,6 +294,15 @@ impl BgpCapability {
                 }
                 Ok(BgpCapability::RouteRefresh)
             }
+            BGP_CAP_ENHANCED_ROUTE_REFRESH => {
+                if !value.is_empty() {
+                    return Err(BgpParseError::open(
+                        BGP_SUB_UNSUPPORTED_OPT_PARAM,
+                        "Enhanced Route Refresh capability must carry no value",
+                    ));
+                }
+                Ok(BgpCapability::EnhancedRouteRefresh)
+            }
             BGP_CAP_GRACEFUL_RESTART => Ok(BgpCapability::GracefulRestart(
                 BgpGracefulRestartCapability::decode_value(value)?,
             )),
@@ -302,6 +320,7 @@ impl fmt::Display for BgpCapability {
             BgpCapability::MultiProtocol(af) => write!(f, "Multiprotocol {}", af),
             BgpCapability::FourOctetAs(asn) => write!(f, "Four-Octet AS {}", asn),
             BgpCapability::RouteRefresh => write!(f, "Route Refresh"),
+            BgpCapability::EnhancedRouteRefresh => write!(f, "Enhanced Route Refresh"),
             BgpCapability::GracefulRestart(gr) => write!(
                 f,
                 "Graceful Restart {}s{} ({} families)",
@@ -380,6 +399,13 @@ impl BgpCapabilitySet {
         self.capabilities
             .iter()
             .any(|c| matches!(c, BgpCapability::RouteRefresh))
+    }
+
+    /// True when the speaker advertised RFC 7313 Enhanced Route Refresh.
+    pub fn supports_enhanced_route_refresh(&self) -> bool {
+        self.capabilities
+            .iter()
+            .any(|c| matches!(c, BgpCapability::EnhancedRouteRefresh))
     }
 
     /// The RFC 4724 capability advertised by the speaker, if any.
@@ -517,6 +543,8 @@ pub struct NegotiatedCapabilities {
     pub four_octet_as: bool,
     /// True when both ends advertised RFC 2918 Route Refresh.
     pub route_refresh: bool,
+    /// True when both ends also advertised RFC 7313 Enhanced Route Refresh.
+    pub enhanced_route_refresh: bool,
     /// Everything the peer offered, kept verbatim for diagnostics.
     pub peer: BgpCapabilitySet,
 }
@@ -532,6 +560,10 @@ impl NegotiatedCapabilities {
 
     pub fn supports_route_refresh(&self) -> bool {
         self.route_refresh
+    }
+
+    pub fn supports_enhanced_route_refresh(&self) -> bool {
+        self.enhanced_route_refresh
     }
 }
 
@@ -555,13 +587,17 @@ pub fn negotiate(local: &BgpCapabilitySet, peer: &BgpCapabilitySet) -> Negotiate
     let local_families = families_with_default(local);
     let peer_families = families_with_default(peer);
 
+    let route_refresh = local.supports_route_refresh() && peer.supports_route_refresh();
     NegotiatedCapabilities {
         families: local_families
             .intersection(&peer_families)
             .copied()
             .collect(),
         four_octet_as: local.supports_four_octet_as() && peer.supports_four_octet_as(),
-        route_refresh: local.supports_route_refresh() && peer.supports_route_refresh(),
+        route_refresh,
+        enhanced_route_refresh: route_refresh
+            && local.supports_enhanced_route_refresh()
+            && peer.supports_enhanced_route_refresh(),
         peer: peer.clone(),
     }
 }
@@ -576,11 +612,16 @@ mod tests {
         set.advertise(AfiSafi::L2VPN_EVPN);
         set.push(BgpCapability::FourOctetAs(4_200_000_001));
         set.push(BgpCapability::RouteRefresh);
+        set.push(BgpCapability::EnhancedRouteRefresh);
         set.push(BgpCapability::GracefulRestart(
-            BgpGracefulRestartCapability::new(120, false, vec![
-                BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
-                BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
-            ]),
+            BgpGracefulRestartCapability::new(
+                120,
+                false,
+                vec![
+                    BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
+                    BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
+                ],
+            ),
         ));
         set
     }
@@ -616,6 +657,7 @@ mod tests {
         assert!(!n.supports_evpn());
         assert!(!n.four_octet_as);
         assert!(!n.route_refresh);
+        assert!(!n.enhanced_route_refresh);
     }
 
     #[test]
@@ -643,16 +685,25 @@ mod tests {
 
     #[test]
     fn test_graceful_restart_round_trips_restart_and_forwarding_state() {
-        let gr = BgpGracefulRestartCapability::new(300, true, vec![
-            BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
-            BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
-        ]);
+        let gr = BgpGracefulRestartCapability::new(
+            300,
+            true,
+            vec![
+                BgpGracefulRestartFamily::new(AfiSafi::IPV4_UNICAST, true),
+                BgpGracefulRestartFamily::new(AfiSafi::L2VPN_EVPN, false),
+            ],
+        );
         let mut set = BgpCapabilitySet::new();
         set.push(BgpCapability::GracefulRestart(gr.clone()));
         let decoded = BgpCapabilitySet::parse_opt_params(&set.encode_opt_params()).unwrap();
         assert_eq!(decoded.graceful_restart(), Some(&gr));
         assert!(decoded.supports_graceful_restart());
-        assert!(decoded.graceful_restart().unwrap().supports(AfiSafi::IPV4_UNICAST));
+        assert!(
+            decoded
+                .graceful_restart()
+                .unwrap()
+                .supports(AfiSafi::IPV4_UNICAST)
+        );
     }
 
     #[test]
@@ -707,5 +758,36 @@ mod tests {
         raw.extend_from_slice(&full_set().encode_opt_params());
         let decoded = BgpCapabilitySet::parse_opt_params(&raw).unwrap();
         assert!(decoded.supports(AfiSafi::L2VPN_EVPN));
+    }
+}
+
+#[cfg(test)]
+mod enhanced_route_refresh_tests {
+    use super::*;
+
+    #[test]
+    fn test_enhanced_route_refresh_requires_both_sides_and_base_refresh() {
+        let mut local = BgpCapabilitySet::new();
+        local.advertise(AfiSafi::IPV4_UNICAST);
+        local.push(BgpCapability::RouteRefresh);
+        local.push(BgpCapability::EnhancedRouteRefresh);
+
+        let mut peer = local.clone();
+        let n = negotiate(&local, &peer);
+        assert!(n.supports_route_refresh());
+        assert!(n.supports_enhanced_route_refresh());
+
+        peer.capabilities
+            .retain(|c| !matches!(c, BgpCapability::EnhancedRouteRefresh));
+        let n = negotiate(&local, &peer);
+        assert!(n.supports_route_refresh());
+        assert!(!n.supports_enhanced_route_refresh());
+
+        peer.push(BgpCapability::EnhancedRouteRefresh);
+        peer.capabilities
+            .retain(|c| !matches!(c, BgpCapability::RouteRefresh));
+        let n = negotiate(&local, &peer);
+        assert!(!n.supports_route_refresh());
+        assert!(!n.supports_enhanced_route_refresh());
     }
 }

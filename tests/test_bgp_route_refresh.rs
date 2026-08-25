@@ -8,7 +8,9 @@ mod common;
 use common::bgp_lab::{
     AS1, AS2, AS3, best_as_path, build_linear_lab, converge_sessions, ip, prefix, run_until,
 };
-use toy_tcpip::bgp::{BGP_HEADER_LEN, BGP_MSG_ROUTE_REFRESH, BgpPdu, BgpRouteRefreshMessage};
+use toy_tcpip::bgp::{
+    BGP_HEADER_LEN, BGP_MSG_ROUTE_REFRESH, BgpPdu, BgpRouteRefreshMessage, BgpRouteRefreshSubtype,
+};
 use toy_tcpip::bgp_caps::AfiSafi;
 use toy_tcpip::lab::build_evpn_fabric;
 
@@ -31,6 +33,12 @@ fn test_route_refresh_capability_is_negotiated_on_live_sessions() {
             assert!(
                 peer.negotiated.supports_route_refresh(),
                 "{} did not negotiate Route Refresh with {}",
+                router,
+                peer.addr
+            );
+            assert!(
+                peer.negotiated.supports_enhanced_route_refresh(),
+                "{} did not negotiate Enhanced Route Refresh with {}",
                 router,
                 peer.addr
             );
@@ -86,7 +94,31 @@ fn test_ipv4_refresh_replays_routes_without_reset_or_decision_churn() {
         let r1 = l.router("r1").unwrap().bgp().unwrap();
         let r2 = l.router("r2").unwrap().bgp().unwrap();
         r1.peer(r2_addr).unwrap().counters.updates_received > before_updates
+            && r1
+                .peer(r2_addr)
+                .unwrap()
+                .counters
+                .enhanced_refresh_borr_received
+                == 1
+            && r1
+                .peer(r2_addr)
+                .unwrap()
+                .counters
+                .enhanced_refresh_eorr_received
+                == 1
             && r2.peer(r1_addr).unwrap().counters.route_refreshes_received == 1
+            && r2
+                .peer(r1_addr)
+                .unwrap()
+                .counters
+                .enhanced_refresh_borr_sent
+                == 1
+            && r2
+                .peer(r1_addr)
+                .unwrap()
+                .counters
+                .enhanced_refresh_eorr_sent
+                == 1
     }));
 
     let r1 = lab.router("r1").unwrap().bgp().unwrap();
@@ -98,9 +130,15 @@ fn test_ipv4_refresh_replays_routes_without_reset_or_decision_churn() {
         .get(&remote_prefix)
         .unwrap();
     assert!(refreshed.received_at_ms > before_received_at);
-    assert_eq!(best_as_path(&lab, "r1", remote_prefix), Some(vec![AS2, AS3]));
+    assert_eq!(
+        best_as_path(&lab, "r1", remote_prefix),
+        Some(vec![AS2, AS3])
+    );
     assert_eq!(peer.establishment_count, before_establishments);
-    assert_eq!(r1.decision_runs, before_decisions, "identical replay caused churn");
+    assert_eq!(
+        r1.decision_runs, before_decisions,
+        "identical replay caused churn"
+    );
     assert_eq!(peer.counters.route_refreshes_sent, 1);
 }
 
@@ -124,15 +162,18 @@ fn test_evpn_refresh_replays_mp_bgp_routes_without_reset() {
                 .peer(leaf1)
                 .is_some_and(|p| p.carries_evpn() && p.negotiated.supports_route_refresh())
     }));
-    assert!(lab.run_until(250, 30_000, |l| {
-        l.router("leaf1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .evpn_adj_rib_in
-            .total_routes()
-            > 0
-    }), "leaf1 never received the baseline EVPN routes");
+    assert!(
+        lab.run_until(250, 30_000, |l| {
+            l.router("leaf1")
+                .unwrap()
+                .bgp()
+                .unwrap()
+                .evpn_adj_rib_in
+                .total_routes()
+                > 0
+        }),
+        "leaf1 never received the baseline EVPN routes"
+    );
     lab.run_until(250, 2_000, |_| false);
 
     let (before_updates, before_routes, before_decisions, before_establishments) = {
@@ -163,7 +204,21 @@ fn test_evpn_refresh_replays_mp_bgp_routes_without_reset() {
         let l1 = l.router("leaf1").unwrap().bgp().unwrap();
         let l2 = l.router("leaf2").unwrap().bgp().unwrap();
         l1.peer(leaf2).unwrap().counters.updates_received > before_updates
+            && l1
+                .peer(leaf2)
+                .unwrap()
+                .counters
+                .enhanced_refresh_borr_received
+                == 1
+            && l1
+                .peer(leaf2)
+                .unwrap()
+                .counters
+                .enhanced_refresh_eorr_received
+                == 1
             && l2.peer(leaf1).unwrap().counters.route_refreshes_received == 1
+            && l2.peer(leaf1).unwrap().counters.enhanced_refresh_borr_sent == 1
+            && l2.peer(leaf1).unwrap().counters.enhanced_refresh_eorr_sent == 1
     }));
 
     let l1 = lab.router("leaf1").unwrap().bgp().unwrap();
@@ -175,4 +230,174 @@ fn test_evpn_refresh_replays_mp_bgp_routes_without_reset() {
         "identical EVPN replay reran the decision process"
     );
     assert_eq!(peer.counters.route_refreshes_sent, 1);
+}
+
+fn inject_refresh_marker(
+    lab: &mut toy_tcpip::lab::VirtualLab,
+    router: &str,
+    peer_addr: toy_tcpip::ipv4::Ipv4Address,
+    message: BgpRouteRefreshMessage,
+) {
+    let stream = lab
+        .router(router)
+        .unwrap()
+        .bgp()
+        .unwrap()
+        .peer(peer_addr)
+        .unwrap()
+        .stream
+        .expect("BGP session has no TCP stream");
+    let raw = BgpPdu::RouteRefresh(message).serialize();
+    let node = lab.router_mut(router).unwrap();
+    let written = node
+        .sockets
+        .as_mut()
+        .unwrap()
+        .tcp_write(stream, &raw)
+        .expect("failed to inject ROUTE-REFRESH marker");
+    assert_eq!(written, raw.len());
+}
+
+#[test]
+fn test_borr_eorr_purges_routes_not_replayed_between_markers() {
+    let mut lab = build_linear_lab();
+    let remote_prefix = prefix(10, 3, 0, 0, 24);
+    let r2_addr = ip(10, 12, 0, 2);
+    let r1_addr = ip(10, 12, 0, 1);
+    assert!(converge_sessions(&mut lab, 60_000));
+    assert!(run_until(&mut lab, 60_000, |l| {
+        best_as_path(l, "r1", remote_prefix) == Some(vec![AS2, AS3])
+    }));
+
+    // Inject only the demarcation messages on r2's real BGP TCP stream. No
+    // Adj-RIB-Out replay occurs between them, intentionally modelling an RIB
+    // inconsistency/missing withdrawal that Enhanced RR is designed to repair.
+    inject_refresh_marker(
+        &mut lab,
+        "r2",
+        r1_addr,
+        BgpRouteRefreshMessage::beginning(AfiSafi::IPV4_UNICAST),
+    );
+    assert!(lab.run_until(50, 5_000, |l| {
+        let peer = l
+            .router("r1")
+            .unwrap()
+            .bgp()
+            .unwrap()
+            .peer(r2_addr)
+            .unwrap();
+        peer.enhanced_refresh_active(AfiSafi::IPV4_UNICAST)
+            && peer.enhanced_refresh_stale_count(AfiSafi::IPV4_UNICAST) > 0
+    }));
+    assert_eq!(
+        best_as_path(&lab, "r1", remote_prefix),
+        Some(vec![AS2, AS3])
+    );
+
+    inject_refresh_marker(
+        &mut lab,
+        "r2",
+        r1_addr,
+        BgpRouteRefreshMessage::end(AfiSafi::IPV4_UNICAST),
+    );
+    assert!(lab.run_until(50, 5_000, |l| {
+        let bgp = l.router("r1").unwrap().bgp().unwrap();
+        !bgp.peer(r2_addr)
+            .unwrap()
+            .enhanced_refresh_active(AfiSafi::IPV4_UNICAST)
+            && !bgp.loc_rib.contains(&remote_prefix)
+    }));
+    let peer = lab
+        .router("r1")
+        .unwrap()
+        .bgp()
+        .unwrap()
+        .peer(r2_addr)
+        .unwrap();
+    assert_eq!(peer.counters.enhanced_refresh_borr_received, 1);
+    assert_eq!(peer.counters.enhanced_refresh_eorr_received, 1);
+
+    // A normal Enhanced Route Refresh now performs BoRR -> full replay -> EoRR
+    // and repairs the deliberately-created inconsistency without resetting TCP.
+    let sent = {
+        let r1 = lab.router_mut("r1").unwrap();
+        let now = r1.current_time_ms;
+        let (bgp, sockets) = (&mut r1.bgp, &mut r1.sockets);
+        bgp.as_mut().unwrap().request_route_refresh(
+            r2_addr,
+            AfiSafi::IPV4_UNICAST,
+            now,
+            sockets.as_mut().unwrap(),
+        )
+    };
+    assert!(sent);
+    assert!(run_until(&mut lab, 10_000, |l| {
+        best_as_path(l, "r1", remote_prefix) == Some(vec![AS2, AS3])
+            && l.router("r1")
+                .unwrap()
+                .bgp()
+                .unwrap()
+                .peer(r2_addr)
+                .unwrap()
+                .counters
+                .enhanced_refresh_eorr_received
+                >= 2
+    }));
+}
+
+#[test]
+fn test_rfc2918_peer_still_ignores_nonzero_reserved_octet() {
+    let mut lab = build_linear_lab();
+    // Disable RFC 7313 at one end before OPEN negotiation. Base RFC 2918 Route
+    // Refresh remains negotiated, so the former Reserved octet must be ignored.
+    lab.router_mut("r1")
+        .unwrap()
+        .bgp
+        .as_mut()
+        .unwrap()
+        .set_enhanced_route_refresh_enabled(false);
+    assert!(converge_sessions(&mut lab, 60_000));
+
+    let r2_addr = ip(10, 12, 0, 2);
+    let r1_addr = ip(10, 12, 0, 1);
+    assert!(
+        !lab.router("r2")
+            .unwrap()
+            .bgp()
+            .unwrap()
+            .peer(r1_addr)
+            .unwrap()
+            .negotiated
+            .supports_enhanced_route_refresh()
+    );
+
+    let before = lab
+        .router("r2")
+        .unwrap()
+        .bgp()
+        .unwrap()
+        .peer(r1_addr)
+        .unwrap()
+        .counters
+        .route_refreshes_received;
+    inject_refresh_marker(
+        &mut lab,
+        "r1",
+        r2_addr,
+        BgpRouteRefreshMessage {
+            family: AfiSafi::IPV4_UNICAST,
+            subtype: BgpRouteRefreshSubtype::Unknown(0x7f),
+        },
+    );
+    assert!(lab.run_until(50, 5_000, |l| {
+        l.router("r2")
+            .unwrap()
+            .bgp()
+            .unwrap()
+            .peer(r1_addr)
+            .unwrap()
+            .counters
+            .route_refreshes_received
+            > before
+    }));
 }

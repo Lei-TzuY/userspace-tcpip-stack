@@ -20,12 +20,13 @@
 
 use crate::bgp::{
     BGP_DEFAULT_LOCAL_PREF, BGP_ERR_CEASE, BGP_ERR_FSM, BGP_ERR_HOLD_TIMER_EXPIRED,
-    BGP_ERR_UPDATE_MESSAGE, BGP_MIN_HOLD_TIME, BGP_PORT, BGP_SUB_BAD_BGP_IDENTIFIER,
-    BGP_SUB_BAD_PEER_AS, BGP_SUB_INVALID_NEXT_HOP, BGP_SUB_MALFORMED_AS_PATH,
+    BGP_ERR_ROUTE_REFRESH, BGP_ERR_UPDATE_MESSAGE, BGP_HEADER_LEN, BGP_MIN_HOLD_TIME,
+    BGP_MSG_ROUTE_REFRESH, BGP_PORT, BGP_SUB_BAD_BGP_IDENTIFIER, BGP_SUB_BAD_PEER_AS,
+    BGP_SUB_INVALID_NEXT_HOP, BGP_SUB_INVALID_ROUTE_REFRESH_LENGTH, BGP_SUB_MALFORMED_AS_PATH,
     BGP_SUB_OPTIONAL_ATTRIBUTE_ERROR, BGP_SUB_UNACCEPTABLE_HOLD_TIME, BGP_SUB_UNSUPPORTED_VERSION,
     BGP_VERSION, BgpFramer, BgpNotificationMessage, BgpOpenMessage, BgpParseError,
-    BgpPathAttributes, BgpPdu, BgpRouteRefreshMessage, BgpUpdateMessage, Ipv4Prefix,
-    MAX_CLUSTER_LIST_LEN,
+    BgpPathAttributes, BgpPdu, BgpRouteRefreshMessage, BgpRouteRefreshSubtype, BgpUpdateMessage,
+    Ipv4Prefix, MAX_CLUSTER_LIST_LEN,
 };
 use crate::bgp_caps::{
     AfiSafi, BGP_SUB_UNSUPPORTED_CAPABILITY, BgpCapability, BgpCapabilitySet,
@@ -159,6 +160,12 @@ pub struct BgpPeerCounters {
     pub route_refreshes_sent: u64,
     /// RFC 2918 requests received from this peer.
     pub route_refreshes_received: u64,
+    /// RFC 7313 Beginning-of-Route-Refresh markers sent/received.
+    pub enhanced_refresh_borr_sent: u64,
+    pub enhanced_refresh_borr_received: u64,
+    /// RFC 7313 End-of-Route-Refresh markers sent/received.
+    pub enhanced_refresh_eorr_sent: u64,
+    pub enhanced_refresh_eorr_received: u64,
     pub notifications_sent: u64,
     pub notifications_received: u64,
     /// NLRI discarded because the local ASN already appeared in AS_PATH.
@@ -199,6 +206,13 @@ pub struct BgpPeerCounters {
     pub graceful_restart_expirations: u64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EnhancedRefreshPhase {
+    NeedBorr,
+    Replaying,
+    NeedEorr,
+}
+
 /// One configured BGP neighbour and the session state that belongs to it.
 pub struct BgpPeer {
     pub addr: Ipv4Address,
@@ -230,6 +244,15 @@ pub struct BgpPeer {
     /// Families the peer asked us to replay. Keeping this separate from the
     /// Adj-RIB-Out preserves the previous advertisement set for withdrawals.
     refresh_pending: BTreeSet<AfiSafi>,
+    /// RFC 7313 refreshes we are serving, from BoRR through EoRR.
+    enhanced_refresh_outbound: BTreeMap<AfiSafi, EnhancedRefreshPhase>,
+    /// Families for which a peer has sent BoRR and has not yet sent EoRR.
+    enhanced_refresh_inbound: BTreeSet<AfiSafi>,
+    /// Snapshot of IPv4 routes that existed when BoRR arrived. A refreshed
+    /// announcement removes its prefix; EoRR purges whatever remains.
+    enhanced_refresh_stale_ipv4: BTreeSet<Ipv4Prefix>,
+    /// Same stale snapshot for EVPN route identities.
+    enhanced_refresh_stale_evpn: BTreeSet<EvpnRouteKey>,
     /// Families for which this restarting speaker owes the peer an End-of-RIB.
     /// The set survives transport retries so an EOR cannot be lost just because
     /// the replacement session flapped once more.
@@ -286,6 +309,10 @@ impl BgpPeer {
             keepalive_interval_ms: 0,
             negotiated: NegotiatedCapabilities::default(),
             refresh_pending: BTreeSet::new(),
+            enhanced_refresh_outbound: BTreeMap::new(),
+            enhanced_refresh_inbound: BTreeSet::new(),
+            enhanced_refresh_stale_ipv4: BTreeSet::new(),
+            enhanced_refresh_stale_evpn: BTreeSet::new(),
             local_restart_eor_pending: BTreeSet::new(),
             graceful_restart_stale: BTreeSet::new(),
             graceful_restart_deadline: None,
@@ -317,6 +344,20 @@ impl BgpPeer {
     /// True when EVPN NLRI may travel on this session.
     pub fn carries_evpn(&self) -> bool {
         self.carries(AfiSafi::L2VPN_EVPN)
+    }
+
+    /// Whether a peer-originated RFC 7313 refresh is currently between BoRR/EoRR.
+    pub fn enhanced_refresh_active(&self, family: AfiSafi) -> bool {
+        self.enhanced_refresh_inbound.contains(&family)
+    }
+
+    /// Number of routes still stale in the current inbound enhanced refresh.
+    pub fn enhanced_refresh_stale_count(&self, family: AfiSafi) -> usize {
+        match family {
+            AfiSafi::IPV4_UNICAST => self.enhanced_refresh_stale_ipv4.len(),
+            AfiSafi::L2VPN_EVPN => self.enhanced_refresh_stale_evpn.len(),
+            _ => 0,
+        }
     }
 
     /// The address families this session agreed to carry.
@@ -453,6 +494,8 @@ pub struct BgpRouter {
     /// Hold time proposed in our OPEN, in seconds.
     pub hold_time: u16,
     pub connect_retry_ms: u64,
+    /// Whether this speaker advertises RFC 7313 Enhanced Route Refresh.
+    enhanced_route_refresh_enabled: bool,
     /// Whether this speaker advertises and acts as an RFC 4724 helper.
     pub graceful_restart_enabled: bool,
     /// Restart Time advertised in the Graceful Restart capability.
@@ -523,6 +566,7 @@ impl BgpRouter {
             router_id,
             hold_time: DEFAULT_HOLD_TIME,
             connect_retry_ms: DEFAULT_CONNECT_RETRY_MS,
+            enhanced_route_refresh_enabled: true,
             graceful_restart_enabled: true,
             graceful_restart_time: DEFAULT_GRACEFUL_RESTART_TIME,
             graceful_restart_restarting: false,
@@ -684,6 +728,13 @@ impl BgpRouter {
         self.connect_retry_ms = ms.max(1);
     }
 
+    /// Enables/disables RFC 7313 capability advertisement. RFC 2918 base
+    /// Route Refresh stays enabled for backward-compatible soft refresh.
+    pub fn set_enhanced_route_refresh_enabled(&mut self, enabled: bool) {
+        self.enhanced_route_refresh_enabled = enabled;
+    }
+
+    /// Enables or disables RFC 4724 helper capability advertisement.
     pub fn set_graceful_restart_enabled(&mut self, enabled: bool) {
         self.graceful_restart_enabled = enabled;
     }
@@ -973,6 +1024,7 @@ impl BgpRouter {
         for idx in 0..self.peers.len() {
             self.advertise_to_peer(idx, now_ms, sockets);
             self.advertise_evpn_to_peer(idx, now_ms, sockets);
+            self.send_enhanced_refresh_eorrs(idx, now_ms, sockets);
             self.send_local_restart_eors(idx, now_ms, sockets);
         }
         self.maybe_finish_local_graceful_restart(now_ms);
@@ -1421,6 +1473,9 @@ impl BgpRouter {
         }
         caps.push(BgpCapability::FourOctetAs(self.local_as));
         caps.push(BgpCapability::RouteRefresh);
+        if self.enhanced_route_refresh_enabled {
+            caps.push(BgpCapability::EnhancedRouteRefresh);
+        }
         if self.graceful_restart_enabled {
             caps.push(BgpCapability::GracefulRestart(
                 BgpGracefulRestartCapability::new(
@@ -1491,6 +1546,43 @@ impl BgpRouter {
                     return;
                 }
             };
+
+            if self.peers[idx].state == BgpState::Established
+                && frame.get(18) == Some(&BGP_MSG_ROUTE_REFRESH)
+                && self.peers[idx].negotiated.supports_enhanced_route_refresh()
+                && frame.len() >= BGP_HEADER_LEN + 3
+            {
+                let subtype = frame[BGP_HEADER_LEN + 2];
+                if subtype > 2 {
+                    self.log(
+                        now_ms,
+                        self.peers[idx].addr,
+                        format!("ignored ROUTE-REFRESH with unknown subtype {}", subtype),
+                    );
+                    continue;
+                }
+                if matches!(subtype, 1 | 2) && frame.len() != BGP_HEADER_LEN + 4 {
+                    let mut note = BgpNotificationMessage::new(
+                        BGP_ERR_ROUTE_REFRESH,
+                        BGP_SUB_INVALID_ROUTE_REFRESH_LENGTH,
+                    );
+                    note.data = frame.clone();
+                    self.teardown(
+                        idx,
+                        now_ms,
+                        sockets,
+                        Teardown::Protocol(
+                            note,
+                            format!(
+                                "Enhanced ROUTE-REFRESH subtype {} has {}-byte body, expected 4",
+                                subtype,
+                                frame.len().saturating_sub(BGP_HEADER_LEN)
+                            ),
+                        ),
+                    );
+                    return;
+                }
+            }
 
             // The AS_PATH ASN width is not visible in the message; it is whatever
             // the two OPENs agreed to, so the session state has to supply it.
@@ -1596,7 +1688,7 @@ impl BgpRouter {
                     now_ms,
                     addr,
                     format!(
-                        "capability negotiation: families [{}], 4-octet ASN {}, route refresh {}, graceful restart {}",
+                        "capability negotiation: families [{}], 4-octet ASN {}, route refresh {}, enhanced refresh {}, graceful restart {}",
                         families.join(", "),
                         if capabilities.four_octet_as {
                             "yes"
@@ -1604,6 +1696,7 @@ impl BgpRouter {
                             "no"
                         },
                         if capabilities.route_refresh { "yes" } else { "no" },
+                        if capabilities.enhanced_route_refresh { "yes" } else { "no" },
                         if peer_caps.supports_graceful_restart() && self.graceful_restart_enabled {
                             "yes"
                         } else {
@@ -1713,16 +1806,56 @@ impl BgpRouter {
                     );
                     return None;
                 }
-                self.peers[idx].counters.route_refreshes_received += 1;
-                self.peers[idx].refresh_pending.insert(refresh.family);
-                self.log(
-                    now_ms,
-                    addr,
-                    format!(
-                        "received ROUTE-REFRESH for {}; scheduling replay",
-                        refresh.family
-                    ),
-                );
+
+                // RFC 2918 called this octet Reserved and required receivers to
+                // ignore it. Only when both OPENs negotiated RFC 7313 does it
+                // become a subtype. This is the compatibility boundary.
+                let subtype = if self.peers[idx].negotiated.supports_enhanced_route_refresh() {
+                    refresh.subtype
+                } else {
+                    BgpRouteRefreshSubtype::Normal
+                };
+
+                match subtype {
+                    BgpRouteRefreshSubtype::Normal => {
+                        self.peers[idx].counters.route_refreshes_received += 1;
+                        self.peers[idx].refresh_pending.insert(refresh.family);
+                        if self.peers[idx].negotiated.supports_enhanced_route_refresh() {
+                            self.peers[idx]
+                                .enhanced_refresh_outbound
+                                .insert(refresh.family, EnhancedRefreshPhase::NeedBorr);
+                        }
+                        self.log(
+                            now_ms,
+                            addr,
+                            format!(
+                                "received ROUTE-REFRESH for {}; scheduling replay{}",
+                                refresh.family,
+                                if self.peers[idx].negotiated.supports_enhanced_route_refresh() {
+                                    " with BoRR/EoRR"
+                                } else {
+                                    ""
+                                }
+                            ),
+                        );
+                    }
+                    BgpRouteRefreshSubtype::Beginning => {
+                        self.begin_enhanced_refresh_inbound(idx, refresh.family, now_ms);
+                    }
+                    BgpRouteRefreshSubtype::End => {
+                        self.complete_enhanced_refresh_inbound(idx, refresh.family, now_ms);
+                    }
+                    BgpRouteRefreshSubtype::Unknown(code) => {
+                        self.log(
+                            now_ms,
+                            addr,
+                            format!(
+                                "ignored ROUTE-REFRESH for {} with unknown subtype {}",
+                                refresh.family, code
+                            ),
+                        );
+                    }
+                }
                 None
             }
 
@@ -1838,6 +1971,167 @@ impl BgpRouter {
                 self.peers[idx].counters.keepalives_sent += 1;
             }
             self.arm_keepalive_timer(idx, now_ms);
+        }
+    }
+
+    fn begin_enhanced_refresh_inbound(&mut self, idx: usize, family: AfiSafi, now_ms: u64) {
+        let addr = self.peers[idx].addr;
+        let stale_count = match family {
+            AfiSafi::IPV4_UNICAST => {
+                let stale: BTreeSet<Ipv4Prefix> = self
+                    .adj_rib_in
+                    .peer_table(addr)
+                    .map(|table| table.keys().copied().collect())
+                    .unwrap_or_default();
+                let count = stale.len();
+                self.peers[idx].enhanced_refresh_stale_ipv4 = stale;
+                count
+            }
+            AfiSafi::L2VPN_EVPN => {
+                let stale: BTreeSet<EvpnRouteKey> = self
+                    .evpn_adj_rib_in
+                    .peer_table(addr)
+                    .map(|table| table.keys().cloned().collect())
+                    .unwrap_or_default();
+                let count = stale.len();
+                self.peers[idx].enhanced_refresh_stale_evpn = stale;
+                count
+            }
+            _ => 0,
+        };
+        self.peers[idx].enhanced_refresh_inbound.insert(family);
+        self.peers[idx].counters.enhanced_refresh_borr_received += 1;
+        self.log(
+            now_ms,
+            addr,
+            format!(
+                "received BoRR for {}; marked {} route(s) stale",
+                family, stale_count
+            ),
+        );
+    }
+
+    fn complete_enhanced_refresh_inbound(&mut self, idx: usize, family: AfiSafi, now_ms: u64) {
+        let addr = self.peers[idx].addr;
+        if !self.peers[idx].enhanced_refresh_inbound.remove(&family) {
+            self.log(
+                now_ms,
+                addr,
+                format!("ignored EoRR for {} without a preceding BoRR", family),
+            );
+            return;
+        }
+
+        let purged = match family {
+            AfiSafi::IPV4_UNICAST => {
+                let stale: Vec<Ipv4Prefix> = self.peers[idx]
+                    .enhanced_refresh_stale_ipv4
+                    .iter()
+                    .copied()
+                    .collect();
+                self.peers[idx].enhanced_refresh_stale_ipv4.clear();
+                let mut purged = 0usize;
+                for prefix in stale {
+                    if self.adj_rib_in.remove(addr, prefix).is_some() {
+                        purged += 1;
+                    }
+                }
+                if purged > 0 {
+                    self.dirty = true;
+                }
+                purged
+            }
+            AfiSafi::L2VPN_EVPN => {
+                let stale: Vec<EvpnRouteKey> = self.peers[idx]
+                    .enhanced_refresh_stale_evpn
+                    .iter()
+                    .cloned()
+                    .collect();
+                self.peers[idx].enhanced_refresh_stale_evpn.clear();
+                let mut purged = 0usize;
+                for key in stale {
+                    if self.evpn_adj_rib_in.remove(addr, &key).is_some() {
+                        purged += 1;
+                    }
+                }
+                if purged > 0 {
+                    self.evpn_dirty = true;
+                }
+                purged
+            }
+            _ => 0,
+        };
+        self.peers[idx].counters.enhanced_refresh_eorr_received += 1;
+        self.log(
+            now_ms,
+            addr,
+            format!(
+                "received EoRR for {}; purged {} route(s) not replayed since BoRR",
+                family, purged
+            ),
+        );
+    }
+
+    fn ensure_enhanced_refresh_borr(
+        &mut self,
+        idx: usize,
+        family: AfiSafi,
+        now_ms: u64,
+        sockets: &mut SocketRuntime,
+    ) -> bool {
+        if self.peers[idx].enhanced_refresh_outbound.get(&family)
+            != Some(&EnhancedRefreshPhase::NeedBorr)
+        {
+            return true;
+        }
+        let pdu = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::beginning(family));
+        if !self.send_pdu(idx, sockets, &pdu) {
+            return false;
+        }
+        let addr = self.peers[idx].addr;
+        self.peers[idx]
+            .enhanced_refresh_outbound
+            .insert(family, EnhancedRefreshPhase::Replaying);
+        self.peers[idx].counters.enhanced_refresh_borr_sent += 1;
+        self.log(now_ms, addr, format!("sent BoRR for {}", family));
+        true
+    }
+
+    fn finish_enhanced_refresh_replay(&mut self, idx: usize, family: AfiSafi) {
+        if self.peers[idx].enhanced_refresh_outbound.get(&family)
+            == Some(&EnhancedRefreshPhase::Replaying)
+        {
+            self.peers[idx]
+                .enhanced_refresh_outbound
+                .insert(family, EnhancedRefreshPhase::NeedEorr);
+        }
+    }
+
+    fn send_enhanced_refresh_eorrs(
+        &mut self,
+        idx: usize,
+        now_ms: u64,
+        sockets: &mut SocketRuntime,
+    ) {
+        if !self.peers[idx].is_established() {
+            return;
+        }
+        let pending: Vec<AfiSafi> = self.peers[idx]
+            .enhanced_refresh_outbound
+            .iter()
+            .filter_map(|(family, phase)| {
+                (*phase == EnhancedRefreshPhase::NeedEorr).then_some(*family)
+            })
+            .collect();
+        for family in pending {
+            let pdu = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::end(family));
+            if !self.send_pdu(idx, sockets, &pdu) {
+                continue;
+            }
+            let addr = self.peers[idx].addr;
+            self.peers[idx].enhanced_refresh_outbound.remove(&family);
+            self.peers[idx].counters.enhanced_refresh_eorr_sent += 1;
+            self.log(now_ms, addr, format!("sent EoRR for {}", family));
         }
     }
 
@@ -2206,6 +2500,10 @@ impl BgpRouter {
         peer.keepalive_interval_ms = 0;
         peer.negotiated = NegotiatedCapabilities::default();
         peer.refresh_pending.clear();
+        peer.enhanced_refresh_outbound.clear();
+        peer.enhanced_refresh_inbound.clear();
+        peer.enhanced_refresh_stale_ipv4.clear();
+        peer.enhanced_refresh_stale_evpn.clear();
         peer.remote_router_id = None;
         peer.established_since_ms = None;
         peer.tx_desynced = false;
@@ -2459,6 +2757,7 @@ impl BgpRouter {
             // identical re-advertisement still refreshes the stored path, so the
             // Adj-RIB-In timestamp tracks when this peer last spoke about it.
             let previous = self.adj_rib_in.insert(addr, path.clone());
+            self.peers[idx].enhanced_refresh_stale_ipv4.remove(&prefix);
             if previous.is_none_or(|prev| !prev.same_route_as(&path)) {
                 self.dirty = true;
             }
@@ -2811,7 +3110,9 @@ impl BgpRouter {
                 local: false,
             };
 
+            let key = path.key();
             let previous = self.evpn_adj_rib_in.insert(addr, path.clone());
+            self.peers[idx].enhanced_refresh_stale_evpn.remove(&key);
             if previous.is_none_or(|prev| !prev.same_route_as(&path)) {
                 self.evpn_dirty = true;
             }
@@ -2932,6 +3233,11 @@ impl BgpRouter {
         let force_refresh = self.peers[idx]
             .refresh_pending
             .contains(&AfiSafi::L2VPN_EVPN);
+        if force_refresh
+            && !self.ensure_enhanced_refresh_borr(idx, AfiSafi::L2VPN_EVPN, now_ms, sockets)
+        {
+            return;
+        }
         let mut refresh_complete = true;
         let desired = self.compute_evpn_adj_rib_out(idx);
 
@@ -3025,6 +3331,7 @@ impl BgpRouter {
 
         if force_refresh && refresh_complete {
             self.peers[idx].refresh_pending.remove(&AfiSafi::L2VPN_EVPN);
+            self.finish_enhanced_refresh_replay(idx, AfiSafi::L2VPN_EVPN);
             self.log(now_ms, addr, "completed L2VPN EVPN route refresh");
         }
     }
@@ -3331,6 +3638,11 @@ impl BgpRouter {
         let force_refresh = self.peers[idx]
             .refresh_pending
             .contains(&AfiSafi::IPV4_UNICAST);
+        if force_refresh
+            && !self.ensure_enhanced_refresh_borr(idx, AfiSafi::IPV4_UNICAST, now_ms, sockets)
+        {
+            return;
+        }
         let mut refresh_complete = true;
         let desired = self.compute_adj_rib_out(idx);
 
@@ -3414,6 +3726,7 @@ impl BgpRouter {
             self.peers[idx]
                 .refresh_pending
                 .remove(&AfiSafi::IPV4_UNICAST);
+            self.finish_enhanced_refresh_replay(idx, AfiSafi::IPV4_UNICAST);
             self.log(now_ms, addr, "completed IPv4 Unicast route refresh");
         }
     }
@@ -3655,11 +3968,15 @@ impl BgpRouter {
                 + p.counters.updates_received
                 + p.counters.keepalives_received
                 + p.counters.route_refreshes_received
+                + p.counters.enhanced_refresh_borr_received
+                + p.counters.enhanced_refresh_eorr_received
                 + p.counters.notifications_received;
             let msg_sent = p.counters.opens_sent
                 + p.counters.updates_sent
                 + p.counters.keepalives_sent
                 + p.counters.route_refreshes_sent
+                + p.counters.enhanced_refresh_borr_sent
+                + p.counters.enhanced_refresh_eorr_sent
                 + p.counters.notifications_sent;
             s.push_str(&format!(
                 "{:<15} {:>5}  {:<11} {:>7} {:>5} {:>7} {:>7} {:>7} {:>8}\n",

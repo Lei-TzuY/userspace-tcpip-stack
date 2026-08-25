@@ -401,6 +401,10 @@ pub const BGP_ERR_UPDATE_MESSAGE: u8 = 3;
 pub const BGP_ERR_HOLD_TIMER_EXPIRED: u8 = 4;
 pub const BGP_ERR_FSM: u8 = 5;
 pub const BGP_ERR_CEASE: u8 = 6;
+/// ROUTE-REFRESH Message Error (RFC 7313 section 5).
+pub const BGP_ERR_ROUTE_REFRESH: u8 = 7;
+/// Invalid Message Length for Enhanced ROUTE-REFRESH BoRR/EoRR.
+pub const BGP_SUB_INVALID_ROUTE_REFRESH_LENGTH: u8 = 1;
 
 // Message-header subcodes.
 pub const BGP_SUB_CONNECTION_NOT_SYNCHRONIZED: u8 = 1;
@@ -1696,20 +1700,72 @@ impl BgpNotificationMessage {
 
 /// RFC 2918 ROUTE-REFRESH request. The four-byte body names exactly one
 /// address family whose routes the peer asks us to advertise again.
+/// RFC 7313 Message Subtype carried in the former RFC 2918 reserved octet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BgpRouteRefreshSubtype {
+    /// Ordinary RFC 2918 route refresh request.
+    Normal,
+    /// Beginning of Route Refresh (BoRR) demarcation.
+    Beginning,
+    /// End of Route Refresh (EoRR) demarcation.
+    End,
+    /// Reserved/unassigned value. Preserved so the negotiated session layer can
+    /// ignore it exactly as RFC 7313 requires instead of losing wire evidence.
+    Unknown(u8),
+}
+
+impl BgpRouteRefreshSubtype {
+    pub const fn code(self) -> u8 {
+        match self {
+            BgpRouteRefreshSubtype::Normal => 0,
+            BgpRouteRefreshSubtype::Beginning => 1,
+            BgpRouteRefreshSubtype::End => 2,
+            BgpRouteRefreshSubtype::Unknown(code) => code,
+        }
+    }
+
+    pub const fn from_code(code: u8) -> Self {
+        match code {
+            0 => BgpRouteRefreshSubtype::Normal,
+            1 => BgpRouteRefreshSubtype::Beginning,
+            2 => BgpRouteRefreshSubtype::End,
+            other => BgpRouteRefreshSubtype::Unknown(other),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct BgpRouteRefreshMessage {
     pub family: AfiSafi,
+    pub subtype: BgpRouteRefreshSubtype,
 }
 
 impl BgpRouteRefreshMessage {
     pub const fn new(family: AfiSafi) -> Self {
-        BgpRouteRefreshMessage { family }
+        BgpRouteRefreshMessage {
+            family,
+            subtype: BgpRouteRefreshSubtype::Normal,
+        }
+    }
+
+    pub const fn beginning(family: AfiSafi) -> Self {
+        BgpRouteRefreshMessage {
+            family,
+            subtype: BgpRouteRefreshSubtype::Beginning,
+        }
+    }
+
+    pub const fn end(family: AfiSafi) -> Self {
+        BgpRouteRefreshMessage {
+            family,
+            subtype: BgpRouteRefreshSubtype::End,
+        }
     }
 
     fn encode_body(&self) -> Vec<u8> {
         let mut body = Vec::with_capacity(4);
         body.extend_from_slice(&self.family.afi.to_be_bytes());
-        body.push(0); // Reserved, sent as zero and ignored by receivers.
+        body.push(self.subtype.code());
         body.push(self.family.safi);
         body
     }
@@ -1726,6 +1782,7 @@ impl BgpRouteRefreshMessage {
         }
         Ok(BgpRouteRefreshMessage {
             family: AfiSafi::new(u16::from_be_bytes([body[0], body[1]]), body[3]),
+            subtype: BgpRouteRefreshSubtype::from_code(body[2]),
         })
     }
 }
@@ -1821,9 +1878,9 @@ impl BgpPdu {
                 }
                 Ok(BgpPdu::Keepalive)
             }
-            BGP_MSG_ROUTE_REFRESH => Ok(BgpPdu::RouteRefresh(
-                BgpRouteRefreshMessage::parse_body(body)?,
-            )),
+            BGP_MSG_ROUTE_REFRESH => Ok(BgpPdu::RouteRefresh(BgpRouteRefreshMessage::parse_body(
+                body,
+            )?)),
             other => Err(BgpParseError::header(
                 BGP_SUB_BAD_MESSAGE_TYPE,
                 format!("unsupported message type {}", other),
@@ -1863,7 +1920,7 @@ pub fn parse_bgp_header(frame: &[u8]) -> Result<(u8, &[u8]), BgpParseError> {
         BGP_MSG_UPDATE => BGP_HEADER_LEN + 4,
         BGP_MSG_NOTIFICATION => BGP_HEADER_LEN + 2,
         BGP_MSG_KEEPALIVE => BGP_HEADER_LEN,
-        BGP_MSG_ROUTE_REFRESH => BGP_HEADER_LEN + 4,
+        BGP_MSG_ROUTE_REFRESH => BGP_HEADER_LEN,
         other => {
             return Err(BgpParseError::header(
                 BGP_SUB_BAD_MESSAGE_TYPE,
@@ -2060,9 +2117,27 @@ mod tests {
         assert_eq!(raw[18], BGP_MSG_ROUTE_REFRESH);
         assert_eq!(BgpPdu::parse(&raw).unwrap(), sent);
 
-        // The reserved octet is ignored on receipt as RFC 2918 requires.
+        // RFC 7313 makes the former reserved octet wire-significant. The
+        // session layer still treats it as ignored when Enhanced RR was not
+        // negotiated, preserving RFC 2918 compatibility.
         raw[21] = 0x7f;
-        assert_eq!(BgpPdu::parse(&raw).unwrap(), sent);
+        assert_eq!(
+            BgpPdu::parse(&raw).unwrap(),
+            BgpPdu::RouteRefresh(BgpRouteRefreshMessage {
+                family: AfiSafi::L2VPN_EVPN,
+                subtype: BgpRouteRefreshSubtype::Unknown(0x7f),
+            })
+        );
+
+        let begin = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::beginning(AfiSafi::L2VPN_EVPN));
+        let begin_raw = begin.serialize();
+        assert_eq!(begin_raw[21], 1);
+        assert_eq!(BgpPdu::parse(&begin_raw).unwrap(), begin);
+
+        let end = BgpPdu::RouteRefresh(BgpRouteRefreshMessage::end(AfiSafi::L2VPN_EVPN));
+        let end_raw = end.serialize();
+        assert_eq!(end_raw[21], 2);
+        assert_eq!(BgpPdu::parse(&end_raw).unwrap(), end);
 
         // A fifth body byte is not padding: the message has exactly one shape.
         raw.push(0);
