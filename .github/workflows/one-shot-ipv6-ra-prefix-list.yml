@@ -16,241 +16,31 @@ jobs:
         with:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
-      - name: Apply RFC 4861 prefix-list lifecycle and verify
+      - name: Reuse validated patch script on latest main
         shell: bash
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def patch(path_s, replacements):
-              path = Path(path_s)
-              s = path.read_text()
-              for old, new in replacements:
-                  count = s.count(old)
-                  if count != 1:
-                      raise SystemExit(f'{path_s}: expected one match, found {count}: {old[:120]!r}')
-                  s = s.replace(old, new, 1)
-              path.write_text(s)
-
-          patch('src/router.rs', [
-              (
-                  '''    /// Directly attached subnet of a local interface.\n    Connected,\n    /// Operator-configured route (the default for `add_route`).''',
-                  '''    /// Directly attached subnet of a local interface.\n    Connected,\n    /// On-link prefix learned from an IPv6 Router Advertisement PIO.\n    Ra,\n    /// Operator-configured route (the default for `add_route`).'''
-              ),
-              (
-                  '''            RouteSource::Connected => 0,\n            RouteSource::Static => 1,''',
-                  '''            RouteSource::Connected => 0,\n            RouteSource::Ra => 0,\n            RouteSource::Static => 1,'''
-              ),
-              (
-                  '''            RouteSource::Connected => "connected",\n            RouteSource::Static => "static",''',
-                  '''            RouteSource::Connected => "connected",\n            RouteSource::Ra => "ra",\n            RouteSource::Static => "static",'''
-              ),
-          ])
-
-          patch('src/stack.rs', [
-              (
-                  '''    ipv6_dad_duplicate: Option<Ipv6Address>,\n    ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,''',
-                  '''    ipv6_dad_duplicate: Option<Ipv6Address>,\n    ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,\n    ipv6_ra_on_link_prefixes: HashMap<(Ipv6Address, u8), Option<u64>>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,'''
-              ),
-              (
-                  '''            ipv6_dad_duplicate: None,\n            ipv6_slaac_lifetimes: None,\n            ipv6_router_discovery: None,''',
-                  '''            ipv6_dad_duplicate: None,\n            ipv6_slaac_lifetimes: None,\n            ipv6_ra_on_link_prefixes: HashMap::new(),\n            ipv6_router_discovery: None,'''
-              ),
-              (
-                  '''    fn start_ipv6_dad(\n        &mut self,''',
-                  '''    fn refresh_ipv6_ra_on_link_prefix(\n        &mut self,\n        prefix: Ipv6Address,\n        prefix_len: u8,\n        valid_lifetime: u32,\n    ) {\n        let prefix_len = prefix_len.min(128);\n        let prefix = prefix.mask(prefix_len);\n        let key = (prefix, prefix_len);\n        if valid_lifetime == 0 {\n            self.ipv6_ra_on_link_prefixes.remove(&key);\n            self.ipv6_routing_table\n                .remove_route(prefix, prefix_len, RouteSource::Ra);\n            return;\n        }\n\n        let valid_until_ms = ipv6_lifetime_deadline(self.current_time_ms, valid_lifetime);\n        self.ipv6_ra_on_link_prefixes.insert(key, valid_until_ms);\n        self.ipv6_routing_table.add_route_from(\n            prefix,\n            prefix_len,\n            None,\n            "eth0",\n            RouteSource::Ra,\n        );\n    }\n\n    fn start_ipv6_dad(\n        &mut self,'''
-              ),
-              (
-                  '''        // A tentative SLAAC address becomes usable only after its DAD interval\n        // expires without a conflicting NS/NA.''',
-                  '''        // RFC 4861 Prefix List lifetimes are independent of SLAAC address\n        // lifetimes. Expiry returns destinations to normal default-router selection.\n        let expired_ra_prefixes: Vec<(Ipv6Address, u8)> = self\n            .ipv6_ra_on_link_prefixes\n            .iter()\n            .filter_map(|(key, deadline)| {\n                (*deadline)\n                    .is_some_and(|deadline| now_ms >= deadline)\n                    .then_some(*key)\n            })\n            .collect();\n        for (prefix, prefix_len) in expired_ra_prefixes {\n            self.ipv6_ra_on_link_prefixes.remove(&(prefix, prefix_len));\n            self.ipv6_routing_table\n                .remove_route(prefix, prefix_len, RouteSource::Ra);\n        }\n\n        // A tentative SLAAC address becomes usable only after its DAD interval\n        // expires without a conflicting NS/NA.'''
-              ),
-              (
-                  '''                self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);\n                // A configures the address; L independently declares the prefix on-link.\n                if !dad.on_link {\n                    self.ipv6_routing_table.remove_route(\n                        dad.address,\n                        dad.prefix_len,\n                        RouteSource::Connected,\n                    );\n                }''',
-                  '''                self.configure_ipv6_interface(dad.address, dad.prefix_len, gateway);\n                // RFC 5942: SLAAC address assignment does not itself make the\n                // address prefix on-link. PIO L-bit state is owned separately.\n                self.ipv6_routing_table.remove_route(\n                    dad.address,\n                    dad.prefix_len,\n                    RouteSource::Connected,\n                );'''
-              ),
-              (
-                  '''                                    self.refresh_slaac_default_router(\n                                        ip6_pkt.header.src_ip,\n                                        ra.router_lifetime,\n                                    );\n\n                                    if let Some(prefix) = ra.prefixes.iter().find(|prefix| {''',
-                  '''                                    self.refresh_slaac_default_router(\n                                        ip6_pkt.header.src_ip,\n                                        ra.router_lifetime,\n                                    );\n\n                                    // RFC 4861 section 6.3.4: L and A are independent.\n                                    // Only L=1 updates the Prefix List; L=0 makes no\n                                    // on-link/off-link statement and therefore cannot\n                                    // withdraw or refresh prior on-link knowledge.\n                                    for prefix in ra.prefixes.iter().filter(|prefix| {\n                                        prefix.on_link && !prefix.prefix.is_link_local()\n                                    }) {\n                                        self.refresh_ipv6_ra_on_link_prefix(\n                                            prefix.prefix,\n                                            prefix.prefix_length,\n                                            prefix.valid_lifetime,\n                                        );\n                                    }\n\n                                    if let Some(prefix) = ra.prefixes.iter().find(|prefix| {'''
-              ),
-              (
-                  '''                                        if self.config.ipv6 == Some(address) {\n                                            // L=1 adds positive on-link knowledge; L=0 does not erase it.\n                                            if prefix.on_link {\n                                                self.ipv6_routing_table.add_route_from(\n                                                    address,\n                                                    prefix.prefix_length,\n                                                    None,\n                                                    "eth0",\n                                                    RouteSource::Connected,\n                                                );\n                                            }\n                                            let old_valid = self''',
-                  '''                                        if self.config.ipv6 == Some(address) {\n                                            let old_valid = self'''
-              ),
-          ])
-
-          patch('tests/test_ipv6_ra_slaac.rs', [
-              ('assert_eq!(connected.source, RouteSource::Connected);',
-               'assert_eq!(connected.source, RouteSource::Ra);'),
-          ])
-
-          patch('tests/test_ipv6_dad.rs', [
-              ('''        RouteSource::Connected\n    );''', '''        RouteSource::Ra\n    );'''),
-          ])
-
-          patch('tests/test_ipv6_ra_lifetimes.rs', [
-              (
-                  '''            .routes_from(RouteSource::Connected)\n            .is_empty()''',
-                  '''            .routes_from(RouteSource::Ra)\n            .is_empty()'''
-              ),
-              (
-                  '''            .routes_from(RouteSource::Connected)\n            .is_empty()''',
-                  '''            .routes_from(RouteSource::Ra)\n            .is_empty()'''
-              ),
-          ])
-
-          p = Path('tests/test_ipv6_ra_onlink.rs')
-          s = p.read_text()
-          count = s.count('RouteSource::Connected')
-          if count != 2:
-              raise SystemExit(f'test_ipv6_ra_onlink.rs: expected 2 Connected assertions, found {count}')
-          p.write_text(s.replace('RouteSource::Connected', 'RouteSource::Ra'))
-          PY
-
-          cat > tests/test_ipv6_ra_prefix_list.rs <<'RS'
-          use std::str::FromStr;
-
-          use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
-          use toy_tcpip::icmpv6::{
-              Icmpv6Packet, PrefixInformationOption, ipv6_multicast_mac, link_local_address,
-              slaac_address,
-          };
-          use toy_tcpip::ipv4::Ipv4Address;
-          use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
-          use toy_tcpip::router::RouteSource;
-          use toy_tcpip::stack::{IPV6_DAD_RETRANS_TIMER_MS, NetStack, NetStackConfig};
-
-          fn ip6(text: &str) -> Ipv6Address {
-              Ipv6Address::from_str(text).unwrap()
-          }
-
-          fn host(mac: MacAddress) -> NetStack {
-              NetStack::new(NetStackConfig {
-                  mac,
-                  ip: Ipv4Address::new(192, 0, 2, 10),
-                  ipv6: None,
-                  subnet_mask: 24,
-                  gateway: None,
-              })
-          }
-
-          fn ra_frame(
-              router_mac: MacAddress,
-              prefix: PrefixInformationOption,
-              router_lifetime: u16,
-          ) -> Vec<u8> {
-              let src = link_local_address(router_mac);
-              let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
-              let ra = Icmpv6Packet::build_router_advertisement(
-                  src,
-                  dst,
-                  64,
-                  router_lifetime,
-                  &[prefix],
-                  Some(router_mac),
-              );
-              let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &ra);
-              EthernetFrame::serialize(
-                  ipv6_multicast_mac(dst).unwrap(),
-                  router_mac,
-                  ETHERTYPE_IPV6,
-                  &packet,
-              )
-          }
-
-          #[test]
-          fn on_link_only_pio_installs_route_without_slaac_and_expires() {
-              let host_mac = MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]);
-              let router_mac = MacAddress([0x02, 0, 0, 0, 1, 1]);
-              let prefix = ip6("2001:db8:60::");
-              let peer = ip6("2001:db8:60::beef");
-              let pio = PrefixInformationOption::new(prefix, 64, true, false, 2, 0);
-              let mut stack = host(host_mac);
-
-              assert!(stack.process_frame(&ra_frame(router_mac, pio, 0)).is_empty());
-              assert_eq!(stack.config.ipv6, None, "A=0 must not configure an address");
-              let route = stack.ipv6_routing_table.lookup(peer).unwrap();
-              assert_eq!(route.prefix_len, 64);
-              assert_eq!(route.source, RouteSource::Ra);
-              assert_eq!(route.gateway, None);
-
-              stack.step_timers(1_999);
-              assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
-              stack.step_timers(2_000);
-              assert!(stack.ipv6_routing_table.lookup(peer).is_none());
-          }
-
-          #[test]
-          fn l_zero_does_not_withdraw_but_l_one_zero_lifetime_does() {
-              let host_mac = MacAddress([0x00, 0x21, 0x22, 0x23, 0x24, 0x25]);
-              let router_mac = MacAddress([0x02, 0, 0, 0, 2, 1]);
-              let prefix = ip6("2001:db8:61::");
-              let peer = ip6("2001:db8:61::1");
-              let mut stack = host(host_mac);
-
-              let on_link = PrefixInformationOption::new(prefix, 64, true, false, 3600, 0);
-              stack.process_frame(&ra_frame(router_mac, on_link, 0));
-              assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
-
-              let no_statement = PrefixInformationOption::new(prefix, 64, false, false, 0, 0);
-              stack.process_frame(&ra_frame(router_mac, no_statement, 0));
-              assert_eq!(
-                  stack.ipv6_routing_table.lookup(peer).unwrap().source,
-                  RouteSource::Ra,
-                  "L=0 must not erase prior on-link knowledge"
-              );
-
-              let withdraw = PrefixInformationOption::new(prefix, 64, true, false, 0, 0);
-              stack.process_frame(&ra_frame(router_mac, withdraw, 0));
-              assert!(stack.ipv6_routing_table.lookup(peer).is_none());
-          }
-
-          #[test]
-          fn slaac_prefix_withdrawal_falls_back_to_router_while_address_survives() {
-              let host_mac = MacAddress([0x00, 0x31, 0x32, 0x33, 0x34, 0x35]);
-              let router_mac = MacAddress([0x02, 0, 0, 0, 3, 1]);
-              let router = link_local_address(router_mac);
-              let prefix = ip6("2001:db8:62::");
-              let peer = ip6("2001:db8:62::beef");
-              let initial = PrefixInformationOption::new(prefix, 64, true, true, 10_800, 7_200);
-              let expected = slaac_address(prefix, 64, host_mac).unwrap();
-              let mut stack = host(host_mac);
-
-              let dad = stack.process_frame(&ra_frame(router_mac, initial, 1_800));
-              assert_eq!(dad.len(), 1);
-              stack.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
-              assert_eq!(stack.config.ipv6, Some(expected));
-              assert_eq!(stack.ipv6_routing_table.lookup(peer).unwrap().source, RouteSource::Ra);
-
-              let withdraw = PrefixInformationOption::new(prefix, 64, true, true, 0, 0);
-              assert!(stack.process_frame(&ra_frame(router_mac, withdraw, 1_800)).is_empty());
-              assert_eq!(
-                  stack.config.ipv6,
-                  Some(expected),
-                  "RFC 4862 two-hour protection keeps the address valid"
-              );
-              let route = stack.ipv6_routing_table.lookup(peer).unwrap();
-              assert_eq!(route.prefix_len, 0);
-              assert_eq!(route.source, RouteSource::Static);
-              assert_eq!(route.gateway, Some(router));
-
-              let ping = stack.ping6(peer, 0x4861, 7, b"router-fallback").unwrap();
-              let eth = EthernetFrame::parse(&ping).unwrap();
-              assert_eq!(eth.dst_mac, router_mac);
-          }
-          RS
-
-          git diff --check
-          cargo test --test test_ipv6_ra_prefix_list
-          cargo test --test test_ipv6_ra_onlink
-          cargo test --test test_ipv6_dad
-          cargo test --test test_ipv6_ra_lifetimes
-          cargo test --test test_ipv6_ra_slaac
-          cargo test --all-targets
-          cargo build --release
-
-          rm .github/workflows/one-shot-ipv6-ra-prefix-list.yml
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'feat(ipv6): track RA on-link prefix lifetimes'
-          git push origin HEAD:feat/ipv6-ra-prefix-list
+
+          # Preserve the full implementation/test script from the previous staging commit
+          # before merging main changes this wrapper's parent relationship.
+          git show HEAD^:.github/workflows/one-shot-ipv6-ra-prefix-list.yml > /tmp/old-workflow.yml
+          sed -n '/^        run: |$/,$p' /tmp/old-workflow.yml \
+            | tail -n +2 \
+            | sed 's/^          //' > /tmp/ra-prefix-list.sh
+
+          # The lifetime test intentionally contains two identical assertions. Replace
+          # them one at a time instead of requiring the first occurrence to be unique.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/ra-prefix-list.sh')
+          s = p.read_text()
+          old = 'if count != 1:'
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one generic uniqueness guard, found {s.count(old)}')
+          p.write_text(s.replace(old, 'if count < 1:', 1))
+          PY
+
+          git merge origin/main --no-edit
+          bash /tmp/ra-prefix-list.sh
