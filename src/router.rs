@@ -12,6 +12,8 @@ pub enum RouteSource {
     Connected,
     /// On-link prefix learned from an IPv6 Router Advertisement PIO.
     Ra,
+    /// Route learned from an RFC 4191 Route Information Option.
+    RaRoute,
     /// Operator-configured route (the default for `add_route`).
     #[default]
     Static,
@@ -32,6 +34,7 @@ impl RouteSource {
             RouteSource::Connected => 0,
             RouteSource::Ra => 0,
             RouteSource::Static => 1,
+            RouteSource::RaRoute => 10,
             RouteSource::Bgp => 20,
             RouteSource::Ospf => 110,
             RouteSource::Rip => 120,
@@ -42,6 +45,7 @@ impl RouteSource {
         match self {
             RouteSource::Connected => "connected",
             RouteSource::Ra => "ra",
+            RouteSource::RaRoute => "ra-route",
             RouteSource::Static => "static",
             RouteSource::Bgp => "bgp",
             RouteSource::Ospf => "ospf",
