@@ -283,6 +283,35 @@ pub struct LabRouter {
     pub current_time_ms: u64,
 }
 
+/// RFC 4443 section 2.4(e) suppression rules shared by router-generated
+/// ICMPv6 errors. The simulator cannot identify anycast sources, but it can
+/// reject the explicitly non-unique unspecified and multicast source forms.
+///
+/// Packet Too Big (and Parameter Problem Code 2, if added later) are the only
+/// error classes allowed in response to IPv6/link-layer multicast traffic, so
+/// callers opt into that exception explicitly.
+fn should_send_icmpv6_error(
+    invoking: &Ipv6Packet<'_>,
+    link_destination: MacAddress,
+    allow_multicast_exception: bool,
+) -> bool {
+    if invoking.header.src_ip.is_unspecified() || invoking.header.src_ip.is_multicast() {
+        return false;
+    }
+
+    let invoking_is_icmpv6_error = invoking.header.next_header == NEXT_HEADER_ICMPV6
+        && invoking
+            .payload
+            .first()
+            .is_some_and(|msg_type| *msg_type < 128);
+    if invoking_is_icmpv6_error {
+        return false;
+    }
+
+    allow_multicast_exception
+        || (!invoking.header.dst_ip.is_multicast() && link_destination.is_unicast())
+}
+
 impl LabRouter {
     pub fn new(name: &str) -> Self {
         LabRouter {
@@ -1590,7 +1619,9 @@ impl LabRouter {
                 // checksum, so mutating byte 7 preserves traffic class, flow label,
                 // extension headers and the transport payload byte-for-byte.
                 if ip6_pkt.header.hop_limit <= 1 {
-                    if let Some((src, _)) = ingress_iface.ipv6 {
+                    if should_send_icmpv6_error(&ip6_pkt, eth.dst_mac, false)
+                        && let Some((src, _)) = ingress_iface.ipv6
+                    {
                         let exceeded = Icmpv6Packet::build_time_exceeded(
                             src,
                             ip6_pkt.header.src_ip,
@@ -1641,12 +1672,9 @@ impl LabRouter {
                     .copied()
                     .unwrap_or(1500);
                 if eth.payload.len() > egress_mtu as usize {
-                    let invoking_is_icmpv6_error = ip6_pkt.header.next_header == NEXT_HEADER_ICMPV6
-                        && ip6_pkt
-                            .payload
-                            .first()
-                            .is_some_and(|msg_type| *msg_type < 128);
-                    if !ip6_pkt.header.src_ip.is_unspecified() && !invoking_is_icmpv6_error {
+                    // RFC 4443 permits Packet Too Big for IPv6/link-layer multicast,
+                    // but all other generic suppression rules still apply.
+                    if should_send_icmpv6_error(&ip6_pkt, eth.dst_mac, true) {
                         let ptb_src = ingress_iface
                             .ipv6
                             .map(|(address, _)| address)
