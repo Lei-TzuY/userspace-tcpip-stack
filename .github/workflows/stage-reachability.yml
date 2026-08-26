@@ -1,20 +1,19 @@
 name: Stage reachable default-router selection
 
 on:
-  pull_request:
-    branches: [main]
+  push:
+    branches: [feat/ipv6-reachable-default-router-selection]
 
 permissions:
   contents: write
 
 jobs:
   stage:
-    if: github.head_ref == 'feat/ipv6-reachable-default-router-selection'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          ref: feat/ipv6-reachable-default-router-selection
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Apply implementation and tests
@@ -37,4 +36,4 @@ jobs:
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           git add -A
           git commit -m "feat(ipv6): prefer reachable default routers"
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:feat/ipv6-reachable-default-router-selection
