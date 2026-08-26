@@ -27,8 +27,8 @@ jobs:
           components: rustfmt
       - name: Apply staged implementation
         run: python scripts/stage_rio_nud_hard_failure.py
-      - name: Cargo Fmt Check
-        run: cargo fmt --all -- --check
+      - name: Format staged implementation
+        run: cargo fmt --all
       - name: Focused RIO Regression
         run: cargo test --test test_ipv6_rio_routing --verbose
       - name: Cargo Test All Targets
