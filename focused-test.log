@@ -1,0 +1,39 @@
+[1m[92m   Compiling[0m toy_tcpip v0.1.0 (/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack)
+[1m[92m     Running[0m `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name toy_tcpip --edition=2024 src/lib.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type lib --emit=dep-info,metadata,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=f597b7446d459bb6 -C extra-filename=-b3363a754dc2bfce --out-dir /home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps -L dependency=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps`
+[1m[92m     Running[0m `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name gen_sample --edition=2024 src/bin/gen_sample.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=84f833e043ee3707 -C extra-filename=-ed4b80eb297eb84e --out-dir /home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps -L dependency=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps --extern toy_tcpip=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps/libtoy_tcpip-b3363a754dc2bfce.rlib`
+[1m[92m     Running[0m `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name toy_tcpip --edition=2024 src/main.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --crate-type bin --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=6f6ae328225efd86 -C extra-filename=-051af483be74245b --out-dir /home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps -L dependency=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps --extern toy_tcpip=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps/libtoy_tcpip-b3363a754dc2bfce.rlib`
+[1m[92m     Running[0m `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name test_ipv6_icmp_error_suppression --edition=2024 tests/test_ipv6_icmp_error_suppression.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=15b850a70c670b25 -C extra-filename=-2fea954b6212b680 --out-dir /home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps -L dependency=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps --extern toy_tcpip=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps/libtoy_tcpip-b3363a754dc2bfce.rlib`
+[1m[91merror[E0618][0m[1m: expected function, found `LabRouter`[0m
+   [1m[94m--> [0mtests/test_ipv6_icmp_error_suppression.rs:118:22
+    [1m[94m|[0m
+[1m[94m 19[0m [1m[94m|[0m fn router() -> LabRouter {
+    [1m[94m|[0m [1m[94m------------------------[0m [1m[94mthis function of the same name is available here, but it's shadowed by the local binding[0m
+[1m[94m...[0m
+[1m[94m106[0m [1m[94m|[0m     let mut router = router();
+    [1m[94m|[0m         [1m[94m----------[0m [1m[94m`router` has type `LabRouter`[0m
+[1m[94m...[0m
+[1m[94m118[0m [1m[94m|[0m     let mut router = router();
+    [1m[94m|[0m                      [1m[91m^^^^^^[0m[1m[94m--[0m
+    [1m[94m|[0m                      [1m[94m|[0m
+    [1m[94m|[0m                      [1m[94mcall expression requires function[0m
+
+[1m[91merror[E0618][0m[1m: expected function, found `LabRouter`[0m
+   [1m[94m--> [0mtests/test_ipv6_icmp_error_suppression.rs:144:22
+    [1m[94m|[0m
+[1m[94m 19[0m [1m[94m|[0m fn router() -> LabRouter {
+    [1m[94m|[0m [1m[94m------------------------[0m [1m[94mthis function of the same name is available here, but it's shadowed by the local binding[0m
+[1m[94m...[0m
+[1m[94m135[0m [1m[94m|[0m     let mut router = router();
+    [1m[94m|[0m         [1m[94m----------[0m [1m[94m`router` has type `LabRouter`[0m
+[1m[94m...[0m
+[1m[94m144[0m [1m[94m|[0m     let mut router = router();
+    [1m[94m|[0m                      [1m[91m^^^^^^[0m[1m[94m--[0m
+    [1m[94m|[0m                      [1m[94m|[0m
+    [1m[94m|[0m                      [1m[94mcall expression requires function[0m
+
+[1mFor more information about this error, try `rustc --explain E0618`.[0m
+[1m[91merror[0m: could not compile `toy_tcpip` (test "test_ipv6_icmp_error_suppression") due to 2 previous errors
+
+Caused by:
+  process didn't exit successfully: `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/bin/rustc --crate-name test_ipv6_icmp_error_suppression --edition=2024 tests/test_ipv6_icmp_error_suppression.rs --error-format=json --json=diagnostic-rendered-ansi,artifacts,future-incompat --emit=dep-info,link -C embed-bitcode=no -C debuginfo=2 --test --check-cfg 'cfg(docsrs,test)' --check-cfg 'cfg(feature, values())' -C metadata=15b850a70c670b25 -C extra-filename=-2fea954b6212b680 --out-dir /home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps -L dependency=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps --extern toy_tcpip=/home/runner/work/userspace-tcpip-stack/userspace-tcpip-stack/target/debug/deps/libtoy_tcpip-b3363a754dc2bfce.rlib` (exit status: 1)
+[1m[33mwarning[0m: build failed, waiting for other jobs to finish...
