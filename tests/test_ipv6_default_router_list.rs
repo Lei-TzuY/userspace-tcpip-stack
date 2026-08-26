@@ -135,6 +135,7 @@ fn nud_unreachable_last_router_restarts_router_discovery() {
     assert_eq!(frames.len(), 1, "last-router loss should emit a fresh RS");
 }
 
+// A solicited router NA provides positive NUD reachability evidence.
 fn solicited_router_na(
     router_mac: MacAddress,
     router: Ipv6Address,
