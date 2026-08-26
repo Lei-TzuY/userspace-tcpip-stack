@@ -1,11 +1,9 @@
 name: stage-rio-failed-router-quarantine
 
 on:
-  push:
+  pull_request:
     branches:
-      - stage/rio-failed-router-quarantine
-    paths:
-      - .github/workflows/stage-rio-failed-router-quarantine.yml
+      - main
 
 permissions:
   contents: write
@@ -16,6 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: stage/rio-failed-router-quarantine
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Apply focused implementation and regression
@@ -25,54 +24,57 @@ jobs:
 
           stack = Path('src/stack.rs')
           s = stack.read_text()
-          replacements = [
-              ('use std::collections::HashMap;', 'use std::collections::{HashMap, HashSet};'),
-              (
-                  '    ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,',
-                  '    ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,\n    // Routers that NUD positively declared unreachable for more-specific RFC 4191\n    // routes. A fresh RA may restore their candidate, but they stay quarantined\n    // while another retained candidate exists until NUD confirms them REACHABLE.\n    ipv6_failed_ra_routers: HashSet<Ipv6Address>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,'
-              ),
-              (
-                  '            ipv6_ra_routes: HashMap::new(),\n            ipv6_router_discovery: None,',
-                  '            ipv6_ra_routes: HashMap::new(),\n            ipv6_failed_ra_routers: HashSet::new(),\n            ipv6_router_discovery: None,'
-              ),
-              (
-                  '        self.ipv6_ra_routes.clear();\n        self.ipv6_routing_table\n            .remove_all_from(RouteSource::RaRoute);',
-                  '        self.ipv6_ra_routes.clear();\n        self.ipv6_failed_ra_routers.clear();\n        self.ipv6_routing_table\n            .remove_all_from(RouteSource::RaRoute);'
-              ),
-              (
-                  '        self.ipv6_default_routers.clear();\n        self.ipv6_ra_routes.clear();\n        self.ipv6_routing_table',
-                  '        self.ipv6_default_routers.clear();\n        self.ipv6_ra_routes.clear();\n        self.ipv6_failed_ra_routers.clear();\n        self.ipv6_routing_table'
-              ),
-              (
-                  '        // RFC 4191 section 3.2 Type C hosts use reachability before route\n        // preference when choosing among routers that advertise the same prefix.\n        // Keep the current router stable when it is tied for the best score.\n        let best_score = self\n            .ipv6_ra_routes\n            .iter()\n            .filter(|((candidate_prefix, candidate_len, _), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n            })',
-                  '        // RFC 4191 section 3.2 Type C hosts use reachability before route\n        // preference when choosing among routers that advertise the same prefix.\n        // A router NUD just proved unreachable remains quarantined after a fresh RA\n        // while another retained candidate exists. If it is the only candidate, let\n        // it participate so traffic can trigger resolution instead of deadlocking.\n        let has_unquarantined_candidate = self.ipv6_ra_routes.iter().any(\n            |((candidate_prefix, candidate_len, router), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                    && !self.ipv6_failed_ra_routers.contains(router)\n            },\n        );\n        let candidate_is_eligible = |router: &Ipv6Address| {\n            !has_unquarantined_candidate || !self.ipv6_failed_ra_routers.contains(router)\n        };\n\n        // Keep the current router stable when it is tied for the best score.\n        let best_score = self\n            .ipv6_ra_routes\n            .iter()\n            .filter(|((candidate_prefix, candidate_len, router), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                    && candidate_is_eligible(router)\n            })'
-              ),
-              (
-                  '                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                        && (self.default_router_reachability_rank(gateway), *preference)\n                            == best_score',
-                  '                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                        && candidate_is_eligible(&gateway)\n                        && (self.default_router_reachability_rank(gateway), *preference)\n                            == best_score'
-              ),
-              (
-                  '                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                            && (self.default_router_reachability_rank(*router), *preference)\n                                == best_score)',
-                  '                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                            && candidate_is_eligible(router)\n                            && (self.default_router_reachability_rank(*router), *preference)\n                                == best_score)'
-              ),
-              (
-                  '    fn reselect_ipv6_ra_routes(&mut self) {\n        let mut prefixes = Vec::new();',
-                  '    fn reselect_ipv6_ra_routes(&mut self) {\n        // Positive NUD confirmation ends a prior hard-failure quarantine. Clearing\n        // here is intentionally tied to REACHABLE, not merely to receiving a fresh RA.\n        self.ipv6_failed_ra_routers.retain(|router| {\n            !matches!(self.ndp_table.state(router), Some(NeighborState::Reachable))\n        });\n\n        let mut prefixes = Vec::new();'
-              ),
-              (
-                  '        if !failed_rio_routers.is_empty() {\n            self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {',
-                  '        if !failed_rio_routers.is_empty() {\n            self.ipv6_failed_ra_routers\n                .extend(failed_rio_routers.iter().copied());\n            self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {'
-              ),
-          ]
-          for old, new in replacements:
-              if old not in s:
-                  raise SystemExit(f'missing stack replacement anchor: {old[:100]!r}')
-              s = s.replace(old, new, 1)
-          stack.write_text(s)
+          marker = 'ipv6_failed_ra_routers: HashSet<Ipv6Address>'
+          if marker not in s:
+              replacements = [
+                  ('use std::collections::HashMap;', 'use std::collections::{HashMap, HashSet};'),
+                  (
+                      '    ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,',
+                      '    ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,\n    // Routers that NUD positively declared unreachable for more-specific RFC 4191\n    // routes. A fresh RA may restore their candidate, but they stay quarantined\n    // while another retained candidate exists until NUD confirms them REACHABLE.\n    ipv6_failed_ra_routers: HashSet<Ipv6Address>,\n    ipv6_router_discovery: Option<Ipv6RouterDiscovery>,'
+                  ),
+                  (
+                      '            ipv6_ra_routes: HashMap::new(),\n            ipv6_router_discovery: None,',
+                      '            ipv6_ra_routes: HashMap::new(),\n            ipv6_failed_ra_routers: HashSet::new(),\n            ipv6_router_discovery: None,'
+                  ),
+                  (
+                      '        self.ipv6_ra_routes.clear();\n        self.ipv6_routing_table\n            .remove_all_from(RouteSource::RaRoute);',
+                      '        self.ipv6_ra_routes.clear();\n        self.ipv6_failed_ra_routers.clear();\n        self.ipv6_routing_table\n            .remove_all_from(RouteSource::RaRoute);'
+                  ),
+                  (
+                      '        self.ipv6_default_routers.clear();\n        self.ipv6_ra_routes.clear();\n        self.ipv6_routing_table',
+                      '        self.ipv6_default_routers.clear();\n        self.ipv6_ra_routes.clear();\n        self.ipv6_failed_ra_routers.clear();\n        self.ipv6_routing_table'
+                  ),
+                  (
+                      '        // RFC 4191 section 3.2 Type C hosts use reachability before route\n        // preference when choosing among routers that advertise the same prefix.\n        // Keep the current router stable when it is tied for the best score.\n        let best_score = self\n            .ipv6_ra_routes\n            .iter()\n            .filter(|((candidate_prefix, candidate_len, _), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n            })',
+                      '        // RFC 4191 section 3.2 Type C hosts use reachability before route\n        // preference when choosing among routers that advertise the same prefix.\n        // A router NUD just proved unreachable remains quarantined after a fresh RA\n        // while another retained candidate exists. If it is the only candidate, let\n        // it participate so traffic can trigger resolution instead of deadlocking.\n        let has_unquarantined_candidate = self.ipv6_ra_routes.iter().any(\n            |((candidate_prefix, candidate_len, router), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                    && !self.ipv6_failed_ra_routers.contains(router)\n            },\n        );\n        let candidate_is_eligible = |router: &Ipv6Address| {\n            !has_unquarantined_candidate || !self.ipv6_failed_ra_routers.contains(router)\n        };\n\n        // Keep the current router stable when it is tied for the best score.\n        let best_score = self\n            .ipv6_ra_routes\n            .iter()\n            .filter(|((candidate_prefix, candidate_len, router), (deadline, _))| {\n                *candidate_prefix == prefix\n                    && *candidate_len == prefix_len\n                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                    && candidate_is_eligible(router)\n            })'
+                  ),
+                  (
+                      '                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                        && (self.default_router_reachability_rank(gateway), *preference)\n                            == best_score',
+                      '                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                        && candidate_is_eligible(&gateway)\n                        && (self.default_router_reachability_rank(gateway), *preference)\n                            == best_score'
+                  ),
+                  (
+                      '                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                            && (self.default_router_reachability_rank(*router), *preference)\n                                == best_score)',
+                      '                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline)\n                            && candidate_is_eligible(router)\n                            && (self.default_router_reachability_rank(*router), *preference)\n                                == best_score)'
+                  ),
+                  (
+                      '    fn reselect_ipv6_ra_routes(&mut self) {\n        let mut prefixes = Vec::new();',
+                      '    fn reselect_ipv6_ra_routes(&mut self) {\n        // Positive NUD confirmation ends a prior hard-failure quarantine. Clearing\n        // here is intentionally tied to REACHABLE, not merely to receiving a fresh RA.\n        self.ipv6_failed_ra_routers.retain(|router| {\n            !matches!(self.ndp_table.state(router), Some(NeighborState::Reachable))\n        });\n\n        let mut prefixes = Vec::new();'
+                  ),
+                  (
+                      '        if !failed_rio_routers.is_empty() {\n            self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {',
+                      '        if !failed_rio_routers.is_empty() {\n            self.ipv6_failed_ra_routers\n                .extend(failed_rio_routers.iter().copied());\n            self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {'
+                  ),
+              ]
+              for old, new in replacements:
+                  if old not in s:
+                      raise SystemExit(f'missing stack replacement anchor: {old[:100]!r}')
+                  s = s.replace(old, new, 1)
+              stack.write_text(s)
 
           test = Path('tests/test_ipv6_rio_recovery.rs')
           t = test.read_text()
-          extra = r'''
+          if 'failed_rio_router_stays_quarantined_while_fallback_is_unresolved' not in t:
+              t += r'''
 
 #[test]
 fn failed_rio_router_stays_quarantined_while_fallback_is_unresolved() {
@@ -118,9 +120,6 @@ fn failed_rio_router_stays_quarantined_while_fallback_is_unresolved() {
         Some(fallback)
     );
 
-    // The preferred router's fresh RA recreates only STALE state from SLLA. Because
-    // the retained fallback has never failed NUD, the hard-failed router must not
-    // immediately preempt it merely by re-advertising a higher preference.
     stack.process_frame(&ra_frame(preferred, prefix, RouterPreference::High));
     assert_eq!(
         stack
@@ -131,8 +130,6 @@ fn failed_rio_router_stays_quarantined_while_fallback_is_unresolved() {
         Some(fallback)
     );
 
-    // A solicited NA is positive reachability evidence and ends the quarantine;
-    // the recovered router may then win again by RFC 4191 preference.
     stack.process_frame(&solicited_na_frame(&stack, preferred));
     assert_eq!(
         stack
@@ -144,9 +141,7 @@ fn failed_rio_router_stays_quarantined_while_fallback_is_unresolved() {
     );
 }
 '''
-          if 'failed_rio_router_stays_quarantined_while_fallback_is_unresolved' in t:
-              raise SystemExit('regression already present')
-          test.write_text(t + extra)
+              test.write_text(t)
       - name: Format
         run: cargo fmt --all -- --check
       - name: Focused regression
@@ -157,6 +152,9 @@ fn failed_rio_router_stays_quarantined_while_fallback_is_unresolved() {
         run: cargo build --release --verbose
       - name: Commit validated implementation to staging branch
         run: |
+          if git diff --quiet -- src/stack.rs tests/test_ipv6_rio_recovery.rs; then
+            exit 0
+          fi
           git config user.name "staging-validator"
           git config user.email "staging-validator@users.noreply.github.com"
           git add src/stack.rs tests/test_ipv6_rio_recovery.rs
