@@ -23,7 +23,9 @@ jobs:
           components: rustfmt
 
       - name: Apply implementation
-        run: python3 scripts/stage_ipv6_router_preference.py
+        run: |
+          python3 scripts/stage_ipv6_router_preference.py
+          python3 scripts/fix_ipv6_router_preference_stage.py
 
       - name: Format
         run: cargo fmt --all
@@ -41,6 +43,7 @@ jobs:
         shell: bash
         run: |
           rm scripts/stage_ipv6_router_preference.py
+          rm scripts/fix_ipv6_router_preference_stage.py
           rm .github/workflows/stage-ipv6-router-preference.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
