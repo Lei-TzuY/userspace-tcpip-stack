@@ -145,6 +145,36 @@ impl Ipv6RoutingTable {
         self.sort();
     }
 
+    /// Adds one route without replacing another route from the same source that
+    /// targets the same prefix through a different next hop or interface.
+    ///
+    /// The legacy `add_route_from` API intentionally keeps its replacement
+    /// semantics for source compatibility. This explicit multipath API is used by
+    /// control planes that legitimately need several candidates for one prefix,
+    /// such as an IPv6 Default Router List.
+    pub fn add_multipath_route_from(
+        &mut self,
+        destination: Ipv6Address,
+        prefix_len: u8,
+        gateway: Option<Ipv6Address>,
+        interface: &str,
+        source: RouteSource,
+    ) {
+        let entry =
+            Ipv6RouteEntry::with_source(destination, prefix_len, gateway, interface, source);
+        let duplicate = self.routes.iter().any(|route| {
+            route.destination == entry.destination
+                && route.prefix_len == entry.prefix_len
+                && route.gateway == entry.gateway
+                && route.interface == entry.interface
+                && route.source == entry.source
+        });
+        if !duplicate {
+            self.routes.push(entry);
+            self.sort();
+        }
+    }
+
     pub fn remove_route(
         &mut self,
         destination: Ipv6Address,
@@ -158,6 +188,27 @@ impl Ipv6RoutingTable {
         self.routes.len() != before
     }
 
+    /// Removes only the matching next-hop candidate, preserving other routes to
+    /// the same prefix and from the same source.
+    pub fn remove_route_via(
+        &mut self,
+        destination: Ipv6Address,
+        prefix_len: u8,
+        gateway: Option<Ipv6Address>,
+        interface: &str,
+        source: RouteSource,
+    ) -> bool {
+        let key = (mask_address(destination, prefix_len), prefix_len.min(128));
+        let before = self.routes.len();
+        self.routes.retain(|route| {
+            !((route.destination, route.prefix_len) == key
+                && route.gateway == gateway
+                && route.interface == interface
+                && route.source == source)
+        });
+        self.routes.len() != before
+    }
+
     pub fn remove_all_from(&mut self, source: RouteSource) -> usize {
         let before = self.routes.len();
         self.routes.retain(|r| r.source != source);
@@ -166,6 +217,23 @@ impl Ipv6RoutingTable {
 
     pub fn lookup(&self, destination: Ipv6Address) -> Option<&Ipv6RouteEntry> {
         self.routes.iter().find(|route| route.matches(destination))
+    }
+
+    /// Returns every route tied for the best Longest Prefix Match and
+    /// administrative distance. Ordering is deterministic and follows the route
+    /// table's stable insertion order among equal-cost candidates.
+    pub fn lookup_best_routes(&self, destination: Ipv6Address) -> Vec<&Ipv6RouteEntry> {
+        let Some(best) = self.lookup(destination) else {
+            return Vec::new();
+        };
+        self.routes
+            .iter()
+            .filter(|route| {
+                route.matches(destination)
+                    && route.prefix_len == best.prefix_len
+                    && route.distance() == best.distance()
+            })
+            .collect()
     }
 
     pub fn find_exact(&self, destination: Ipv6Address, prefix_len: u8) -> Option<&Ipv6RouteEntry> {
@@ -252,5 +320,86 @@ mod tests {
         );
         assert!(table.remove_route(prefix, 64, RouteSource::Bgp));
         assert_eq!(table.routes_from(RouteSource::Connected).len(), 1);
+    }
+
+    #[test]
+    fn multipath_routes_coexist_and_can_be_removed_individually() {
+        let mut table = Ipv6RoutingTable::new();
+        let default = ip("::");
+        let router_a = ip("fe80::1");
+        let router_b = ip("fe80::2");
+
+        table.add_multipath_route_from(
+            default,
+            0,
+            Some(router_a),
+            "eth0",
+            RouteSource::Static,
+        );
+        table.add_multipath_route_from(
+            default,
+            0,
+            Some(router_b),
+            "eth0",
+            RouteSource::Static,
+        );
+        // Re-adding the same candidate must be idempotent.
+        table.add_multipath_route_from(
+            default,
+            0,
+            Some(router_b),
+            "eth0",
+            RouteSource::Static,
+        );
+
+        let best = table.lookup_best_routes(ip("2001:db8::1234"));
+        assert_eq!(best.len(), 2);
+        assert_eq!(best[0].gateway, Some(router_a));
+        assert_eq!(best[1].gateway, Some(router_b));
+
+        assert!(table.remove_route_via(
+            default,
+            0,
+            Some(router_a),
+            "eth0",
+            RouteSource::Static,
+        ));
+        assert_eq!(
+            table.lookup(ip("2001:db8::1234")).unwrap().gateway,
+            Some(router_b)
+        );
+        assert_eq!(table.lookup_best_routes(ip("2001:db8::1234")).len(), 1);
+    }
+
+    #[test]
+    fn best_routes_excludes_less_specific_and_worse_distance_candidates() {
+        let mut table = Ipv6RoutingTable::new();
+        let prefix = ip("2001:db8:42::");
+        table.add_multipath_route_from(
+            prefix,
+            64,
+            Some(ip("fe80::1")),
+            "eth0",
+            RouteSource::Bgp,
+        );
+        table.add_multipath_route_from(
+            prefix,
+            64,
+            None,
+            "eth1",
+            RouteSource::Connected,
+        );
+        table.add_multipath_route_from(
+            ip("2001:db8::"),
+            32,
+            None,
+            "eth2",
+            RouteSource::Connected,
+        );
+
+        let best = table.lookup_best_routes(ip("2001:db8:42::99"));
+        assert_eq!(best.len(), 1);
+        assert_eq!(best[0].source, RouteSource::Connected);
+        assert_eq!(best[0].prefix_len, 64);
     }
 }
