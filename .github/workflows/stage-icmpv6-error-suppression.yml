@@ -22,6 +22,8 @@ jobs:
           components: rustfmt
       - name: Apply staged source and regression changes
         run: python scripts/stage_icmpv6_error_suppression.py
+      - name: Fix staged regression naming
+        run: python scripts/fix_icmpv6_suppression_test_shadow.py
       - name: Format
         run: cargo fmt --all
       - name: Check diff
