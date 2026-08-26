@@ -1,0 +1,33 @@
+name: stage-rio-routing
+on:
+  push:
+    branches: [staging/rfc4191-rio-routing]
+permissions:
+  contents: write
+jobs:
+  validate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply implementation
+        run: python tools/stage_rio_routing.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Focused tests
+        run: cargo test --test test_ipv6_rio_routing --verbose
+      - name: Full tests
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated tree
+        run: |
+          rm -f tools/stage_rio_routing.py .github/workflows/stage-rio-routing.yml
+          git config user.name 'Lei-TzuY'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git add -A
+          git commit -m 'feat(ipv6): install RFC 4191 RIO routes'
+          git push origin HEAD:staging/rfc4191-rio-routing
