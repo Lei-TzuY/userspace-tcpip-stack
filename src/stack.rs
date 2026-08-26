@@ -891,6 +891,14 @@ impl NetStack {
         // RFC 4861 NUD probes a STALE neighbor only after first use and
         // DELAY_FIRST_PROBE_TIME. PROBE retransmissions are unicast and the cached
         // link-layer address remains usable while reachability is revalidated.
+        // Remember whether the active learned default router had a Neighbor Cache
+        // entry before this pump so a NUD timeout can be distinguished from a router
+        // that simply has not been resolved yet.
+        let active_router_before_nud = self.ipv6_gateway;
+        let active_router_was_cached = active_router_before_nud.is_some_and(|router| {
+            self.default_router_deadline(router).is_some()
+                && self.ndp_table.lookup(&router).is_some()
+        });
         for (target, dst_mac) in self.ndp_table.step_nud(now_ms) {
             if let Some(my_ip6) = self.config.ipv6 {
                 let ns = Icmpv6Packet::build_neighbor_solicitation(
@@ -908,6 +916,23 @@ impl NetStack {
                 ));
             }
         }
+
+        // RFC 4861 section 6.3.6: when NUD determines that the active default
+        // router is unreachable, remove it from the Default Router List and select
+        // another retained router immediately. If that was the last router, Router
+        // Discovery is restarted below rather than waiting for its advertised
+        // lifetime to expire.
+        let mut lost_last_router_to_nud = false;
+        if let Some(router) = active_router_before_nud {
+            if active_router_was_cached && self.ndp_table.lookup(&router).is_none() {
+                let had_router = !self.ipv6_default_routers.is_empty();
+                self.ipv6_default_routers
+                    .retain(|(address, _)| *address != router);
+                self.select_ipv6_default_router();
+                lost_last_router_to_nud = had_router && self.ipv6_default_routers.is_empty();
+            }
+        }
+
         // RFC 4861 Prefix List lifetimes are independent of SLAAC address
         // lifetimes. Expiry returns destinations to normal default-router selection.
         let expired_ra_prefixes: Vec<(Ipv6Address, u8)> = self
@@ -961,7 +986,7 @@ impl NetStack {
             self.clear_ipv6_interface();
         } else {
             let lost_last_router = self.expire_ipv6_default_routers(now_ms);
-            if lost_last_router && !router_discovery_was_active {
+            if (lost_last_router || lost_last_router_to_nud) && !router_discovery_was_active {
                 // RFC 4861: only restart discovery when the Default Router List has
                 // become empty. If another learned router is still valid, fail over
                 // immediately without emitting a new Router Solicitation.
