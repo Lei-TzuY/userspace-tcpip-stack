@@ -14,7 +14,9 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Apply implementation
-        run: python tools/stage_rio_routing.py
+        run: |
+          python tools/stage_rio_routing.py
+          sed -i 's/userspace_tcpip_stack/toy_tcpip/g' tests/test_ipv6_rio_routing.rs
       - name: Format
         run: cargo fmt --all
       - name: Focused tests
