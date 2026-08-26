@@ -17,6 +17,46 @@ jobs:
         run: |
           python tools/stage_rio_routing.py
           sed -i 's/userspace_tcpip_stack/toy_tcpip/g' tests/test_ipv6_rio_routing.rs
+          sed -i 's/process_ethernet_frame/process_frame/g' tests/test_ipv6_rio_routing.rs
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/stack.rs')
+          s = p.read_text()
+          needle = '''        self.ipv6_default_routers.clear();
+          self.ipv6_dad = None;
+          self.ipv6_dad_duplicate = None;
+          self.ipv6_slaac_lifetimes = None;
+          self.ipv6_path_mtu_cache.clear();
+          '''
+          replacement = '''        self.ipv6_default_routers.clear();
+          self.ipv6_dad = None;
+          self.ipv6_dad_duplicate = None;
+          self.ipv6_slaac_lifetimes = None;
+          self.ipv6_ra_routes.clear();
+          self.ipv6_routing_table.remove_all_from(RouteSource::RaRoute);
+          self.ipv6_path_mtu_cache.clear();
+          '''
+          assert needle in s
+          p.write_text(s.replace(needle, replacement, 1))
+          PY
+          cat >> tests/test_ipv6_rio_routing.rs <<'RS'
+
+          #[test]
+          fn clearing_ipv6_interface_removes_learned_rio_routes() {
+              let mut stack = stack();
+              let router = ip("fe80::1");
+              let prefix = ip("2001:db8:55::");
+              stack.process_frame(&ra_frame(
+                  router,
+                  RouteInformationOption::new(prefix, 64, RouterPreference::Medium, 60),
+              ));
+              assert!(stack.ipv6_routing_table.find_exact(prefix, 64).is_some());
+
+              stack.clear_ipv6_interface();
+              assert!(stack.ipv6_routing_table.find_exact(prefix, 64).is_none());
+              assert!(stack.ipv6_routing_table.routes_from(RouteSource::RaRoute).is_empty());
+          }
+          RS
       - name: Format
         run: cargo fmt --all
       - name: Focused tests
