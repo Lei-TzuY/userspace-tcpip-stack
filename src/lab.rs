@@ -1652,6 +1652,38 @@ impl LabRouter {
                     .lookup(ip6_pkt.header.dst_ip)
                     .cloned()
                 else {
+                    // RFC 4443 section 3.1 Code 0: a router that has no route to
+                    // a unicast destination reports that failure to the source.
+                    // The common suppression guard prevents error loops and
+                    // multicast/non-unique-source amplification.
+                    if should_send_icmpv6_error(&ip6_pkt, eth.dst_mac, false) {
+                        let unreachable_src = ingress_iface
+                            .ipv6
+                            .map(|(address, _)| address)
+                            .unwrap_or_else(|| link_local_address(ingress_iface.mac));
+                        let unreachable = Icmpv6Packet::build_destination_unreachable(
+                            unreachable_src,
+                            ip6_pkt.header.src_ip,
+                            0,
+                            eth.payload,
+                        );
+                        let reply = Ipv6Packet::serialize(
+                            unreachable_src,
+                            ip6_pkt.header.src_ip,
+                            NEXT_HEADER_ICMPV6,
+                            64,
+                            &unreachable,
+                        );
+                        out_transmissions.push((
+                            ingress_link.to_string(),
+                            EthernetFrame::serialize(
+                                eth.src_mac,
+                                ingress_iface.mac,
+                                ETHERTYPE_IPV6,
+                                &reply,
+                            ),
+                        ));
+                    }
                     return out_transmissions;
                 };
                 let Some(egress_iface) = self
