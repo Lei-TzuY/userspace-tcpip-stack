@@ -329,41 +329,17 @@ mod tests {
         let router_a = ip("fe80::1");
         let router_b = ip("fe80::2");
 
-        table.add_multipath_route_from(
-            default,
-            0,
-            Some(router_a),
-            "eth0",
-            RouteSource::Static,
-        );
-        table.add_multipath_route_from(
-            default,
-            0,
-            Some(router_b),
-            "eth0",
-            RouteSource::Static,
-        );
+        table.add_multipath_route_from(default, 0, Some(router_a), "eth0", RouteSource::Static);
+        table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
         // Re-adding the same candidate must be idempotent.
-        table.add_multipath_route_from(
-            default,
-            0,
-            Some(router_b),
-            "eth0",
-            RouteSource::Static,
-        );
+        table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
 
         let best = table.lookup_best_routes(ip("2001:db8::1234"));
         assert_eq!(best.len(), 2);
         assert_eq!(best[0].gateway, Some(router_a));
         assert_eq!(best[1].gateway, Some(router_b));
 
-        assert!(table.remove_route_via(
-            default,
-            0,
-            Some(router_a),
-            "eth0",
-            RouteSource::Static,
-        ));
+        assert!(table.remove_route_via(default, 0, Some(router_a), "eth0", RouteSource::Static,));
         assert_eq!(
             table.lookup(ip("2001:db8::1234")).unwrap().gateway,
             Some(router_b)
@@ -375,27 +351,9 @@ mod tests {
     fn best_routes_excludes_less_specific_and_worse_distance_candidates() {
         let mut table = Ipv6RoutingTable::new();
         let prefix = ip("2001:db8:42::");
-        table.add_multipath_route_from(
-            prefix,
-            64,
-            Some(ip("fe80::1")),
-            "eth0",
-            RouteSource::Bgp,
-        );
-        table.add_multipath_route_from(
-            prefix,
-            64,
-            None,
-            "eth1",
-            RouteSource::Connected,
-        );
-        table.add_multipath_route_from(
-            ip("2001:db8::"),
-            32,
-            None,
-            "eth2",
-            RouteSource::Connected,
-        );
+        table.add_multipath_route_from(prefix, 64, Some(ip("fe80::1")), "eth0", RouteSource::Bgp);
+        table.add_multipath_route_from(prefix, 64, None, "eth1", RouteSource::Connected);
+        table.add_multipath_route_from(ip("2001:db8::"), 32, None, "eth2", RouteSource::Connected);
 
         let best = table.lookup_best_routes(ip("2001:db8:42::99"));
         assert_eq!(best.len(), 1);
