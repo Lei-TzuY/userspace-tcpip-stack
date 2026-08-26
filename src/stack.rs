@@ -129,6 +129,8 @@ pub struct NetStack {
     pub ipv6_routing_table: Ipv6RoutingTable,
     ipv6_prefix_len: Option<u8>,
     ipv6_gateway: Option<Ipv6Address>,
+    // RFC 4861 Default Router List, in discovery order. `None` is an infinite lifetime.
+    ipv6_default_routers: Vec<(Ipv6Address, Option<u64>)>,
     ipv6_dad: Option<PendingIpv6Dad>,
     ipv6_dad_duplicate: Option<Ipv6Address>,
     ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
@@ -178,6 +180,7 @@ impl NetStack {
             ipv6_routing_table: Ipv6RoutingTable::new(),
             ipv6_prefix_len: None,
             ipv6_gateway: None,
+            ipv6_default_routers: Vec::new(),
             ipv6_dad: None,
             ipv6_dad_duplicate: None,
             ipv6_slaac_lifetimes: None,
@@ -290,6 +293,7 @@ impl NetStack {
         self.config.ipv6 = None;
         self.ipv6_prefix_len = None;
         self.ipv6_gateway = None;
+        self.ipv6_default_routers.clear();
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
@@ -344,40 +348,72 @@ impl NetStack {
         }
     }
 
-    fn refresh_slaac_default_router(&mut self, router: Ipv6Address, lifetime_secs: u16) {
-        let deadline = (lifetime_secs > 0).then(|| {
-            self.current_time_ms
-                .saturating_add((lifetime_secs as u64).saturating_mul(1_000))
-        });
+    fn default_router_deadline(&self, router: Ipv6Address) -> Option<Option<u64>> {
+        self.ipv6_default_routers
+            .iter()
+            .find_map(|(address, deadline)| (*address == router).then_some(*deadline))
+    }
 
-        let active_action = self.ipv6_slaac_lifetimes.map(|lifetimes| {
-            if lifetime_secs == 0 {
-                (lifetimes.router == Some(router), None)
-            } else {
-                (true, Some(router))
-            }
+    fn select_ipv6_default_router(&mut self) {
+        let active = self.ipv6_gateway.filter(|router| {
+            self.default_router_deadline(*router)
+                .is_some_and(|deadline| {
+                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                })
         });
-        if let Some((change_route, gateway)) = active_action
-            && change_route
-        {
-            self.set_ipv6_default_gateway(gateway);
-            if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
-                lifetimes.router = gateway;
-                lifetimes.router_until_ms = gateway.and(deadline);
-            }
+        let selected = active.or_else(|| {
+            self.ipv6_default_routers
+                .iter()
+                .find_map(|(router, deadline)| {
+                    deadline
+                        .is_none_or(|deadline| self.current_time_ms < deadline)
+                        .then_some(*router)
+                })
+        });
+        let selected_deadline =
+            selected.and_then(|router| self.default_router_deadline(router).flatten());
+
+        if self.ipv6_gateway != selected {
+            self.set_ipv6_default_gateway(selected);
         }
-
+        if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
+            lifetimes.router = selected;
+            lifetimes.router_until_ms = selected_deadline;
+        }
         if let Some(dad) = self.ipv6_dad.as_mut() {
-            if lifetime_secs == 0 {
-                if dad.gateway == Some(router) {
-                    dad.gateway = None;
-                    dad.router_until_ms = None;
-                }
+            dad.gateway = selected;
+            dad.router_until_ms = selected_deadline;
+        }
+    }
+
+    fn refresh_slaac_default_router(&mut self, router: Ipv6Address, lifetime_secs: u16) {
+        if lifetime_secs == 0 {
+            self.ipv6_default_routers
+                .retain(|(address, _)| *address != router);
+        } else {
+            let deadline = Some(
+                self.current_time_ms
+                    .saturating_add((lifetime_secs as u64).saturating_mul(1_000)),
+            );
+            if let Some((_, current_deadline)) = self
+                .ipv6_default_routers
+                .iter_mut()
+                .find(|(address, _)| *address == router)
+            {
+                *current_deadline = deadline;
             } else {
-                dad.gateway = Some(router);
-                dad.router_until_ms = deadline;
+                self.ipv6_default_routers.push((router, deadline));
             }
         }
+        self.select_ipv6_default_router();
+    }
+
+    fn expire_ipv6_default_routers(&mut self, now_ms: u64) -> bool {
+        let had_router = !self.ipv6_default_routers.is_empty();
+        self.ipv6_default_routers
+            .retain(|(_, deadline)| deadline.is_none_or(|deadline| now_ms < deadline));
+        self.select_ipv6_default_router();
+        had_router && self.ipv6_default_routers.is_empty()
     }
 
     fn refresh_ipv6_ra_on_link_prefix(
@@ -924,28 +960,12 @@ impl NetStack {
         if slaac_valid_expired {
             self.clear_ipv6_interface();
         } else {
-            let router_expired = self
-                .ipv6_slaac_lifetimes
-                .and_then(|lifetimes| lifetimes.router_until_ms)
-                .is_some_and(|deadline| now_ms >= deadline);
-            if router_expired {
-                self.set_ipv6_default_gateway(None);
-                if let Some(lifetimes) = self.ipv6_slaac_lifetimes.as_mut() {
-                    lifetimes.router = None;
-                    lifetimes.router_until_ms = None;
-                }
-
-                // The SLAAC address/prefix can remain perfectly valid after the
-                // selected default router expires. Re-run Router Discovery so the
-                // host can refresh that router or discover a replacement instead of
-                // remaining indefinitely address-configured but gateway-less.
-                //
-                // An already active discovery cycle is left untouched. A previously
-                // Exhausted cycle, however, represents an older discovery event and
-                // is explicitly restarted by this new router-expiry event.
-                if !router_discovery_was_active {
-                    out_frames.push(self.start_router_discovery());
-                }
+            let lost_last_router = self.expire_ipv6_default_routers(now_ms);
+            if lost_last_router && !router_discovery_was_active {
+                // RFC 4861: only restart discovery when the Default Router List has
+                // become empty. If another learned router is still valid, fail over
+                // immediately without emitting a new Router Solicitation.
+                out_frames.push(self.start_router_discovery());
             }
         }
 
@@ -1654,8 +1674,7 @@ impl NetStack {
                                         prefix.prefix_length,
                                         self.config.mac,
                                     ) {
-                                        let gateway = (ra.router_lifetime > 0)
-                                            .then_some(ip6_pkt.header.src_ip);
+                                        let gateway = self.ipv6_gateway;
                                         let now_ms = self.current_time_ms;
                                         if self.config.ipv6 == Some(address) {
                                             let old_valid = self
@@ -1681,16 +1700,9 @@ impl NetStack {
                                                 now_ms,
                                                 prefix.preferred_lifetime,
                                             );
-                                            let router = if ra.router_lifetime > 0 {
-                                                Some(ip6_pkt.header.src_ip)
-                                            } else {
-                                                None
-                                            };
-                                            let router_until_ms = router.map(|_| {
-                                                now_ms.saturating_add(
-                                                    (ra.router_lifetime as u64)
-                                                        .saturating_mul(1_000),
-                                                )
+                                            let router = self.ipv6_gateway;
+                                            let router_until_ms = router.and_then(|router| {
+                                                self.default_router_deadline(router).flatten()
                                             });
                                             self.ipv6_slaac_lifetimes = Some(Ipv6SlaacLifetimes {
                                                 address,
