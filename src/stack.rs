@@ -143,6 +143,10 @@ pub struct NetStack {
     ipv6_dad_duplicate: Option<Ipv6Address>,
     ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
     ipv6_ra_on_link_prefixes: HashMap<(Ipv6Address, u8), Option<u64>>,
+    // RFC 4191 Route Information Options keyed by (prefix, prefix_len, advertising router).
+    // `None` is an infinite lifetime. The routing table exposes only the currently
+    // best candidate per prefix; retained candidates provide deterministic fallback.
+    ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
     ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
@@ -198,6 +202,7 @@ impl NetStack {
             ipv6_dad_duplicate: None,
             ipv6_slaac_lifetimes: None,
             ipv6_ra_on_link_prefixes: HashMap::new(),
+            ipv6_ra_routes: HashMap::new(),
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
             ipv6_path_mtu_cache: HashMap::new(),
@@ -241,6 +246,9 @@ impl NetStack {
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
+        self.ipv6_ra_routes.clear();
+        self.ipv6_routing_table
+            .remove_all_from(RouteSource::RaRoute);
         self.ipv6_path_mtu_cache.clear();
         self.ipv6_redirect_cache.clear();
         if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
@@ -323,6 +331,9 @@ impl NetStack {
         self.ipv6_prefix_len = None;
         self.ipv6_gateway = None;
         self.ipv6_default_routers.clear();
+        self.ipv6_ra_routes.clear();
+        self.ipv6_routing_table
+            .remove_all_from(RouteSource::RaRoute);
         self.ipv6_dad = None;
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
@@ -513,6 +524,91 @@ impl NetStack {
         self.ipv6_ra_on_link_prefixes.insert(key, valid_until_ms);
         self.ipv6_routing_table
             .add_route_from(prefix, prefix_len, None, "eth0", RouteSource::Ra);
+    }
+
+    fn select_ipv6_ra_route(&mut self, prefix: Ipv6Address, prefix_len: u8) {
+        let prefix_len = prefix_len.min(128);
+        let prefix = prefix.mask(prefix_len);
+        let current_gateway = self
+            .ipv6_routing_table
+            .find_exact(prefix, prefix_len)
+            .filter(|route| route.source == RouteSource::RaRoute)
+            .and_then(|route| route.gateway);
+        self.ipv6_routing_table
+            .remove_route(prefix, prefix_len, RouteSource::RaRoute);
+
+        let best_preference = self
+            .ipv6_ra_routes
+            .iter()
+            .filter(|((candidate_prefix, candidate_len, _), (deadline, _))| {
+                *candidate_prefix == prefix
+                    && *candidate_len == prefix_len
+                    && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+            })
+            .map(|(_, (_, preference))| *preference)
+            .max();
+        let Some(best_preference) = best_preference else {
+            return;
+        };
+
+        let current_is_best = current_gateway.is_some_and(|gateway| {
+            self.ipv6_ra_routes
+                .get(&(prefix, prefix_len, gateway))
+                .is_some_and(|(deadline, preference)| {
+                    *preference == best_preference
+                        && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                })
+        });
+        let selected = if current_is_best {
+            current_gateway
+        } else {
+            self.ipv6_ra_routes
+                .iter()
+                .filter_map(
+                    |((candidate_prefix, candidate_len, router), (deadline, preference))| {
+                        (*candidate_prefix == prefix
+                            && *candidate_len == prefix_len
+                            && *preference == best_preference
+                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline))
+                        .then_some(*router)
+                    },
+                )
+                .min_by_key(|router| router.0)
+        };
+        if let Some(router) = selected {
+            self.ipv6_routing_table.add_route_from(
+                prefix,
+                prefix_len,
+                Some(router),
+                "eth0",
+                RouteSource::RaRoute,
+            );
+        }
+    }
+
+    fn refresh_ipv6_ra_route(
+        &mut self,
+        router: Ipv6Address,
+        prefix: Ipv6Address,
+        prefix_len: u8,
+        preference: RouterPreference,
+        route_lifetime: u32,
+    ) {
+        let prefix_len = prefix_len.min(128);
+        let prefix = prefix.mask(prefix_len);
+        let key = (prefix, prefix_len, router);
+        if route_lifetime == 0 {
+            self.ipv6_ra_routes.remove(&key);
+        } else {
+            self.ipv6_ra_routes.insert(
+                key,
+                (
+                    ipv6_lifetime_deadline(self.current_time_ms, route_lifetime),
+                    preference,
+                ),
+            );
+        }
+        self.select_ipv6_ra_route(prefix, prefix_len);
     }
 
     fn start_ipv6_dad(
@@ -1034,6 +1130,28 @@ impl NetStack {
             self.ipv6_ra_on_link_prefixes.remove(&(prefix, prefix_len));
             self.ipv6_routing_table
                 .remove_route(prefix, prefix_len, RouteSource::Ra);
+        }
+
+        // RFC 4191 learned routes have independent lifetimes. Expiring one
+        // candidate immediately re-selects the best retained advertiser for that prefix.
+        let expired_ra_routes: Vec<(Ipv6Address, u8, Ipv6Address)> = self
+            .ipv6_ra_routes
+            .iter()
+            .filter_map(|(key, (deadline, _))| {
+                deadline
+                    .is_some_and(|deadline| now_ms >= deadline)
+                    .then_some(*key)
+            })
+            .collect();
+        let mut affected_ra_prefixes = Vec::new();
+        for (prefix, prefix_len, router) in expired_ra_routes {
+            self.ipv6_ra_routes.remove(&(prefix, prefix_len, router));
+            if !affected_ra_prefixes.contains(&(prefix, prefix_len)) {
+                affected_ra_prefixes.push((prefix, prefix_len));
+            }
+        }
+        for (prefix, prefix_len) in affected_ra_prefixes {
+            self.select_ipv6_ra_route(prefix, prefix_len);
         }
 
         // A tentative SLAAC address becomes usable only after its DAD interval
@@ -1809,6 +1927,20 @@ impl NetStack {
                                         ra.router_lifetime,
                                         ra.preference,
                                     );
+
+                                    // RFC 4191 section 3: RIOs install more-specific
+                                    // routes through the advertising router. Route Lifetime=0
+                                    // withdraws only that router's candidate; retained peers can
+                                    // immediately become the selected next hop.
+                                    for route in &ra.routes {
+                                        self.refresh_ipv6_ra_route(
+                                            ip6_pkt.header.src_ip,
+                                            route.prefix,
+                                            route.prefix_length,
+                                            route.preference,
+                                            route.route_lifetime,
+                                        );
+                                    }
 
                                     // RFC 4861 section 6.3.4: L and A are independent.
                                     // Only L=1 updates the Prefix List; L=0 makes no
