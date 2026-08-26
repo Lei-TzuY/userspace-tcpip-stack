@@ -154,3 +154,158 @@ fn clearing_ipv6_interface_removes_learned_rio_routes() {
             .is_empty()
     );
 }
+
+fn ra_frame_with_default_route(
+    router: Ipv6Address,
+    header_preference: RouterPreference,
+    router_lifetime: u16,
+    route_preference: RouterPreference,
+    route_lifetime: u32,
+) -> Vec<u8> {
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let route = RouteInformationOption::new(
+        Ipv6Address::UNSPECIFIED,
+        0,
+        route_preference,
+        route_lifetime,
+    );
+    let ra = Icmpv6Packet::build_router_advertisement_with_routes(
+        router,
+        dst,
+        64,
+        router_lifetime,
+        header_preference,
+        &[],
+        &[route],
+        Some(MacAddress([0x02, 0, 0, 0, 0, router.0[15]])),
+    );
+    let packet = Ipv6Packet::serialize(router, dst, NEXT_HEADER_ICMPV6, 255, &ra);
+    EthernetFrame::serialize(
+        MacAddress([0x33, 0x33, 0, 0, 0, 1]),
+        MacAddress([0x02, 0, 0, 0, 0, router.0[15]]),
+        ETHERTYPE_IPV6,
+        &packet,
+    )
+}
+
+fn ra_frame_without_routes(
+    router: Ipv6Address,
+    preference: RouterPreference,
+    router_lifetime: u16,
+) -> Vec<u8> {
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let ra = Icmpv6Packet::build_router_advertisement_with_routes(
+        router,
+        dst,
+        64,
+        router_lifetime,
+        preference,
+        &[],
+        &[],
+        Some(MacAddress([0x02, 0, 0, 0, 0, router.0[15]])),
+    );
+    let packet = Ipv6Packet::serialize(router, dst, NEXT_HEADER_ICMPV6, 255, &ra);
+    EthernetFrame::serialize(
+        MacAddress([0x33, 0x33, 0, 0, 0, 1]),
+        MacAddress([0x02, 0, 0, 0, 0, router.0[15]]),
+        ETHERTYPE_IPV6,
+        &packet,
+    )
+}
+
+#[test]
+fn zero_prefix_rio_overrides_ra_header_default_preference() {
+    let mut stack = stack();
+    let router_a = ip("fe80::1");
+    let router_b = ip("fe80::2");
+
+    stack.process_frame(&ra_frame_without_routes(
+        router_a,
+        RouterPreference::Medium,
+        1800,
+    ));
+    stack.process_frame(&ra_frame_with_default_route(
+        router_b,
+        RouterPreference::Low,
+        1800,
+        RouterPreference::High,
+        30,
+    ));
+
+    assert_eq!(stack.ipv6_gateway(), Some(router_b));
+    let route = stack
+        .ipv6_routing_table
+        .lookup(ip("2001:4860:4860::8888"))
+        .unwrap();
+    assert_eq!(route.gateway, Some(router_b));
+    assert_eq!(route.source, RouteSource::Static);
+    assert!(
+        stack
+            .ipv6_routing_table
+            .routes_from(RouteSource::RaRoute)
+            .iter()
+            .all(|route| route.prefix_len != 0)
+    );
+}
+
+#[test]
+fn zero_prefix_rio_lifetime_expiry_falls_back_to_other_default_router() {
+    let mut stack = stack();
+    let fallback = ip("fe80::1");
+    let preferred = ip("fe80::2");
+
+    stack.process_frame(&ra_frame_without_routes(
+        fallback,
+        RouterPreference::Medium,
+        1800,
+    ));
+    stack.process_frame(&ra_frame_with_default_route(
+        preferred,
+        RouterPreference::Low,
+        1800,
+        RouterPreference::High,
+        2,
+    ));
+    assert_eq!(stack.ipv6_gateway(), Some(preferred));
+
+    stack.step_timers(2_000);
+    assert_eq!(stack.ipv6_gateway(), Some(fallback));
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .lookup(ip("2001:4860:4860::8888"))
+            .unwrap()
+            .gateway,
+        Some(fallback)
+    );
+}
+
+#[test]
+fn zero_lifetime_zero_prefix_rio_withdraws_header_default_for_same_ra() {
+    let mut stack = stack();
+    let fallback = ip("fe80::1");
+    let router = ip("fe80::2");
+
+    stack.process_frame(&ra_frame_without_routes(
+        fallback,
+        RouterPreference::Medium,
+        1800,
+    ));
+    stack.process_frame(&ra_frame_with_default_route(
+        router,
+        RouterPreference::Low,
+        1800,
+        RouterPreference::High,
+        30,
+    ));
+    assert_eq!(stack.ipv6_gateway(), Some(router));
+
+    stack.process_frame(&ra_frame_with_default_route(
+        router,
+        RouterPreference::High,
+        1800,
+        RouterPreference::Low,
+        0,
+    ));
+    assert_eq!(stack.ipv6_gateway(), Some(fallback));
+}

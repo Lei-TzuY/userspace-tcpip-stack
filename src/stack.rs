@@ -392,16 +392,28 @@ impl NetStack {
         }
     }
 
-    fn default_router_deadline(&self, router: Ipv6Address) -> Option<Option<u64>> {
-        self.ipv6_default_routers
-            .iter()
-            .find_map(|(address, deadline, _)| (*address == router).then_some(*deadline))
+    fn ipv6_default_route_candidates(&self) -> Vec<(Ipv6Address, Option<u64>, RouterPreference)> {
+        let mut candidates = self.ipv6_default_routers.clone();
+        for ((prefix, prefix_len, router), (deadline, preference)) in &self.ipv6_ra_routes {
+            if *prefix_len != 0 || *prefix != Ipv6Address::UNSPECIFIED {
+                continue;
+            }
+            if let Some(candidate) = candidates
+                .iter_mut()
+                .find(|(address, _, _)| *address == *router)
+            {
+                *candidate = (*router, *deadline, *preference);
+            } else {
+                candidates.push((*router, *deadline, *preference));
+            }
+        }
+        candidates
     }
 
-    fn default_router_preference(&self, router: Ipv6Address) -> Option<RouterPreference> {
-        self.ipv6_default_routers
-            .iter()
-            .find_map(|(address, _, preference)| (*address == router).then_some(*preference))
+    fn default_router_deadline(&self, router: Ipv6Address) -> Option<Option<u64>> {
+        self.ipv6_default_route_candidates()
+            .into_iter()
+            .find_map(|(address, deadline, _)| (address == router).then_some(deadline))
     }
 
     fn default_router_reachability_rank(&self, router: Ipv6Address) -> u8 {
@@ -415,15 +427,18 @@ impl NetStack {
     fn select_ipv6_default_router(&mut self) {
         let is_valid =
             |deadline: Option<u64>| deadline.is_none_or(|deadline| self.current_time_ms < deadline);
-        let active = self
-            .ipv6_gateway
-            .filter(|router| self.default_router_deadline(*router).is_some_and(is_valid));
+        let candidates = self.ipv6_default_route_candidates();
+        let active = self.ipv6_gateway.filter(|router| {
+            candidates
+                .iter()
+                .any(|(candidate, deadline, _)| *candidate == *router && is_valid(*deadline))
+        });
 
         // RFC 4861 section 6.3.6 makes reachability the primary selector; RFC 4191
-        // uses Router Preference as the secondary selector. Keep the current router
-        // stable when it ties for the best score so equal RAs do not cause churn.
-        let best_score = self
-            .ipv6_default_routers
+        // uses Router/Route Preference as the secondary selector. A ::/0 RIO is a
+        // default-route candidate and overrides the RA-header lifetime/preference
+        // for the same advertising router.
+        let best_score = candidates
             .iter()
             .filter(|(_, deadline, _)| is_valid(*deadline))
             .map(|(router, _, preference)| {
@@ -433,15 +448,18 @@ impl NetStack {
 
         let active_is_best = active.is_some_and(|router| {
             best_score
-                == self
-                    .default_router_preference(router)
-                    .map(|preference| (self.default_router_reachability_rank(router), preference))
+                == candidates
+                    .iter()
+                    .find(|(candidate, deadline, _)| *candidate == router && is_valid(*deadline))
+                    .map(|(_, _, preference)| {
+                        (self.default_router_reachability_rank(router), *preference)
+                    })
         });
         let selected = if active_is_best {
             active
         } else {
             best_score.and_then(|best| {
-                self.ipv6_default_routers
+                candidates
                     .iter()
                     .find_map(|(router, deadline, preference)| {
                         (is_valid(*deadline)
@@ -451,8 +469,12 @@ impl NetStack {
                     })
             })
         };
-        let selected_deadline =
-            selected.and_then(|router| self.default_router_deadline(router).flatten());
+        let selected_deadline = selected.and_then(|router| {
+            candidates
+                .iter()
+                .find_map(|(candidate, deadline, _)| (*candidate == router).then_some(*deadline))
+                .flatten()
+        });
 
         if self.ipv6_gateway != selected {
             self.set_ipv6_default_gateway(selected);
@@ -497,11 +519,11 @@ impl NetStack {
     }
 
     fn expire_ipv6_default_routers(&mut self, now_ms: u64) -> bool {
-        let had_router = !self.ipv6_default_routers.is_empty();
+        let had_router = self.ipv6_gateway.is_some();
         self.ipv6_default_routers
             .retain(|(_, deadline, _)| deadline.is_none_or(|deadline| now_ms < deadline));
         self.select_ipv6_default_router();
-        had_router && self.ipv6_default_routers.is_empty()
+        had_router && self.ipv6_gateway.is_none()
     }
 
     fn refresh_ipv6_ra_on_link_prefix(
@@ -529,6 +551,15 @@ impl NetStack {
     fn select_ipv6_ra_route(&mut self, prefix: Ipv6Address, prefix_len: u8) {
         let prefix_len = prefix_len.min(128);
         let prefix = prefix.mask(prefix_len);
+        if prefix_len == 0 {
+            // RFC 4191 section 3.1: ::/0 RIOs are default routes. They participate
+            // in the same reachability/preference selection as RA-header defaults
+            // instead of being hidden behind the selected Static /0 route.
+            self.ipv6_routing_table
+                .remove_route(prefix, prefix_len, RouteSource::RaRoute);
+            self.select_ipv6_default_router();
+            return;
+        }
         let current_gateway = self
             .ipv6_routing_table
             .find_exact(prefix, prefix_len)
@@ -1107,11 +1138,17 @@ impl NetStack {
         let mut lost_last_router_to_nud = false;
         if let Some(router) = active_router_before_nud {
             if active_router_was_cached && self.ndp_table.lookup(&router).is_none() {
-                let had_router = !self.ipv6_default_routers.is_empty();
+                let had_router = self.ipv6_gateway.is_some();
                 self.ipv6_default_routers
                     .retain(|(address, _, _)| *address != router);
+                self.ipv6_ra_routes
+                    .retain(|(prefix, prefix_len, advertising_router), _| {
+                        !(*prefix_len == 0
+                            && *prefix == Ipv6Address::UNSPECIFIED
+                            && *advertising_router == router)
+                    });
                 self.select_ipv6_default_router();
-                lost_last_router_to_nud = had_router && self.ipv6_default_routers.is_empty();
+                lost_last_router_to_nud = had_router && self.ipv6_gateway.is_none();
             }
         }
 
@@ -1134,6 +1171,7 @@ impl NetStack {
 
         // RFC 4191 learned routes have independent lifetimes. Expiring one
         // candidate immediately re-selects the best retained advertiser for that prefix.
+        let had_default_route_before_ra_expiry = self.ipv6_gateway.is_some();
         let expired_ra_routes: Vec<(Ipv6Address, u8, Ipv6Address)> = self
             .ipv6_ra_routes
             .iter()
@@ -1153,6 +1191,8 @@ impl NetStack {
         for (prefix, prefix_len) in affected_ra_prefixes {
             self.select_ipv6_ra_route(prefix, prefix_len);
         }
+        let lost_last_router_to_rio =
+            had_default_route_before_ra_expiry && self.ipv6_gateway.is_none();
 
         // A tentative SLAAC address becomes usable only after its DAD interval
         // expires without a conflicting NS/NA.
@@ -1190,7 +1230,9 @@ impl NetStack {
             self.clear_ipv6_interface();
         } else {
             let lost_last_router = self.expire_ipv6_default_routers(now_ms);
-            if (lost_last_router || lost_last_router_to_nud) && !router_discovery_was_active {
+            if (lost_last_router || lost_last_router_to_nud || lost_last_router_to_rio)
+                && !router_discovery_was_active
+            {
                 // RFC 4861: only restart discovery when the Default Router List has
                 // become empty. If another learned router is still valid, fail over
                 // immediately without emitting a new Router Solicitation.
@@ -1922,11 +1964,23 @@ impl NetStack {
                                     // when Router Lifetime is zero or no autonomous prefix
                                     // is present. Invalid RAs never cancel retransmission.
                                     self.cancel_router_discovery();
-                                    self.refresh_slaac_default_router(
-                                        ip6_pkt.header.src_ip,
-                                        ra.router_lifetime,
-                                        ra.preference,
-                                    );
+                                    let has_default_rio =
+                                        ra.routes.iter().any(|route| route.prefix_length == 0);
+                                    if has_default_rio {
+                                        // RFC 4191 section 3.1: a ::/0 RIO in this RA
+                                        // overrides the header's default-route lifetime and
+                                        // preference for this router, including lifetime=0.
+                                        self.ipv6_default_routers.retain(|(router, _, _)| {
+                                            *router != ip6_pkt.header.src_ip
+                                        });
+                                        self.select_ipv6_default_router();
+                                    } else {
+                                        self.refresh_slaac_default_router(
+                                            ip6_pkt.header.src_ip,
+                                            ra.router_lifetime,
+                                            ra.preference,
+                                        );
+                                    }
 
                                     // RFC 4191 section 3: RIOs install more-specific
                                     // routes through the advertising router. Route Lifetime=0
