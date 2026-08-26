@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
 use toy_tcpip::icmpv6::{
-    Icmpv6Packet, PrefixInformationOption, ipv6_multicast_mac, link_local_address,
+    Icmpv6Packet, PrefixInformationOption, RouterPreference, ipv6_multicast_mac, link_local_address,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -28,6 +28,33 @@ fn ra_frame(router_mac: MacAddress, prefix: Ipv6Address, lifetime: u16) -> Vec<u
     let pio = PrefixInformationOption::new(prefix, 64, true, true, 600, 300);
     let ra =
         Icmpv6Packet::build_router_advertisement(src, dst, 64, lifetime, &[pio], Some(router_mac));
+    let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &ra);
+    EthernetFrame::serialize(
+        ipv6_multicast_mac(dst).unwrap(),
+        router_mac,
+        ETHERTYPE_IPV6,
+        &packet,
+    )
+}
+
+fn ra_frame_with_preference(
+    router_mac: MacAddress,
+    prefix: Ipv6Address,
+    lifetime: u16,
+    preference: RouterPreference,
+) -> Vec<u8> {
+    let src = link_local_address(router_mac);
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let pio = PrefixInformationOption::new(prefix, 64, true, true, 600, 300);
+    let ra = Icmpv6Packet::build_router_advertisement_with_preference(
+        src,
+        dst,
+        64,
+        lifetime,
+        preference,
+        &[pio],
+        Some(router_mac),
+    );
     let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &ra);
     EthernetFrame::serialize(
         ipv6_multicast_mac(dst).unwrap(),
@@ -191,4 +218,81 @@ fn reachable_active_router_remains_stable_when_peer_becomes_reachable() {
     assert_eq!(s.ipv6_gateway(), Some(r2));
     s.process_frame(&solicited_router_na(r1_mac, r1, host_mac, host));
     assert_eq!(s.ipv6_gateway(), Some(r2));
+}
+
+#[test]
+fn higher_router_preference_preempts_equal_reachability() {
+    let host_mac = MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x96]);
+    let medium_mac = MacAddress([0x02, 0, 0, 0, 6, 1]);
+    let high_mac = MacAddress([0x02, 0, 0, 0, 6, 2]);
+    let medium = link_local_address(medium_mac);
+    let high = link_local_address(high_mac);
+    let prefix = ip6("2001:db8:96::");
+    let mut s = stack(host_mac);
+
+    s.process_frame(&ra_frame_with_preference(
+        medium_mac,
+        prefix,
+        30,
+        RouterPreference::Medium,
+    ));
+    s.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
+    assert_eq!(s.ipv6_gateway(), Some(medium));
+
+    s.process_frame(&ra_frame_with_preference(
+        high_mac,
+        prefix,
+        30,
+        RouterPreference::High,
+    ));
+    assert_eq!(s.ipv6_gateway(), Some(high));
+}
+
+#[test]
+fn nud_reachability_outranks_router_preference() {
+    let host_mac = MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x97]);
+    let high_mac = MacAddress([0x02, 0, 0, 0, 7, 1]);
+    let low_mac = MacAddress([0x02, 0, 0, 0, 7, 2]);
+    let high = link_local_address(high_mac);
+    let low = link_local_address(low_mac);
+    let prefix = ip6("2001:db8:97::");
+    let mut s = stack(host_mac);
+
+    s.process_frame(&ra_frame_with_preference(
+        high_mac,
+        prefix,
+        30,
+        RouterPreference::High,
+    ));
+    s.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
+    s.process_frame(&ra_frame_with_preference(
+        low_mac,
+        prefix,
+        30,
+        RouterPreference::Low,
+    ));
+    assert_eq!(s.ipv6_gateway(), Some(high));
+
+    let host = s.config.ipv6.unwrap();
+    s.process_frame(&solicited_router_na(low_mac, low, host_mac, host));
+    assert_eq!(s.ipv6_gateway(), Some(low));
+}
+
+#[test]
+fn router_advertisement_builder_and_parser_preserve_preference() {
+    let router_mac = MacAddress([0x02, 0, 0, 0, 8, 1]);
+    let src = link_local_address(router_mac);
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let raw = Icmpv6Packet::build_router_advertisement_with_preference(
+        src,
+        dst,
+        64,
+        30,
+        RouterPreference::High,
+        &[],
+        Some(router_mac),
+    );
+    let icmp = Icmpv6Packet::parse(src, dst, &raw, true).unwrap();
+    let ra = icmp.validated_router_advertisement(src, 255).unwrap();
+    assert_eq!(ra.preference, RouterPreference::High);
 }

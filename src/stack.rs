@@ -9,8 +9,8 @@ use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
     ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_PACKET_TOO_BIG, ICMPV6_TYPE_ROUTER_ADVERT,
-    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, NeighborState, ipv6_multicast_mac,
-    slaac_address,
+    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, NeighborState, RouterPreference,
+    ipv6_multicast_mac, slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -130,8 +130,9 @@ pub struct NetStack {
     pub ipv6_routing_table: Ipv6RoutingTable,
     ipv6_prefix_len: Option<u8>,
     ipv6_gateway: Option<Ipv6Address>,
-    // RFC 4861 Default Router List, in discovery order. `None` is an infinite lifetime.
-    ipv6_default_routers: Vec<(Ipv6Address, Option<u64>)>,
+    // RFC 4861 / RFC 4191 Default Router List, in discovery order.
+    // `None` is an infinite lifetime; preference is High/Medium/Low.
+    ipv6_default_routers: Vec<(Ipv6Address, Option<u64>, RouterPreference)>,
     ipv6_dad: Option<PendingIpv6Dad>,
     ipv6_dad_duplicate: Option<Ipv6Address>,
     ipv6_slaac_lifetimes: Option<Ipv6SlaacLifetimes>,
@@ -352,7 +353,21 @@ impl NetStack {
     fn default_router_deadline(&self, router: Ipv6Address) -> Option<Option<u64>> {
         self.ipv6_default_routers
             .iter()
-            .find_map(|(address, deadline)| (*address == router).then_some(*deadline))
+            .find_map(|(address, deadline, _)| (*address == router).then_some(*deadline))
+    }
+
+    fn default_router_preference(&self, router: Ipv6Address) -> Option<RouterPreference> {
+        self.ipv6_default_routers
+            .iter()
+            .find_map(|(address, _, preference)| (*address == router).then_some(*preference))
+    }
+
+    fn default_router_reachability_rank(&self, router: Ipv6Address) -> u8 {
+        match self.ndp_table.state(&router) {
+            Some(NeighborState::Reachable) => 2,
+            Some(NeighborState::Stale | NeighborState::Delay | NeighborState::Probe) => 1,
+            None => 0,
+        }
     }
 
     fn select_ipv6_default_router(&mut self) {
@@ -362,28 +377,36 @@ impl NetStack {
             .ipv6_gateway
             .filter(|router| self.default_router_deadline(*router).is_some_and(is_valid));
 
-        // RFC 4861 section 6.3.6 prefers routers known reachable by NUD. Preserve
-        // the active router when it is itself REACHABLE; otherwise let another
-        // valid REACHABLE router preempt a STALE/DELAY/PROBE or unresolved active
-        // router. If no router is known reachable, keep the active router stable
-        // and finally fall back to discovery order.
-        let reachable = self
+        // RFC 4861 section 6.3.6 makes reachability the primary selector; RFC 4191
+        // uses Router Preference as the secondary selector. Keep the current router
+        // stable when it ties for the best score so equal RAs do not cause churn.
+        let best_score = self
             .ipv6_default_routers
             .iter()
-            .find_map(|(router, deadline)| {
-                (is_valid(*deadline)
-                    && self.ndp_table.state(router) == Some(NeighborState::Reachable))
-                .then_some(*router)
-            });
-        let active_reachable = active
-            .is_some_and(|router| self.ndp_table.state(&router) == Some(NeighborState::Reachable));
-        let selected = if active_reachable {
+            .filter(|(_, deadline, _)| is_valid(*deadline))
+            .map(|(router, _, preference)| {
+                (self.default_router_reachability_rank(*router), *preference)
+            })
+            .max();
+
+        let active_is_best = active.is_some_and(|router| {
+            best_score
+                == self
+                    .default_router_preference(router)
+                    .map(|preference| (self.default_router_reachability_rank(router), preference))
+        });
+        let selected = if active_is_best {
             active
         } else {
-            reachable.or(active).or_else(|| {
+            best_score.and_then(|best| {
                 self.ipv6_default_routers
                     .iter()
-                    .find_map(|(router, deadline)| is_valid(*deadline).then_some(*router))
+                    .find_map(|(router, deadline, preference)| {
+                        (is_valid(*deadline)
+                            && (self.default_router_reachability_rank(*router), *preference)
+                                == best)
+                            .then_some(*router)
+                    })
             })
         };
         let selected_deadline =
@@ -402,23 +425,30 @@ impl NetStack {
         }
     }
 
-    fn refresh_slaac_default_router(&mut self, router: Ipv6Address, lifetime_secs: u16) {
+    fn refresh_slaac_default_router(
+        &mut self,
+        router: Ipv6Address,
+        lifetime_secs: u16,
+        preference: RouterPreference,
+    ) {
         if lifetime_secs == 0 {
             self.ipv6_default_routers
-                .retain(|(address, _)| *address != router);
+                .retain(|(address, _, _)| *address != router);
         } else {
             let deadline = Some(
                 self.current_time_ms
                     .saturating_add((lifetime_secs as u64).saturating_mul(1_000)),
             );
-            if let Some((_, current_deadline)) = self
+            if let Some((_, current_deadline, current_preference)) = self
                 .ipv6_default_routers
                 .iter_mut()
-                .find(|(address, _)| *address == router)
+                .find(|(address, _, _)| *address == router)
             {
                 *current_deadline = deadline;
+                *current_preference = preference;
             } else {
-                self.ipv6_default_routers.push((router, deadline));
+                self.ipv6_default_routers
+                    .push((router, deadline, preference));
             }
         }
         self.select_ipv6_default_router();
@@ -427,7 +457,7 @@ impl NetStack {
     fn expire_ipv6_default_routers(&mut self, now_ms: u64) -> bool {
         let had_router = !self.ipv6_default_routers.is_empty();
         self.ipv6_default_routers
-            .retain(|(_, deadline)| deadline.is_none_or(|deadline| now_ms < deadline));
+            .retain(|(_, deadline, _)| deadline.is_none_or(|deadline| now_ms < deadline));
         self.select_ipv6_default_router();
         had_router && self.ipv6_default_routers.is_empty()
     }
@@ -943,7 +973,7 @@ impl NetStack {
             if active_router_was_cached && self.ndp_table.lookup(&router).is_none() {
                 let had_router = !self.ipv6_default_routers.is_empty();
                 self.ipv6_default_routers
-                    .retain(|(address, _)| *address != router);
+                    .retain(|(address, _, _)| *address != router);
                 self.select_ipv6_default_router();
                 lost_last_router_to_nud = had_router && self.ipv6_default_routers.is_empty();
             }
@@ -1692,6 +1722,7 @@ impl NetStack {
                                     self.refresh_slaac_default_router(
                                         ip6_pkt.header.src_ip,
                                         ra.router_lifetime,
+                                        ra.preference,
                                     );
 
                                     // RFC 4861 section 6.3.4: L and A are independent.
@@ -1935,7 +1966,11 @@ impl NetStack {
                                     // current default router advertises Router=0, remove it from
                                     // the Default Router List without invalidating SLAAC state.
                                     if icmp6.payload[0] & 0x80 == 0 {
-                                        self.refresh_slaac_default_router(target_ip6, 0);
+                                        self.refresh_slaac_default_router(
+                                            target_ip6,
+                                            0,
+                                            RouterPreference::Medium,
+                                        );
                                     } else if self.default_router_deadline(target_ip6).is_some() {
                                         self.select_ipv6_default_router();
                                     }

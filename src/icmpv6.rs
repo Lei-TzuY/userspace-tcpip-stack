@@ -61,11 +61,38 @@ impl PrefixInformationOption {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RouterPreference {
+    Low,
+    Medium,
+    High,
+}
+
+impl RouterPreference {
+    fn from_ra_flags(flags: u8) -> Self {
+        match (flags >> 3) & 0x03 {
+            0x01 => Self::High,
+            0x03 => Self::Low,
+            // RFC 4191: the reserved 10 value MUST be treated as Medium.
+            _ => Self::Medium,
+        }
+    }
+
+    fn ra_flags(self) -> u8 {
+        match self {
+            Self::High => 0x08,
+            Self::Medium => 0x00,
+            Self::Low => 0x18,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RouterAdvertisement {
     pub current_hop_limit: u8,
     pub managed: bool,
     pub other_config: bool,
+    pub preference: RouterPreference,
     pub router_lifetime: u16,
     pub reachable_time: u32,
     pub retrans_timer: u32,
@@ -594,13 +621,35 @@ impl<'a> Icmpv6Packet<'a> {
         prefixes: &[PrefixInformationOption],
         source_mac: Option<MacAddress>,
     ) -> Vec<u8> {
+        Self::build_router_advertisement_with_preference(
+            src_ip,
+            dst_ip,
+            current_hop_limit,
+            router_lifetime,
+            RouterPreference::Medium,
+            prefixes,
+            source_mac,
+        )
+    }
+
+    /// RFC 4191-aware Router Advertisement builder. The legacy builder above
+    /// remains source-compatible and advertises the default Medium preference.
+    pub fn build_router_advertisement_with_preference(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        current_hop_limit: u8,
+        router_lifetime: u16,
+        preference: RouterPreference,
+        prefixes: &[PrefixInformationOption],
+        source_mac: Option<MacAddress>,
+    ) -> Vec<u8> {
         let mut buf =
             Vec::with_capacity(16 + prefixes.len() * 32 + usize::from(source_mac.is_some()) * 8);
         buf.push(ICMPV6_TYPE_ROUTER_ADVERT);
         buf.push(0);
         buf.extend_from_slice(&[0, 0]);
         buf.push(current_hop_limit);
-        buf.push(0); // M=0, O=0
+        buf.push(preference.ra_flags()); // M=0, O=0, RFC 4191 Prf in bits 4..3
         buf.extend_from_slice(&router_lifetime.to_be_bytes());
         buf.extend_from_slice(&0u32.to_be_bytes()); // Reachable Time
         buf.extend_from_slice(&0u32.to_be_bytes()); // Retrans Timer
@@ -728,6 +777,7 @@ impl RouterAdvertisement {
         let payload = icmp.payload;
         let current_hop_limit = payload[0];
         let flags = payload[1];
+        let preference = RouterPreference::from_ra_flags(flags);
         let router_lifetime = u16::from_be_bytes([payload[2], payload[3]]);
         let reachable_time = u32::from_be_bytes(payload[4..8].try_into().ok()?);
         let retrans_timer = u32::from_be_bytes(payload[8..12].try_into().ok()?);
@@ -779,6 +829,7 @@ impl RouterAdvertisement {
             current_hop_limit,
             managed: flags & 0x80 != 0,
             other_config: flags & 0x40 != 0,
+            preference,
             router_lifetime,
             reachable_time,
             retrans_timer,
