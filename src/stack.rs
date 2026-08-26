@@ -8,9 +8,9 @@ use crate::firewall::{Firewall, FirewallAction, FirewallChain};
 use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
-    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_PACKET_TOO_BIG, ICMPV6_TYPE_ROUTER_ADVERT,
-    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, NeighborState, RouterPreference,
-    ipv6_multicast_mac, slaac_address,
+    ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_PACKET_TOO_BIG, ICMPV6_TYPE_REDIRECT,
+    ICMPV6_TYPE_ROUTER_ADVERT, ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, NeighborState,
+    RouterPreference, ipv6_multicast_mac, slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -89,6 +89,12 @@ struct PendingIpv6Dad {
     router_until_ms: Option<u64>,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Ipv6RedirectEntry {
+    router: Ipv6Address,
+    target: Ipv6Address,
+}
+
 fn ipv6_lifetime_deadline(now_ms: u64, lifetime_secs: u32) -> Option<u64> {
     if lifetime_secs == u32::MAX {
         None
@@ -140,6 +146,11 @@ pub struct NetStack {
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
     ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
+    // RFC 4861 Destination Cache entries learned from Redirect messages.
+    // Each entry is bound to the router that was the route-selected first hop
+    // when the Redirect was accepted, so routing/default-router changes make
+    // stale redirects self-invalidating.
+    ipv6_redirect_cache: HashMap<Ipv6Address, Ipv6RedirectEntry>,
     pub firewall: Firewall,
     pub nat: Option<NatTable>,
     pub udp_sockets: UdpSocketTable,
@@ -190,6 +201,7 @@ impl NetStack {
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
             ipv6_path_mtu_cache: HashMap::new(),
+            ipv6_redirect_cache: HashMap::new(),
             firewall: Firewall::new(),
             nat: None,
             udp_sockets: UdpSocketTable::new(),
@@ -230,6 +242,7 @@ impl NetStack {
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
         self.ipv6_path_mtu_cache.clear();
+        self.ipv6_redirect_cache.clear();
         if let (Some(old_address), Some(old_prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len)
         {
             self.ipv6_routing_table.remove_route(
@@ -283,6 +296,20 @@ impl NetStack {
         self.ipv6_path_mtu_cache.remove(&destination);
     }
 
+    /// Returns an effective RFC 4861 Redirect next hop only while the router
+    /// that supplied it is still the route-selected first hop.
+    pub fn ipv6_redirect_next_hop(&self, destination: Ipv6Address) -> Option<Ipv6Address> {
+        let route_next_hop = self
+            .ipv6_routing_table
+            .lookup(destination)
+            .map(|route| route.next_hop(destination))
+            .unwrap_or(destination);
+        self.ipv6_redirect_cache
+            .get(&destination)
+            .filter(|entry| entry.router == route_next_hop)
+            .map(|entry| entry.target)
+    }
+
     pub fn clear_ipv6_interface(&mut self) {
         if let (Some(address), Some(prefix_len)) = (self.config.ipv6, self.ipv6_prefix_len) {
             self.ipv6_routing_table
@@ -300,6 +327,7 @@ impl NetStack {
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
         self.ipv6_path_mtu_cache.clear();
+        self.ipv6_redirect_cache.clear();
         self.pending_ndp_packets.clear();
     }
 
@@ -334,6 +362,9 @@ impl NetStack {
     }
 
     fn set_ipv6_default_gateway(&mut self, gateway: Option<Ipv6Address>) {
+        if self.ipv6_gateway != gateway {
+            self.ipv6_redirect_cache.clear();
+        }
         if self.ipv6_gateway.is_some() {
             self.ipv6_routing_table
                 .remove_route(Ipv6Address::UNSPECIFIED, 0, RouteSource::Static);
@@ -658,11 +689,20 @@ impl NetStack {
         // once a route is present resolve NDP against the route's next hop rather
         // than against the final destination. That is the IPv6 equivalent of the
         // ARP/gateway path used by `send_ip_packet`.
-        let next_hop = self
+        let route_next_hop = self
             .ipv6_routing_table
             .lookup(dst_ip)
             .map(|route| route.next_hop(dst_ip))
             .unwrap_or(dst_ip);
+        let cached_redirect = self.ipv6_redirect_cache.get(&dst_ip).copied();
+        let next_hop = match cached_redirect {
+            Some(entry) if entry.router == route_next_hop => entry.target,
+            Some(_) => {
+                self.ipv6_redirect_cache.remove(&dst_ip);
+                route_next_hop
+            }
+            None => route_next_hop,
+        };
 
         if let Some(dst_mac) = self
             .ndp_table
@@ -1624,6 +1664,13 @@ impl NetStack {
                                             ip6_pkt.header.hop_limit,
                                         )
                                         .is_some(),
+                                    ICMPV6_TYPE_REDIRECT => icmp6
+                                        .validated_redirect(
+                                            ip6_pkt.header.src_ip,
+                                            ip6_pkt.header.dst_ip,
+                                            ip6_pkt.header.hop_limit,
+                                        )
+                                        .is_some(),
                                     _ => true,
                                 };
                                 if !valid {
@@ -1637,6 +1684,7 @@ impl NetStack {
                                         | Some(ICMPV6_TYPE_NEIGHBOR_ADVERT)
                                         | Some(ICMPV6_TYPE_ROUTER_SOLICIT)
                                         | Some(ICMPV6_TYPE_ROUTER_ADVERT)
+                                        | Some(ICMPV6_TYPE_REDIRECT)
                                 ) =>
                             {
                                 return out_frames;
@@ -1697,6 +1745,43 @@ impl NetStack {
                                                 })
                                                 .or_insert(learned);
                                         }
+                                    }
+                                }
+                            }
+
+                            ICMPV6_TYPE_REDIRECT => {
+                                if let Some(redirect) = icmp6.validated_redirect(
+                                    ip6_pkt.header.src_ip,
+                                    ip6_pkt.header.dst_ip,
+                                    ip6_pkt.header.hop_limit,
+                                ) {
+                                    let route_next_hop = self
+                                        .ipv6_routing_table
+                                        .lookup(redirect.destination)
+                                        .map(|route| route.next_hop(redirect.destination))
+                                        .unwrap_or(redirect.destination);
+
+                                    // RFC 4861 section 8.1: accept a Redirect only from
+                                    // the router currently used as first hop for this
+                                    // destination, and bind it to a packet this host sent.
+                                    // Requiring a usable Redirected Header also makes a
+                                    // forged but checksum-correct unsolicited Redirect inert.
+                                    let quote_matches = redirect.redirected_source
+                                        == self.config.ipv6
+                                        && redirect.redirected_destination
+                                            == Some(redirect.destination);
+                                    if route_next_hop == ip6_pkt.header.src_ip && quote_matches {
+                                        if let Some(target_mac) = redirect.target_link_layer_address
+                                        {
+                                            self.ndp_table.learn_stale(redirect.target, target_mac);
+                                        }
+                                        self.ipv6_redirect_cache.insert(
+                                            redirect.destination,
+                                            Ipv6RedirectEntry {
+                                                router: ip6_pkt.header.src_ip,
+                                                target: redirect.target,
+                                            },
+                                        );
                                     }
                                 }
                             }

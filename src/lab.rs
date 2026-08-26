@@ -1678,6 +1678,56 @@ impl LabRouter {
                 }
 
                 let next_hop = route.next_hop(ip6_pkt.header.dst_ip);
+
+                // RFC 4861 section 8.2: when a packet from an on-link neighbor would
+                // leave through the same interface, tell the sender the better first
+                // hop while still forwarding the original packet. The Redirect target
+                // is either the destination itself or a link-local router.
+                let source_on_ingress_link = ip6_pkt.header.src_ip.is_link_local()
+                    || ingress_iface.ipv6.is_some_and(|(address, prefix_len)| {
+                        ip6_pkt.header.src_ip.mask(prefix_len) == address.mask(prefix_len)
+                    });
+                let redirect_target_is_legal =
+                    next_hop == ip6_pkt.header.dst_ip || next_hop.is_link_local();
+                if ingress_iface.name == egress_iface.name
+                    && source_on_ingress_link
+                    && !ip6_pkt.header.src_ip.is_unspecified()
+                    && !ip6_pkt.header.src_ip.is_multicast()
+                    && !ip6_pkt.header.dst_ip.is_multicast()
+                    && next_hop != ip6_pkt.header.src_ip
+                    && redirect_target_is_legal
+                {
+                    let target_mac = self
+                        .ndp_tables
+                        .get(&egress_iface.name)
+                        .and_then(|table| table.lookup(&next_hop));
+                    let redirect_src = link_local_address(ingress_iface.mac);
+                    let redirect = Icmpv6Packet::build_redirect(
+                        redirect_src,
+                        ip6_pkt.header.src_ip,
+                        next_hop,
+                        ip6_pkt.header.dst_ip,
+                        target_mac,
+                        eth.payload,
+                    );
+                    let redirect_packet = Ipv6Packet::serialize(
+                        redirect_src,
+                        ip6_pkt.header.src_ip,
+                        NEXT_HEADER_ICMPV6,
+                        255,
+                        &redirect,
+                    );
+                    out_transmissions.push((
+                        ingress_link.to_string(),
+                        EthernetFrame::serialize(
+                            eth.src_mac,
+                            ingress_iface.mac,
+                            ETHERTYPE_IPV6,
+                            &redirect_packet,
+                        ),
+                    ));
+                }
+
                 let mut forwarded = eth.payload.to_vec();
                 forwarded[7] = ip6_pkt.header.hop_limit - 1;
 

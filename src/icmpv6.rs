@@ -17,10 +17,12 @@ pub const ICMPV6_TYPE_ROUTER_SOLICIT: u8 = 133;
 pub const ICMPV6_TYPE_ROUTER_ADVERT: u8 = 134;
 pub const ICMPV6_TYPE_NEIGHBOR_SOLICIT: u8 = 135;
 pub const ICMPV6_TYPE_NEIGHBOR_ADVERT: u8 = 136;
+pub const ICMPV6_TYPE_REDIRECT: u8 = 137;
 
 pub const NDP_OPT_SRC_LINK_LAYER_ADDR: u8 = 1;
 pub const NDP_OPT_TARGET_LINK_LAYER_ADDR: u8 = 2;
 pub const NDP_OPT_PREFIX_INFORMATION: u8 = 3;
+pub const NDP_OPT_REDIRECTED_HEADER: u8 = 4;
 
 /// RFC 4861 Neighbor Unreachability Detection defaults. Reachable Time is
 /// normally randomized around BaseReachableTime; this deterministic simulator
@@ -97,6 +99,18 @@ pub struct RouterAdvertisement {
     pub reachable_time: u32,
     pub retrans_timer: u32,
     pub prefixes: Vec<PrefixInformationOption>,
+}
+
+/// Parsed RFC 4861 Redirect information. The Redirected Header option is
+/// represented by the quoted IPv6 source/destination needed to bind a
+/// redirect to traffic this host actually originated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RedirectMessage {
+    pub target: Ipv6Address,
+    pub destination: Ipv6Address,
+    pub target_link_layer_address: Option<MacAddress>,
+    pub redirected_source: Option<Ipv6Address>,
+    pub redirected_destination: Option<Ipv6Address>,
 }
 
 /// RFC 2464 IPv6 multicast-to-Ethernet mapping.
@@ -386,6 +400,89 @@ impl<'a> Icmpv6Packet<'a> {
         }
 
         Some(target)
+    }
+
+    /// Validates an RFC 4861 Redirect and returns its target/destination metadata.
+    ///
+    /// The caller still has to enforce the host-specific first-hop rule: the Redirect
+    /// source must be the router currently selected for the redirected destination.
+    pub fn validated_redirect(
+        &self,
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        hop_limit: u8,
+    ) -> Option<RedirectMessage> {
+        if self.msg_type != ICMPV6_TYPE_REDIRECT
+            || self.code != 0
+            || hop_limit != 255
+            || !src_ip.is_link_local()
+            || dst_ip.is_unspecified()
+            || dst_ip.is_multicast()
+            || self.payload.len() < 36
+        {
+            return None;
+        }
+
+        let mut target = [0u8; 16];
+        target.copy_from_slice(&self.payload[4..20]);
+        let target = Ipv6Address(target);
+        let mut destination = [0u8; 16];
+        destination.copy_from_slice(&self.payload[20..36]);
+        let destination = Ipv6Address(destination);
+
+        // RFC 4861 section 8.1: Destination is unicast. Target is either the
+        // Destination itself (the destination is on-link) or a link-local router.
+        if target.is_unspecified()
+            || target.is_multicast()
+            || destination.is_unspecified()
+            || destination.is_multicast()
+            || (target != destination && !target.is_link_local())
+        {
+            return None;
+        }
+
+        let options = &self.payload[36..];
+        if !ndp_options_well_formed(options)
+            || !ndp_ethernet_lla_option_length_valid(options, NDP_OPT_TARGET_LINK_LAYER_ADDR)
+        {
+            return None;
+        }
+
+        let target_link_layer_address =
+            ndp_ethernet_link_layer_address(options, NDP_OPT_TARGET_LINK_LAYER_ADDR);
+        let mut redirected_source = None;
+        let mut redirected_destination = None;
+        let mut offset = 0usize;
+        while offset < options.len() {
+            let option_len = options[offset + 1] as usize * 8;
+            if options[offset] == NDP_OPT_REDIRECTED_HEADER {
+                // Type + Length + six reserved octets precede the quoted packet.
+                // A useful Redirected Header must contain at least the fixed IPv6 header.
+                if option_len < 48 {
+                    return None;
+                }
+                let quoted = &options[offset + 8..offset + option_len];
+                if quoted[0] >> 4 != 6 {
+                    return None;
+                }
+                let mut quoted_src = [0u8; 16];
+                quoted_src.copy_from_slice(&quoted[8..24]);
+                let mut quoted_dst = [0u8; 16];
+                quoted_dst.copy_from_slice(&quoted[24..40]);
+                redirected_source = Some(Ipv6Address(quoted_src));
+                redirected_destination = Some(Ipv6Address(quoted_dst));
+                break;
+            }
+            offset += option_len;
+        }
+
+        Some(RedirectMessage {
+            target,
+            destination,
+            target_link_layer_address,
+            redirected_source,
+            redirected_destination,
+        })
     }
 
     /// Returns the Ethernet Target Link-Layer Address carried by a Neighbor
@@ -719,6 +816,55 @@ impl<'a> Icmpv6Packet<'a> {
         buf.extend_from_slice(&[0, 0]);
         buf.extend_from_slice(&[0, 0, 0, 0]);
         buf.extend_from_slice(&target_ip.0);
+        let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
+        buf
+    }
+
+    /// Builds an RFC 4861 Redirect (Type 137).
+    ///
+    /// Redirects are limited to the IPv6 minimum MTU. The Redirected Header option
+    /// quotes as much of the invoking IPv6 packet as fits, rounded down to an 8-octet
+    /// option boundary. A Target LLA option is included when the router already knows
+    /// the better next hop's Ethernet address.
+    pub fn build_redirect(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        target_ip: Ipv6Address,
+        destination_ip: Ipv6Address,
+        target_mac: Option<MacAddress>,
+        redirected_packet: &[u8],
+    ) -> Vec<u8> {
+        const MAX_ICMPV6_LEN: usize = 1240; // 1280-byte IPv6 minimum MTU - IPv6 header.
+        let mut buf = Vec::with_capacity(MAX_ICMPV6_LEN.min(96 + redirected_packet.len()));
+        buf.push(ICMPV6_TYPE_REDIRECT);
+        buf.push(0);
+        buf.extend_from_slice(&[0, 0]); // checksum placeholder
+        buf.extend_from_slice(&[0, 0, 0, 0]); // Reserved
+        buf.extend_from_slice(&target_ip.0);
+        buf.extend_from_slice(&destination_ip.0);
+
+        if let Some(mac) = target_mac {
+            buf.push(NDP_OPT_TARGET_LINK_LAYER_ADDR);
+            buf.push(1);
+            buf.extend_from_slice(&mac.0);
+        }
+
+        // Redirected Header option: type, length, 6 reserved octets, quoted packet.
+        // Keeping the quote a multiple of eight means no synthetic padding can be
+        // mistaken for bytes from the original packet by tests or diagnostics.
+        if redirected_packet.len() >= 40 && buf.len() + 48 <= MAX_ICMPV6_LEN {
+            let available_quote = MAX_ICMPV6_LEN.saturating_sub(buf.len() + 8);
+            let mut quote_len = redirected_packet.len().min(available_quote);
+            quote_len -= quote_len % 8;
+            if quote_len >= 40 {
+                buf.push(NDP_OPT_REDIRECTED_HEADER);
+                buf.push(((8 + quote_len) / 8) as u8);
+                buf.extend_from_slice(&[0; 6]);
+                buf.extend_from_slice(&redirected_packet[..quote_len]);
+            }
+        }
+
         let csum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &buf);
         buf[2..4].copy_from_slice(&csum.to_be_bytes());
         buf
