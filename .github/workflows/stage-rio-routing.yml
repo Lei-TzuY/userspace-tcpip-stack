@@ -22,20 +22,8 @@ jobs:
           from pathlib import Path
           p = Path('src/stack.rs')
           s = p.read_text()
-          needle = '''        self.ipv6_default_routers.clear();
-          self.ipv6_dad = None;
-          self.ipv6_dad_duplicate = None;
-          self.ipv6_slaac_lifetimes = None;
-          self.ipv6_path_mtu_cache.clear();
-          '''
-          replacement = '''        self.ipv6_default_routers.clear();
-          self.ipv6_dad = None;
-          self.ipv6_dad_duplicate = None;
-          self.ipv6_slaac_lifetimes = None;
-          self.ipv6_ra_routes.clear();
-          self.ipv6_routing_table.remove_all_from(RouteSource::RaRoute);
-          self.ipv6_path_mtu_cache.clear();
-          '''
+          needle = "        self.ipv6_default_routers.clear();\n        self.ipv6_dad = None;"
+          replacement = "        self.ipv6_default_routers.clear();\n        self.ipv6_ra_routes.clear();\n        self.ipv6_routing_table.remove_all_from(RouteSource::RaRoute);\n        self.ipv6_dad = None;"
           assert needle in s
           p.write_text(s.replace(needle, replacement, 1))
           PY
