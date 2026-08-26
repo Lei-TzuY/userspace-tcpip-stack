@@ -1,7 +1,8 @@
 use std::str::FromStr;
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
 use toy_tcpip::icmpv6::{
-    Icmpv6Packet, NDP_REACHABLE_TIME_MS, RouteInformationOption, RouterPreference,
+    Icmpv6Packet, NDP_DELAY_FIRST_PROBE_TIME_MS, NDP_REACHABLE_TIME_MS, NDP_RETRANS_TIMER_MS,
+    RouteInformationOption, RouterPreference,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -386,5 +387,75 @@ fn more_specific_rio_reselects_after_reachable_router_ages_to_stale() {
             .unwrap()
             .gateway,
         Some(preferred)
+    );
+}
+
+#[test]
+fn more_specific_rio_nud_failure_falls_back_without_resurrecting_failed_router() {
+    let mut stack = stack();
+    let fallback = ip("fe80::1");
+    let preferred = ip("fe80::2");
+    let prefix = ip("2001:db8:90::");
+    let destination = ip("2001:db8:90::1234");
+
+    stack.process_frame(&ra_frame(
+        fallback,
+        RouteInformationOption::new(prefix, 64, RouterPreference::Low, 120),
+    ));
+    stack.process_frame(&ra_frame(
+        preferred,
+        RouteInformationOption::new(prefix, 64, RouterPreference::High, 120),
+    ));
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(preferred)
+    );
+
+    // First transmission through the preferred router consumes its STALE cache
+    // entry and enters DELAY, arming NUD. The fallback remains merely unresolved/
+    // unused from the route-selection perspective.
+    let packet = Ipv6Packet::serialize(stack.config.ipv6.unwrap(), destination, 59, 64, b"nud-rio");
+    let frame = stack.send_ip6_packet(destination, packet).unwrap();
+    assert_eq!(
+        EthernetFrame::parse(&frame).unwrap().dst_mac,
+        MacAddress([0x02, 0, 0, 0, 0, 2])
+    );
+
+    for now in [
+        NDP_DELAY_FIRST_PROBE_TIME_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + NDP_RETRANS_TIMER_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + 2 * NDP_RETRANS_TIMER_MS,
+    ] {
+        assert_eq!(stack.step_timers(now).len(), 1);
+    }
+    assert!(
+        stack
+            .step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS + 3 * NDP_RETRANS_TIMER_MS)
+            .is_empty()
+    );
+    assert_eq!(stack.ndp_table.lookup(&preferred), None);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(fallback)
+    );
+
+    // A later timer pump must keep the fallback selected instead of treating the
+    // now-missing preferred Neighbor Cache entry as a fresh unresolved candidate.
+    stack.step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS + 4 * NDP_RETRANS_TIMER_MS);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(fallback)
     );
 }

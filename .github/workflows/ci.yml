@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: write
-
 jobs:
   test:
     name: Test on ${{ matrix.os }}
@@ -18,33 +15,13 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref }}
-          fetch-depth: 0
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt
-      - name: Apply staged implementation
-        run: python scripts/stage_rio_nud_hard_failure.py
-      - name: Format staged implementation
-        run: cargo fmt --all
-      - name: Focused RIO Regression
-        run: cargo test --test test_ipv6_rio_routing --verbose
+      - name: Cargo Fmt Check
+        run: cargo fmt --all -- --check
       - name: Cargo Test All Targets
         run: cargo test --all-targets --verbose
       - name: Cargo Build Release
         run: cargo build --release --verbose
-      - name: Commit validated implementation tree
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          git fetch origin main
-          rm -f scripts/stage_rio_nud_hard_failure.py .github/workflows/stage-rio-nud-hard-failure.yml
-          git checkout origin/main -- .github/workflows/ci.yml
-          git add src/stack.rs tests/test_ipv6_rio_routing.rs .github/workflows/ci.yml
-          git add -u scripts/stage_rio_nud_hard_failure.py .github/workflows/stage-rio-nud-hard-failure.yml
-          git config user.name "LeiZ"
-          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
-          git commit -m "fix(ipv6): fail over NUD-unreachable RIO router"
-          git push origin HEAD:${GITHUB_HEAD_REF}
