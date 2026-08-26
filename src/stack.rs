@@ -1131,6 +1131,18 @@ impl NetStack {
             self.default_router_deadline(router).is_some()
                 && self.ndp_table.lookup(&router).is_some()
         });
+        // Track learned RFC 4191 next hops that had a real Neighbor Cache entry
+        // before NUD runs. If one disappears during this pump, NUD has positively
+        // declared it unreachable; that is different from a router that has never
+        // been resolved and must remain eligible as a retained fallback.
+        let mut cached_rio_routers_before_nud = Vec::new();
+        for (_, _, router) in self.ipv6_ra_routes.keys().copied() {
+            if self.ndp_table.lookup(&router).is_some()
+                && !cached_rio_routers_before_nud.contains(&router)
+            {
+                cached_rio_routers_before_nud.push(router);
+            }
+        }
         for (target, dst_mac) in self.ndp_table.step_nud(now_ms) {
             if let Some(my_ip6) = self.config.ipv6 {
                 let ns = Icmpv6Packet::build_neighbor_solicitation(
@@ -1147,6 +1159,21 @@ impl NetStack {
                     &packet,
                 ));
             }
+        }
+
+        // RFC 4191 Type C routes must not immediately resurrect a router that
+        // NUD just proved unreachable merely because its Neighbor Cache entry was
+        // deleted. Remove that advertiser's retained RIO candidates; a later RA can
+        // explicitly advertise them again. Routers that were never resolved are not
+        // touched and remain valid fallbacks.
+        let failed_rio_routers: Vec<Ipv6Address> = cached_rio_routers_before_nud
+            .into_iter()
+            .filter(|router| self.ndp_table.lookup(router).is_none())
+            .collect();
+        if !failed_rio_routers.is_empty() {
+            self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {
+                *prefix_len == 0 || !failed_rio_routers.contains(router)
+            });
         }
 
         // NUD state changes can alter the RFC 4191 Type C next-hop choice even
