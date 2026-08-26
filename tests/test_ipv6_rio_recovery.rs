@@ -137,3 +137,68 @@ fn failed_rio_router_recovers_only_after_reachability_confirmation() {
         Some(preferred)
     );
 }
+
+#[test]
+fn lone_failed_rio_router_can_recover_from_a_fresh_ra() {
+    let mut stack = stack();
+    let router = ip("fe80::2");
+    let prefix = ip("2001:db8:92::");
+    let destination = ip("2001:db8:92::1234");
+
+    stack.process_frame(&ra_frame(router, prefix, RouterPreference::High));
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(router)
+    );
+
+    let packet = Ipv6Packet::serialize(
+        stack.config.ipv6.unwrap(),
+        destination,
+        59,
+        64,
+        b"nud-rio-single",
+    );
+    assert!(stack.send_ip6_packet(destination, packet).is_some());
+    for now in [
+        NDP_DELAY_FIRST_PROBE_TIME_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + NDP_RETRANS_TIMER_MS,
+        NDP_DELAY_FIRST_PROBE_TIME_MS + 2 * NDP_RETRANS_TIMER_MS,
+    ] {
+        assert_eq!(stack.step_timers(now).len(), 1);
+    }
+
+    // Losing the only router may legitimately restart Router Discovery and emit
+    // a Router Solicitation on this timer tick. This regression is about RIO
+    // removal/recovery, so do not couple it to unrelated control-plane output.
+    let _ = stack.step_timers(NDP_DELAY_FIRST_PROBE_TIME_MS + 3 * NDP_RETRANS_TIMER_MS);
+    assert_eq!(stack.ndp_table.lookup(&router), None);
+    assert!(stack.ipv6_routing_table.find_exact(prefix, 64).is_none());
+
+    // With no retained alternative, a later valid RA must be able to restore
+    // the route rather than leaving the host permanently black-holed after NUD.
+    stack.process_frame(&ra_frame(router, prefix, RouterPreference::High));
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(router)
+    );
+    assert!(stack.ndp_table.lookup(&router).is_some());
+
+    // The recovered route is immediately usable through the SLLA learned from
+    // the fresh RA, while normal NUD can continue validating the neighbor.
+    let packet = Ipv6Packet::serialize(
+        stack.config.ipv6.unwrap(),
+        destination,
+        59,
+        64,
+        b"nud-rio-recovered",
+    );
+    assert!(stack.send_ip6_packet(destination, packet).is_some());
+}

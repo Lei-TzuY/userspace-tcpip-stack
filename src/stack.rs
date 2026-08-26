@@ -1171,9 +1171,21 @@ impl NetStack {
             .filter(|router| self.ndp_table.lookup(router).is_none())
             .collect();
         if !failed_rio_routers.is_empty() {
+            let mut affected_rio_prefixes = Vec::new();
+            for (prefix, prefix_len, router) in self.ipv6_ra_routes.keys().copied() {
+                if prefix_len != 0
+                    && failed_rio_routers.contains(&router)
+                    && !affected_rio_prefixes.contains(&(prefix, prefix_len))
+                {
+                    affected_rio_prefixes.push((prefix, prefix_len));
+                }
+            }
             self.ipv6_ra_routes.retain(|(_, prefix_len, router), _| {
                 *prefix_len == 0 || !failed_rio_routers.contains(router)
             });
+            for (prefix, prefix_len) in affected_rio_prefixes {
+                self.select_ipv6_ra_route(prefix, prefix_len);
+            }
         }
 
         // NUD state changes can alter the RFC 4191 Type C next-hop choice even
