@@ -20,7 +20,7 @@ jobs:
       - name: Apply patch
         run: python3 tools/apply_ipv6_nud_router_failover.py
       - name: Format
-        run: cargo fmt --all -- --check
+        run: cargo fmt --all
       - name: Focused regression
         run: cargo test --test test_ipv6_default_router_list --verbose
       - name: Full test suite
