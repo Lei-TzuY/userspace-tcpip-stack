@@ -568,7 +568,10 @@ impl NetStack {
         self.ipv6_routing_table
             .remove_route(prefix, prefix_len, RouteSource::RaRoute);
 
-        let best_preference = self
+        // RFC 4191 section 3.2 Type C hosts use reachability before route
+        // preference when choosing among routers that advertise the same prefix.
+        // Keep the current router stable when it is tied for the best score.
+        let best_score = self
             .ipv6_ra_routes
             .iter()
             .filter(|((candidate_prefix, candidate_len, _), (deadline, _))| {
@@ -576,9 +579,11 @@ impl NetStack {
                     && *candidate_len == prefix_len
                     && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
             })
-            .map(|(_, (_, preference))| *preference)
+            .map(|((_, _, router), (_, preference))| {
+                (self.default_router_reachability_rank(*router), *preference)
+            })
             .max();
-        let Some(best_preference) = best_preference else {
+        let Some(best_score) = best_score else {
             return;
         };
 
@@ -586,8 +591,9 @@ impl NetStack {
             self.ipv6_ra_routes
                 .get(&(prefix, prefix_len, gateway))
                 .is_some_and(|(deadline, preference)| {
-                    *preference == best_preference
-                        && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                        && (self.default_router_reachability_rank(gateway), *preference)
+                            == best_score
                 })
         });
         let selected = if current_is_best {
@@ -599,9 +605,10 @@ impl NetStack {
                     |((candidate_prefix, candidate_len, router), (deadline, preference))| {
                         (*candidate_prefix == prefix
                             && *candidate_len == prefix_len
-                            && *preference == best_preference
-                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline))
-                        .then_some(*router)
+                            && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                            && (self.default_router_reachability_rank(*router), *preference)
+                                == best_score)
+                            .then_some(*router)
                     },
                 )
                 .min_by_key(|router| router.0)
@@ -614,6 +621,18 @@ impl NetStack {
                 "eth0",
                 RouteSource::RaRoute,
             );
+        }
+    }
+
+    fn reselect_ipv6_ra_routes(&mut self) {
+        let mut prefixes = Vec::new();
+        for (prefix, prefix_len, _) in self.ipv6_ra_routes.keys().copied() {
+            if prefix_len != 0 && !prefixes.contains(&(prefix, prefix_len)) {
+                prefixes.push((prefix, prefix_len));
+            }
+        }
+        for (prefix, prefix_len) in prefixes {
+            self.select_ipv6_ra_route(prefix, prefix_len);
         }
     }
 
@@ -1129,6 +1148,10 @@ impl NetStack {
                 ));
             }
         }
+
+        // NUD state changes can alter the RFC 4191 Type C next-hop choice even
+        // when no RIO lifetime changed (for example REACHABLE -> STALE).
+        self.reselect_ipv6_ra_routes();
 
         // RFC 4861 section 6.3.6: when NUD determines that the active default
         // router is unreachable, remove it from the Default Router List and select
@@ -2280,6 +2303,10 @@ impl NetStack {
                                         }
                                     }
                                 }
+
+                                // A solicited NA can make one RIO next hop preferable to
+                                // another immediately; unsolicited changes can demote it.
+                                self.reselect_ipv6_ra_routes();
                             }
 
                             _ => {}

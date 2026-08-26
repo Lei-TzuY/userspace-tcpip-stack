@@ -1,6 +1,8 @@
 use std::str::FromStr;
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
-use toy_tcpip::icmpv6::{Icmpv6Packet, RouteInformationOption, RouterPreference};
+use toy_tcpip::icmpv6::{
+    Icmpv6Packet, NDP_REACHABLE_TIME_MS, RouteInformationOption, RouterPreference,
+};
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use toy_tcpip::router::RouteSource;
@@ -308,4 +310,81 @@ fn zero_lifetime_zero_prefix_rio_withdraws_header_default_for_same_ra() {
         0,
     ));
     assert_eq!(stack.ipv6_gateway(), Some(fallback));
+}
+
+#[test]
+fn more_specific_rio_prefers_reachable_router_over_higher_preference() {
+    let mut stack = stack();
+    let reachable = ip("fe80::1");
+    let preferred = ip("fe80::2");
+    let prefix = ip("2001:db8:88::");
+
+    stack.process_frame(&ra_frame(
+        reachable,
+        RouteInformationOption::new(prefix, 64, RouterPreference::Low, 120),
+    ));
+    stack.process_frame(&ra_frame(
+        preferred,
+        RouteInformationOption::new(prefix, 64, RouterPreference::High, 120),
+    ));
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(preferred)
+    );
+
+    stack
+        .ndp_table
+        .confirm_reachable(reachable, MacAddress([0x02, 0, 0, 0, 0, 1]), 0);
+    stack.step_timers(0);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(reachable)
+    );
+}
+
+#[test]
+fn more_specific_rio_reselects_after_reachable_router_ages_to_stale() {
+    let mut stack = stack();
+    let reachable = ip("fe80::1");
+    let preferred = ip("fe80::2");
+    let prefix = ip("2001:db8:89::");
+
+    stack.process_frame(&ra_frame(
+        reachable,
+        RouteInformationOption::new(prefix, 64, RouterPreference::Low, 120),
+    ));
+    stack.process_frame(&ra_frame(
+        preferred,
+        RouteInformationOption::new(prefix, 64, RouterPreference::High, 120),
+    ));
+    stack
+        .ndp_table
+        .confirm_reachable(reachable, MacAddress([0x02, 0, 0, 0, 0, 1]), 0);
+    stack.step_timers(0);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(reachable)
+    );
+
+    stack.step_timers(NDP_REACHABLE_TIME_MS);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(preferred)
+    );
 }
