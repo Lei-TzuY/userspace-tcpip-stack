@@ -9,7 +9,8 @@ use crate::icmp::{IcmpPacket, IcmpType};
 use crate::icmpv6::{
     ICMPV6_TYPE_ECHO_REPLY, ICMPV6_TYPE_ECHO_REQUEST, ICMPV6_TYPE_NEIGHBOR_ADVERT,
     ICMPV6_TYPE_NEIGHBOR_SOLICIT, ICMPV6_TYPE_PACKET_TOO_BIG, ICMPV6_TYPE_ROUTER_ADVERT,
-    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, ipv6_multicast_mac, slaac_address,
+    ICMPV6_TYPE_ROUTER_SOLICIT, Icmpv6Packet, NdpTable, NeighborState, ipv6_multicast_mac,
+    slaac_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -355,21 +356,36 @@ impl NetStack {
     }
 
     fn select_ipv6_default_router(&mut self) {
-        let active = self.ipv6_gateway.filter(|router| {
-            self.default_router_deadline(*router)
-                .is_some_and(|deadline| {
-                    deadline.is_none_or(|deadline| self.current_time_ms < deadline)
-                })
-        });
-        let selected = active.or_else(|| {
-            self.ipv6_default_routers
-                .iter()
-                .find_map(|(router, deadline)| {
-                    deadline
-                        .is_none_or(|deadline| self.current_time_ms < deadline)
-                        .then_some(*router)
-                })
-        });
+        let is_valid =
+            |deadline: Option<u64>| deadline.is_none_or(|deadline| self.current_time_ms < deadline);
+        let active = self
+            .ipv6_gateway
+            .filter(|router| self.default_router_deadline(*router).is_some_and(is_valid));
+
+        // RFC 4861 section 6.3.6 prefers routers known reachable by NUD. Preserve
+        // the active router when it is itself REACHABLE; otherwise let another
+        // valid REACHABLE router preempt a STALE/DELAY/PROBE or unresolved active
+        // router. If no router is known reachable, keep the active router stable
+        // and finally fall back to discovery order.
+        let reachable = self
+            .ipv6_default_routers
+            .iter()
+            .find_map(|(router, deadline)| {
+                (is_valid(*deadline)
+                    && self.ndp_table.state(router) == Some(NeighborState::Reachable))
+                .then_some(*router)
+            });
+        let active_reachable = active
+            .is_some_and(|router| self.ndp_table.state(&router) == Some(NeighborState::Reachable));
+        let selected = if active_reachable {
+            active
+        } else {
+            reachable.or(active).or_else(|| {
+                self.ipv6_default_routers
+                    .iter()
+                    .find_map(|(router, deadline)| is_valid(*deadline).then_some(*router))
+            })
+        };
         let selected_deadline =
             selected.and_then(|router| self.default_router_deadline(router).flatten());
 
@@ -1920,6 +1936,8 @@ impl NetStack {
                                     // the Default Router List without invalidating SLAAC state.
                                     if icmp6.payload[0] & 0x80 == 0 {
                                         self.refresh_slaac_default_router(target_ip6, 0);
+                                    } else if self.default_router_deadline(target_ip6).is_some() {
+                                        self.select_ipv6_default_router();
                                     }
                                 } else if resolving {
                                     // An INCOMPLETE Ethernet Neighbor Cache entry MUST ignore an
@@ -1935,6 +1953,11 @@ impl NetStack {
                                         );
                                     } else {
                                         self.ndp_table.mark_stale(target_ip6, target_mac);
+                                    }
+                                    if icmp6.payload[0] & 0x80 != 0
+                                        && self.default_router_deadline(target_ip6).is_some()
+                                    {
+                                        self.select_ipv6_default_router();
                                     }
 
                                     if let Some(queued_packets) =

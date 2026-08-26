@@ -134,3 +134,60 @@ fn nud_unreachable_last_router_restarts_router_discovery() {
     assert_eq!(s.ipv6_gateway(), None);
     assert_eq!(frames.len(), 1, "last-router loss should emit a fresh RS");
 }
+
+fn solicited_router_na(
+    router_mac: MacAddress,
+    router: Ipv6Address,
+    host_mac: MacAddress,
+    host: Ipv6Address,
+) -> Vec<u8> {
+    let na = Icmpv6Packet::build_neighbor_advertisement(
+        router, host, router, router_mac, true, true, true,
+    );
+    let packet = Ipv6Packet::serialize(router, host, NEXT_HEADER_ICMPV6, 255, &na);
+    EthernetFrame::serialize(host_mac, router_mac, ETHERTYPE_IPV6, &packet)
+}
+
+#[test]
+fn reachable_router_preempts_non_reachable_active_router() {
+    let host_mac = MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x94]);
+    let r1_mac = MacAddress([0x02, 0, 0, 0, 4, 1]);
+    let r2_mac = MacAddress([0x02, 0, 0, 0, 4, 2]);
+    let r1 = link_local_address(r1_mac);
+    let r2 = link_local_address(r2_mac);
+    let prefix = ip6("2001:db8:94::");
+    let mut s = stack(host_mac);
+
+    s.process_frame(&ra_frame(r1_mac, prefix, 30));
+    s.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
+    s.process_frame(&ra_frame(r2_mac, prefix, 30));
+    assert_eq!(s.ipv6_gateway(), Some(r1));
+
+    let host = s.config.ipv6.unwrap();
+    assert!(
+        s.process_frame(&solicited_router_na(r2_mac, r2, host_mac, host))
+            .is_empty()
+    );
+    assert_eq!(s.ipv6_gateway(), Some(r2));
+}
+
+#[test]
+fn reachable_active_router_remains_stable_when_peer_becomes_reachable() {
+    let host_mac = MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x95]);
+    let r1_mac = MacAddress([0x02, 0, 0, 0, 5, 1]);
+    let r2_mac = MacAddress([0x02, 0, 0, 0, 5, 2]);
+    let r1 = link_local_address(r1_mac);
+    let r2 = link_local_address(r2_mac);
+    let prefix = ip6("2001:db8:95::");
+    let mut s = stack(host_mac);
+
+    s.process_frame(&ra_frame(r1_mac, prefix, 30));
+    s.step_timers(IPV6_DAD_RETRANS_TIMER_MS);
+    s.process_frame(&ra_frame(r2_mac, prefix, 30));
+    let host = s.config.ipv6.unwrap();
+
+    s.process_frame(&solicited_router_na(r2_mac, r2, host_mac, host));
+    assert_eq!(s.ipv6_gateway(), Some(r2));
+    s.process_frame(&solicited_router_na(r1_mac, r1, host_mac, host));
+    assert_eq!(s.ipv6_gateway(), Some(r2));
+}
