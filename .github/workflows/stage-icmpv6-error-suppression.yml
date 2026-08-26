@@ -3,8 +3,6 @@ name: Stage ICMPv6 error suppression
 on:
   push:
     branches: [ fix/icmpv6-error-suppression ]
-    paths-ignore:
-      - focused-test.log
 
 permissions:
   contents: write
@@ -29,19 +27,7 @@ jobs:
       - name: Check diff
         run: git diff --check
       - name: Focused suppression tests
-        shell: bash
-        run: |
-          set -o pipefail
-          cargo test --test test_ipv6_icmp_error_suppression --verbose -- --nocapture 2>&1 | tee focused-test.log
-      - name: Persist focused failure log
-        if: failure()
-        shell: bash
-        run: |
-          git config user.name "LeiZ"
-          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
-          git add focused-test.log
-          git commit -m "chore: capture focused ICMPv6 staging failure"
-          git push origin HEAD:fix/icmpv6-error-suppression
+        run: cargo test --test test_ipv6_icmp_error_suppression --verbose
       - name: Existing routed IPv6 regression
         run: cargo test --test test_lab_ipv6_routing --verbose
       - name: Existing PMTUD regression
