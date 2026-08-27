@@ -76,6 +76,7 @@ pub enum RsvpError {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidLength,
+    InvalidChecksum,
 }
 
 impl fmt::Display for RsvpError {
@@ -84,6 +85,7 @@ impl fmt::Display for RsvpError {
             RsvpError::PacketTooShort(l) => write!(f, "RSVP packet too short ({} bytes)", l),
             RsvpError::InvalidVersion(v) => write!(f, "Unsupported RSVP version: {}", v),
             RsvpError::InvalidLength => write!(f, "Invalid RSVP length"),
+            RsvpError::InvalidChecksum => write!(f, "Invalid RSVP checksum"),
         }
     }
 }
@@ -376,8 +378,11 @@ impl RsvpPacket {
         buf.extend_from_slice(&total_len.to_be_bytes());
         buf.extend_from_slice(&obj_bytes);
 
-        // Compute 16-bit Internet checksum
+        // Compute 16-bit Internet checksum. RFC 2205 reserves all-zero to mean
+        // that no checksum was transmitted, so use the equivalent 0xFFFF zero
+        // representation if the computed checksum is 0x0000.
         let csum = crate::checksum::compute_checksum(&buf);
+        let csum = if csum == 0 { 0xFFFF } else { csum };
         buf[2..4].copy_from_slice(&csum.to_be_bytes());
 
         buf
@@ -401,6 +406,9 @@ impl RsvpPacket {
 
         if length < 8 || length > data.len() {
             return Err(RsvpError::InvalidLength);
+        }
+        if checksum != 0 && !crate::checksum::verify_checksum(&data[..length]) {
+            return Err(RsvpError::InvalidChecksum);
         }
 
         let mut objects = Vec::new();
