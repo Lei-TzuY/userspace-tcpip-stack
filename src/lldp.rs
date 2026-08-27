@@ -23,6 +23,7 @@ pub const LLDP_TLV_SYSTEM_DESCRIPTION: u8 = 6;
 pub const LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED: u8 = 7;
 pub const LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME: u8 = 5;
 
+const LLDP_TLV_MAX_TYPE: u8 = 0x7F;
 const LLDP_TLV_MAX_VALUE_LEN: usize = 0x01FF;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,10 +52,17 @@ impl LldpTlv {
 
     pub fn serialize(&self) -> Vec<u8> {
         self.try_serialize()
-            .expect("LLDP TLV value must fit the 9-bit length field")
+            .expect("LLDP TLV type and value must fit the wire header")
     }
 
     pub fn try_serialize(&self) -> Result<Vec<u8>, LldpSerializeError> {
+        if self.tlv_type > LLDP_TLV_MAX_TYPE {
+            return Err(LldpSerializeError::TlvTypeOutOfRange {
+                tlv_type: self.tlv_type,
+                max: LLDP_TLV_MAX_TYPE,
+            });
+        }
+
         let len = self.value.len();
         if len > LLDP_TLV_MAX_VALUE_LEN {
             return Err(LldpSerializeError::TlvValueTooLong {
@@ -64,7 +72,7 @@ impl LldpTlv {
             });
         }
 
-        let hdr = (((self.tlv_type as u16) & 0x7F) << 9) | (len as u16);
+        let hdr = ((self.tlv_type as u16) << 9) | (len as u16);
         let mut buf = Vec::with_capacity(2 + len);
         buf.extend_from_slice(&hdr.to_be_bytes());
         buf.extend_from_slice(&self.value);
@@ -111,6 +119,10 @@ impl std::error::Error for LldpError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LldpSerializeError {
+    TlvTypeOutOfRange {
+        tlv_type: u8,
+        max: u8,
+    },
     TlvValueTooLong {
         tlv_type: u8,
         length: usize,
@@ -121,6 +133,11 @@ pub enum LldpSerializeError {
 impl fmt::Display for LldpSerializeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            LldpSerializeError::TlvTypeOutOfRange { tlv_type, max } => write!(
+                f,
+                "LLDP TLV type {} exceeds the {} maximum representable by the 7-bit type field",
+                tlv_type, max
+            ),
             LldpSerializeError::TlvValueTooLong {
                 tlv_type,
                 length,
@@ -386,6 +403,56 @@ mod tests {
         });
 
         assert_eq!(tbl.all_neighbors().len(), 2);
+    }
+
+    #[test]
+    fn test_tlv_type_127_roundtrips() {
+        let tlv = LldpTlv {
+            tlv_type: LLDP_TLV_MAX_TYPE,
+            value: vec![0x5a],
+        };
+
+        let raw = tlv.try_serialize().unwrap();
+        assert_eq!(
+            (u16::from_be_bytes([raw[0], raw[1]]) >> 9) as u8,
+            LLDP_TLV_MAX_TYPE
+        );
+
+        let (parsed, consumed) = LldpTlv::parse(&raw).unwrap();
+        assert_eq!(consumed, raw.len());
+        assert_eq!(parsed, tlv);
+    }
+
+    #[test]
+    fn test_tlv_type_128_is_rejected() {
+        let tlv = LldpTlv {
+            tlv_type: LLDP_TLV_MAX_TYPE + 1,
+            value: Vec::new(),
+        };
+
+        assert_eq!(
+            tlv.try_serialize(),
+            Err(LldpSerializeError::TlvTypeOutOfRange {
+                tlv_type: LLDP_TLV_MAX_TYPE + 1,
+                max: LLDP_TLV_MAX_TYPE,
+            })
+        );
+    }
+
+    #[test]
+    fn test_tlv_type_255_is_rejected_instead_of_wrapping() {
+        let tlv = LldpTlv {
+            tlv_type: u8::MAX,
+            value: vec![0x01],
+        };
+
+        assert_eq!(
+            tlv.try_serialize(),
+            Err(LldpSerializeError::TlvTypeOutOfRange {
+                tlv_type: u8::MAX,
+                max: LLDP_TLV_MAX_TYPE,
+            })
+        );
     }
 
     #[test]
