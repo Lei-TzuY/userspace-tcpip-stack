@@ -1,0 +1,45 @@
+name: Stage MQTT serializer bounds
+
+on:
+  push:
+    branches:
+      - stage/mqtt-serializer-bounds
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply focused patch
+        run: python .github/scripts/stage_mqtt_serializer_bounds.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused regression
+        run: cargo test --test test_mqtt_serializer_bounds --verbose
+      - name: MQTT unit tests
+        run: cargo test mqtt::tests --verbose
+      - name: Full test suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated blobs
+        shell: bash
+        run: |
+          git add src/mqtt.rs tests/test_mqtt_serializer_bounds.rs
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git commit -m "fix(mqtt): bound serialized lengths"
+          git push origin HEAD:stage/mqtt-serializer-bounds
