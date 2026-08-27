@@ -69,7 +69,8 @@ impl BfdV6Session {
                 self.state = BfdState::Up;
                 Some(self.build_outbound_packet(false))
             }
-            (BfdState::Up, BfdState::Down) | (BfdState::Up, BfdState::AdminDown) => {
+            (BfdState::Up, BfdState::Down)
+            | (BfdState::Init | BfdState::Up, BfdState::AdminDown) => {
                 self.state = BfdState::Down;
                 Some(self.build_outbound_packet(false))
             }
@@ -148,5 +149,26 @@ mod tests {
         assert!(session.process_inbound_packet(&incoming).is_none());
         assert_eq!(session.state, BfdState::Down);
         assert_eq!(session.your_discriminator, 0x99887766);
+    }
+
+    #[test]
+    fn test_bfd_v6_init_transitions_down_when_remote_signals_admin_down() {
+        let peer_v6 = Ipv6Address::from_str("2001:db8:bfd:1::2").unwrap();
+        let mut session = BfdV6Session::new(peer_v6, 0x11223344, true);
+        session.state = BfdState::Init;
+        session.your_discriminator = 0x99887766;
+
+        let incoming = BfdControlPacket::build_control(
+            BfdState::AdminDown,
+            0xaabbccdd,
+            session.my_discriminator,
+            50_000,
+        );
+
+        let response = session.process_inbound_packet(&incoming).unwrap();
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.your_discriminator, 0xaabbccdd);
+        assert_eq!(response.state, BfdState::Down);
+        assert_eq!(response.your_discriminator, 0xaabbccdd);
     }
 }
