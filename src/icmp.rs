@@ -90,6 +90,21 @@ impl fmt::Display for IcmpError {
 
 impl std::error::Error for IcmpError {}
 
+fn ipv4_error_quote_len(orig_datagram: &[u8]) -> usize {
+    if let Some(&version_ihl) = orig_datagram.first() {
+        let version = version_ihl >> 4;
+        let ihl_words = (version_ihl & 0x0f) as usize;
+        let header_len = ihl_words.saturating_mul(4);
+        if version == 4 && ihl_words >= 5 && header_len <= orig_datagram.len() {
+            return orig_datagram.len().min(header_len.saturating_add(8));
+        }
+    }
+
+    // Preserve the historical minimum-header behaviour for callers that pass
+    // a truncated or non-IPv4 byte slice.
+    orig_datagram.len().min(28)
+}
+
 impl<'a> IcmpPacket<'a> {
     pub fn parse(data: &'a [u8], check_checksum: bool) -> Result<Self, IcmpError> {
         if data.len() < ICMP_HEADER_LEN {
@@ -162,12 +177,13 @@ impl<'a> IcmpPacket<'a> {
         )
     }
 
-    /// Builds an ICMP Time Exceeded (Type 11) message
+    /// Builds an ICMP Time Exceeded (Type 11) message.
     pub fn build_time_exceeded(code: u8, orig_datagram: &[u8]) -> Vec<u8> {
-        let mut payload = Vec::with_capacity(4 + orig_datagram.len().min(28));
+        let copy_len = ipv4_error_quote_len(orig_datagram);
+        let mut payload = Vec::with_capacity(4 + copy_len);
         payload.extend_from_slice(&[0, 0, 0, 0]); // Unused 4 bytes (RFC 792)
-        // Include original IP header + first 8 bytes of original datagram payload
-        let copy_len = orig_datagram.len().min(28);
+        // Include the complete original IPv4 header (including options) plus
+        // the first 8 bytes of the original datagram payload.
         payload.extend_from_slice(&orig_datagram[..copy_len]);
         Self::serialize(ICMP_TYPE_TIME_EXCEEDED, code, 0, 0, &payload)
     }
@@ -178,7 +194,8 @@ impl<'a> IcmpPacket<'a> {
         next_hop_mtu: u16,
         orig_datagram: &[u8],
     ) -> Vec<u8> {
-        let mut payload = Vec::with_capacity(4 + orig_datagram.len().min(28));
+        let copy_len = ipv4_error_quote_len(orig_datagram);
+        let mut payload = Vec::with_capacity(4 + copy_len);
         if code == 4 {
             // RFC 1191 Path MTU Discovery: 2 unused bytes + 2 bytes Next-Hop MTU
             payload.extend_from_slice(&[0, 0]);
@@ -186,7 +203,6 @@ impl<'a> IcmpPacket<'a> {
         } else {
             payload.extend_from_slice(&[0, 0, 0, 0]);
         }
-        let copy_len = orig_datagram.len().min(28);
         payload.extend_from_slice(&orig_datagram[..copy_len]);
         Self::serialize(ICMP_TYPE_DEST_UNREACHABLE, code, 0, 0, &payload)
     }
@@ -214,5 +230,38 @@ mod tests {
         assert_eq!(reply.identifier, 0x1234);
         assert_eq!(reply.sequence_number, 1);
         assert_eq!(reply.payload, ping_payload);
+    }
+
+    #[test]
+    fn time_exceeded_quotes_ipv4_options_and_eight_payload_bytes() {
+        let mut original = vec![0u8; 36];
+        original[0] = 0x47; // IPv4, IHL=7 => 28-byte header.
+        for (index, byte) in original.iter_mut().enumerate().skip(1) {
+            *byte = index as u8;
+        }
+
+        let raw = IcmpPacket::build_time_exceeded(1, &original);
+        let parsed = IcmpPacket::parse(&raw, true).unwrap();
+
+        assert_eq!(parsed.icmp_type, IcmpType::TimeExceeded);
+        assert_eq!(parsed.code, 1);
+        assert_eq!(&parsed.payload[..4], &[0, 0, 0, 0]);
+        assert_eq!(&parsed.payload[4..], original.as_slice());
+    }
+
+    #[test]
+    fn destination_unreachable_quotes_ipv4_options_and_eight_payload_bytes() {
+        let mut original = vec![0u8; 32];
+        original[0] = 0x46; // IPv4, IHL=6 => 24-byte header.
+        for (index, byte) in original.iter_mut().enumerate().skip(1) {
+            *byte = (index as u8).wrapping_mul(3);
+        }
+
+        let raw = IcmpPacket::build_destination_unreachable(0, 0, &original);
+        let parsed = IcmpPacket::parse(&raw, true).unwrap();
+
+        assert_eq!(parsed.icmp_type, IcmpType::DestinationUnreachable);
+        assert_eq!(&parsed.payload[..4], &[0, 0, 0, 0]);
+        assert_eq!(&parsed.payload[4..], original.as_slice());
     }
 }
