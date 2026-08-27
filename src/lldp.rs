@@ -69,6 +69,8 @@ pub struct LldpPacket {
 pub enum LldpError {
     PacketTooShort(usize),
     MissingMandatoryTlv(&'static str),
+    MissingEndOfLldpdu,
+    InvalidMandatoryTlvOrder { expected: &'static str, found: u8 },
     InvalidTlvLength { tlv_type: u8, length: usize },
 }
 
@@ -77,6 +79,12 @@ impl fmt::Display for LldpError {
         match self {
             LldpError::PacketTooShort(l) => write!(f, "LLDP packet too short ({} bytes)", l),
             LldpError::MissingMandatoryTlv(t) => write!(f, "Missing mandatory LLDP TLV: {}", t),
+            LldpError::MissingEndOfLldpdu => write!(f, "Missing LLDP End-of-LLDPDU TLV"),
+            LldpError::InvalidMandatoryTlvOrder { expected, found } => write!(
+                f,
+                "Invalid LLDP TLV order: expected {}, found TLV type {}",
+                expected, found
+            ),
             LldpError::InvalidTlvLength { tlv_type, length } => {
                 write!(f, "Invalid LLDP TLV {} length: {}", tlv_type, length)
             }
@@ -93,10 +101,19 @@ impl LldpPacket {
         let mut port_id = None;
         let mut ttl = None;
         let mut system_name = None;
+        let mut mandatory_count = 0u8;
+        let mut saw_end = false;
 
         while offset < data.len() {
             let (tlv, consumed) = LldpTlv::parse(&data[offset..])?;
             offset += consumed;
+
+            let expected = match mandatory_count {
+                0 => "Chassis ID",
+                1 => "Port ID",
+                2 => "TTL",
+                _ => "optional TLV or End-of-LLDPDU",
+            };
 
             match tlv.tlv_type {
                 LLDP_TLV_END_OF_LLDPDU => {
@@ -106,9 +123,19 @@ impl LldpPacket {
                             length: tlv.value.len(),
                         });
                     }
+                    if mandatory_count < 3 {
+                        return Err(LldpError::MissingMandatoryTlv(expected));
+                    }
+                    saw_end = true;
                     break;
                 }
                 LLDP_TLV_CHASSIS_ID => {
+                    if mandatory_count != 0 {
+                        return Err(LldpError::InvalidMandatoryTlvOrder {
+                            expected,
+                            found: tlv.tlv_type,
+                        });
+                    }
                     if tlv.value.len() < 2 {
                         return Err(LldpError::InvalidTlvLength {
                             tlv_type: LLDP_TLV_CHASSIS_ID,
@@ -116,8 +143,15 @@ impl LldpPacket {
                         });
                     }
                     chassis_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
+                    mandatory_count = 1;
                 }
                 LLDP_TLV_PORT_ID => {
+                    if mandatory_count != 1 {
+                        return Err(LldpError::InvalidMandatoryTlvOrder {
+                            expected,
+                            found: tlv.tlv_type,
+                        });
+                    }
                     if tlv.value.len() < 2 {
                         return Err(LldpError::InvalidTlvLength {
                             tlv_type: LLDP_TLV_PORT_ID,
@@ -125,8 +159,15 @@ impl LldpPacket {
                         });
                     }
                     port_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
+                    mandatory_count = 2;
                 }
                 LLDP_TLV_TTL => {
+                    if mandatory_count != 2 {
+                        return Err(LldpError::InvalidMandatoryTlvOrder {
+                            expected,
+                            found: tlv.tlv_type,
+                        });
+                    }
                     if tlv.value.len() != 2 {
                         return Err(LldpError::InvalidTlvLength {
                             tlv_type: LLDP_TLV_TTL,
@@ -134,22 +175,44 @@ impl LldpPacket {
                         });
                     }
                     ttl = Some(u16::from_be_bytes([tlv.value[0], tlv.value[1]]));
+                    mandatory_count = 3;
                 }
                 LLDP_TLV_SYSTEM_NAME => {
+                    if mandatory_count < 3 {
+                        return Err(LldpError::InvalidMandatoryTlvOrder {
+                            expected,
+                            found: tlv.tlv_type,
+                        });
+                    }
                     system_name = Some(String::from_utf8_lossy(&tlv.value).to_string());
                 }
-                _ => {}
+                _ => {
+                    if mandatory_count < 3 {
+                        return Err(LldpError::InvalidMandatoryTlvOrder {
+                            expected,
+                            found: tlv.tlv_type,
+                        });
+                    }
+                }
             }
         }
 
-        let chassis_id = chassis_id.ok_or(LldpError::MissingMandatoryTlv("Chassis ID"))?;
-        let port_id = port_id.ok_or(LldpError::MissingMandatoryTlv("Port ID"))?;
-        let ttl = ttl.ok_or(LldpError::MissingMandatoryTlv("TTL"))?;
+        if !saw_end {
+            if mandatory_count < 3 {
+                let missing = match mandatory_count {
+                    0 => "Chassis ID",
+                    1 => "Port ID",
+                    _ => "TTL",
+                };
+                return Err(LldpError::MissingMandatoryTlv(missing));
+            }
+            return Err(LldpError::MissingEndOfLldpdu);
+        }
 
         Ok(LldpPacket {
-            chassis_id,
-            port_id,
-            ttl,
+            chassis_id: chassis_id.expect("mandatory Chassis ID was validated"),
+            port_id: port_id.expect("mandatory Port ID was validated"),
+            ttl: ttl.expect("mandatory TTL was validated"),
             system_name,
         })
     }
