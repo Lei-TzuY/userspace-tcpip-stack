@@ -1,0 +1,40 @@
+name: Stage LLDP TLV type bounds
+
+on:
+  push:
+    branches: [ stage/lldp-tlv-type-bounds ]
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply staged patch
+        run: python .github/scripts/stage_lldp_tlv_type_bounds.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Diff check
+        run: git diff --check
+      - name: Focused LLDP tests
+        run: cargo test lldp --verbose
+      - name: All targets
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated product file
+        shell: bash
+        run: |
+          git add src/lldp.rs
+          if git diff --cached --quiet; then
+            echo "No product changes"
+            exit 1
+          fi
+          git -c user.name='LeiZ' -c user.email='52287354+Lei-TzuY@users.noreply.github.com' commit -m 'fix(lldp): validate TLV type bounds'
+          git push origin HEAD:stage/lldp-tlv-type-bounds
