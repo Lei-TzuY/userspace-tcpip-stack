@@ -12,6 +12,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 
 pub const TCP_MIN_HEADER_LEN: usize = 20;
+pub const TCP_MAX_OPTIONS_LEN: usize = 40;
 
 /// Maximum retransmission attempts for a single segment before the connection is aborted.
 /// Prevents unbounded retransmission loops when a peer disappears.
@@ -263,6 +264,31 @@ impl fmt::Display for TcpError {
 
 impl std::error::Error for TcpError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TcpSerializeError {
+    OptionLengthTooLarge { kind: u8, length: usize },
+    OptionsTooLong { length: usize, max: usize },
+}
+
+impl fmt::Display for TcpSerializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TcpSerializeError::OptionLengthTooLarge { kind, length } => write!(
+                f,
+                "TCP option kind {} requires length {}, which exceeds the one-byte option length field",
+                kind, length
+            ),
+            TcpSerializeError::OptionsTooLong { length, max } => write!(
+                f,
+                "TCP options require {} bytes, exceeding the {}-byte TCP option area",
+                length, max
+            ),
+        }
+    }
+}
+
+impl std::error::Error for TcpSerializeError {}
+
 impl<'a> TcpSegment<'a> {
     pub fn parse(
         src_ip: Ipv4Address,
@@ -429,6 +455,33 @@ impl<'a> TcpSegment<'a> {
         options: &[TcpOption],
         payload: &[u8],
     ) -> Vec<u8> {
+        Self::try_serialize_with_options(
+            src_ip,
+            dst_ip,
+            src_port,
+            dst_port,
+            seq_num,
+            ack_num,
+            flags,
+            window_size,
+            options,
+            payload,
+        )
+        .expect("TCP options must fit the encodable TCP header")
+    }
+
+    pub fn try_serialize_with_options(
+        src_ip: Ipv4Address,
+        dst_ip: Ipv4Address,
+        src_port: u16,
+        dst_port: u16,
+        seq_num: u32,
+        ack_num: u32,
+        flags: TcpFlags,
+        window_size: u16,
+        options: &[TcpOption],
+        payload: &[u8],
+    ) -> Result<Vec<u8>, TcpSerializeError> {
         let mut opt_bytes = Vec::new();
         for opt in options {
             match opt {
@@ -445,16 +498,36 @@ impl<'a> TcpSegment<'a> {
                     opt_bytes.push(*scale);
                 }
                 TcpOption::Unknown { kind, data } => {
+                    let option_len = data.len().checked_add(2).unwrap_or(usize::MAX);
+                    if option_len > u8::MAX as usize {
+                        return Err(TcpSerializeError::OptionLengthTooLarge {
+                            kind: *kind,
+                            length: option_len,
+                        });
+                    }
                     opt_bytes.push(*kind);
-                    opt_bytes.push((data.len() + 2) as u8);
+                    opt_bytes.push(option_len as u8);
                     opt_bytes.extend_from_slice(data);
                 }
             }
+
+            if opt_bytes.len() > TCP_MAX_OPTIONS_LEN {
+                return Err(TcpSerializeError::OptionsTooLong {
+                    length: opt_bytes.len(),
+                    max: TCP_MAX_OPTIONS_LEN,
+                });
+            }
         }
 
-        // Pad options to multiple of 4 bytes
         while opt_bytes.len() % 4 != 0 {
             opt_bytes.push(TCP_OPT_NOP);
+        }
+
+        if opt_bytes.len() > TCP_MAX_OPTIONS_LEN {
+            return Err(TcpSerializeError::OptionsTooLong {
+                length: opt_bytes.len(),
+                max: TCP_MAX_OPTIONS_LEN,
+            });
         }
 
         let header_len = TCP_MIN_HEADER_LEN + opt_bytes.len();
@@ -469,15 +542,15 @@ impl<'a> TcpSegment<'a> {
         buf.push((data_offset << 4) & 0xF0);
         buf.push(flags.to_u8());
         buf.extend_from_slice(&window_size.to_be_bytes());
-        buf.extend_from_slice(&[0x00, 0x00]); // Checksum placeholder
-        buf.extend_from_slice(&0u16.to_be_bytes()); // Urgent pointer
+        buf.extend_from_slice(&[0x00, 0x00]);
+        buf.extend_from_slice(&0u16.to_be_bytes());
         buf.extend_from_slice(&opt_bytes);
         buf.extend_from_slice(payload);
 
         let csum = compute_ipv4_transport_checksum(src_ip.0, dst_ip.0, 6, &buf);
         buf[16..18].copy_from_slice(&csum.to_be_bytes());
 
-        buf
+        Ok(buf)
     }
 }
 
