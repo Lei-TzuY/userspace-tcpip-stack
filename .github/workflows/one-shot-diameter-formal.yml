@@ -1,0 +1,38 @@
+name: One-shot Diameter integrated validation
+
+on:
+  push:
+    branches: [fix/diameter-framing-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  sync-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Copy validated change, test, and clean branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin stage/diameter-framing-validation
+          git show FETCH_HEAD:src/diameter.rs > src/diameter.rs
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test --all-targets diameter --verbose
+          cargo test --all-targets --verbose
+          cargo build --release --verbose
+          rm .github/workflows/one-shot-diameter-formal.yml
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(diameter): reject malformed AVP framing'
+          git push origin HEAD:fix/diameter-framing-validation
