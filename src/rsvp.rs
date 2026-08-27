@@ -100,8 +100,8 @@ impl RsvpObject {
                 ext_tunnel_id,
             } => {
                 body.extend_from_slice(&dest_ip.0);
-                body.extend_from_slice(&tunnel_id.to_be_bytes());
                 body.extend_from_slice(&[0, 0]); // Must be zero
+                body.extend_from_slice(&tunnel_id.to_be_bytes());
                 body.extend_from_slice(&ext_tunnel_id.0);
                 (RSVP_CLASS_SESSION, 7) // LSP_TUNNEL_IPv4
             }
@@ -130,8 +130,8 @@ impl RsvpObject {
             }
             RsvpObject::SenderTemplate { src_ip, lsp_id } => {
                 body.extend_from_slice(&src_ip.0);
+                body.extend_from_slice(&[0, 0]); // Must be zero
                 body.extend_from_slice(&lsp_id.to_be_bytes());
-                body.extend_from_slice(&[0, 0]);
                 (RSVP_CLASS_SENDER_TEMPLATE, 7)
             }
             RsvpObject::SenderTspec {
@@ -180,7 +180,7 @@ impl RsvpObject {
         let obj = match (class_num, c_type) {
             (RSVP_CLASS_SESSION, 7) if body.len() >= 12 => {
                 let dest_ip = Ipv4Address([body[0], body[1], body[2], body[3]]);
-                let tunnel_id = u16::from_be_bytes([body[4], body[5]]);
+                let tunnel_id = u16::from_be_bytes([body[6], body[7]]);
                 let ext_tunnel_id = Ipv4Address([body[8], body[9], body[10], body[11]]);
                 RsvpObject::Session {
                     dest_ip,
@@ -243,7 +243,7 @@ impl RsvpObject {
             }
             (RSVP_CLASS_SENDER_TEMPLATE, 7) if body.len() >= 8 => {
                 let src_ip = Ipv4Address([body[0], body[1], body[2], body[3]]);
-                let lsp_id = u16::from_be_bytes([body[4], body[5]]);
+                let lsp_id = u16::from_be_bytes([body[6], body[7]]);
                 RsvpObject::SenderTemplate { src_ip, lsp_id }
             }
             (RSVP_CLASS_SENDER_TSPEC, 2) if body.len() >= 8 => {
