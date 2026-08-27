@@ -1,0 +1,52 @@
+name: Stage IPv4 forwarding header preservation
+
+on:
+  push:
+    branches: [stage/ipv4-forward-header-preservation]
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Apply staged source and regression changes
+        run: python scripts/apply_ipv4_forward_header_preservation.py
+      - name: Format
+        run: |
+          cargo fmt --all
+          cargo fmt --all -- --check
+      - name: Check diff
+        run: git diff --check
+      - name: Focused forwarding preservation tests
+        run: cargo test --test test_ipv4_forwarding_header_preservation --verbose
+      - name: Existing IPv4 error and NAT regressions
+        run: |
+          cargo test --test test_ipv4_icmp_error_suppression --verbose
+          cargo test --lib nat::tests --verbose
+          cargo test --test test_lab_e2e --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git fetch origin stage/ipv4-forward-header-preservation
+          remote_head="$(git rev-parse origin/stage/ipv4-forward-header-preservation)"
+          if [[ "$remote_head" != "$GITHUB_SHA" ]]; then
+            echo "Branch moved during validation: expected $GITHUB_SHA, found $remote_head"
+            exit 75
+          fi
+          git rm .github/workflows/stage-ipv4-forward-header-preservation.yml scripts/apply_ipv4_forward_header_preservation.py
+          git add src/ipv4.rs src/lab.rs tests/test_ipv4_forwarding_header_preservation.rs
+          git commit -m 'fix(ipv4): preserve forwarding header metadata'
+          git push origin HEAD:stage/ipv4-forward-header-preservation
