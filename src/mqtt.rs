@@ -71,6 +71,11 @@ pub enum MqttError {
         length: usize,
         expected: usize,
     },
+    InvalidConnackAcknowledgeFlags(u8),
+    InvalidConnackReturnCode(u8),
+    InvalidConnackSessionPresent {
+        return_code: u8,
+    },
 }
 
 impl fmt::Display for MqttError {
@@ -99,6 +104,17 @@ impl fmt::Display for MqttError {
                 f,
                 "Invalid MQTT payload length {} for {:?}; expected {}",
                 length, packet_type, expected
+            ),
+            MqttError::InvalidConnackAcknowledgeFlags(flags) => {
+                write!(f, "Invalid MQTT CONNACK acknowledge flags: 0x{:02x}", flags)
+            }
+            MqttError::InvalidConnackReturnCode(code) => {
+                write!(f, "Invalid MQTT CONNACK return code: {}", code)
+            }
+            MqttError::InvalidConnackSessionPresent { return_code } => write!(
+                f,
+                "MQTT CONNACK Session Present must be zero for return code {}",
+                return_code
             ),
         }
     }
@@ -129,6 +145,11 @@ pub enum MqttSerializeError {
         packet_type: MqttPacketType,
         length: usize,
         expected: usize,
+    },
+    InvalidConnackAcknowledgeFlags(u8),
+    InvalidConnackReturnCode(u8),
+    InvalidConnackSessionPresent {
+        return_code: u8,
     },
 }
 
@@ -170,6 +191,17 @@ impl fmt::Display for MqttSerializeError {
                 f,
                 "Invalid MQTT payload length {} for {:?}; expected {}",
                 length, packet_type, expected
+            ),
+            MqttSerializeError::InvalidConnackAcknowledgeFlags(flags) => {
+                write!(f, "Invalid MQTT CONNACK acknowledge flags: 0x{:02x}", flags)
+            }
+            MqttSerializeError::InvalidConnackReturnCode(code) => {
+                write!(f, "Invalid MQTT CONNACK return code: {}", code)
+            }
+            MqttSerializeError::InvalidConnackSessionPresent { return_code } => write!(
+                f,
+                "MQTT CONNACK Session Present must be zero for return code {}",
+                return_code
             ),
         }
     }
@@ -217,6 +249,31 @@ fn fixed_payload_length(packet_type: MqttPacketType) -> Option<usize> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnackSemanticError {
+    InvalidAcknowledgeFlags(u8),
+    InvalidReturnCode(u8),
+    SessionPresentWithError(u8),
+}
+
+fn validate_connack_semantics(payload: &[u8]) -> Result<(), ConnackSemanticError> {
+    let acknowledge_flags = payload[0];
+    let return_code = payload[1];
+
+    if acknowledge_flags & 0xfe != 0 {
+        return Err(ConnackSemanticError::InvalidAcknowledgeFlags(
+            acknowledge_flags,
+        ));
+    }
+    if return_code > 5 {
+        return Err(ConnackSemanticError::InvalidReturnCode(return_code));
+    }
+    if return_code != 0 && acknowledge_flags & 0x01 != 0 {
+        return Err(ConnackSemanticError::SessionPresentWithError(return_code));
+    }
+    Ok(())
+}
+
 impl MqttPacket {
     pub fn build_connect(client_id: &str, clean_session: bool) -> Self {
         Self::try_build_connect(client_id, clean_session)
@@ -256,13 +313,21 @@ impl MqttPacket {
     }
 
     pub fn build_connack(return_code: u8) -> Self {
-        MqttPacket {
+        Self::try_build_connack(return_code)
+            .expect("MQTT CONNACK return code must be defined by MQTT v3.1.1")
+    }
+
+    pub fn try_build_connack(return_code: u8) -> Result<Self, MqttSerializeError> {
+        if return_code > 5 {
+            return Err(MqttSerializeError::InvalidConnackReturnCode(return_code));
+        }
+        Ok(MqttPacket {
             packet_type: MqttPacketType::Connack,
             flags: 0,
             topic: None,
             packet_id: None,
             payload: vec![0x00, return_code], // Session Present = 0, Return Code
-        }
+        })
     }
 
     pub fn build_publish(topic: &str, msg: &[u8], qos: u8, packet_id: Option<u16>) -> Self {
@@ -382,6 +447,20 @@ impl MqttPacket {
                 expected,
             });
         }
+        if self.packet_type == MqttPacketType::Connack {
+            match validate_connack_semantics(&self.payload) {
+                Ok(()) => {}
+                Err(ConnackSemanticError::InvalidAcknowledgeFlags(flags)) => {
+                    return Err(MqttSerializeError::InvalidConnackAcknowledgeFlags(flags));
+                }
+                Err(ConnackSemanticError::InvalidReturnCode(code)) => {
+                    return Err(MqttSerializeError::InvalidConnackReturnCode(code));
+                }
+                Err(ConnackSemanticError::SessionPresentWithError(return_code)) => {
+                    return Err(MqttSerializeError::InvalidConnackSessionPresent { return_code });
+                }
+            }
+        }
         if matches!(
             self.packet_type,
             MqttPacketType::Puback | MqttPacketType::Unsuback
@@ -435,6 +514,18 @@ impl MqttPacket {
         let mut packet_id = None;
 
         match packet_type {
+            MqttPacketType::Connack => match validate_connack_semantics(&payload) {
+                Ok(()) => {}
+                Err(ConnackSemanticError::InvalidAcknowledgeFlags(flags)) => {
+                    return Err(MqttError::InvalidConnackAcknowledgeFlags(flags));
+                }
+                Err(ConnackSemanticError::InvalidReturnCode(code)) => {
+                    return Err(MqttError::InvalidConnackReturnCode(code));
+                }
+                Err(ConnackSemanticError::SessionPresentWithError(return_code)) => {
+                    return Err(MqttError::InvalidConnackSessionPresent { return_code });
+                }
+            },
             MqttPacketType::Publish => {
                 let qos = (flags >> 1) & 0x03;
                 if qos > 2 {
