@@ -39,6 +39,8 @@ pub const IPV6_DAD_RETRANS_TIMER_MS: u64 = 1_000;
 /// RFC 4861 section 10 constants for host Router Solicitation discovery.
 pub const IPV6_MAX_RTR_SOLICITATIONS: u8 = 3;
 pub const IPV6_RTR_SOLICITATION_INTERVAL_MS: u64 = 4_000;
+/// Implementation default used until a valid RA advertises a non-zero Cur Hop Limit.
+pub const IPV6_DEFAULT_HOP_LIMIT: u8 = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ipv6RouterDiscoveryStatus {
@@ -153,6 +155,9 @@ pub struct NetStack {
     ipv6_failed_rio_routers: HashSet<Ipv6Address>,
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
+    // RFC 4861 section 6.3.4 per-interface CurHopLimit. Zero in an RA means
+    // unspecified, so the currently learned/default value is preserved.
+    ipv6_default_hop_limit: u8,
     ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
     // RFC 4861 Destination Cache entries learned from Redirect messages.
     // Each entry is bound to the router that was the route-selected first hop
@@ -210,6 +215,7 @@ impl NetStack {
             ipv6_failed_rio_routers: HashSet::new(),
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
+            ipv6_default_hop_limit: IPV6_DEFAULT_HOP_LIMIT,
             ipv6_path_mtu_cache: HashMap::new(),
             ipv6_redirect_cache: HashMap::new(),
             firewall: Firewall::new(),
@@ -300,6 +306,11 @@ impl NetStack {
         self.ipv6_gateway
     }
 
+    /// Returns the current RFC 4861 CurHopLimit used for ordinary host-originated IPv6.
+    pub fn ipv6_default_hop_limit(&self) -> u8 {
+        self.ipv6_default_hop_limit
+    }
+
     /// Returns the currently learned RFC 8201 Path MTU for a destination.
     pub fn ipv6_path_mtu(&self, destination: Ipv6Address) -> Option<u32> {
         self.ipv6_path_mtu_cache.get(&destination).copied()
@@ -346,6 +357,7 @@ impl NetStack {
         self.ipv6_slaac_lifetimes = None;
         self.ipv6_path_mtu_cache.clear();
         self.ipv6_redirect_cache.clear();
+        self.ipv6_default_hop_limit = IPV6_DEFAULT_HOP_LIMIT;
         self.pending_ndp_packets.clear();
     }
 
@@ -932,7 +944,13 @@ impl NetStack {
     ) -> Option<Vec<u8>> {
         let my_ip6 = self.config.ipv6.unwrap_or(Ipv6Address::LOOPBACK);
         let icmp = Icmpv6Packet::build_echo_request(my_ip6, dst_ip, id, seq, payload);
-        let ip6_bytes = Ipv6Packet::serialize(my_ip6, dst_ip, NEXT_HEADER_ICMPV6, 64, &icmp);
+        let ip6_bytes = Ipv6Packet::serialize(
+            my_ip6,
+            dst_ip,
+            NEXT_HEADER_ICMPV6,
+            self.ipv6_default_hop_limit,
+            &icmp,
+        );
         self.send_ip6_packet(dst_ip, ip6_bytes)
     }
 
@@ -2048,6 +2066,9 @@ impl NetStack {
                                         ra.reachable_time,
                                         ra.retrans_timer,
                                     );
+                                    if ra.current_hop_limit != 0 {
+                                        self.ipv6_default_hop_limit = ra.current_hop_limit;
+                                    }
 
                                     // RFC 4861 sections 6.3.4 and 7.2: a valid RA may
                                     // update the Neighbor Cache only when it actually carries
@@ -2194,7 +2215,7 @@ impl NetStack {
                                         my_ip6,
                                         ip6_pkt.header.src_ip,
                                         NEXT_HEADER_ICMPV6,
-                                        64,
+                                        self.ipv6_default_hop_limit,
                                         &echo_reply,
                                     );
                                     let eth_out = EthernetFrame::serialize(
