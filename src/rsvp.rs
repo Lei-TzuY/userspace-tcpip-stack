@@ -191,19 +191,52 @@ impl RsvpObject {
             (RSVP_CLASS_EXPLICIT_ROUTE, 1) => {
                 let mut hops = Vec::new();
                 let mut offset = 0;
-                while offset + 8 <= body.len() {
-                    let loose = (body[offset] & 0x80) != 0;
-                    let hop_ip = Ipv4Address([
-                        body[offset + 2],
-                        body[offset + 3],
-                        body[offset + 4],
-                        body[offset + 5],
-                    ]);
-                    hops.push((loose, hop_ip));
+                let mut has_unsupported_subobject = false;
+
+                while offset < body.len() {
+                    if body.len() - offset < 2 {
+                        return None;
+                    }
+
+                    let sub_type = body[offset] & 0x7f;
                     let sub_len = body[offset + 1] as usize;
-                    offset += if sub_len >= 8 { sub_len } else { 8 };
+                    if sub_len < 2 || sub_len > body.len() - offset {
+                        return None;
+                    }
+
+                    if sub_type == 1 {
+                        // RFC 3209 section 4.3.3.1: IPv4 prefix subobjects are
+                        // exactly eight octets and carry a 0..=32 prefix length.
+                        if sub_len != 8 || body[offset + 6] > 32 {
+                            return None;
+                        }
+                        let loose = (body[offset] & 0x80) != 0;
+                        let hop_ip = Ipv4Address([
+                            body[offset + 2],
+                            body[offset + 3],
+                            body[offset + 4],
+                            body[offset + 5],
+                        ]);
+                        hops.push((loose, hop_ip));
+                    } else {
+                        // The current public model only represents IPv4 ERO
+                        // hops. Preserve a well-framed unsupported ERO as Raw
+                        // instead of silently mis-decoding it as IPv4.
+                        has_unsupported_subobject = true;
+                    }
+
+                    offset += sub_len;
                 }
-                RsvpObject::ExplicitRoute { hops }
+
+                if has_unsupported_subobject {
+                    RsvpObject::Raw {
+                        class_num,
+                        c_type,
+                        body: body.to_vec(),
+                    }
+                } else {
+                    RsvpObject::ExplicitRoute { hops }
+                }
             }
             (RSVP_CLASS_LABEL_REQUEST, 1) if body.len() >= 4 => {
                 let l3pid = u16::from_be_bytes([body[2], body[3]]);
