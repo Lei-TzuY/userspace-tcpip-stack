@@ -1,0 +1,24 @@
+name: One-shot RFC 4861 RA MTU
+
+on:
+  push:
+    branches:
+      - feat/ipv6-ra-mtu-option
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply and verify RFC 4861 RA MTU support
+        shell: bash
+        run: bash scripts/one-shot-ra-mtu.sh
