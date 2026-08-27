@@ -93,3 +93,56 @@ fn test_candidate_rp_adv_codec() {
     assert_eq!(parsed.holdtime, 120);
     assert_eq!(parsed.group_prefixes.len(), 1);
 }
+
+fn bootstrap_header() -> Vec<u8> {
+    vec![0x00, 0x01, 30, 128, 0x01, 0x00, 192, 0, 2, 1]
+}
+
+fn encoded_group() -> [u8; 8] {
+    [0x01, 0x00, 0x00, 8, 239, 0, 0, 0]
+}
+
+#[test]
+fn test_bootstrap_rejects_truncated_group_mapping_header() {
+    let mut wire = bootstrap_header();
+    wire.extend_from_slice(&encoded_group());
+    wire.extend_from_slice(&[1, 0]);
+    assert!(PimBootstrapMessage::parse(&wire).is_none());
+}
+
+#[test]
+fn test_bootstrap_rejects_missing_candidate_rp_record() {
+    let mut wire = bootstrap_header();
+    wire.extend_from_slice(&encoded_group());
+    wire.extend_from_slice(&[1, 0, 0x12, 0x34]);
+    assert!(PimBootstrapMessage::parse(&wire).is_none());
+}
+
+#[test]
+fn test_bootstrap_rejects_trailing_partial_group_address() {
+    let mut wire = bootstrap_header();
+    wire.push(0xaa);
+    assert!(PimBootstrapMessage::parse(&wire).is_none());
+}
+
+#[test]
+fn test_candidate_rp_adv_rejects_missing_declared_prefix() {
+    let wire = [1, 5, 0, 120, 0x01, 0x00, 10, 0, 0, 1];
+    assert!(PimCandidateRpAdv::parse(&wire).is_none());
+}
+
+#[test]
+fn test_candidate_rp_adv_rejects_trailing_bytes_after_declared_prefixes() {
+    let wire = [0, 5, 0, 120, 0x01, 0x00, 10, 0, 0, 1, 0xaa];
+    assert!(PimCandidateRpAdv::parse(&wire).is_none());
+}
+
+#[test]
+fn test_empty_bootstrap_and_candidate_rp_adv_remain_valid() {
+    let bsm = PimBootstrapMessage::parse(&bootstrap_header()).expect("empty BSM");
+    assert!(bsm.group_mappings.is_empty());
+
+    let adv = [0, 5, 0, 120, 0x01, 0x00, 10, 0, 0, 1];
+    let parsed = PimCandidateRpAdv::parse(&adv).expect("zero-prefix C-RP-Adv");
+    assert!(parsed.group_prefixes.is_empty());
+}

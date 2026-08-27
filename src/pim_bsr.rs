@@ -172,7 +172,7 @@ impl PimBootstrapMessage {
             let (group, consumed) = EncodedGroupAddress::decode(&data[offset..])?;
             offset += consumed;
             if offset + 4 > data.len() {
-                break;
+                return None;
             }
             let rp_count = data[offset];
             let frag_tag = u16::from_be_bytes([data[offset + 2], data[offset + 3]]);
@@ -181,7 +181,7 @@ impl PimBootstrapMessage {
             let mut candidates = Vec::new();
             for _ in 0..rp_count {
                 if offset + 10 > data.len() {
-                    break;
+                    return None;
                 }
                 if data[offset] != 0x01 || data[offset + 1] != 0x00 {
                     return None;
@@ -204,6 +204,9 @@ impl PimBootstrapMessage {
                 frag_tag,
                 candidates,
             });
+        }
+        if offset != data.len() {
+            return None;
         }
 
         Some(PimBootstrapMessage {
@@ -283,11 +286,14 @@ impl PimCandidateRpAdv {
         let mut group_prefixes = Vec::new();
         for _ in 0..prefix_count {
             if offset + 8 > data.len() {
-                break;
+                return None;
             }
             let (g, consumed) = EncodedGroupAddress::decode(&data[offset..])?;
             group_prefixes.push(g);
             offset += consumed;
+        }
+        if offset != data.len() {
+            return None;
         }
 
         Some(PimCandidateRpAdv {
