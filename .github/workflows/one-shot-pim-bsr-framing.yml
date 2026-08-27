@@ -1,0 +1,40 @@
+name: One-shot PIM-BSR framing
+
+on:
+  push:
+    branches:
+      - stage/pim-bsr-framing-validation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage/pim-bsr-framing-validation
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Patch, test, and clean branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python .github/pim_bsr_patch.py
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test --test test_pim_bsr --verbose
+          cargo test --all-targets --verbose
+          cargo build --release --verbose
+          git diff --check
+          rm .github/workflows/one-shot-pim-bsr-framing.yml .github/pim_bsr_patch.py
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          git commit -m 'fix(pim-bsr): reject truncated mapping lists'
+          git push origin HEAD:stage/pim-bsr-framing-validation
