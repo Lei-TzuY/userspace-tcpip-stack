@@ -62,6 +62,10 @@ pub enum MqttError {
     MalformedUtf8String,
     InvalidQos(u8),
     InvalidPacketIdentifier(u16),
+    InvalidFixedHeaderFlags {
+        packet_type: MqttPacketType,
+        flags: u8,
+    },
 }
 
 impl fmt::Display for MqttError {
@@ -77,6 +81,11 @@ impl fmt::Display for MqttError {
             MqttError::InvalidPacketIdentifier(id) => {
                 write!(f, "Invalid MQTT Packet Identifier: {}", id)
             }
+            MqttError::InvalidFixedHeaderFlags { packet_type, flags } => write!(
+                f,
+                "Invalid MQTT fixed-header flags 0x{:x} for {:?}",
+                flags, packet_type
+            ),
         }
     }
 }
@@ -98,6 +107,10 @@ pub enum MqttSerializeError {
     MissingPacketIdentifier,
     UnexpectedPacketIdentifier,
     InvalidPacketIdentifier(u16),
+    InvalidFixedHeaderFlags {
+        packet_type: MqttPacketType,
+        flags: u8,
+    },
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -125,6 +138,11 @@ impl fmt::Display for MqttSerializeError {
             MqttSerializeError::InvalidPacketIdentifier(id) => {
                 write!(f, "Invalid MQTT Packet Identifier: {}", id)
             }
+            MqttSerializeError::InvalidFixedHeaderFlags { packet_type, flags } => write!(
+                f,
+                "Invalid MQTT fixed-header flags 0x{:x} for {:?}",
+                flags, packet_type
+            ),
         }
     }
 }
@@ -150,6 +168,17 @@ fn validate_remaining_length(length: usize) -> Result<(), MqttSerializeError> {
         });
     }
     Ok(())
+}
+
+fn fixed_header_flags_are_valid(packet_type: MqttPacketType, flags: u8) -> bool {
+    if flags > 0x0f {
+        return false;
+    }
+    match packet_type {
+        MqttPacketType::Publish => true,
+        MqttPacketType::Subscribe | MqttPacketType::Unsubscribe => flags == 0x02,
+        _ => flags == 0,
+    }
 }
 
 impl MqttPacket {
@@ -296,6 +325,18 @@ impl MqttPacket {
     }
 
     pub fn try_serialize(&self) -> Result<Vec<u8>, MqttSerializeError> {
+        if !fixed_header_flags_are_valid(self.packet_type, self.flags) {
+            return Err(MqttSerializeError::InvalidFixedHeaderFlags {
+                packet_type: self.packet_type,
+                flags: self.flags,
+            });
+        }
+        if self.packet_type == MqttPacketType::Publish {
+            let qos = (self.flags >> 1) & 0x03;
+            if qos > 2 {
+                return Err(MqttSerializeError::InvalidQos(qos));
+            }
+        }
         validate_remaining_length(self.payload.len())?;
         let mut out = Vec::new();
         let header_byte = ((self.packet_type as u8) << 4) | (self.flags & 0x0F);
@@ -317,6 +358,9 @@ impl MqttPacket {
         let flags = data[0] & 0x0F;
         let packet_type =
             MqttPacketType::from_u8(p_type_val).ok_or(MqttError::InvalidPacketType(p_type_val))?;
+        if !fixed_header_flags_are_valid(packet_type, flags) {
+            return Err(MqttError::InvalidFixedHeaderFlags { packet_type, flags });
+        }
 
         let (rem_len, offset) = decode_remaining_length(data, 1)?;
         if data.len() < offset + rem_len {
