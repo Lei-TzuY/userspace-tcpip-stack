@@ -76,6 +76,8 @@ pub enum MqttError {
     InvalidConnackSessionPresent {
         return_code: u8,
     },
+    InvalidSubackPayloadLength(usize),
+    InvalidSubackReturnCode(u8),
 }
 
 impl fmt::Display for MqttError {
@@ -116,6 +118,14 @@ impl fmt::Display for MqttError {
                 "MQTT CONNACK Session Present must be zero for return code {}",
                 return_code
             ),
+            MqttError::InvalidSubackPayloadLength(length) => write!(
+                f,
+                "Invalid MQTT SUBACK payload length {}; expected at least 3",
+                length
+            ),
+            MqttError::InvalidSubackReturnCode(code) => {
+                write!(f, "Invalid MQTT SUBACK return code: 0x{:02x}", code)
+            }
         }
     }
 }
@@ -151,6 +161,8 @@ pub enum MqttSerializeError {
     InvalidConnackSessionPresent {
         return_code: u8,
     },
+    InvalidSubackPayloadLength(usize),
+    InvalidSubackReturnCode(u8),
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -203,6 +215,14 @@ impl fmt::Display for MqttSerializeError {
                 "MQTT CONNACK Session Present must be zero for return code {}",
                 return_code
             ),
+            MqttSerializeError::InvalidSubackPayloadLength(length) => write!(
+                f,
+                "Invalid MQTT SUBACK payload length {}; expected at least 3",
+                length
+            ),
+            MqttSerializeError::InvalidSubackReturnCode(code) => {
+                write!(f, "Invalid MQTT SUBACK return code: 0x{:02x}", code)
+            }
         }
     }
 }
@@ -274,6 +294,32 @@ fn validate_connack_semantics(payload: &[u8]) -> Result<(), ConnackSemanticError
     Ok(())
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SubackSemanticError {
+    PayloadTooShort(usize),
+    InvalidPacketIdentifier(u16),
+    InvalidReturnCode(u8),
+}
+
+fn validate_suback_semantics(payload: &[u8]) -> Result<u16, SubackSemanticError> {
+    if payload.len() < 3 {
+        return Err(SubackSemanticError::PayloadTooShort(payload.len()));
+    }
+
+    let packet_id = u16::from_be_bytes([payload[0], payload[1]]);
+    if packet_id == 0 {
+        return Err(SubackSemanticError::InvalidPacketIdentifier(packet_id));
+    }
+
+    for &code in &payload[2..] {
+        if !matches!(code, 0x00 | 0x01 | 0x02 | 0x80) {
+            return Err(SubackSemanticError::InvalidReturnCode(code));
+        }
+    }
+
+    Ok(packet_id)
+}
+
 impl MqttPacket {
     pub fn build_connect(client_id: &str, clean_session: bool) -> Self {
         Self::try_build_connect(client_id, clean_session)
@@ -327,6 +373,41 @@ impl MqttPacket {
             topic: None,
             packet_id: None,
             payload: vec![0x00, return_code], // Session Present = 0, Return Code
+        })
+    }
+
+    pub fn build_suback(packet_id: u16, return_codes: &[u8]) -> Self {
+        Self::try_build_suback(packet_id, return_codes)
+            .expect("MQTT SUBACK requires a nonzero Packet Identifier and valid return codes")
+    }
+
+    pub fn try_build_suback(
+        packet_id: u16,
+        return_codes: &[u8],
+    ) -> Result<Self, MqttSerializeError> {
+        if packet_id == 0 {
+            return Err(MqttSerializeError::InvalidPacketIdentifier(packet_id));
+        }
+        let payload_len = 2usize.checked_add(return_codes.len()).unwrap_or(usize::MAX);
+        if return_codes.is_empty() {
+            return Err(MqttSerializeError::InvalidSubackPayloadLength(payload_len));
+        }
+        for &code in return_codes {
+            if !matches!(code, 0x00 | 0x01 | 0x02 | 0x80) {
+                return Err(MqttSerializeError::InvalidSubackReturnCode(code));
+            }
+        }
+        validate_remaining_length(payload_len)?;
+
+        let mut payload = Vec::with_capacity(payload_len);
+        payload.extend_from_slice(&packet_id.to_be_bytes());
+        payload.extend_from_slice(return_codes);
+        Ok(MqttPacket {
+            packet_type: MqttPacketType::Suback,
+            flags: 0,
+            topic: None,
+            packet_id: Some(packet_id),
+            payload,
         })
     }
 
@@ -461,6 +542,20 @@ impl MqttPacket {
                 }
             }
         }
+        if self.packet_type == MqttPacketType::Suback {
+            match validate_suback_semantics(&self.payload) {
+                Ok(_) => {}
+                Err(SubackSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttSerializeError::InvalidSubackPayloadLength(length));
+                }
+                Err(SubackSemanticError::InvalidPacketIdentifier(id)) => {
+                    return Err(MqttSerializeError::InvalidPacketIdentifier(id));
+                }
+                Err(SubackSemanticError::InvalidReturnCode(code)) => {
+                    return Err(MqttSerializeError::InvalidSubackReturnCode(code));
+                }
+            }
+        }
         if matches!(
             self.packet_type,
             MqttPacketType::Puback | MqttPacketType::Unsuback
@@ -558,6 +653,18 @@ impl MqttPacket {
                     packet_id = Some(id);
                 }
             }
+            MqttPacketType::Suback => match validate_suback_semantics(&payload) {
+                Ok(id) => packet_id = Some(id),
+                Err(SubackSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttError::InvalidSubackPayloadLength(length));
+                }
+                Err(SubackSemanticError::InvalidPacketIdentifier(id)) => {
+                    return Err(MqttError::InvalidPacketIdentifier(id));
+                }
+                Err(SubackSemanticError::InvalidReturnCode(code)) => {
+                    return Err(MqttError::InvalidSubackReturnCode(code));
+                }
+            },
             MqttPacketType::Puback | MqttPacketType::Unsuback => {
                 let id = u16::from_be_bytes([payload[0], payload[1]]);
                 if id == 0 {
