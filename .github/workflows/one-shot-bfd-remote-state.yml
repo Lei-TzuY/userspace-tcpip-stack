@@ -1,0 +1,100 @@
+name: One-shot BFD remote-state transitions
+
+on:
+  push:
+    branches:
+      - stage/bfd-remote-state-transitions
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage/bfd-remote-state-transitions
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Patch, test, and clean branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("src/bfd.rs")
+          s = p.read_text()
+          old = (
+              "            (BfdState::Up, BfdState::AdminDown) => {\n"
+              "                self.state = BfdState::Down;\n"
+              "                None\n"
+              "            }\n"
+          )
+          new = (
+              "            (BfdState::Init | BfdState::Up, BfdState::AdminDown)\n"
+              "            | (BfdState::Up, BfdState::Down) => {\n"
+              "                self.state = BfdState::Down;\n"
+              "                None\n"
+              "            }\n"
+          )
+          if s.count(old) != 1:
+              raise SystemExit(f"BFD transition anchor count={s.count(old)}")
+          s = s.replace(old, new, 1)
+          insert_at = s.rfind("\n}")
+          if insert_at < 0:
+              raise SystemExit("BFD test module closing brace not found")
+          tests = "\n".join([
+              "",
+              "    #[test]",
+              "    fn test_bfd_up_transitions_down_when_remote_signals_down() {",
+              "        let mut session = BfdSession::new(0x1001, 100_000);",
+              "        session.state = BfdState::Up;",
+              "        session.remote_discriminator = 0x2002;",
+              "        let incoming = BfdControlPacket::build_control(",
+              "            BfdState::Down,",
+              "            0x3003,",
+              "            session.local_discriminator,",
+              "            100_000,",
+              "        );",
+              "",
+              "        assert!(session.process_packet(&incoming).is_none());",
+              "        assert_eq!(session.state, BfdState::Down);",
+              "        assert_eq!(session.remote_discriminator, 0x3003);",
+              "    }",
+              "",
+              "    #[test]",
+              "    fn test_bfd_init_transitions_down_when_remote_signals_admin_down() {",
+              "        let mut session = BfdSession::new(0x1001, 100_000);",
+              "        session.state = BfdState::Init;",
+              "        session.remote_discriminator = 0x2002;",
+              "        let incoming = BfdControlPacket::build_control(",
+              "            BfdState::AdminDown,",
+              "            0x3003,",
+              "            session.local_discriminator,",
+              "            100_000,",
+              "        );",
+              "",
+              "        assert!(session.process_packet(&incoming).is_none());",
+              "        assert_eq!(session.state, BfdState::Down);",
+              "        assert_eq!(session.remote_discriminator, 0x3003);",
+              "    }",
+          ])
+          s = s[:insert_at] + tests + s[insert_at:]
+          p.write_text(s)
+          PY
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test bfd --verbose
+          cargo test --all-targets --verbose
+          cargo build --release --verbose
+          rm .github/workflows/one-shot-bfd-remote-state.yml
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix(bfd): honor remote down-state transitions"
+          git push origin HEAD:stage/bfd-remote-state-transitions
