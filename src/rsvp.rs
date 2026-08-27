@@ -191,7 +191,7 @@ impl RsvpObject {
             (RSVP_CLASS_EXPLICIT_ROUTE, 1) => {
                 let mut hops = Vec::new();
                 let mut offset = 0;
-                let mut has_unsupported_subobject = false;
+                let mut needs_raw_preservation = false;
 
                 while offset < body.len() {
                     if body.len() - offset < 4 {
@@ -208,22 +208,26 @@ impl RsvpObject {
                         if sub_len != 8 || body[offset + 6] > 32 {
                             return None;
                         }
-                        let loose = (body[offset] & 0x80) != 0;
-                        let hop_ip = Ipv4Address([
-                            body[offset + 2],
-                            body[offset + 3],
-                            body[offset + 4],
-                            body[offset + 5],
-                        ]);
-                        hops.push((loose, hop_ip));
+                        if body[offset + 6] == 32 {
+                            let loose = (body[offset] & 0x80) != 0;
+                            let hop_ip = Ipv4Address([
+                                body[offset + 2],
+                                body[offset + 3],
+                                body[offset + 4],
+                                body[offset + 5],
+                            ]);
+                            hops.push((loose, hop_ip));
+                        } else {
+                            needs_raw_preservation = true;
+                        }
                     } else {
-                        has_unsupported_subobject = true;
+                        needs_raw_preservation = true;
                     }
 
                     offset += sub_len;
                 }
 
-                if has_unsupported_subobject {
+                if needs_raw_preservation {
                     RsvpObject::Raw {
                         class_num,
                         c_type,
@@ -498,6 +502,24 @@ mod tests {
                 body,
             }
         );
+    }
+
+    #[test]
+    fn test_rsvp_ero_preserves_non_host_ipv4_prefix_as_raw() {
+        let body = vec![1, 8, 192, 0, 2, 0, 24, 0];
+        let raw = ero_object(&body);
+        let (parsed, consumed) = RsvpObject::parse(&raw).unwrap();
+
+        assert_eq!(consumed, raw.len());
+        assert_eq!(
+            parsed,
+            RsvpObject::Raw {
+                class_num: RSVP_CLASS_EXPLICIT_ROUTE,
+                c_type: 1,
+                body: body.clone(),
+            }
+        );
+        assert_eq!(parsed.serialize(), raw);
     }
 
     #[test]
