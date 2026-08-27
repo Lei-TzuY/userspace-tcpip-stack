@@ -152,15 +152,15 @@ impl RsvpObject {
             }
         };
 
+        while body.len() % 4 != 0 {
+            body.push(0x00);
+        }
         let obj_len = (body.len() + 4) as u16;
         let mut buf = Vec::new();
         buf.extend_from_slice(&obj_len.to_be_bytes());
         buf.push(class_num);
         buf.push(c_type);
         buf.extend_from_slice(&body);
-        while buf.len() % 4 != 0 {
-            buf.push(0x00);
-        }
         buf
     }
 
@@ -169,7 +169,7 @@ impl RsvpObject {
             return None;
         }
         let obj_len = u16::from_be_bytes([data[0], data[1]]) as usize;
-        if obj_len < 4 || obj_len > data.len() {
+        if obj_len < 4 || obj_len > data.len() || obj_len % 4 != 0 {
             return None;
         }
 
@@ -233,9 +233,7 @@ impl RsvpObject {
             },
         };
 
-        // Align to 4-byte word boundary
-        let consumed = (obj_len + 3) & !3;
-        Some((obj, consumed.min(data.len())))
+        Some((obj, obj_len))
     }
 }
 
@@ -346,7 +344,7 @@ impl RsvpPacket {
         let send_ttl = data[4];
         let length = u16::from_be_bytes([data[6], data[7]]) as usize;
 
-        if length > data.len() {
+        if length < 8 || length > data.len() {
             return Err(RsvpError::InvalidLength);
         }
 
@@ -358,7 +356,7 @@ impl RsvpPacket {
                 objects.push(obj);
                 offset += consumed;
             } else {
-                break;
+                return Err(RsvpError::InvalidLength);
             }
         }
 
