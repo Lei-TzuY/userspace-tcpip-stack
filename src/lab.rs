@@ -2202,10 +2202,7 @@ impl LabRouter {
                             return out_transmissions;
                         }
 
-                        // 2. Decrement TTL and recompute checksum
-                        let new_ttl = ip_pkt.header.ttl - 1;
-
-                        // 3. Routing Table Lookup (LPM)
+                        // 2. Routing Table Lookup (LPM)
                         let Some(route) = self.routing_table.lookup(ip_pkt.header.dst_ip).cloned()
                         else {
                             // RFC 1812 section 4.3.3.1: no route at all requires
@@ -2242,15 +2239,14 @@ impl LabRouter {
                             self.interfaces.iter().find(|i| i.name == egress_iface_name)
                         {
                             let egress_link = egress_iface.link_name.clone();
-                            let ip_id = ip_pkt.header.identification;
-                            let mut forwarded_ip_bytes = Ipv4Packet::serialize(
-                                ip_pkt.header.src_ip,
-                                ip_pkt.header.dst_ip,
-                                ip_pkt.header.protocol.to_u8(),
-                                ip_id,
-                                new_ttl,
-                                ip_pkt.payload,
-                            );
+                            let total_length = usize::from(ip_pkt.header.total_length);
+                            let mut forwarded_ip_bytes = eth.payload[..total_length].to_vec();
+                            if !matches!(
+                                Ipv4Packet::decrement_ttl_in_place(&mut forwarded_ip_bytes),
+                                Ok(true)
+                            ) {
+                                return out_transmissions;
+                            }
 
                             // Check if Outbound NAT (SNAT) applies for LAN -> WAN
                             if let Some(ref mut nat) = self.nat_table
