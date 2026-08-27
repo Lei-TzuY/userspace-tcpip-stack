@@ -177,6 +177,18 @@ impl RsvpObject {
         let c_type = data[3];
         let body = &data[4..obj_len];
 
+        let fixed_body_len = match (class_num, c_type) {
+            (RSVP_CLASS_SESSION, 7) => Some(12),
+            (RSVP_CLASS_LABEL_REQUEST, 1) => Some(4),
+            (RSVP_CLASS_LABEL, 1) => Some(4),
+            (RSVP_CLASS_SENDER_TEMPLATE, 7) => Some(8),
+            (RSVP_CLASS_SENDER_TSPEC, 2) => Some(8),
+            _ => None,
+        };
+        if fixed_body_len.is_some_and(|expected| body.len() != expected) {
+            return None;
+        }
+
         let obj = match (class_num, c_type) {
             (RSVP_CLASS_SESSION, 7) if body.len() >= 12 => {
                 let dest_ip = Ipv4Address([body[0], body[1], body[2], body[3]]);
