@@ -158,7 +158,7 @@ impl BgpLsNlri {
                     offset += 4;
 
                     if offset + tlv_len > body.len() {
-                        break;
+                        return None;
                     }
 
                     let tlv_val = &body[offset..offset + tlv_len];
@@ -173,7 +173,7 @@ impl BgpLsNlri {
                             sub_off += 4;
 
                             if sub_off + s_len > tlv_val.len() {
-                                break;
+                                return None;
                             }
 
                             let s_val = &tlv_val[sub_off..sub_off + s_len];
@@ -195,8 +195,14 @@ impl BgpLsNlri {
                             }
                             sub_off += s_len;
                         }
+                        if sub_off != tlv_val.len() {
+                            return None;
+                        }
                     }
                     offset += tlv_len;
+                }
+                if offset != body.len() {
+                    return None;
                 }
 
                 Some(BgpLsNlri::Node(BgpLsNodeDescriptor {
@@ -217,7 +223,7 @@ impl BgpLsNlri {
                     offset += 4;
 
                     if offset + tlv_len > body.len() {
-                        break;
+                        return None;
                     }
 
                     let tlv_val = &body[offset..offset + tlv_len];
@@ -238,6 +244,9 @@ impl BgpLsNlri {
                         _ => {}
                     }
                     offset += tlv_len;
+                }
+                if offset != body.len() {
+                    return None;
                 }
 
                 Some(BgpLsNlri::Link(BgpLsLinkDescriptor {
@@ -294,6 +303,35 @@ impl BgpLsTopologyDatabase {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_bgp_ls_rejects_truncated_node_tlv_value() {
+        let raw = [
+            0x00, 0x01, 0x00, 0x08, 0x01, 0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00,
+        ];
+        assert!(BgpLsNlri::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_bgp_ls_rejects_truncated_node_descriptor_sub_tlv() {
+        let raw = [
+            0x00, 0x01, 0x00, 0x0c, 0x01, 0x00, 0x00, 0x08, 0x02, 0x02, 0x00, 0x08, 0x00, 0x00,
+            0x00, 0x01,
+        ];
+        assert!(BgpLsNlri::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_bgp_ls_rejects_trailing_partial_tlv_header() {
+        let raw = [0x00, 0x01, 0x00, 0x03, 0xaa, 0xbb, 0xcc];
+        assert!(BgpLsNlri::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_bgp_ls_rejects_truncated_link_tlv_value() {
+        let raw = [0x00, 0x02, 0x00, 0x08, 0x01, 0x03, 0x00, 0x08, 192, 0, 2, 1];
+        assert!(BgpLsNlri::parse(&raw).is_none());
+    }
 
     #[test]
     fn test_bgp_ls_node_and_link_nlri_roundtrip() {
