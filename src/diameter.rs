@@ -204,15 +204,24 @@ impl DiameterAvp {
             return None;
         }
 
-        let (vendor_id, data_start) = if (flags & 0x80) != 0 && length >= 12 {
+        let has_vendor_id = (flags & DIAMETER_FLAG_VENDOR_SPECIFIC) != 0;
+        if has_vendor_id && length < 12 {
+            return None;
+        }
+
+        let (vendor_id, data_start) = if has_vendor_id {
             let vid = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
             (Some(vid), 12)
         } else {
             (None, 8)
         };
 
-        let avp_data = data[data_start..length].to_vec();
         let padded_len = (length + 3) & !3;
+        if padded_len > data.len() {
+            return None;
+        }
+
+        let avp_data = data[data_start..length].to_vec();
 
         Some((
             DiameterAvp {
@@ -221,7 +230,7 @@ impl DiameterAvp {
                 vendor_id,
                 data: avp_data,
             },
-            padded_len.min(data.len()),
+            padded_len,
         ))
     }
 }
@@ -368,7 +377,7 @@ impl DiameterMessage {
         }
 
         let length = u32::from_be_bytes([0, data[1], data[2], data[3]]) as usize;
-        if length > data.len() {
+        if length < 20 || length > data.len() {
             return Err(DiameterError::InvalidLength);
         }
 
@@ -386,7 +395,7 @@ impl DiameterMessage {
                 avps.push(avp);
                 offset += consumed;
             } else {
-                break;
+                return Err(DiameterError::InvalidLength);
             }
         }
 
@@ -495,5 +504,81 @@ mod tests {
             DIAMETER_SUCCESS
         );
         assert_eq!(DIAMETER_PORT, 3868);
+    }
+
+    fn empty_diameter_message() -> Vec<u8> {
+        DiameterMessage::new_request(DIAMETER_CMD_DEVICE_WATCHDOG, 0, 1, 2).serialize()
+    }
+
+    fn set_message_length(raw: &mut [u8], length: usize) {
+        let bytes = (length as u32).to_be_bytes();
+        raw[1..4].copy_from_slice(&bytes[1..4]);
+    }
+
+    #[test]
+    fn test_diameter_rejects_declared_length_below_header() {
+        let mut raw = empty_diameter_message();
+        set_message_length(&mut raw, 19);
+        assert_eq!(
+            DiameterMessage::parse(&raw),
+            Err(DiameterError::InvalidLength)
+        );
+    }
+
+    #[test]
+    fn test_diameter_rejects_trailing_partial_avp_header() {
+        let mut raw = empty_diameter_message();
+        raw.extend_from_slice(&[0, 0, 0, 1]);
+        let length = raw.len();
+        set_message_length(&mut raw, length);
+        assert_eq!(
+            DiameterMessage::parse(&raw),
+            Err(DiameterError::InvalidLength)
+        );
+    }
+
+    #[test]
+    fn test_diameter_rejects_vendor_avp_shorter_than_vendor_header() {
+        let mut raw = empty_diameter_message();
+        raw.extend_from_slice(&123u32.to_be_bytes());
+        raw.push(DIAMETER_FLAG_VENDOR_SPECIFIC);
+        raw.extend_from_slice(&[0, 0, 8]);
+        let length = raw.len();
+        set_message_length(&mut raw, length);
+        assert_eq!(
+            DiameterMessage::parse(&raw),
+            Err(DiameterError::InvalidLength)
+        );
+    }
+
+    #[test]
+    fn test_diameter_rejects_missing_avp_padding() {
+        let mut raw = empty_diameter_message();
+        raw.extend_from_slice(&123u32.to_be_bytes());
+        raw.push(DIAMETER_FLAG_MANDATORY);
+        raw.extend_from_slice(&[0, 0, 9]);
+        raw.push(0xaa);
+        let length = raw.len();
+        set_message_length(&mut raw, length);
+        assert_eq!(
+            DiameterMessage::parse(&raw),
+            Err(DiameterError::InvalidLength)
+        );
+    }
+
+    #[test]
+    fn test_diameter_empty_message_and_padded_avp_remain_valid() {
+        let raw = empty_diameter_message();
+        let parsed = DiameterMessage::parse(&raw).unwrap();
+        assert!(parsed.avps.is_empty());
+        assert_eq!(parsed.header.length, 20);
+
+        let mut message = DiameterMessage::new_request(DIAMETER_CMD_DEVICE_WATCHDOG, 0, 1, 2);
+        message.add_avp(DiameterAvp::new(123, &[0xaa]));
+        let raw = message.serialize();
+        assert_eq!(raw.len(), 32);
+        let parsed = DiameterMessage::parse(&raw).unwrap();
+        assert_eq!(parsed.avps.len(), 1);
+        assert_eq!(parsed.avps[0].data, vec![0xaa]);
     }
 }
