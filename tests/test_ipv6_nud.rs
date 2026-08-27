@@ -64,6 +64,30 @@ fn na_frame_with_override(
     EthernetFrame::serialize(dst_mac, src_mac, ETHERTYPE_IPV6, &packet)
 }
 
+fn ra_frame_with_nud_timers(
+    router_ip: Ipv6Address,
+    router_mac: MacAddress,
+    reachable_time_ms: u32,
+    retrans_timer_ms: u32,
+    hop_limit: u8,
+) -> Vec<u8> {
+    let dst = Ipv6Address::LINK_LOCAL_ALL_NODES;
+    let mut ra =
+        Icmpv6Packet::build_router_advertisement(router_ip, dst, 64, 1800, &[], Some(router_mac));
+    ra[8..12].copy_from_slice(&reachable_time_ms.to_be_bytes());
+    ra[12..16].copy_from_slice(&retrans_timer_ms.to_be_bytes());
+    ra[2..4].copy_from_slice(&[0, 0]);
+    let checksum = compute_ipv6_transport_checksum(router_ip, dst, NEXT_HEADER_ICMPV6, &ra);
+    ra[2..4].copy_from_slice(&checksum.to_be_bytes());
+    let packet = Ipv6Packet::serialize(router_ip, dst, NEXT_HEADER_ICMPV6, hop_limit, &ra);
+    EthernetFrame::serialize(
+        ipv6_multicast_mac(dst).unwrap(),
+        router_mac,
+        ETHERTYPE_IPV6,
+        &packet,
+    )
+}
+
 fn na_frame_with_tlla(
     src: Ipv6Address,
     dst: Ipv6Address,
@@ -91,6 +115,126 @@ fn na_frame_with_tlla(
     }
     let packet = Ipv6Packet::serialize(src, dst, NEXT_HEADER_ICMPV6, 255, &na);
     EthernetFrame::serialize(dst_mac, ethernet_src_mac, ETHERTYPE_IPV6, &packet)
+}
+
+#[test]
+fn valid_ra_updates_reachable_and_retrans_timer_for_future_nud_transitions() {
+    let host_ip = ip6("2001:db8:100::1");
+    let router_ip = ip6("fe80::100");
+    let peer_ip = ip6("2001:db8:100::2");
+    let host_mac = mac(0x10);
+    let router_mac = mac(0x11);
+    let peer_mac = mac(0x12);
+    let mut stack = host(host_ip, host_mac);
+
+    let ra = ra_frame_with_nud_timers(router_ip, router_mac, 2_000, 250, 255);
+    assert!(stack.process_frame(&ra).is_empty());
+
+    stack.ndp_table.confirm_reachable(peer_ip, peer_mac, 100);
+    assert!(stack.ndp_table.step_nud(2_099).is_empty());
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert!(stack.ndp_table.step_nud(2_100).is_empty());
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+
+    assert_eq!(
+        stack.ndp_table.lookup_for_transmit(&peer_ip, 2_100),
+        Some(peer_mac)
+    );
+    let first_probe_at = 2_100 + NDP_DELAY_FIRST_PROBE_TIME_MS;
+    assert_eq!(
+        stack.ndp_table.step_nud(first_probe_at),
+        vec![(peer_ip, peer_mac)]
+    );
+    assert!(stack.ndp_table.step_nud(first_probe_at + 249).is_empty());
+    assert_eq!(
+        stack.ndp_table.step_nud(first_probe_at + 250),
+        vec![(peer_ip, peer_mac)]
+    );
+}
+
+#[test]
+fn zero_ra_nud_timers_preserve_previously_advertised_values() {
+    let host_ip = ip6("2001:db8:101::1");
+    let router_ip = ip6("fe80::101");
+    let peer_ip = ip6("2001:db8:101::2");
+    let host_mac = mac(0x20);
+    let router_mac = mac(0x21);
+    let peer_mac = mac(0x22);
+    let mut stack = host(host_ip, host_mac);
+
+    let learned = ra_frame_with_nud_timers(router_ip, router_mac, 1_500, 300, 255);
+    assert!(stack.process_frame(&learned).is_empty());
+    let unspecified = ra_frame_with_nud_timers(router_ip, router_mac, 0, 0, 255);
+    assert!(stack.process_frame(&unspecified).is_empty());
+
+    stack.ndp_table.confirm_reachable(peer_ip, peer_mac, 0);
+    assert!(stack.ndp_table.step_nud(1_499).is_empty());
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert!(stack.ndp_table.step_nud(1_500).is_empty());
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+
+    assert_eq!(
+        stack.ndp_table.lookup_for_transmit(&peer_ip, 1_500),
+        Some(peer_mac)
+    );
+    let first_probe_at = 1_500 + NDP_DELAY_FIRST_PROBE_TIME_MS;
+    assert_eq!(
+        stack.ndp_table.step_nud(first_probe_at),
+        vec![(peer_ip, peer_mac)]
+    );
+    assert!(stack.ndp_table.step_nud(first_probe_at + 299).is_empty());
+    assert_eq!(
+        stack.ndp_table.step_nud(first_probe_at + 300),
+        vec![(peer_ip, peer_mac)]
+    );
+}
+
+#[test]
+fn invalid_ra_cannot_change_nud_timers() {
+    let host_ip = ip6("2001:db8:102::1");
+    let router_ip = ip6("fe80::102");
+    let peer_ip = ip6("2001:db8:102::2");
+    let host_mac = mac(0x30);
+    let router_mac = mac(0x31);
+    let peer_mac = mac(0x32);
+    let mut stack = host(host_ip, host_mac);
+
+    let invalid = ra_frame_with_nud_timers(router_ip, router_mac, 100, 100, 64);
+    assert!(stack.process_frame(&invalid).is_empty());
+
+    stack.ndp_table.confirm_reachable(peer_ip, peer_mac, 0);
+    assert!(stack.ndp_table.step_nud(100).is_empty());
+    assert_eq!(
+        stack.ndp_table.state(&peer_ip),
+        Some(NeighborState::Reachable)
+    );
+    assert!(stack.ndp_table.step_nud(NDP_REACHABLE_TIME_MS).is_empty());
+    assert_eq!(stack.ndp_table.state(&peer_ip), Some(NeighborState::Stale));
+
+    assert_eq!(
+        stack
+            .ndp_table
+            .lookup_for_transmit(&peer_ip, NDP_REACHABLE_TIME_MS),
+        Some(peer_mac)
+    );
+    let first_probe_at = NDP_REACHABLE_TIME_MS + NDP_DELAY_FIRST_PROBE_TIME_MS;
+    assert_eq!(
+        stack.ndp_table.step_nud(first_probe_at),
+        vec![(peer_ip, peer_mac)]
+    );
+    assert!(stack.ndp_table.step_nud(first_probe_at + 100).is_empty());
+    assert_eq!(
+        stack
+            .ndp_table
+            .step_nud(first_probe_at + NDP_RETRANS_TIMER_MS),
+        vec![(peer_ip, peer_mac)]
+    );
 }
 
 #[test]

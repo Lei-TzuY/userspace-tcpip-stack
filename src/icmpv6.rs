@@ -1120,10 +1120,20 @@ struct NudMetadata {
 /// The existing MAC map API remains source-compatible. Direct `insert`
 /// calls are static/external mappings and therefore do not age; protocol
 /// paths opt into timed NUD with `learn_stale` and `confirm_reachable`.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub struct NdpTable {
     entries: HashMap<Ipv6Address, MacAddress>,
     nud: HashMap<Ipv6Address, NudMetadata>,
+    // RFC 4861 interface variables. ReachableTime normally includes a random
+    // factor; this deterministic simulator deliberately uses factor 1.0.
+    reachable_time_ms: u64,
+    retrans_timer_ms: u64,
+}
+
+impl Default for NdpTable {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NdpTable {
@@ -1131,6 +1141,24 @@ impl NdpTable {
         NdpTable {
             entries: HashMap::new(),
             nud: HashMap::new(),
+            reachable_time_ms: NDP_REACHABLE_TIME_MS,
+            retrans_timer_ms: NDP_RETRANS_TIMER_MS,
+        }
+    }
+
+    /// Applies the RFC 4861 fixed-header NUD parameters from a valid Router
+    /// Advertisement. Zero means unspecified and therefore preserves the
+    /// currently active value instead of restoring a protocol default.
+    pub fn apply_router_advertisement_timers(
+        &mut self,
+        reachable_time_ms: u32,
+        retrans_timer_ms: u32,
+    ) {
+        if reachable_time_ms != 0 {
+            self.reachable_time_ms = u64::from(reachable_time_ms);
+        }
+        if retrans_timer_ms != 0 {
+            self.retrans_timer_ms = u64::from(retrans_timer_ms);
         }
     }
 
@@ -1184,7 +1212,7 @@ impl NdpTable {
             ip,
             NudMetadata {
                 state: NeighborState::Reachable,
-                deadline_ms: Some(now_ms.saturating_add(NDP_REACHABLE_TIME_MS)),
+                deadline_ms: Some(now_ms.saturating_add(self.reachable_time_ms)),
                 probes_sent: 0,
             },
         );
@@ -1227,6 +1255,7 @@ impl NdpTable {
     /// Advances NUD timers and returns due unicast probes as (target, MAC).
     /// Coarse time jumps emit at most one probe per neighbor per timer pump.
     pub fn step_nud(&mut self, now_ms: u64) -> Vec<(Ipv6Address, MacAddress)> {
+        let retrans_timer_ms = self.retrans_timer_ms;
         let keys: Vec<Ipv6Address> = self.nud.keys().copied().collect();
         let mut probes = Vec::new();
         let mut remove = Vec::new();
@@ -1254,13 +1283,13 @@ impl NdpTable {
                 NeighborState::Delay if due => {
                     meta.state = NeighborState::Probe;
                     meta.probes_sent = 1;
-                    meta.deadline_ms = Some(now_ms.saturating_add(NDP_RETRANS_TIMER_MS));
+                    meta.deadline_ms = Some(now_ms.saturating_add(retrans_timer_ms));
                     probes.push((ip, mac));
                 }
                 NeighborState::Probe if due => {
                     if meta.probes_sent < NDP_MAX_UNICAST_SOLICIT {
                         meta.probes_sent = meta.probes_sent.saturating_add(1);
-                        meta.deadline_ms = Some(now_ms.saturating_add(NDP_RETRANS_TIMER_MS));
+                        meta.deadline_ms = Some(now_ms.saturating_add(retrans_timer_ms));
                         probes.push((ip, mac));
                     } else {
                         remove.push(ip);

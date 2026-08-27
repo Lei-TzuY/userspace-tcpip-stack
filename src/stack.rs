@@ -2041,6 +2041,14 @@ impl NetStack {
                                     ip6_pkt.header.src_ip,
                                     ip6_pkt.header.hop_limit,
                                 ) {
+                                    // RFC 4861 section 6.3.4: non-zero Reachable Time and
+                                    // Retrans Timer replace the host's current NUD variables;
+                                    // zero means unspecified and must leave prior values intact.
+                                    self.ndp_table.apply_router_advertisement_timers(
+                                        ra.reachable_time,
+                                        ra.retrans_timer,
+                                    );
+
                                     // RFC 4861 sections 6.3.4 and 7.2: a valid RA may
                                     // update the Neighbor Cache only when it actually carries
                                     // SLLA. The enclosing Ethernet source is not a substitute.
