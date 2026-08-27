@@ -1,0 +1,48 @@
+name: Stage sFlow sample framing
+
+on:
+  push:
+    branches:
+      - stage/sflow-sample-framing
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage/sflow-sample-framing
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply staged source and regressions
+        run: python scripts/stage_sflow_sample_framing.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused sFlow framing tests
+        run: cargo test --test test_sflow_sample_framing --verbose
+      - name: Existing sFlow tests
+        run: cargo test sflow --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/sflow.rs tests/test_sflow_sample_framing.rs
+          if git diff --cached --quiet; then
+            echo "No product changes"
+            exit 0
+          fi
+          git commit -m "fix(sflow): reject truncated declared samples"
+          git push origin HEAD:stage/sflow-sample-framing
