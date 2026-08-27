@@ -21,6 +21,7 @@ pub struct UdpDatagram<'a> {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UdpError {
     DatagramTooShort(usize),
+    LengthTooShort { declared: usize },
     LengthMismatch { declared: usize, available: usize },
     InvalidChecksum { found: u16 },
 }
@@ -30,6 +31,13 @@ impl fmt::Display for UdpError {
         match self {
             UdpError::DatagramTooShort(len) => {
                 write!(f, "UDP datagram too short ({} bytes, min 8)", len)
+            }
+            UdpError::LengthTooShort { declared } => {
+                write!(
+                    f,
+                    "UDP declared length {} is smaller than the 8-byte header",
+                    declared
+                )
             }
             UdpError::LengthMismatch {
                 declared,
@@ -69,6 +77,12 @@ impl<'a> UdpDatagram<'a> {
         let dst_port = u16::from_be_bytes([data[2], data[3]]);
         let length = u16::from_be_bytes([data[4], data[5]]);
         let checksum = u16::from_be_bytes([data[6], data[7]]);
+
+        if (length as usize) < UDP_HEADER_LEN {
+            return Err(UdpError::LengthTooShort {
+                declared: length as usize,
+            });
+        }
 
         if (length as usize) > data.len() {
             return Err(UdpError::LengthMismatch {
@@ -179,6 +193,38 @@ mod tests {
         assert_eq!(dg.src_port, 12345);
         assert_eq!(dg.dst_port, 53);
         assert_eq!(dg.payload, payload);
+    }
+
+    #[test]
+    fn parse_rejects_declared_length_below_udp_header() {
+        let src_ip = Ipv4Address::new(192, 0, 2, 1);
+        let dst_ip = Ipv4Address::new(198, 51, 100, 1);
+
+        for declared in [0u16, 7u16] {
+            let mut raw = [0u8; UDP_HEADER_LEN];
+            raw[4..6].copy_from_slice(&declared.to_be_bytes());
+
+            assert_eq!(
+                UdpDatagram::parse(src_ip, dst_ip, &raw, false),
+                Err(UdpError::LengthTooShort {
+                    declared: declared as usize,
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn parse_accepts_header_only_udp_datagram() {
+        let src_ip = Ipv4Address::new(192, 0, 2, 1);
+        let dst_ip = Ipv4Address::new(198, 51, 100, 1);
+        let mut raw = [0u8; UDP_HEADER_LEN];
+        raw[0..2].copy_from_slice(&12345u16.to_be_bytes());
+        raw[2..4].copy_from_slice(&53u16.to_be_bytes());
+        raw[4..6].copy_from_slice(&(UDP_HEADER_LEN as u16).to_be_bytes());
+
+        let parsed = UdpDatagram::parse(src_ip, dst_ip, &raw, true).unwrap();
+        assert_eq!(parsed.length, UDP_HEADER_LEN as u16);
+        assert!(parsed.payload.is_empty());
     }
 
     #[test]
