@@ -5,10 +5,12 @@
 
 use crate::ipv4::{IPV4_MIN_HEADER_LEN, Ipv4Address};
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
 
 const IPV4_MAX_PAYLOAD_LEN: usize = u16::MAX as usize - IPV4_MIN_HEADER_LEN;
 const MAX_REASSEMBLY_DATAGRAMS: usize = 1024;
 const MAX_REASSEMBLY_BYTES: usize = 4 * 1024 * 1024;
+const REASSEMBLY_TIMEOUT: Duration = Duration::from_secs(60);
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FragmentKey {
@@ -25,10 +27,11 @@ struct FragmentEntry {
     more_fragments: bool,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct FragmentSet {
     entries: Vec<FragmentEntry>,
     last_used: u64,
+    updated_at: Instant,
 }
 
 #[derive(Debug, Default)]
@@ -57,6 +60,26 @@ impl IpReassemblyBuffer {
                 .sum::<usize>();
             self.buffered_bytes = self.buffered_bytes.saturating_sub(removed_bytes);
         }
+    }
+
+    fn expire_stale_at(&mut self, now: Instant) -> usize {
+        let expired = self
+            .buffers
+            .iter()
+            .filter(|(_, set)| now.saturating_duration_since(set.updated_at) >= REASSEMBLY_TIMEOUT)
+            .map(|(key, _)| key.clone())
+            .collect::<Vec<_>>();
+        let count = expired.len();
+        for key in expired {
+            self.remove_buffer(&key);
+        }
+        count
+    }
+
+    /// Discards incomplete datagrams that have received no fragment for the
+    /// fixed IPv4 reassembly timeout. Returns the number of datagrams removed.
+    pub fn expire_stale(&mut self) -> usize {
+        self.expire_stale_at(Instant::now())
     }
 
     fn evict_oldest_except(&mut self, protected: Option<&FragmentKey>) -> bool {
@@ -111,6 +134,9 @@ impl IpReassemblyBuffer {
         more_fragments: bool,
         payload: &[u8],
     ) -> Option<Vec<u8>> {
+        let now = Instant::now();
+        self.expire_stale_at(now);
+
         let offset_bytes = (fragment_offset_blocks as usize) * 8;
         let fragment_end = offset_bytes.checked_add(payload.len())?;
         if fragment_end > IPV4_MAX_PAYLOAD_LEN {
@@ -186,6 +212,7 @@ impl IpReassemblyBuffer {
             .or_insert_with(|| FragmentSet {
                 entries: Vec::new(),
                 last_used,
+                updated_at: now,
             })
             .entries;
 
@@ -201,6 +228,7 @@ impl IpReassemblyBuffer {
             .get_mut(&key)
             .expect("reassembly set just inserted");
         set.last_used = last_used;
+        set.updated_at = now;
         set.entries.sort_by_key(|entry| entry.offset);
 
         // Check if contiguous and complete.
@@ -477,5 +505,57 @@ mod tests {
         );
         assert!(reassembly.buffered_bytes <= MAX_REASSEMBLY_BYTES);
         assert!(reassembly.buffers.len() <= MAX_REASSEMBLY_DATAGRAMS);
+    }
+
+    #[test]
+    fn reassembly_timeout_discards_stale_datagram_and_releases_accounting() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x4242;
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 8]),
+            None
+        );
+        assert_eq!(reassembly.buffered_bytes, 8);
+
+        let key = FragmentKey {
+            src_ip: src(),
+            dst_ip: dst(),
+            protocol: 17,
+            identification: id,
+        };
+        let expired_at = reassembly.buffers[&key].updated_at + REASSEMBLY_TIMEOUT;
+        assert_eq!(reassembly.expire_stale_at(expired_at), 1);
+        assert_eq!(reassembly.buffered_bytes, 0);
+        assert!(!reassembly.buffers.contains_key(&key));
+
+        // The same identification tuple can be reused by a fresh datagram.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[2u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[3u8; 8]),
+            Some([&[2u8; 8][..], &[3u8; 8][..]].concat())
+        );
+    }
+
+    #[test]
+    fn reassembly_timeout_keeps_recent_datagram() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x4343;
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 8]),
+            None
+        );
+        let key = FragmentKey {
+            src_ip: src(),
+            dst_ip: dst(),
+            protocol: 17,
+            identification: id,
+        };
+        let before_timeout =
+            reassembly.buffers[&key].updated_at + REASSEMBLY_TIMEOUT - Duration::from_nanos(1);
+        assert_eq!(reassembly.expire_stale_at(before_timeout), 0);
+        assert!(reassembly.buffers.contains_key(&key));
     }
 }
