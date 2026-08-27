@@ -182,8 +182,8 @@ impl SflowDatagram {
         let mut offset = 28;
 
         for _ in 0..samples_count {
-            if offset + 8 > data.len() {
-                break;
+            if data.len() - offset < 8 {
+                return Err(SflowError::InvalidLength);
             }
             let sample_type = u32::from_be_bytes([
                 data[offset],
@@ -199,8 +199,8 @@ impl SflowDatagram {
             ]) as usize;
             offset += 8;
 
-            if offset + sample_len > data.len() {
-                break;
+            if sample_len > data.len() - offset {
+                return Err(SflowError::InvalidLength);
             }
 
             let s_data = &data[offset..offset + sample_len];
