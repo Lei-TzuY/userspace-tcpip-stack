@@ -1,0 +1,37 @@
+name: Stage BGP message length guard
+
+on:
+  push:
+    branches:
+      - stage/bgp-message-length-guard
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Apply staged source and regressions
+        run: python .github/stage_bgp_message_length_guard.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused BGP length tests
+        run: cargo test --test test_bgp_message_length_guard --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/bgp.rs tests/test_bgp_message_length_guard.rs
+          git commit -m "fix(bgp): validate message length before slicing"
+          git push
