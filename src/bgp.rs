@@ -85,11 +85,14 @@ impl BgpMessage {
         let length = u16::from_be_bytes([data[16], data[17]]);
         let msg_type = data[18];
 
-        if (data.len() as u16) < length {
+        if usize::from(length) < BGP_HEADER_LEN {
+            return Err(BgpError::InvalidLength(length));
+        }
+        if data.len() < usize::from(length) {
             return Err(BgpError::PacketTooShort(data.len()));
         }
 
-        let body = &data[BGP_HEADER_LEN..length as usize];
+        let body = &data[BGP_HEADER_LEN..usize::from(length)];
 
         match msg_type {
             BGP_MSG_OPEN => {
