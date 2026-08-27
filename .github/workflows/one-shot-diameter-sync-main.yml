@@ -1,0 +1,37 @@
+name: One-shot sync Diameter with latest main
+
+on:
+  push:
+    branches: [fix/diameter-framing-validation]
+
+permissions:
+  contents: write
+
+jobs:
+  sync-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Merge latest main, test, and clean branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin main
+          git merge origin/main --no-edit
+          cargo fmt --all -- --check
+          cargo test --all-targets diameter --verbose
+          cargo test --all-targets --verbose
+          cargo build --release --verbose
+          rm .github/workflows/one-shot-diameter-sync-main.yml
+          git diff --check
+          git add -A
+          git commit -m 'chore: validate Diameter framing with latest main'
+          git push origin HEAD:fix/diameter-framing-validation
