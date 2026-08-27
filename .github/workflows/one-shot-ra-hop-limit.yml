@@ -1,0 +1,24 @@
+name: One-shot RFC 4861 RA hop limit
+
+on:
+  push:
+    branches:
+      - fix/ipv6-ra-hop-limit
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply and verify RFC 4861 RA Cur Hop Limit
+        shell: bash
+        run: bash scripts/one-shot-ra-hop-limit.sh
