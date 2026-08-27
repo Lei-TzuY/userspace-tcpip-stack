@@ -23,6 +23,8 @@ pub const LLDP_TLV_SYSTEM_DESCRIPTION: u8 = 6;
 pub const LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED: u8 = 7;
 pub const LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME: u8 = 5;
 
+const LLDP_TLV_MAX_VALUE_LEN: usize = 0x01FF;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LldpTlv {
     pub tlv_type: u8,
@@ -48,12 +50,25 @@ impl LldpTlv {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
-        let len = self.value.len() & 0x01FF;
+        self.try_serialize()
+            .expect("LLDP TLV value must fit the 9-bit length field")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, LldpSerializeError> {
+        let len = self.value.len();
+        if len > LLDP_TLV_MAX_VALUE_LEN {
+            return Err(LldpSerializeError::TlvValueTooLong {
+                tlv_type: self.tlv_type,
+                length: len,
+                max: LLDP_TLV_MAX_VALUE_LEN,
+            });
+        }
+
         let hdr = (((self.tlv_type as u16) & 0x7F) << 9) | (len as u16);
         let mut buf = Vec::with_capacity(2 + len);
         buf.extend_from_slice(&hdr.to_be_bytes());
         buf.extend_from_slice(&self.value);
-        buf
+        Ok(buf)
     }
 }
 
@@ -93,6 +108,33 @@ impl fmt::Display for LldpError {
 }
 
 impl std::error::Error for LldpError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LldpSerializeError {
+    TlvValueTooLong {
+        tlv_type: u8,
+        length: usize,
+        max: usize,
+    },
+}
+
+impl fmt::Display for LldpSerializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            LldpSerializeError::TlvValueTooLong {
+                tlv_type,
+                length,
+                max,
+            } => write!(
+                f,
+                "LLDP TLV {} value is {} bytes, exceeding the {}-byte 9-bit length limit",
+                tlv_type, length, max
+            ),
+        }
+    }
+}
+
+impl std::error::Error for LldpSerializeError {}
 
 impl LldpPacket {
     pub fn parse(data: &[u8]) -> Result<Self, LldpError> {
@@ -218,6 +260,11 @@ impl LldpPacket {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("LLDP packet TLV values must fit their 9-bit length fields")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, LldpSerializeError> {
         let mut buf = Vec::new();
 
         // 1. Chassis ID (TLV 1): subtype + identifier.
@@ -228,7 +275,7 @@ impl LldpPacket {
             tlv_type: LLDP_TLV_CHASSIS_ID,
             value: chassis_value,
         };
-        buf.extend(tlv1.serialize());
+        buf.extend(tlv1.try_serialize()?);
 
         // 2. Port ID (TLV 2): subtype + identifier.
         let mut port_value = Vec::with_capacity(1 + self.port_id.len());
@@ -238,14 +285,14 @@ impl LldpPacket {
             tlv_type: LLDP_TLV_PORT_ID,
             value: port_value,
         };
-        buf.extend(tlv2.serialize());
+        buf.extend(tlv2.try_serialize()?);
 
         // 3. TTL (TLV 3)
         let tlv3 = LldpTlv {
             tlv_type: LLDP_TLV_TTL,
             value: self.ttl.to_be_bytes().to_vec(),
         };
-        buf.extend(tlv3.serialize());
+        buf.extend(tlv3.try_serialize()?);
 
         // Optional: System Name (TLV 5)
         if let Some(ref name) = self.system_name {
@@ -253,13 +300,13 @@ impl LldpPacket {
                 tlv_type: LLDP_TLV_SYSTEM_NAME,
                 value: name.as_bytes().to_vec(),
             };
-            buf.extend(tlv5.serialize());
+            buf.extend(tlv5.try_serialize()?);
         }
 
         // End of LLDPDU (TLV 0)
         buf.extend_from_slice(&[0, 0]);
 
-        buf
+        Ok(buf)
     }
 }
 
@@ -339,5 +386,91 @@ mod tests {
         });
 
         assert_eq!(tbl.all_neighbors().len(), 2);
+    }
+
+    #[test]
+    fn test_tlv_511_byte_value_roundtrips() {
+        let tlv = LldpTlv {
+            tlv_type: LLDP_TLV_SYSTEM_DESCRIPTION,
+            value: vec![0x5a; LLDP_TLV_MAX_VALUE_LEN],
+        };
+
+        let raw = tlv.try_serialize().unwrap();
+        assert_eq!(raw.len(), 2 + LLDP_TLV_MAX_VALUE_LEN);
+        assert_eq!(u16::from_be_bytes([raw[0], raw[1]]) & 0x01ff, 0x01ff);
+
+        let (parsed, consumed) = LldpTlv::parse(&raw).unwrap();
+        assert_eq!(consumed, raw.len());
+        assert_eq!(parsed, tlv);
+    }
+
+    #[test]
+    fn test_tlv_512_byte_value_is_rejected() {
+        let tlv = LldpTlv {
+            tlv_type: LLDP_TLV_SYSTEM_DESCRIPTION,
+            value: vec![0x5a; LLDP_TLV_MAX_VALUE_LEN + 1],
+        };
+
+        assert_eq!(
+            tlv.try_serialize(),
+            Err(LldpSerializeError::TlvValueTooLong {
+                tlv_type: LLDP_TLV_SYSTEM_DESCRIPTION,
+                length: LLDP_TLV_MAX_VALUE_LEN + 1,
+                max: LLDP_TLV_MAX_VALUE_LEN,
+            })
+        );
+    }
+
+    #[test]
+    fn test_packet_allows_510_byte_identifier() {
+        let pkt = LldpPacket {
+            chassis_id: "c".repeat(LLDP_TLV_MAX_VALUE_LEN - 1),
+            port_id: "p".repeat(LLDP_TLV_MAX_VALUE_LEN - 1),
+            ttl: 120,
+            system_name: None,
+        };
+
+        let raw = pkt.try_serialize().unwrap();
+        let parsed = LldpPacket::parse(&raw).unwrap();
+        assert_eq!(parsed.chassis_id, pkt.chassis_id);
+        assert_eq!(parsed.port_id, pkt.port_id);
+    }
+
+    #[test]
+    fn test_packet_rejects_511_byte_identifier() {
+        let pkt = LldpPacket {
+            chassis_id: "c".repeat(LLDP_TLV_MAX_VALUE_LEN),
+            port_id: "eth0".to_string(),
+            ttl: 120,
+            system_name: None,
+        };
+
+        assert_eq!(
+            pkt.try_serialize(),
+            Err(LldpSerializeError::TlvValueTooLong {
+                tlv_type: LLDP_TLV_CHASSIS_ID,
+                length: LLDP_TLV_MAX_VALUE_LEN + 1,
+                max: LLDP_TLV_MAX_VALUE_LEN,
+            })
+        );
+    }
+
+    #[test]
+    fn test_packet_rejects_512_byte_system_name() {
+        let pkt = LldpPacket {
+            chassis_id: "chassis".to_string(),
+            port_id: "eth0".to_string(),
+            ttl: 120,
+            system_name: Some("s".repeat(LLDP_TLV_MAX_VALUE_LEN + 1)),
+        };
+
+        assert_eq!(
+            pkt.try_serialize(),
+            Err(LldpSerializeError::TlvValueTooLong {
+                tlv_type: LLDP_TLV_SYSTEM_NAME,
+                length: LLDP_TLV_MAX_VALUE_LEN + 1,
+                max: LLDP_TLV_MAX_VALUE_LEN,
+            })
+        );
     }
 }
