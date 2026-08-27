@@ -281,6 +281,26 @@ impl<'a> Ipv4Packet<'a> {
         Ok(Ipv4Packet { header, payload })
     }
 
+    /// Decrements the TTL of an already-serialized IPv4 datagram while preserving
+    /// every other header field, including options and fragmentation metadata.
+    /// Returns `Ok(false)` when the packet has no forwardable TTL remaining.
+    pub fn decrement_ttl_in_place(data: &mut [u8]) -> Result<bool, Ipv4Error> {
+        let (header_len, ttl) = {
+            let parsed = Ipv4Packet::parse(data, true)?;
+            (parsed.header.header_len_bytes(), parsed.header.ttl)
+        };
+
+        if ttl <= 1 {
+            return Ok(false);
+        }
+
+        data[8] = ttl - 1;
+        data[10..12].copy_from_slice(&[0, 0]);
+        let checksum = compute_checksum(&data[..header_len]);
+        data[10..12].copy_from_slice(&checksum.to_be_bytes());
+        Ok(true)
+    }
+
     pub fn serialize(
         src_ip: Ipv4Address,
         dst_ip: Ipv4Address,
