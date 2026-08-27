@@ -348,10 +348,20 @@ impl Gtpv2cMessage {
     /// Parses a GTPv2-C message from wire bytes.
     pub fn parse(data: &[u8]) -> Option<Self> {
         let (header, hdr_len) = Gtpv2cHeader::parse(data)?;
+        let declared_length = u16::from_be_bytes([data[2], data[3]]) as usize;
+        let message_len = 4 + declared_length;
+
+        // TS 29.274: Length covers every octet after the first four header
+        // octets. This API parses exactly one message, so framing outside the
+        // declared boundary must not be reinterpreted as Information Elements.
+        if message_len < hdr_len || message_len != data.len() {
+            return None;
+        }
+
         let mut offset = hdr_len;
         let mut ies = Vec::new();
-        while offset < data.len() {
-            let (ie, ie_len) = Gtpv2cIe::parse(&data[offset..])?;
+        while offset < message_len {
+            let (ie, ie_len) = Gtpv2cIe::parse(&data[offset..message_len])?;
             ies.push(ie);
             offset += ie_len;
         }
