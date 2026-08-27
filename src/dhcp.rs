@@ -159,7 +159,7 @@ impl DhcpPacket {
             }
 
             if offset + 1 >= data.len() {
-                break;
+                return Err(DhcpError::InvalidOptionLength);
             }
             let len = data[offset + 1] as usize;
             offset += 2;
