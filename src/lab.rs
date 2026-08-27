@@ -980,6 +980,65 @@ impl LabRouter {
         id
     }
 
+    fn is_ipv4_directed_broadcast(&self, address: Ipv4Address) -> bool {
+        self.interfaces.iter().any(|iface| {
+            let prefix_len = iface.subnet_mask.min(32);
+            if prefix_len >= 31 {
+                return false;
+            }
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u32::MAX << (32 - prefix_len)
+            };
+            let network = iface.ip.to_u32() & mask;
+            let broadcast = network | !mask;
+            address.to_u32() == broadcast
+        })
+    }
+
+    /// RFC 1812 section 4.3.2.7: generic suppression rules for router-generated
+    /// IPv4 ICMP errors. These rules take precedence over requirements to emit a
+    /// particular error such as Time Exceeded or Network Unreachable.
+    fn should_send_icmpv4_error(
+        &self,
+        invoking: &Ipv4Packet<'_>,
+        link_destination: MacAddress,
+    ) -> bool {
+        let src = invoking.header.src_ip;
+        let dst = invoking.header.dst_ip;
+
+        let invalid_source = src.0[0] == 0
+            || src.is_loopback()
+            || src.is_multicast()
+            || src.is_broadcast()
+            || src.0[0] >= 240
+            || self.is_ipv4_directed_broadcast(src);
+        if invalid_source {
+            return false;
+        }
+
+        if dst.is_broadcast()
+            || dst.is_multicast()
+            || self.is_ipv4_directed_broadcast(dst)
+            || !link_destination.is_unicast()
+            || invoking.header.fragment_offset != 0
+        {
+            return false;
+        }
+
+        if invoking.header.protocol == crate::ipv4::IpProtocol::Icmp
+            && invoking
+                .payload
+                .first()
+                .is_some_and(|icmp_type| matches!(*icmp_type, 3 | 4 | 5 | 11 | 12))
+        {
+            return false;
+        }
+
+        true
+    }
+
     /// Processes an incoming frame arriving on a specific virtual link.
     /// Returns a list of `(egress_link_name, frame_bytes)` to transmit.
     /// Handles a tenant frame arriving on an EVPN access port.
@@ -2098,25 +2157,29 @@ impl LabRouter {
                         // Forwarding data plane path
                         // 1. Check TTL
                         if ip_pkt.header.ttl <= 1 {
-                            // TTL expired in transit -> Generate ICMP Time Exceeded (Type 11 Code 0)
-                            let time_exceeded_payload =
-                                IcmpPacket::build_time_exceeded(0, eth.payload);
-                            let ip_id = self.next_ip_id();
-                            let ip_out = Ipv4Packet::serialize(
-                                ingress_iface.ip,
-                                ip_pkt.header.src_ip,
-                                IP_PROTO_ICMP,
-                                ip_id,
-                                64,
-                                &time_exceeded_payload,
-                            );
-                            let eth_out = EthernetFrame::serialize(
-                                eth.src_mac,
-                                ingress_iface.mac,
-                                ETHERTYPE_IPV4,
-                                &ip_out,
-                            );
-                            out_transmissions.push((ingress_link.to_string(), eth_out));
+                            // RFC 1812 sections 4.3.2.7 and 5.2.7.3: emit Time
+                            // Exceeded only when the invoking packet is eligible
+                            // to receive an ICMP error.
+                            if self.should_send_icmpv4_error(&ip_pkt, eth.dst_mac) {
+                                let time_exceeded_payload =
+                                    IcmpPacket::build_time_exceeded(0, eth.payload);
+                                let ip_id = self.next_ip_id();
+                                let ip_out = Ipv4Packet::serialize(
+                                    ingress_iface.ip,
+                                    ip_pkt.header.src_ip,
+                                    IP_PROTO_ICMP,
+                                    ip_id,
+                                    64,
+                                    &time_exceeded_payload,
+                                );
+                                let eth_out = EthernetFrame::serialize(
+                                    eth.src_mac,
+                                    ingress_iface.mac,
+                                    ETHERTYPE_IPV4,
+                                    &ip_out,
+                                );
+                                out_transmissions.push((ingress_link.to_string(), eth_out));
+                            }
                             return out_transmissions;
                         }
 
@@ -2143,65 +2206,92 @@ impl LabRouter {
                         let new_ttl = ip_pkt.header.ttl - 1;
 
                         // 3. Routing Table Lookup (LPM)
-                        if let Some(route) = self.routing_table.lookup(ip_pkt.header.dst_ip) {
-                            let egress_iface_name = route.interface.clone();
-                            let next_hop = route.next_hop(ip_pkt.header.dst_ip);
-
-                            if let Some(egress_iface) =
-                                self.interfaces.iter().find(|i| i.name == egress_iface_name)
-                            {
-                                let egress_link = egress_iface.link_name.clone();
-                                let ip_id = ip_pkt.header.identification;
-                                let mut forwarded_ip_bytes = Ipv4Packet::serialize(
+                        let Some(route) = self.routing_table.lookup(ip_pkt.header.dst_ip).cloned()
+                        else {
+                            // RFC 1812 section 4.3.3.1: no route at all requires
+                            // Destination Unreachable, Code 0 (Network Unreachable),
+                            // subject to the generic ICMP error suppression rules.
+                            if self.should_send_icmpv4_error(&ip_pkt, eth.dst_mac) {
+                                let unreachable =
+                                    IcmpPacket::build_destination_unreachable(0, 0, eth.payload);
+                                let ip_id = self.next_ip_id();
+                                let ip_out = Ipv4Packet::serialize(
+                                    ingress_iface.ip,
                                     ip_pkt.header.src_ip,
-                                    ip_pkt.header.dst_ip,
-                                    ip_pkt.header.protocol.to_u8(),
+                                    IP_PROTO_ICMP,
                                     ip_id,
-                                    new_ttl,
-                                    ip_pkt.payload,
+                                    64,
+                                    &unreachable,
                                 );
-
-                                // Check if Outbound NAT (SNAT) applies for LAN -> WAN
-                                if let Some(ref mut nat) = self.nat_table
-                                    && self.nat_lan_iface.as_deref() == Some(&ingress_iface.name)
-                                    && self.nat_wan_iface.as_deref() == Some(&egress_iface.name)
-                                {
-                                    nat.translate_outbound(&mut forwarded_ip_bytes);
-                                }
-
-                                let egress_arp = self
-                                    .arp_tables
-                                    .entry(egress_iface.name.clone())
-                                    .or_default();
-                                if let Some(dst_mac) = egress_arp.lookup(&next_hop.0) {
-                                    let eth_out = EthernetFrame::serialize(
-                                        dst_mac,
-                                        egress_iface.mac,
+                                out_transmissions.push((
+                                    ingress_link.to_string(),
+                                    EthernetFrame::serialize(
+                                        eth.src_mac,
+                                        ingress_iface.mac,
                                         ETHERTYPE_IPV4,
-                                        &forwarded_ip_bytes,
-                                    );
-                                    out_transmissions.push((egress_link, eth_out));
-                                } else {
-                                    // Queue transit packet and broadcast ARP Request on egress link
-                                    let pending_key = (egress_iface.name.clone(), next_hop);
-                                    self.pending_transit_packets
-                                        .entry(pending_key)
-                                        .or_default()
-                                        .push(forwarded_ip_bytes);
+                                        &ip_out,
+                                    ),
+                                ));
+                            }
+                            return out_transmissions;
+                        };
+                        let egress_iface_name = route.interface.clone();
+                        let next_hop = route.next_hop(ip_pkt.header.dst_ip);
 
-                                    let arp_req = ArpPacket::build_request(
-                                        egress_iface.mac,
-                                        egress_iface.ip.0,
-                                        next_hop.0,
-                                    );
-                                    let eth_arp = EthernetFrame::serialize(
-                                        MacAddress::BROADCAST,
-                                        egress_iface.mac,
-                                        ETHERTYPE_ARP,
-                                        &arp_req.serialize(),
-                                    );
-                                    out_transmissions.push((egress_link, eth_arp));
-                                }
+                        if let Some(egress_iface) =
+                            self.interfaces.iter().find(|i| i.name == egress_iface_name)
+                        {
+                            let egress_link = egress_iface.link_name.clone();
+                            let ip_id = ip_pkt.header.identification;
+                            let mut forwarded_ip_bytes = Ipv4Packet::serialize(
+                                ip_pkt.header.src_ip,
+                                ip_pkt.header.dst_ip,
+                                ip_pkt.header.protocol.to_u8(),
+                                ip_id,
+                                new_ttl,
+                                ip_pkt.payload,
+                            );
+
+                            // Check if Outbound NAT (SNAT) applies for LAN -> WAN
+                            if let Some(ref mut nat) = self.nat_table
+                                && self.nat_lan_iface.as_deref() == Some(&ingress_iface.name)
+                                && self.nat_wan_iface.as_deref() == Some(&egress_iface.name)
+                            {
+                                nat.translate_outbound(&mut forwarded_ip_bytes);
+                            }
+
+                            let egress_arp = self
+                                .arp_tables
+                                .entry(egress_iface.name.clone())
+                                .or_default();
+                            if let Some(dst_mac) = egress_arp.lookup(&next_hop.0) {
+                                let eth_out = EthernetFrame::serialize(
+                                    dst_mac,
+                                    egress_iface.mac,
+                                    ETHERTYPE_IPV4,
+                                    &forwarded_ip_bytes,
+                                );
+                                out_transmissions.push((egress_link, eth_out));
+                            } else {
+                                // Queue transit packet and broadcast ARP Request on egress link
+                                let pending_key = (egress_iface.name.clone(), next_hop);
+                                self.pending_transit_packets
+                                    .entry(pending_key)
+                                    .or_default()
+                                    .push(forwarded_ip_bytes);
+
+                                let arp_req = ArpPacket::build_request(
+                                    egress_iface.mac,
+                                    egress_iface.ip.0,
+                                    next_hop.0,
+                                );
+                                let eth_arp = EthernetFrame::serialize(
+                                    MacAddress::BROADCAST,
+                                    egress_iface.mac,
+                                    ETHERTYPE_ARP,
+                                    &arp_req.serialize(),
+                                );
+                                out_transmissions.push((egress_link, eth_arp));
                             }
                         }
                     }
