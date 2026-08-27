@@ -60,6 +60,8 @@ pub enum MqttError {
     InvalidPacketType(u8),
     InvalidRemainingLength,
     MalformedUtf8String,
+    InvalidQos(u8),
+    InvalidPacketIdentifier(u16),
 }
 
 impl fmt::Display for MqttError {
@@ -71,6 +73,10 @@ impl fmt::Display for MqttError {
                 write!(f, "Malformed MQTT variable-length integer")
             }
             MqttError::MalformedUtf8String => write!(f, "Malformed UTF-8 string in MQTT packet"),
+            MqttError::InvalidQos(qos) => write!(f, "Invalid MQTT QoS value: {}", qos),
+            MqttError::InvalidPacketIdentifier(id) => {
+                write!(f, "Invalid MQTT Packet Identifier: {}", id)
+            }
         }
     }
 }
@@ -88,6 +94,10 @@ pub enum MqttSerializeError {
         length: usize,
         max: usize,
     },
+    InvalidQos(u8),
+    MissingPacketIdentifier,
+    UnexpectedPacketIdentifier,
+    InvalidPacketIdentifier(u16),
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -103,6 +113,18 @@ impl fmt::Display for MqttSerializeError {
                 "MQTT Remaining Length {} exceeds the four-byte maximum {}",
                 length, max
             ),
+            MqttSerializeError::InvalidQos(qos) => {
+                write!(f, "Invalid MQTT QoS value: {}", qos)
+            }
+            MqttSerializeError::MissingPacketIdentifier => {
+                write!(f, "MQTT QoS 1/2 PUBLISH requires a Packet Identifier")
+            }
+            MqttSerializeError::UnexpectedPacketIdentifier => {
+                write!(f, "MQTT QoS 0 PUBLISH must not carry a Packet Identifier")
+            }
+            MqttSerializeError::InvalidPacketIdentifier(id) => {
+                write!(f, "Invalid MQTT Packet Identifier: {}", id)
+            }
         }
     }
 }
@@ -180,7 +202,7 @@ impl MqttPacket {
 
     pub fn build_publish(topic: &str, msg: &[u8], qos: u8, packet_id: Option<u16>) -> Self {
         Self::try_build_publish(topic, msg, qos, packet_id)
-            .expect("MQTT PUBLISH fields must fit their wire length encodings")
+            .expect("MQTT PUBLISH fields must satisfy wire and QoS requirements")
     }
 
     pub fn try_build_publish(
@@ -189,9 +211,21 @@ impl MqttPacket {
         qos: u8,
         packet_id: Option<u16>,
     ) -> Result<Self, MqttSerializeError> {
+        if qos > 2 {
+            return Err(MqttSerializeError::InvalidQos(qos));
+        }
+        match (qos, packet_id) {
+            (0, Some(_)) => return Err(MqttSerializeError::UnexpectedPacketIdentifier),
+            (1 | 2, None) => return Err(MqttSerializeError::MissingPacketIdentifier),
+            (1 | 2, Some(0)) => {
+                return Err(MqttSerializeError::InvalidPacketIdentifier(0));
+            }
+            _ => {}
+        }
+
         let topic_len = topic.len();
         validate_utf8_string_len("topic name", topic_len)?;
-        let packet_id_len = if qos > 0 && packet_id.is_some() { 2 } else { 0 };
+        let packet_id_len = if qos > 0 { 2 } else { 0 };
         let body_len = 2usize
             .checked_add(topic_len)
             .and_then(|len| len.checked_add(packet_id_len))
@@ -199,12 +233,10 @@ impl MqttPacket {
             .unwrap_or(usize::MAX);
         validate_remaining_length(body_len)?;
 
-        let flags = (qos << 1) & 0x06;
+        let flags = qos << 1;
         let mut body = Vec::with_capacity(body_len);
-        // Topic Name
         body.extend_from_slice(&(topic_len as u16).to_be_bytes());
         body.extend_from_slice(topic.as_bytes());
-        // Packet ID if QoS > 0
         if qos > 0
             && let Some(pid) = packet_id
         {
@@ -223,7 +255,7 @@ impl MqttPacket {
 
     pub fn build_subscribe(packet_id: u16, topic: &str, qos: u8) -> Self {
         Self::try_build_subscribe(packet_id, topic, qos)
-            .expect("MQTT SUBSCRIBE topic must fit its 16-bit UTF-8 length field")
+            .expect("MQTT SUBSCRIBE fields must satisfy wire and QoS requirements")
     }
 
     pub fn try_build_subscribe(
@@ -231,6 +263,13 @@ impl MqttPacket {
         topic: &str,
         qos: u8,
     ) -> Result<Self, MqttSerializeError> {
+        if packet_id == 0 {
+            return Err(MqttSerializeError::InvalidPacketIdentifier(packet_id));
+        }
+        if qos > 2 {
+            return Err(MqttSerializeError::InvalidQos(qos));
+        }
+
         let topic_len = topic.len();
         validate_utf8_string_len("topic filter", topic_len)?;
         let body_len = 5usize.checked_add(topic_len).unwrap_or(usize::MAX);
@@ -290,6 +329,10 @@ impl MqttPacket {
 
         match packet_type {
             MqttPacketType::Publish => {
+                let qos = (flags >> 1) & 0x03;
+                if qos > 2 {
+                    return Err(MqttError::InvalidQos(qos));
+                }
                 if payload.len() < 2 {
                     return Err(MqttError::PacketTooShort);
                 }
@@ -304,36 +347,56 @@ impl MqttPacket {
                     .map_err(|_| MqttError::MalformedUtf8String)?;
                 topic = Some(topic_str.to_string());
 
-                let qos = (flags >> 1) & 0x03;
                 if qos > 0 {
                     let packet_id_end =
                         topic_end.checked_add(2).ok_or(MqttError::PacketTooShort)?;
                     if payload.len() < packet_id_end {
                         return Err(MqttError::PacketTooShort);
                     }
-                    packet_id = Some(u16::from_be_bytes([
-                        payload[topic_end],
-                        payload[topic_end + 1],
-                    ]));
+                    let id = u16::from_be_bytes([payload[topic_end], payload[topic_end + 1]]);
+                    if id == 0 {
+                        return Err(MqttError::InvalidPacketIdentifier(id));
+                    }
+                    packet_id = Some(id);
                 }
             }
             MqttPacketType::Subscribe => {
-                if payload.len() < 4 {
+                if payload.len() < 2 {
                     return Err(MqttError::PacketTooShort);
                 }
-                packet_id = Some(u16::from_be_bytes([payload[0], payload[1]]));
-                let topic_len = u16::from_be_bytes([payload[2], payload[3]]) as usize;
-                let topic_end = 4usize
-                    .checked_add(topic_len)
-                    .ok_or(MqttError::PacketTooShort)?;
-                let first_subscription_end =
-                    topic_end.checked_add(1).ok_or(MqttError::PacketTooShort)?;
-                if payload.len() < first_subscription_end {
-                    return Err(MqttError::PacketTooShort);
+                let id = u16::from_be_bytes([payload[0], payload[1]]);
+                if id == 0 {
+                    return Err(MqttError::InvalidPacketIdentifier(id));
                 }
-                let topic_str = std::str::from_utf8(&payload[4..topic_end])
-                    .map_err(|_| MqttError::MalformedUtf8String)?;
-                topic = Some(topic_str.to_string());
+                packet_id = Some(id);
+
+                let mut cursor = 2usize;
+                let mut first_topic = None;
+                while cursor < payload.len() {
+                    if payload.len() - cursor < 2 {
+                        return Err(MqttError::PacketTooShort);
+                    }
+                    let topic_len =
+                        u16::from_be_bytes([payload[cursor], payload[cursor + 1]]) as usize;
+                    let topic_start = cursor + 2;
+                    let topic_end = topic_start
+                        .checked_add(topic_len)
+                        .ok_or(MqttError::PacketTooShort)?;
+                    if topic_end >= payload.len() {
+                        return Err(MqttError::PacketTooShort);
+                    }
+                    let topic_str = std::str::from_utf8(&payload[topic_start..topic_end])
+                        .map_err(|_| MqttError::MalformedUtf8String)?;
+                    let requested_qos = payload[topic_end];
+                    if requested_qos > 2 {
+                        return Err(MqttError::InvalidQos(requested_qos));
+                    }
+                    if first_topic.is_none() {
+                        first_topic = Some(topic_str.to_string());
+                    }
+                    cursor = topic_end + 1;
+                }
+                topic = Some(first_topic.ok_or(MqttError::PacketTooShort)?);
             }
             _ => {}
         }
