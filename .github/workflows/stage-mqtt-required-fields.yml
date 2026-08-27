@@ -1,0 +1,42 @@
+name: Stage MQTT required fields
+
+on:
+  push:
+    branches:
+      - stage/mqtt-required-fields
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Apply staged source and regressions
+        run: python scripts/stage_mqtt_required_fields.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused MQTT required-field tests
+        run: cargo test --test test_mqtt_required_fields --verbose
+      - name: Existing MQTT tests
+        run: cargo test mqtt --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        run: |
+          rm scripts/stage_mqtt_required_fields.py .github/workflows/stage-mqtt-required-fields.yml
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git commit -m "fix(mqtt): reject malformed required fields"
+          git push
