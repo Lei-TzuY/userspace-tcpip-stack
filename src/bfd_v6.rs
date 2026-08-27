@@ -48,6 +48,14 @@ impl BfdV6Session {
     }
 
     pub fn process_inbound_packet(&mut self, pkt: &BfdControlPacket) -> Option<BfdControlPacket> {
+        if pkt.your_discriminator != 0 && pkt.your_discriminator != self.my_discriminator {
+            return None;
+        }
+        if pkt.your_discriminator == 0 && !matches!(pkt.state, BfdState::Down | BfdState::AdminDown)
+        {
+            return None;
+        }
+
         self.your_discriminator = pkt.my_discriminator;
 
         match (self.state, pkt.state) {
@@ -112,5 +120,33 @@ mod tests {
         let resp2 = session.process_inbound_packet(&incoming_init).unwrap();
         assert_eq!(session.state, BfdState::Up);
         assert_eq!(resp2.state, BfdState::Up);
+    }
+
+    #[test]
+    fn test_bfd_v6_rejects_mismatched_discriminator_without_mutating_session() {
+        let peer_v6 = Ipv6Address::from_str("2001:db8:bfd:1::2").unwrap();
+        let mut session = BfdV6Session::new(peer_v6, 0x11223344, true);
+        session.state = BfdState::Up;
+        session.your_discriminator = 0x99887766;
+
+        let incoming =
+            BfdControlPacket::build_control(BfdState::Down, 0xaabbccdd, 0x55667788, 50_000);
+
+        assert!(session.process_inbound_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Up);
+        assert_eq!(session.your_discriminator, 0x99887766);
+    }
+
+    #[test]
+    fn test_bfd_v6_rejects_zero_discriminator_from_init_without_learning_peer() {
+        let peer_v6 = Ipv6Address::from_str("2001:db8:bfd:1::2").unwrap();
+        let mut session = BfdV6Session::new(peer_v6, 0x11223344, false);
+        session.your_discriminator = 0x99887766;
+
+        let incoming = BfdControlPacket::build_control(BfdState::Init, 0xaabbccdd, 0, 50_000);
+
+        assert!(session.process_inbound_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.your_discriminator, 0x99887766);
     }
 }
