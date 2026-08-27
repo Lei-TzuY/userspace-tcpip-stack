@@ -189,6 +189,21 @@ pub enum TcpError {
         offset_bytes: usize,
         available: usize,
     },
+    TruncatedOption {
+        offset: usize,
+        kind: u8,
+    },
+    InvalidOptionLength {
+        offset: usize,
+        kind: u8,
+        length: u8,
+    },
+    OptionLengthExceedsHeader {
+        offset: usize,
+        kind: u8,
+        length: u8,
+        remaining: usize,
+    },
     InvalidChecksum {
         found: u16,
     },
@@ -211,6 +226,30 @@ impl fmt::Display for TcpError {
                     offset_bytes, available
                 )
             }
+            TcpError::TruncatedOption { offset, kind } => write!(
+                f,
+                "TCP option kind {} at byte {} is missing its length byte",
+                kind, offset
+            ),
+            TcpError::InvalidOptionLength {
+                offset,
+                kind,
+                length,
+            } => write!(
+                f,
+                "TCP option kind {} at byte {} has invalid length {}",
+                kind, offset, length
+            ),
+            TcpError::OptionLengthExceedsHeader {
+                offset,
+                kind,
+                length,
+                remaining,
+            } => write!(
+                f,
+                "TCP option kind {} at byte {} declares length {} with only {} header bytes remaining",
+                kind, offset, length, remaining
+            ),
             TcpError::InvalidChecksum { found } => {
                 write!(
                     f,
@@ -279,11 +318,28 @@ impl<'a> TcpSegment<'a> {
             }
 
             if opt_offset + 1 >= offset_bytes {
-                break;
+                return Err(TcpError::TruncatedOption {
+                    offset: opt_offset,
+                    kind,
+                });
             }
-            let len = data[opt_offset + 1] as usize;
-            if len < 2 || opt_offset + len > offset_bytes {
-                break;
+            let length = data[opt_offset + 1];
+            let len = usize::from(length);
+            if len < 2 {
+                return Err(TcpError::InvalidOptionLength {
+                    offset: opt_offset,
+                    kind,
+                    length,
+                });
+            }
+            let remaining = offset_bytes - opt_offset;
+            if len > remaining {
+                return Err(TcpError::OptionLengthExceedsHeader {
+                    offset: opt_offset,
+                    kind,
+                    length,
+                    remaining,
+                });
             }
 
             match kind {
@@ -1699,6 +1755,107 @@ mod tests {
         assert_eq!(parsed.options[0], TcpOption::Mss(1400));
         assert_eq!(parsed.options[1], TcpOption::WindowScale(7));
         assert_eq!(parsed.options[2], TcpOption::Nop);
+    }
+
+    #[test]
+    fn test_tcp_rejects_malformed_option_tails() {
+        let src_ip = Ipv4Address::new(10, 0, 0, 1);
+        let dst_ip = Ipv4Address::new(10, 0, 0, 2);
+        let base = TcpSegment::serialize_with_options(
+            src_ip,
+            dst_ip,
+            12345,
+            80,
+            100,
+            0,
+            TcpFlags::syn(),
+            65535,
+            &[
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::Nop,
+            ],
+            &[],
+        );
+        assert_eq!(base.len(), 24);
+
+        let mut missing_length = base.clone();
+        missing_length[20..24].copy_from_slice(&[
+            TCP_OPT_NOP,
+            TCP_OPT_NOP,
+            TCP_OPT_NOP,
+            TCP_OPT_MSS,
+        ]);
+        assert_eq!(
+            TcpSegment::parse(src_ip, dst_ip, &missing_length, false).unwrap_err(),
+            TcpError::TruncatedOption {
+                offset: 23,
+                kind: TCP_OPT_MSS,
+            }
+        );
+
+        let mut too_short = base.clone();
+        too_short[20..24].copy_from_slice(&[TCP_OPT_MSS, 1, 0, 0]);
+        assert_eq!(
+            TcpSegment::parse(src_ip, dst_ip, &too_short, false).unwrap_err(),
+            TcpError::InvalidOptionLength {
+                offset: 20,
+                kind: TCP_OPT_MSS,
+                length: 1,
+            }
+        );
+
+        let mut overruns_header = base;
+        overruns_header[20..24].copy_from_slice(&[TCP_OPT_MSS, 5, 0, 0]);
+        assert_eq!(
+            TcpSegment::parse(src_ip, dst_ip, &overruns_header, false).unwrap_err(),
+            TcpError::OptionLengthExceedsHeader {
+                offset: 20,
+                kind: TCP_OPT_MSS,
+                length: 5,
+                remaining: 4,
+            }
+        );
+    }
+
+    #[test]
+    fn test_tcp_terminal_single_byte_options_remain_valid() {
+        let src_ip = Ipv4Address::new(10, 0, 0, 1);
+        let dst_ip = Ipv4Address::new(10, 0, 0, 2);
+        let base = TcpSegment::serialize_with_options(
+            src_ip,
+            dst_ip,
+            12345,
+            80,
+            100,
+            0,
+            TcpFlags::syn(),
+            65535,
+            &[
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::Nop,
+            ],
+            &[],
+        );
+
+        let parsed_nop = TcpSegment::parse(src_ip, dst_ip, &base, false).unwrap();
+        assert_eq!(parsed_nop.options, vec![TcpOption::Nop; 4]);
+
+        let mut terminal_eol = base;
+        terminal_eol[23] = TCP_OPT_EOL;
+        let parsed_eol = TcpSegment::parse(src_ip, dst_ip, &terminal_eol, false).unwrap();
+        assert_eq!(
+            parsed_eol.options,
+            vec![
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::Nop,
+                TcpOption::EndOfOptions,
+            ]
+        );
     }
 
     #[test]
