@@ -67,6 +67,7 @@ pub enum VtpPacket {
 pub enum VtpError {
     PacketTooShort(usize),
     InvalidCode(u8),
+    InvalidLength,
 }
 
 impl fmt::Display for VtpError {
@@ -74,6 +75,7 @@ impl fmt::Display for VtpError {
         match self {
             VtpError::PacketTooShort(l) => write!(f, "VTP packet too short ({} bytes)", l),
             VtpError::InvalidCode(c) => write!(f, "Unknown VTP message code: {}", c),
+            VtpError::InvalidLength => write!(f, "Invalid VTP subset record length"),
         }
     }
 }
@@ -138,9 +140,9 @@ impl VtpPacket {
                     v_buf.push(0x01); // Type = Ethernet
                     v_buf.extend_from_slice(&v.vlan_id.to_be_bytes());
                     v_buf.extend_from_slice(&1500u16.to_be_bytes()); // MTU
-                    v_buf.push(v.vlan_name.len() as u8);
                     let mut name_bytes = [0u8; 32];
                     let n_len = v.vlan_name.len().min(32);
+                    v_buf.push(n_len as u8);
                     name_bytes[..n_len].copy_from_slice(&v.vlan_name.as_bytes()[..n_len]);
                     v_buf.extend_from_slice(&name_bytes);
 
@@ -186,20 +188,23 @@ impl VtpPacket {
 
                 while offset < data.len() {
                     let v_len = data[offset] as usize;
-                    if offset + 1 + v_len > data.len() || v_len < 7 {
-                        break;
+                    let record_end = offset
+                        .checked_add(1 + v_len)
+                        .ok_or(VtpError::InvalidLength)?;
+                    if v_len < 7 || record_end > data.len() {
+                        return Err(VtpError::InvalidLength);
                     }
 
                     let status = data[offset + 1];
                     let vlan_id = u16::from_be_bytes([data[offset + 3], data[offset + 4]]);
-                    let name_len = (data[offset + 7] as usize).min(32);
-
-                    let name_str = if offset + 8 + name_len <= offset + 1 + v_len {
-                        String::from_utf8_lossy(&data[offset + 8..offset + 8 + name_len])
-                            .to_string()
-                    } else {
-                        format!("VLAN{:04}", vlan_id)
-                    };
+                    let name_len = data[offset + 7] as usize;
+                    let name_end = offset
+                        .checked_add(8 + name_len)
+                        .ok_or(VtpError::InvalidLength)?;
+                    if name_len > 32 || name_end > record_end {
+                        return Err(VtpError::InvalidLength);
+                    }
+                    let name_str = String::from_utf8_lossy(&data[offset + 8..name_end]).to_string();
 
                     vlans.push(VtpVlanInfo {
                         vlan_id,
@@ -207,7 +212,7 @@ impl VtpPacket {
                         status,
                     });
 
-                    offset += 1 + v_len;
+                    offset = record_end;
                 }
 
                 Ok(VtpPacket::Subset(VtpSubsetAdv {
