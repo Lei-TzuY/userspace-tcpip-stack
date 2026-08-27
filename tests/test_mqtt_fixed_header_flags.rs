@@ -54,7 +54,10 @@ fn parser_rejects_reserved_pingreq_flags() {
 #[test]
 fn parser_accepts_valid_fixed_flags() {
     assert!(MqttPacket::parse(&wire(MqttPacketType::Pingreq, 0, &[])).is_ok());
-    assert!(MqttPacket::parse(&wire(MqttPacketType::Unsubscribe, 2, &[])).is_ok());
+    let unsubscribe_payload = [0x12, 0x34, 0, 1, b'a'];
+    assert!(
+        MqttPacket::parse(&wire(MqttPacketType::Unsubscribe, 2, &unsubscribe_payload,)).is_ok()
+    );
 }
 
 #[test]

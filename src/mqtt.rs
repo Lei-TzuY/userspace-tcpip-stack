@@ -78,6 +78,8 @@ pub enum MqttError {
     },
     InvalidSubackPayloadLength(usize),
     InvalidSubackReturnCode(u8),
+    InvalidUnsubscribePayloadLength(usize),
+    InvalidUnsubscribeTopicFilter,
 }
 
 impl fmt::Display for MqttError {
@@ -126,6 +128,14 @@ impl fmt::Display for MqttError {
             MqttError::InvalidSubackReturnCode(code) => {
                 write!(f, "Invalid MQTT SUBACK return code: 0x{:02x}", code)
             }
+            MqttError::InvalidUnsubscribePayloadLength(length) => write!(
+                f,
+                "Invalid MQTT UNSUBSCRIBE payload length or framing: {}",
+                length
+            ),
+            MqttError::InvalidUnsubscribeTopicFilter => {
+                write!(f, "Invalid MQTT UNSUBSCRIBE topic filter")
+            }
         }
     }
 }
@@ -163,6 +173,8 @@ pub enum MqttSerializeError {
     },
     InvalidSubackPayloadLength(usize),
     InvalidSubackReturnCode(u8),
+    InvalidUnsubscribePayloadLength(usize),
+    InvalidUnsubscribeTopicFilter,
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -222,6 +234,14 @@ impl fmt::Display for MqttSerializeError {
             ),
             MqttSerializeError::InvalidSubackReturnCode(code) => {
                 write!(f, "Invalid MQTT SUBACK return code: 0x{:02x}", code)
+            }
+            MqttSerializeError::InvalidUnsubscribePayloadLength(length) => write!(
+                f,
+                "Invalid MQTT UNSUBSCRIBE payload length or framing: {}",
+                length
+            ),
+            MqttSerializeError::InvalidUnsubscribeTopicFilter => {
+                write!(f, "Invalid MQTT UNSUBSCRIBE topic filter")
             }
         }
     }
@@ -320,6 +340,54 @@ fn validate_suback_semantics(payload: &[u8]) -> Result<u16, SubackSemanticError>
     Ok(packet_id)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnsubscribeSemanticError {
+    PayloadTooShort(usize),
+    InvalidPacketIdentifier(u16),
+    InvalidTopicFilter,
+    MalformedUtf8,
+}
+
+fn validate_unsubscribe_semantics(payload: &[u8]) -> Result<(u16, &str), UnsubscribeSemanticError> {
+    if payload.len() < 2 {
+        return Err(UnsubscribeSemanticError::PayloadTooShort(payload.len()));
+    }
+
+    let packet_id = u16::from_be_bytes([payload[0], payload[1]]);
+    if packet_id == 0 {
+        return Err(UnsubscribeSemanticError::InvalidPacketIdentifier(packet_id));
+    }
+
+    let mut cursor = 2usize;
+    let mut first_topic = None;
+    while cursor < payload.len() {
+        if payload.len() - cursor < 2 {
+            return Err(UnsubscribeSemanticError::PayloadTooShort(payload.len()));
+        }
+        let topic_len = u16::from_be_bytes([payload[cursor], payload[cursor + 1]]) as usize;
+        if topic_len == 0 {
+            return Err(UnsubscribeSemanticError::InvalidTopicFilter);
+        }
+        let topic_start = cursor + 2;
+        let topic_end = topic_start
+            .checked_add(topic_len)
+            .ok_or(UnsubscribeSemanticError::PayloadTooShort(payload.len()))?;
+        if topic_end > payload.len() {
+            return Err(UnsubscribeSemanticError::PayloadTooShort(payload.len()));
+        }
+        let topic = std::str::from_utf8(&payload[topic_start..topic_end])
+            .map_err(|_| UnsubscribeSemanticError::MalformedUtf8)?;
+        if first_topic.is_none() {
+            first_topic = Some(topic);
+        }
+        cursor = topic_end;
+    }
+
+    let first_topic =
+        first_topic.ok_or(UnsubscribeSemanticError::PayloadTooShort(payload.len()))?;
+    Ok((packet_id, first_topic))
+}
+
 impl MqttPacket {
     pub fn build_connect(client_id: &str, clean_session: bool) -> Self {
         Self::try_build_connect(client_id, clean_session)
@@ -406,6 +474,36 @@ impl MqttPacket {
             packet_type: MqttPacketType::Suback,
             flags: 0,
             topic: None,
+            packet_id: Some(packet_id),
+            payload,
+        })
+    }
+
+    pub fn build_unsubscribe(packet_id: u16, topic: &str) -> Self {
+        Self::try_build_unsubscribe(packet_id, topic)
+            .expect("MQTT UNSUBSCRIBE fields must satisfy wire requirements")
+    }
+
+    pub fn try_build_unsubscribe(packet_id: u16, topic: &str) -> Result<Self, MqttSerializeError> {
+        if packet_id == 0 {
+            return Err(MqttSerializeError::InvalidPacketIdentifier(packet_id));
+        }
+        let topic_len = topic.len();
+        if topic_len == 0 {
+            return Err(MqttSerializeError::InvalidUnsubscribeTopicFilter);
+        }
+        validate_utf8_string_len("topic filter", topic_len)?;
+        let payload_len = 4usize.checked_add(topic_len).unwrap_or(usize::MAX);
+        validate_remaining_length(payload_len)?;
+
+        let mut payload = Vec::with_capacity(payload_len);
+        payload.extend_from_slice(&packet_id.to_be_bytes());
+        payload.extend_from_slice(&(topic_len as u16).to_be_bytes());
+        payload.extend_from_slice(topic.as_bytes());
+        Ok(MqttPacket {
+            packet_type: MqttPacketType::Unsubscribe,
+            flags: 0x02,
+            topic: Some(topic.to_string()),
             packet_id: Some(packet_id),
             payload,
         })
@@ -556,6 +654,21 @@ impl MqttPacket {
                 }
             }
         }
+        if self.packet_type == MqttPacketType::Unsubscribe {
+            match validate_unsubscribe_semantics(&self.payload) {
+                Ok(_) => {}
+                Err(UnsubscribeSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttSerializeError::InvalidUnsubscribePayloadLength(length));
+                }
+                Err(UnsubscribeSemanticError::InvalidPacketIdentifier(id)) => {
+                    return Err(MqttSerializeError::InvalidPacketIdentifier(id));
+                }
+                Err(UnsubscribeSemanticError::InvalidTopicFilter)
+                | Err(UnsubscribeSemanticError::MalformedUtf8) => {
+                    return Err(MqttSerializeError::InvalidUnsubscribeTopicFilter);
+                }
+            }
+        }
         if matches!(
             self.packet_type,
             MqttPacketType::Puback | MqttPacketType::Unsuback
@@ -663,6 +776,24 @@ impl MqttPacket {
                 }
                 Err(SubackSemanticError::InvalidReturnCode(code)) => {
                     return Err(MqttError::InvalidSubackReturnCode(code));
+                }
+            },
+            MqttPacketType::Unsubscribe => match validate_unsubscribe_semantics(&payload) {
+                Ok((id, first_topic)) => {
+                    packet_id = Some(id);
+                    topic = Some(first_topic.to_string());
+                }
+                Err(UnsubscribeSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttError::InvalidUnsubscribePayloadLength(length));
+                }
+                Err(UnsubscribeSemanticError::InvalidPacketIdentifier(id)) => {
+                    return Err(MqttError::InvalidPacketIdentifier(id));
+                }
+                Err(UnsubscribeSemanticError::InvalidTopicFilter) => {
+                    return Err(MqttError::InvalidUnsubscribeTopicFilter);
+                }
+                Err(UnsubscribeSemanticError::MalformedUtf8) => {
+                    return Err(MqttError::MalformedUtf8String);
                 }
             },
             MqttPacketType::Puback | MqttPacketType::Unsuback => {
