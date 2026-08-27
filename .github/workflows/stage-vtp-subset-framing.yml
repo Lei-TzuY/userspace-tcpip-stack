@@ -1,0 +1,44 @@
+name: Stage VTP subset framing
+
+on:
+  push:
+    branches:
+      - stage/vtp-subset-framing
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: stage/vtp-subset-framing
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply staged source and regressions
+        run: python scripts/stage_vtp_subset_framing.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused VTP framing tests
+        run: cargo test --test test_vtp_subset_framing --verbose
+      - name: Existing VTP tests
+        run: cargo test vtp --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/vtp.rs tests/test_vtp_subset_framing.rs
+          git commit -m "fix(vtp): reject malformed subset records"
+          git push origin HEAD:stage/vtp-subset-framing
