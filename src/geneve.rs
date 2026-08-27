@@ -100,7 +100,10 @@ impl GenevePacket {
             let opt_data_bytes = opt_data_words * 4;
 
             if offset + 4 + opt_data_bytes > opt_end {
-                break;
+                return Err(GeneveError::OptionLengthMismatch(
+                    offset + 4 + opt_data_bytes,
+                    opt_end,
+                ));
             }
 
             let opt_data = data[offset + 4..offset + 4 + opt_data_bytes].to_vec();
@@ -227,5 +230,36 @@ mod tests {
         assert_eq!(parsed.options.len(), 1);
         assert_eq!(parsed.options[0].class, 0x0100);
         assert_eq!(parsed.options[0].data, vec![0x11, 0x22, 0x33, 0x44]);
+    }
+
+    #[test]
+    fn test_geneve_rejects_option_data_past_declared_option_area() {
+        let mut raw = vec![0u8; GENEVE_BASE_HEADER_LEN + 4];
+        raw[0] = 1; // Opt Len = one 4-byte option header.
+        raw[8..10].copy_from_slice(&0x0100u16.to_be_bytes());
+        raw[10] = 1;
+        raw[11] = 1; // Option itself claims another 4 data bytes.
+
+        assert_eq!(
+            GenevePacket::parse(&raw),
+            Err(GeneveError::OptionLengthMismatch(16, 12))
+        );
+    }
+
+    #[test]
+    fn test_geneve_zero_data_option_remains_valid() {
+        let mut raw = vec![0u8; GENEVE_BASE_HEADER_LEN + 4 + 3];
+        raw[0] = 1; // Opt Len = one 4-byte option header.
+        raw[8..10].copy_from_slice(&0x0100u16.to_be_bytes());
+        raw[10] = 7;
+        raw[11] = 0; // Zero option-data words is legal.
+        raw[12..].copy_from_slice(&[0xaa, 0xbb, 0xcc]);
+
+        let parsed = GenevePacket::parse(&raw).unwrap();
+        assert_eq!(parsed.options.len(), 1);
+        assert_eq!(parsed.options[0].class, 0x0100);
+        assert_eq!(parsed.options[0].opt_type, 7);
+        assert!(parsed.options[0].data.is_empty());
+        assert_eq!(parsed.payload, vec![0xaa, 0xbb, 0xcc]);
     }
 }
