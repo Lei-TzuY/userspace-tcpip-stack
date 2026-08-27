@@ -2,7 +2,7 @@
 //!
 //! Proprietary Layer 2 network device discovery protocol operating over SNAP/LLC framing.
 
-use crate::checksum::compute_checksum;
+use crate::checksum::{compute_checksum, verify_checksum};
 use crate::ethernet::MacAddress;
 use crate::ipv4::Ipv4Address;
 use std::collections::BTreeMap;
@@ -151,13 +151,21 @@ impl CdpPacket {
             return Err(CdpError::InvalidVersion(version));
         }
 
+        if !verify_checksum(data) {
+            return Err(CdpError::InvalidChecksum);
+        }
+
         let ttl = data[1];
         let checksum = u16::from_be_bytes([data[2], data[3]]);
 
         let mut offset = 4;
         let mut tlvs = Vec::new();
 
-        while offset + 4 <= data.len() {
+        while offset < data.len() {
+            if data.len() - offset < 4 {
+                return Err(CdpError::InvalidTlvLength);
+            }
+
             let tlv_type = u16::from_be_bytes([data[offset], data[offset + 1]]);
             let tlv_len = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
 
@@ -250,5 +258,38 @@ mod tests {
         assert_eq!(n.port_id, "GigabitEthernet0/1");
         assert_eq!(n.platform, "cisco WS-C2960");
         assert_eq!(n.ip_address, Some(Ipv4Address::new(10, 0, 0, 1)));
+    }
+
+    #[test]
+    fn test_parse_rejects_corrupted_checksum() {
+        let pkt = CdpPacket::build(
+            "Switch-Core-01",
+            "GigabitEthernet0/1",
+            "cisco WS-C2960",
+            Ipv4Address::new(10, 0, 0, 1),
+        );
+        let mut raw = pkt.serialize();
+        let last = raw.len() - 1;
+        raw[last] ^= 0x01;
+
+        assert_eq!(CdpPacket::parse(&raw), Err(CdpError::InvalidChecksum));
+    }
+
+    #[test]
+    fn test_parse_rejects_trailing_partial_tlv_header() {
+        let pkt = CdpPacket::build(
+            "Switch-Core-01",
+            "GigabitEthernet0/1",
+            "cisco WS-C2960",
+            Ipv4Address::new(10, 0, 0, 1),
+        );
+        let mut raw = pkt.serialize();
+        raw.extend_from_slice(&[0x00, 0x01, 0x00]);
+        raw[2] = 0;
+        raw[3] = 0;
+        let checksum = compute_checksum(&raw);
+        raw[2..4].copy_from_slice(&checksum.to_be_bytes());
+
+        assert_eq!(CdpPacket::parse(&raw), Err(CdpError::InvalidTlvLength));
     }
 }
