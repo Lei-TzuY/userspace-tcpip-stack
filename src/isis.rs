@@ -60,6 +60,7 @@ pub enum IsisError {
     PacketTooShort(usize),
     InvalidDiscriminator(u8),
     InvalidPduType(u8),
+    InvalidPduLength(u16),
     InvalidTlvLength,
 }
 
@@ -71,6 +72,7 @@ impl fmt::Display for IsisError {
                 write!(f, "Invalid IS-IS discriminator 0x{:02X} (expected 0x83)", d)
             }
             IsisError::InvalidPduType(t) => write!(f, "Unsupported IS-IS PDU type: {}", t),
+            IsisError::InvalidPduLength(l) => write!(f, "Invalid IS-IS PDU length: {}", l),
             IsisError::InvalidTlvLength => write!(f, "Invalid IS-IS TLV length field"),
         }
     }
@@ -112,24 +114,29 @@ impl IsisHelloPacket {
         source_id.copy_from_slice(&data[9..15]);
 
         let holding_time = u16::from_be_bytes([data[15], data[16]]);
-        let _pdu_length = u16::from_be_bytes([data[17], data[18]]);
-        let priority = data[19] & 0x7F;
+        let pdu_length = u16::from_be_bytes([data[17], data[18]]);
+        let pdu_len = pdu_length as usize;
+        if pdu_len < min_len || pdu_len > data.len() {
+            return Err(IsisError::InvalidPduLength(pdu_length));
+        }
+        let pdu = &data[..pdu_len];
+        let priority = pdu[19] & 0x7F;
 
         let mut lan_id = [0u8; 7];
-        lan_id.copy_from_slice(&data[20..27]);
+        lan_id.copy_from_slice(&pdu[20..27]);
 
         let mut tlvs = Vec::new();
         let mut offset = 27;
-        while offset < data.len() {
-            if offset + 2 > data.len() {
-                break;
-            }
-            let tlv_type = data[offset];
-            let tlv_len = data[offset + 1] as usize;
-            if offset + 2 + tlv_len > data.len() {
+        while offset < pdu.len() {
+            if offset + 2 > pdu.len() {
                 return Err(IsisError::InvalidTlvLength);
             }
-            let value = data[offset + 2..offset + 2 + tlv_len].to_vec();
+            let tlv_type = pdu[offset];
+            let tlv_len = pdu[offset + 1] as usize;
+            if offset + 2 + tlv_len > pdu.len() {
+                return Err(IsisError::InvalidTlvLength);
+            }
+            let value = pdu[offset + 2..offset + 2 + tlv_len].to_vec();
             tlvs.push(IsisTlv { tlv_type, value });
             offset += 2 + tlv_len;
         }
@@ -226,6 +233,67 @@ impl IsisHelloPacket {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_isis_rejects_declared_pdu_length_below_fixed_header() {
+        let hello = IsisHelloPacket::build_l1_lan_hello(
+            [0, 0, 0, 0, 0, 1],
+            &[0x49, 0x00, 0x01],
+            Ipv4Address::new(192, 0, 2, 1),
+        );
+        let mut raw = hello.serialize();
+        raw[17..19].copy_from_slice(&26u16.to_be_bytes());
+        assert_eq!(
+            IsisHelloPacket::parse(&raw),
+            Err(IsisError::InvalidPduLength(26))
+        );
+    }
+
+    #[test]
+    fn test_isis_rejects_declared_pdu_length_beyond_packet() {
+        let hello = IsisHelloPacket::build_l1_lan_hello(
+            [0, 0, 0, 0, 0, 1],
+            &[0x49, 0x00, 0x01],
+            Ipv4Address::new(192, 0, 2, 1),
+        );
+        let mut raw = hello.serialize();
+        let declared = raw.len() as u16 + 1;
+        raw[17..19].copy_from_slice(&declared.to_be_bytes());
+        assert_eq!(
+            IsisHelloPacket::parse(&raw),
+            Err(IsisError::InvalidPduLength(declared))
+        );
+    }
+
+    #[test]
+    fn test_isis_ignores_bytes_after_declared_pdu_length() {
+        let hello = IsisHelloPacket::build_l1_lan_hello(
+            [0, 0, 0, 0, 0, 1],
+            &[0x49, 0x00, 0x01],
+            Ipv4Address::new(192, 0, 2, 1),
+        );
+        let mut raw = hello.serialize();
+        raw.extend_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+        let parsed = IsisHelloPacket::parse(&raw).expect("Ethernet padding must be outside PDU");
+        assert_eq!(parsed.tlvs, hello.tlvs);
+    }
+
+    #[test]
+    fn test_isis_rejects_partial_tlv_header_within_declared_pdu() {
+        let hello = IsisHelloPacket::build_l1_lan_hello(
+            [0, 0, 0, 0, 0, 1],
+            &[0x49, 0x00, 0x01],
+            Ipv4Address::new(192, 0, 2, 1),
+        );
+        let mut raw = hello.serialize();
+        raw.push(ISIS_TLV_PROTOCOLS_SUPPORTED);
+        let declared = raw.len() as u16;
+        raw[17..19].copy_from_slice(&declared.to_be_bytes());
+        assert_eq!(
+            IsisHelloPacket::parse(&raw),
+            Err(IsisError::InvalidTlvLength)
+        );
+    }
 
     #[test]
     fn test_isis_lan_hello_roundtrip() {
