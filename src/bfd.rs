@@ -234,6 +234,14 @@ impl BfdSession {
 
     /// Advances the BFD FSM upon receiving a remote BFD control packet
     pub fn process_packet(&mut self, pkt: &BfdControlPacket) -> Option<BfdControlPacket> {
+        if pkt.your_discriminator != 0 && pkt.your_discriminator != self.local_discriminator {
+            return None;
+        }
+        if pkt.your_discriminator == 0 && !matches!(pkt.state, BfdState::Down | BfdState::AdminDown)
+        {
+            return None;
+        }
+
         self.remote_discriminator = pkt.my_discriminator;
 
         match (self.state, pkt.state) {
@@ -301,5 +309,37 @@ mod tests {
         let resp2 = session.process_packet(&incoming_init).unwrap();
         assert_eq!(session.state, BfdState::Up);
         assert_eq!(resp2.state, BfdState::Up);
+    }
+
+    #[test]
+    fn test_bfd_session_rejects_mismatched_your_discriminator() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        let incoming = BfdControlPacket::build_control(BfdState::Down, 0x3003, 0x9999, 100_000);
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0);
+    }
+
+    #[test]
+    fn test_bfd_session_rejects_zero_your_discriminator_for_init_packet() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        let incoming = BfdControlPacket::build_control(BfdState::Init, 0x3003, 0, 100_000);
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0);
+    }
+
+    #[test]
+    fn test_bfd_session_accepts_zero_your_discriminator_for_admin_down_packet() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.state = BfdState::Up;
+        session.remote_discriminator = 0x2002;
+        let incoming = BfdControlPacket::build_control(BfdState::AdminDown, 0x3003, 0, 100_000);
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0x3003);
     }
 }
