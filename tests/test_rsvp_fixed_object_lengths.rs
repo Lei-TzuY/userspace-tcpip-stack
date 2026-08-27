@@ -19,7 +19,6 @@ fn fixed_size_known_objects_reject_short_and_overlong_bodies() {
         (RSVP_CLASS_LABEL_REQUEST, 1, 4),
         (RSVP_CLASS_LABEL, 1, 4),
         (RSVP_CLASS_SENDER_TEMPLATE, 7, 8),
-        (RSVP_CLASS_SENDER_TSPEC, 2, 8),
     ];
 
     for (class_num, c_type, expected) in cases {
@@ -28,6 +27,44 @@ fn fixed_size_known_objects_reject_short_and_overlong_bodies() {
         assert!(RsvpObject::parse(&short).is_none());
         assert!(RsvpObject::parse(&overlong).is_none());
     }
+}
+
+#[test]
+fn sender_tspec_eight_byte_toy_model_remains_typed() {
+    let raw = object(RSVP_CLASS_SENDER_TSPEC, 2, 8);
+    let (parsed, consumed) = RsvpObject::parse(&raw).unwrap();
+
+    assert_eq!(consumed, raw.len());
+    assert_eq!(
+        parsed,
+        RsvpObject::SenderTspec {
+            bandwidth_bps: 0,
+            peak_rate_bps: 0,
+        }
+    );
+}
+
+#[test]
+fn longer_sender_tspec_body_remains_raw_and_lossless() {
+    let raw = object(RSVP_CLASS_SENDER_TSPEC, 2, 32);
+    let (parsed, consumed) = RsvpObject::parse(&raw).unwrap();
+
+    assert_eq!(consumed, raw.len());
+    assert_eq!(
+        parsed,
+        RsvpObject::Raw {
+            class_num: RSVP_CLASS_SENDER_TSPEC,
+            c_type: 2,
+            body: vec![0; 32],
+        }
+    );
+    assert_eq!(parsed.serialize(), raw);
+}
+
+#[test]
+fn sender_tspec_shorter_than_toy_model_is_rejected() {
+    let raw = object(RSVP_CLASS_SENDER_TSPEC, 2, 4);
+    assert!(RsvpObject::parse(&raw).is_none());
 }
 
 #[test]
