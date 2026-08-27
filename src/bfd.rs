@@ -64,6 +64,7 @@ pub enum BfdError {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidLength(u8),
+    ZeroDetectMultiplier,
     ZeroMyDiscriminator,
 }
 
@@ -75,6 +76,7 @@ impl fmt::Display for BfdError {
                 write!(f, "Invalid BFD version: expected 1, found {}", v)
             }
             BfdError::InvalidLength(l) => write!(f, "Invalid BFD length field: {}", l),
+            BfdError::ZeroDetectMultiplier => write!(f, "BFD Detect Mult must not be zero"),
             BfdError::ZeroMyDiscriminator => write!(f, "BFD My Discriminator must not be zero"),
         }
     }
@@ -106,6 +108,9 @@ impl BfdControlPacket {
         let multipoint = (b1 & 0x01) != 0;
 
         let detect_mult = data[2];
+        if detect_mult == 0 {
+            return Err(BfdError::ZeroDetectMultiplier);
+        }
         let length = data[3];
 
         if (length as usize) < BFD_MIN_PACKET_LEN || (length as usize) > data.len() {
