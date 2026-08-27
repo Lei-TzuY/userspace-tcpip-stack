@@ -110,14 +110,16 @@ impl IoamTraceHeader {
         let namespace_id = u16::from_be_bytes([data[0], data[1]]);
         let node_count = data[2] as usize;
         let trace_type = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
+        let records_len = node_count.checked_mul(20)?;
+        let header_len = 8usize.checked_add(records_len)?;
+        if header_len > data.len() {
+            return None;
+        }
 
         let mut node_records = Vec::new();
         let mut offset = 8;
 
         for _ in 0..node_count {
-            if offset + 20 > data.len() {
-                break;
-            }
             let node_id = u32::from_be_bytes([
                 data[offset],
                 data[offset + 1],
@@ -227,5 +229,17 @@ mod tests {
 
         assert_eq!(parsed.trace_header.node_records[2].node_id, 102);
         assert_eq!(&parsed.inner_payload, b"Application User Payload Data");
+    }
+    #[test]
+    fn test_ioam_rejects_missing_declared_node_record() {
+        let raw = [0x00, 0x01, 0x01, 0x00, 0, 0, 0, 0];
+        assert_eq!(IoamPacket::parse(&raw), Err(IoamError::InvalidLength));
+    }
+
+    #[test]
+    fn test_ioam_rejects_partial_declared_node_record() {
+        let mut raw = vec![0x00, 0x01, 0x01, 0x00, 0, 0, 0, 0];
+        raw.extend_from_slice(&[0u8; 19]);
+        assert_eq!(IoamPacket::parse(&raw), Err(IoamError::InvalidLength));
     }
 }
