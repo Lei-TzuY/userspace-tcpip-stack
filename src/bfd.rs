@@ -265,7 +265,8 @@ impl BfdSession {
                     self.tx_interval_us,
                 ))
             }
-            (BfdState::Up, BfdState::AdminDown) => {
+            (BfdState::Init | BfdState::Up, BfdState::AdminDown)
+            | (BfdState::Up, BfdState::Down) => {
                 self.state = BfdState::Down;
                 None
             }
@@ -337,6 +338,39 @@ mod tests {
         session.state = BfdState::Up;
         session.remote_discriminator = 0x2002;
         let incoming = BfdControlPacket::build_control(BfdState::AdminDown, 0x3003, 0, 100_000);
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0x3003);
+    }
+    #[test]
+    fn test_bfd_up_transitions_down_when_remote_signals_down() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.state = BfdState::Up;
+        session.remote_discriminator = 0x2002;
+        let incoming = BfdControlPacket::build_control(
+            BfdState::Down,
+            0x3003,
+            session.local_discriminator,
+            100_000,
+        );
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0x3003);
+    }
+
+    #[test]
+    fn test_bfd_init_transitions_down_when_remote_signals_admin_down() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.state = BfdState::Init;
+        session.remote_discriminator = 0x2002;
+        let incoming = BfdControlPacket::build_control(
+            BfdState::AdminDown,
+            0x3003,
+            session.local_discriminator,
+            100_000,
+        );
 
         assert!(session.process_packet(&incoming).is_none());
         assert_eq!(session.state, BfdState::Down);
