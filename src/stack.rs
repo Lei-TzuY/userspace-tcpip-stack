@@ -22,7 +22,7 @@ use crate::socket::{
 };
 use crate::tcp::{SocketAddrV4, TcpManager, TcpSegment, TcpState, TcpStats};
 use crate::udp::{UdpDatagram, UdpSocketTable};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone)]
 pub struct NetStackConfig {
@@ -147,6 +147,10 @@ pub struct NetStack {
     // `None` is an infinite lifetime. The routing table exposes only the currently
     // best candidate per prefix; retained candidates provide deterministic fallback.
     ipv6_ra_routes: HashMap<(Ipv6Address, u8, Ipv6Address), (Option<u64>, RouterPreference)>,
+    // Routers positively declared unreachable by NUD. A fresh RA may restore
+    // their RIO candidate, but while an alternative exists they remain quarantined
+    // until positive reachability confirmation prevents immediate dead-router revival.
+    ipv6_failed_rio_routers: HashSet<Ipv6Address>,
     ipv6_router_discovery: Option<Ipv6RouterDiscovery>,
     ipv6_router_discovery_exhausted: bool,
     ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
@@ -203,6 +207,7 @@ impl NetStack {
             ipv6_slaac_lifetimes: None,
             ipv6_ra_on_link_prefixes: HashMap::new(),
             ipv6_ra_routes: HashMap::new(),
+            ipv6_failed_rio_routers: HashSet::new(),
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
             ipv6_path_mtu_cache: HashMap::new(),
@@ -247,6 +252,7 @@ impl NetStack {
         self.ipv6_dad_duplicate = None;
         self.ipv6_slaac_lifetimes = None;
         self.ipv6_ra_routes.clear();
+        self.ipv6_failed_rio_routers.clear();
         self.ipv6_routing_table
             .remove_all_from(RouteSource::RaRoute);
         self.ipv6_path_mtu_cache.clear();
@@ -332,6 +338,7 @@ impl NetStack {
         self.ipv6_gateway = None;
         self.ipv6_default_routers.clear();
         self.ipv6_ra_routes.clear();
+        self.ipv6_failed_rio_routers.clear();
         self.ipv6_routing_table
             .remove_all_from(RouteSource::RaRoute);
         self.ipv6_dad = None;
@@ -570,15 +577,32 @@ impl NetStack {
 
         // RFC 4191 section 3.2 Type C hosts use reachability before route
         // preference when choosing among routers that advertise the same prefix.
+        // A router that NUD positively declared unreachable stays quarantined after
+        // a fresh RA while any other valid candidate exists. If it is the sole
+        // candidate, allow recovery so a lone router is not permanently black-holed.
         // Keep the current router stable when it is tied for the best score.
-        let best_score = self
-            .ipv6_ra_routes
-            .iter()
-            .filter(|((candidate_prefix, candidate_len, _), (deadline, _))| {
+        let has_unquarantined_candidate = self.ipv6_ra_routes.iter().any(
+            |((candidate_prefix, candidate_len, router), (deadline, _))| {
                 *candidate_prefix == prefix
                     && *candidate_len == prefix_len
                     && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
-            })
+                    && !self.ipv6_failed_rio_routers.contains(router)
+            },
+        );
+        let candidate_allowed = |router: &Ipv6Address| {
+            !has_unquarantined_candidate || !self.ipv6_failed_rio_routers.contains(router)
+        };
+        let best_score = self
+            .ipv6_ra_routes
+            .iter()
+            .filter(
+                |((candidate_prefix, candidate_len, router), (deadline, _))| {
+                    *candidate_prefix == prefix
+                        && *candidate_len == prefix_len
+                        && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                        && candidate_allowed(router)
+                },
+            )
             .map(|((_, _, router), (_, preference))| {
                 (self.default_router_reachability_rank(*router), *preference)
             })
@@ -592,6 +616,7 @@ impl NetStack {
                 .get(&(prefix, prefix_len, gateway))
                 .is_some_and(|(deadline, preference)| {
                     deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                        && candidate_allowed(&gateway)
                         && (self.default_router_reachability_rank(gateway), *preference)
                             == best_score
                 })
@@ -606,6 +631,7 @@ impl NetStack {
                         (*candidate_prefix == prefix
                             && *candidate_len == prefix_len
                             && deadline.is_none_or(|deadline| self.current_time_ms < deadline)
+                            && candidate_allowed(router)
                             && (self.default_router_reachability_rank(*router), *preference)
                                 == best_score)
                             .then_some(*router)
@@ -1171,6 +1197,8 @@ impl NetStack {
             .filter(|router| self.ndp_table.lookup(router).is_none())
             .collect();
         if !failed_rio_routers.is_empty() {
+            self.ipv6_failed_rio_routers
+                .extend(failed_rio_routers.iter().copied());
             let mut affected_rio_prefixes = Vec::new();
             for (prefix, prefix_len, router) in self.ipv6_ra_routes.keys().copied() {
                 if prefix_len != 0
@@ -2341,6 +2369,16 @@ impl NetStack {
                                             out_frames.push(eth_out);
                                         }
                                     }
+                                }
+
+                                // Positive NUD confirmation releases a previously failed
+                                // RIO router from quarantine. Merely receiving another RA/SLLA
+                                // leaves it STALE and is intentionally insufficient.
+                                if solicited
+                                    && self.ndp_table.state(&target_ip6)
+                                        == Some(NeighborState::Reachable)
+                                {
+                                    self.ipv6_failed_rio_routers.remove(&target_ip6);
                                 }
 
                                 // A solicited NA can make one RIO next hop preferable to
