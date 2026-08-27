@@ -472,6 +472,7 @@ fn encode_remaining_length(buf: &mut Vec<u8>, mut length: usize) -> Result<(), M
 }
 
 fn decode_remaining_length(data: &[u8], mut offset: usize) -> Result<(usize, usize), MqttError> {
+    let start_offset = offset;
     let mut multiplier = 1;
     let mut value = 0;
     loop {
@@ -489,6 +490,21 @@ fn decode_remaining_length(data: &[u8], mut offset: usize) -> Result<(usize, usi
             return Err(MqttError::InvalidRemainingLength);
         }
     }
+
+    let encoded_len = offset - start_offset;
+    let minimum_len = if value < 128 {
+        1
+    } else if value < 128 * 128 {
+        2
+    } else if value < 128 * 128 * 128 {
+        3
+    } else {
+        4
+    };
+    if encoded_len != minimum_len {
+        return Err(MqttError::InvalidRemainingLength);
+    }
+
     Ok((value, offset))
 }
 
