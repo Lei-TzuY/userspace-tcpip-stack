@@ -189,6 +189,10 @@ pub enum TcpError {
         offset_bytes: usize,
         available: usize,
     },
+    InvalidOptionLength {
+        kind: u8,
+        length: Option<u8>,
+    },
     InvalidChecksum {
         found: u16,
     },
@@ -211,6 +215,14 @@ impl fmt::Display for TcpError {
                     offset_bytes, available
                 )
             }
+            TcpError::InvalidOptionLength { kind, length } => match length {
+                Some(length) => write!(
+                    f,
+                    "Invalid TCP option length {} for option kind {}",
+                    length, kind
+                ),
+                None => write!(f, "TCP option kind {} is missing its length field", kind),
+            },
             TcpError::InvalidChecksum { found } => {
                 write!(
                     f,
@@ -279,19 +291,35 @@ impl<'a> TcpSegment<'a> {
             }
 
             if opt_offset + 1 >= offset_bytes {
-                break;
+                return Err(TcpError::InvalidOptionLength { kind, length: None });
             }
-            let len = data[opt_offset + 1] as usize;
+            let length = data[opt_offset + 1];
+            let len = length as usize;
             if len < 2 || opt_offset + len > offset_bytes {
-                break;
+                return Err(TcpError::InvalidOptionLength {
+                    kind,
+                    length: Some(length),
+                });
             }
 
             match kind {
-                TCP_OPT_MSS if len == 4 => {
+                TCP_OPT_MSS => {
+                    if len != 4 {
+                        return Err(TcpError::InvalidOptionLength {
+                            kind,
+                            length: Some(length),
+                        });
+                    }
                     let mss = u16::from_be_bytes([data[opt_offset + 2], data[opt_offset + 3]]);
                     options.push(TcpOption::Mss(mss));
                 }
-                TCP_OPT_WSCALE if len == 3 => {
+                TCP_OPT_WSCALE => {
+                    if len != 3 {
+                        return Err(TcpError::InvalidOptionLength {
+                            kind,
+                            length: Some(length),
+                        });
+                    }
                     options.push(TcpOption::WindowScale(data[opt_offset + 2]));
                 }
                 other => {
