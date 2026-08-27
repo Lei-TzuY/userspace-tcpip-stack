@@ -343,11 +343,25 @@ impl<'a> TcpSegment<'a> {
             }
 
             match kind {
-                TCP_OPT_MSS if len == 4 => {
+                TCP_OPT_MSS => {
+                    if len != 4 {
+                        return Err(TcpError::InvalidOptionLength {
+                            offset: opt_offset,
+                            kind,
+                            length,
+                        });
+                    }
                     let mss = u16::from_be_bytes([data[opt_offset + 2], data[opt_offset + 3]]);
                     options.push(TcpOption::Mss(mss));
                 }
-                TCP_OPT_WSCALE if len == 3 => {
+                TCP_OPT_WSCALE => {
+                    if len != 3 {
+                        return Err(TcpError::InvalidOptionLength {
+                            offset: opt_offset,
+                            kind,
+                            length,
+                        });
+                    }
                     options.push(TcpOption::WindowScale(data[opt_offset + 2]));
                 }
                 other => {
