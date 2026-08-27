@@ -19,6 +19,10 @@ pub const LLDP_TLV_PORT_DESCRIPTION: u8 = 4;
 pub const LLDP_TLV_SYSTEM_NAME: u8 = 5;
 pub const LLDP_TLV_SYSTEM_DESCRIPTION: u8 = 6;
 
+// IEEE 802.1AB identifier subtypes used by the high-level LldpPacket API.
+pub const LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED: u8 = 7;
+pub const LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME: u8 = 5;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LldpTlv {
     pub tlv_type: u8,
@@ -105,10 +109,22 @@ impl LldpPacket {
                     break;
                 }
                 LLDP_TLV_CHASSIS_ID => {
-                    chassis_id = Some(String::from_utf8_lossy(&tlv.value).to_string());
+                    if tlv.value.len() < 2 {
+                        return Err(LldpError::InvalidTlvLength {
+                            tlv_type: LLDP_TLV_CHASSIS_ID,
+                            length: tlv.value.len(),
+                        });
+                    }
+                    chassis_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
                 }
                 LLDP_TLV_PORT_ID => {
-                    port_id = Some(String::from_utf8_lossy(&tlv.value).to_string());
+                    if tlv.value.len() < 2 {
+                        return Err(LldpError::InvalidTlvLength {
+                            tlv_type: LLDP_TLV_PORT_ID,
+                            length: tlv.value.len(),
+                        });
+                    }
+                    port_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
                 }
                 LLDP_TLV_TTL => {
                     if tlv.value.len() != 2 {
@@ -141,17 +157,23 @@ impl LldpPacket {
     pub fn serialize(&self) -> Vec<u8> {
         let mut buf = Vec::new();
 
-        // 1. Chassis ID (TLV 1)
+        // 1. Chassis ID (TLV 1): subtype + identifier.
+        let mut chassis_value = Vec::with_capacity(1 + self.chassis_id.len());
+        chassis_value.push(LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED);
+        chassis_value.extend_from_slice(self.chassis_id.as_bytes());
         let tlv1 = LldpTlv {
             tlv_type: LLDP_TLV_CHASSIS_ID,
-            value: self.chassis_id.as_bytes().to_vec(),
+            value: chassis_value,
         };
         buf.extend(tlv1.serialize());
 
-        // 2. Port ID (TLV 2)
+        // 2. Port ID (TLV 2): subtype + identifier.
+        let mut port_value = Vec::with_capacity(1 + self.port_id.len());
+        port_value.push(LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME);
+        port_value.extend_from_slice(self.port_id.as_bytes());
         let tlv2 = LldpTlv {
             tlv_type: LLDP_TLV_PORT_ID,
-            value: self.port_id.as_bytes().to_vec(),
+            value: port_value,
         };
         buf.extend(tlv2.serialize());
 
