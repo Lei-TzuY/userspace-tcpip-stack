@@ -7,6 +7,8 @@ use crate::ipv4::{IPV4_MIN_HEADER_LEN, Ipv4Address};
 use std::collections::HashMap;
 
 const IPV4_MAX_PAYLOAD_LEN: usize = u16::MAX as usize - IPV4_MIN_HEADER_LEN;
+const MAX_REASSEMBLY_DATAGRAMS: usize = 1024;
+const MAX_REASSEMBLY_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FragmentKey {
@@ -24,15 +26,77 @@ struct FragmentEntry {
 }
 
 #[derive(Debug, Default)]
+struct FragmentSet {
+    entries: Vec<FragmentEntry>,
+    last_used: u64,
+}
+
+#[derive(Debug, Default)]
 pub struct IpReassemblyBuffer {
-    buffers: HashMap<FragmentKey, Vec<FragmentEntry>>,
+    buffers: HashMap<FragmentKey, FragmentSet>,
+    buffered_bytes: usize,
+    sequence: u64,
 }
 
 impl IpReassemblyBuffer {
     pub fn new() -> Self {
-        IpReassemblyBuffer {
-            buffers: HashMap::new(),
+        Self::default()
+    }
+
+    fn next_sequence(&mut self) -> u64 {
+        self.sequence = self.sequence.saturating_add(1);
+        self.sequence
+    }
+
+    fn remove_buffer(&mut self, key: &FragmentKey) {
+        if let Some(set) = self.buffers.remove(key) {
+            let removed_bytes = set
+                .entries
+                .iter()
+                .map(|entry| entry.data.len())
+                .sum::<usize>();
+            self.buffered_bytes = self.buffered_bytes.saturating_sub(removed_bytes);
         }
+    }
+
+    fn evict_oldest_except(&mut self, protected: Option<&FragmentKey>) -> bool {
+        let oldest = self
+            .buffers
+            .iter()
+            .filter(|(key, _)| protected != Some(*key))
+            .min_by_key(|(_, set)| set.last_used)
+            .map(|(key, _)| key.clone());
+
+        if let Some(key) = oldest {
+            self.remove_buffer(&key);
+            true
+        } else {
+            false
+        }
+    }
+
+    fn make_room_for(&mut self, key: &FragmentKey, additional_bytes: usize) -> bool {
+        if additional_bytes > MAX_REASSEMBLY_BYTES {
+            self.remove_buffer(key);
+            return false;
+        }
+
+        if !self.buffers.contains_key(key) {
+            while self.buffers.len() >= MAX_REASSEMBLY_DATAGRAMS {
+                if !self.evict_oldest_except(None) {
+                    return false;
+                }
+            }
+        }
+
+        while self.buffered_bytes.saturating_add(additional_bytes) > MAX_REASSEMBLY_BYTES {
+            if !self.evict_oldest_except(Some(key)) {
+                self.remove_buffer(key);
+                return false;
+            }
+        }
+
+        true
     }
 
     /// Ingests an incoming IPv4 fragment. If all fragments have been received,
@@ -62,70 +126,92 @@ impl IpReassemblyBuffer {
             identification,
         };
 
-        let entries = self.buffers.entry(key.clone()).or_default();
-
         // Reject inconsistent terminal lengths and conflicting overlaps. Once a
         // datagram has a final fragment, no fragment may extend beyond that end;
         // likewise, a newly arrived final fragment cannot truncate data already
         // accepted for the same reassembly key.
-        let existing_terminal_end = entries
-            .iter()
-            .filter(|entry| !entry.more_fragments)
-            .map(|entry| entry.offset + entry.data.len())
-            .next();
-
-        let mut invalid = existing_terminal_end.is_some_and(|terminal_end| {
-            fragment_end > terminal_end || (!more_fragments && fragment_end != terminal_end)
-        });
-
-        if !more_fragments
-            && entries
+        let invalid = self.buffers.get(&key).is_some_and(|set| {
+            let entries = &set.entries;
+            let existing_terminal_end = entries
                 .iter()
-                .any(|entry| entry.offset + entry.data.len() > fragment_end)
-        {
-            invalid = true;
-        }
+                .filter(|entry| !entry.more_fragments)
+                .map(|entry| entry.offset + entry.data.len())
+                .next();
 
-        for entry in entries.iter() {
-            let entry_end = entry.offset + entry.data.len();
-            let overlap_start = offset_bytes.max(entry.offset);
-            let overlap_end = fragment_end.min(entry_end);
-            if overlap_start < overlap_end {
-                let incoming_start = overlap_start - offset_bytes;
-                let existing_start = overlap_start - entry.offset;
-                let overlap_len = overlap_end - overlap_start;
-                if payload[incoming_start..incoming_start + overlap_len]
-                    != entry.data[existing_start..existing_start + overlap_len]
-                {
-                    invalid = true;
-                    break;
+            let mut invalid = existing_terminal_end.is_some_and(|terminal_end| {
+                fragment_end > terminal_end || (!more_fragments && fragment_end != terminal_end)
+            });
+
+            if !more_fragments
+                && entries
+                    .iter()
+                    .any(|entry| entry.offset + entry.data.len() > fragment_end)
+            {
+                invalid = true;
+            }
+
+            for entry in entries {
+                let entry_end = entry.offset + entry.data.len();
+                let overlap_start = offset_bytes.max(entry.offset);
+                let overlap_end = fragment_end.min(entry_end);
+                if overlap_start < overlap_end {
+                    let incoming_start = overlap_start - offset_bytes;
+                    let existing_start = overlap_start - entry.offset;
+                    let overlap_len = overlap_end - overlap_start;
+                    if payload[incoming_start..incoming_start + overlap_len]
+                        != entry.data[existing_start..existing_start + overlap_len]
+                    {
+                        invalid = true;
+                        break;
+                    }
                 }
             }
-        }
+
+            invalid
+        });
 
         if invalid {
-            self.buffers.remove(&key);
+            self.remove_buffer(&key);
             return None;
         }
+
+        if !self.make_room_for(&key, payload.len()) {
+            return None;
+        }
+
+        let last_used = self.next_sequence();
+        let entries = &mut self
+            .buffers
+            .entry(key.clone())
+            .or_insert_with(|| FragmentSet {
+                entries: Vec::new(),
+                last_used,
+            })
+            .entries;
 
         entries.push(FragmentEntry {
             offset: offset_bytes,
             data: payload.to_vec(),
             more_fragments,
         });
+        self.buffered_bytes += payload.len();
 
-        // Sort by offset
-        entries.sort_by_key(|e| e.offset);
+        let set = self
+            .buffers
+            .get_mut(&key)
+            .expect("reassembly set just inserted");
+        set.last_used = last_used;
+        set.entries.sort_by_key(|entry| entry.offset);
 
-        // Check if contiguous and complete
-        if !entries.is_empty() && entries[0].offset == 0 {
+        // Check if contiguous and complete.
+        let assembled = if !set.entries.is_empty() && set.entries[0].offset == 0 {
             let mut current_end = 0;
             let mut has_last = false;
             let mut total_len = 0;
 
-            for entry in entries.iter() {
+            for entry in &set.entries {
                 if entry.offset > current_end {
-                    // Gap detected -> still incomplete
+                    // Gap detected -> still incomplete.
                     return None;
                 }
                 let end = entry.offset + entry.data.len();
@@ -139,18 +225,24 @@ impl IpReassemblyBuffer {
             }
 
             if has_last && current_end == total_len {
-                // Fully reassembled! Assemble bytes.
                 let mut full_payload = vec![0u8; total_len];
-                for entry in entries.iter() {
+                for entry in &set.entries {
                     let end = entry.offset + entry.data.len();
                     full_payload[entry.offset..end].copy_from_slice(&entry.data);
                 }
-                self.buffers.remove(&key);
-                return Some(full_payload);
+                Some(full_payload)
+            } else {
+                None
             }
+        } else {
+            None
+        };
+
+        if assembled.is_some() {
+            self.remove_buffer(&key);
         }
 
-        None
+        assembled
     }
 }
 
@@ -338,5 +430,52 @@ mod tests {
             reassembly.add_fragment(src(), dst(), 17, id, 2, false, &tail),
             Some([&first[..], &tail[..]].concat())
         );
+    }
+
+    #[test]
+    fn reassembly_evicts_oldest_datagram_when_key_limit_is_reached() {
+        let mut reassembly = IpReassemblyBuffer::new();
+
+        for id in 0..=MAX_REASSEMBLY_DATAGRAMS as u16 {
+            assert_eq!(
+                reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[id as u8; 8]),
+                None
+            );
+        }
+
+        // A newer incomplete datagram is retained and can complete.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, 1, 1, false, &[0xaa; 8]),
+            Some([&[1u8; 8][..], &[0xaa; 8][..]].concat())
+        );
+
+        // The oldest key was evicted, so its tail alone cannot complete it.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, 0, 1, false, &[0xbb; 8]),
+            None
+        );
+    }
+
+    #[test]
+    fn reassembly_bounds_identical_overlap_memory() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x2468;
+        let fragment = vec![0x5a; 65_512];
+
+        for _ in 0..64 {
+            assert_eq!(
+                reassembly.add_fragment(src(), dst(), 17, id, 0, true, &fragment),
+                None
+            );
+        }
+        assert!(reassembly.buffered_bytes <= MAX_REASSEMBLY_BYTES);
+
+        // One more identical fragment cannot make the buffer grow past the cap.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &fragment),
+            None
+        );
+        assert!(reassembly.buffered_bytes <= MAX_REASSEMBLY_BYTES);
+        assert!(reassembly.buffers.len() <= MAX_REASSEMBLY_DATAGRAMS);
     }
 }
