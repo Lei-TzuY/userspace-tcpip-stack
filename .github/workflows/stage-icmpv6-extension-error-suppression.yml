@@ -1,0 +1,42 @@
+name: Stage ICMPv6 extension-header error suppression
+
+on:
+  push:
+    branches:
+      - stage/icmpv6-error-extension-suppression
+
+permissions:
+  contents: write
+
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Apply staged source and regression changes
+        run: python scripts/stage_icmpv6_extension_error_suppression.py
+      - name: Format
+        run: cargo fmt --all
+      - name: Check diff
+        run: git diff --check
+      - name: Focused suppression tests
+        run: cargo test --test test_ipv6_icmp_error_suppression --verbose
+      - name: Existing no-route regressions
+        run: cargo test --test test_ipv6_no_route_unreachable --verbose
+      - name: Full all-target suite
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated source changes
+        shell: bash
+        run: |
+          git rm -f scripts/stage_icmpv6_extension_error_suppression.py .github/workflows/stage-icmpv6-extension-error-suppression.yml
+          git add src/lab.rs tests/test_ipv6_icmp_error_suppression.rs
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git commit -m "fix(ipv6): inspect extension headers before ICMPv6 error replies"
+          git push origin HEAD:stage/icmpv6-error-extension-suppression
