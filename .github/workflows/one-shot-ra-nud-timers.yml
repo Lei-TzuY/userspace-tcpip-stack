@@ -1,0 +1,39 @@
+name: One-shot RFC 4861 RA NUD timers
+
+on:
+  push:
+    branches:
+      - fix/ipv6-ra-nud-timers
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply and verify RFC 4861 RA NUD timers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          python3 .github/scripts/apply_ra_nud_timers.py
+          cargo fmt --all
+          cargo fmt --all -- --check
+          cargo test --test test_ipv6_nud --verbose
+          cargo test --all-targets --verbose
+          cargo build --release --verbose
+          git diff --check
+          rm .github/scripts/apply_ra_nud_timers.py
+          rm .github/workflows/one-shot-ra-nud-timers.yml
+          git add -A
+          git commit -m 'fix(ipv6): apply RA NUD timer parameters'
+          git push origin HEAD:fix/ipv6-ra-nud-timers
