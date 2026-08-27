@@ -52,7 +52,7 @@ fn router_decrements_ttl_without_reserializing_ipv4_header() {
         .insert(destination.0, mac(0x22));
 
     let packet =
-        packet_with_options_and_fragment_metadata(source, destination, 9, b"fragment-body");
+        packet_with_options_and_fragment_metadata(source, destination, 9, b"fragment-body!!!");
     let frame = EthernetFrame::serialize(mac(0x10), mac(0x11), ETHERTYPE_IPV4, &packet);
 
     let out = router.process_incoming_frame("lan1", &frame);
@@ -77,7 +77,7 @@ fn router_decrements_ttl_without_reserializing_ipv4_header() {
     assert_eq!(forwarded.header.identification, 0x5a5a);
     assert_eq!(forwarded.header.ttl, 8);
     assert_eq!(&ethernet.payload[20..24], &[0x01, 0x01, 0x01, 0x00]);
-    assert_eq!(forwarded.payload, b"fragment-body");
+    assert_eq!(forwarded.payload, b"fragment-body!!!");
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn ttl_helper_refuses_to_forward_expired_datagram_without_mutating_it() {
         ip(192, 0, 2, 2),
         ip(198, 51, 100, 2),
         1,
-        b"expired",
+        b"expired!",
     );
     let before = packet.clone();
     assert_eq!(Ipv4Packet::decrement_ttl_in_place(&mut packet), Ok(false));

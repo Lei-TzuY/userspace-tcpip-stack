@@ -175,6 +175,10 @@ pub enum Ipv4Error {
         total_length: usize,
         header_length: usize,
     },
+    ReservedFragmentFlagSet,
+    NonFinalFragmentLengthNotMultipleOfEight {
+        payload_length: usize,
+    },
     InvalidChecksum {
         computed: u16,
         found: u16,
@@ -207,6 +211,16 @@ impl fmt::Display for Ipv4Error {
                     f,
                     "IPv4 total length {} is smaller than header length {}",
                     total_length, header_length
+                )
+            }
+            Ipv4Error::ReservedFragmentFlagSet => {
+                write!(f, "IPv4 reserved fragmentation flag must be zero")
+            }
+            Ipv4Error::NonFinalFragmentLengthNotMultipleOfEight { payload_length } => {
+                write!(
+                    f,
+                    "IPv4 non-final fragment payload length {} is not a multiple of 8",
+                    payload_length
                 )
             }
             Ipv4Error::InvalidChecksum { computed, found } => {
@@ -262,9 +276,16 @@ impl<'a> Ipv4Packet<'a> {
 
         let identification = u16::from_be_bytes([data[4], data[5]]);
         let flags_frag = u16::from_be_bytes([data[6], data[7]]);
+        if (flags_frag & 0x8000) != 0 {
+            return Err(Ipv4Error::ReservedFragmentFlagSet);
+        }
         let dont_fragment = (flags_frag & 0x4000) != 0;
         let more_fragments = (flags_frag & 0x2000) != 0;
         let fragment_offset = flags_frag & 0x1FFF;
+        let payload_length = total_length as usize - header_len;
+        if more_fragments && payload_length % 8 != 0 {
+            return Err(Ipv4Error::NonFinalFragmentLengthNotMultipleOfEight { payload_length });
+        }
 
         let ttl = data[8];
         let protocol_raw = data[9];
@@ -410,6 +431,49 @@ mod tests {
         assert_eq!(parsed.header.ihl, 6);
         assert_eq!(parsed.header.total_length, 24);
         assert!(parsed.payload.is_empty());
+    }
+
+    #[test]
+    fn parse_rejects_reserved_fragment_flag() {
+        let mut raw = Ipv4Packet::serialize(
+            Ipv4Address::new(192, 0, 2, 1),
+            Ipv4Address::new(198, 51, 100, 1),
+            IP_PROTO_UDP,
+            1,
+            64,
+            &[],
+        );
+        raw[6..8].copy_from_slice(&0x8000u16.to_be_bytes());
+
+        assert_eq!(
+            Ipv4Packet::parse(&raw, false),
+            Err(Ipv4Error::ReservedFragmentFlagSet)
+        );
+    }
+
+    #[test]
+    fn parse_rejects_non_final_fragment_with_unaligned_payload_length() {
+        let mut raw = vec![0u8; 30];
+        raw[0] = 0x45;
+        raw[2..4].copy_from_slice(&30u16.to_be_bytes());
+        raw[6..8].copy_from_slice(&0x2000u16.to_be_bytes());
+
+        assert_eq!(
+            Ipv4Packet::parse(&raw, false),
+            Err(Ipv4Error::NonFinalFragmentLengthNotMultipleOfEight { payload_length: 10 })
+        );
+    }
+
+    #[test]
+    fn parse_accepts_non_final_fragment_with_aligned_payload_length() {
+        let mut raw = vec![0u8; 28];
+        raw[0] = 0x45;
+        raw[2..4].copy_from_slice(&28u16.to_be_bytes());
+        raw[6..8].copy_from_slice(&0x2000u16.to_be_bytes());
+
+        let parsed = Ipv4Packet::parse(&raw, false).unwrap();
+        assert!(parsed.header.more_fragments);
+        assert_eq!(parsed.payload.len(), 8);
     }
 
     #[test]
