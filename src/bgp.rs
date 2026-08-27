@@ -85,7 +85,15 @@ impl BgpMessage {
         let length = u16::from_be_bytes([data[16], data[17]]);
         let msg_type = data[18];
 
-        if (data.len() as u16) < length {
+        // RFC 4271 section 4.1: every BGP message is at least the fixed
+        // 19-byte header and, without Extended Message support, at most 4096
+        // octets. Validate the attacker-controlled length before using it as a
+        // slice bound so malformed lengths below the header cannot panic.
+        if length < BGP_HEADER_LEN as u16 || length as usize > BGP_MAX_MESSAGE_LEN {
+            return Err(BgpError::InvalidLength(length));
+        }
+
+        if data.len() < length as usize {
             return Err(BgpError::PacketTooShort(data.len()));
         }
 
