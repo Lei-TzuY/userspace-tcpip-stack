@@ -167,8 +167,18 @@ pub enum Ipv4Error {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidIhl(u8),
-    TotalLengthMismatch { declared: usize, available: usize },
-    InvalidChecksum { computed: u16, found: u16 },
+    TotalLengthMismatch {
+        declared: usize,
+        available: usize,
+    },
+    TotalLengthSmallerThanHeader {
+        total_length: usize,
+        header_length: usize,
+    },
+    InvalidChecksum {
+        computed: u16,
+        found: u16,
+    },
 }
 
 impl fmt::Display for Ipv4Error {
@@ -187,6 +197,16 @@ impl fmt::Display for Ipv4Error {
                     f,
                     "IPv4 total length {} exceeds available data {}",
                     declared, available
+                )
+            }
+            Ipv4Error::TotalLengthSmallerThanHeader {
+                total_length,
+                header_length,
+            } => {
+                write!(
+                    f,
+                    "IPv4 total length {} is smaller than header length {}",
+                    total_length, header_length
                 )
             }
             Ipv4Error::InvalidChecksum { computed, found } => {
@@ -227,6 +247,12 @@ impl<'a> Ipv4Packet<'a> {
 
         let dscp_ecn = data[1];
         let total_length = u16::from_be_bytes([data[2], data[3]]);
+        if (total_length as usize) < header_len {
+            return Err(Ipv4Error::TotalLengthSmallerThanHeader {
+                total_length: total_length as usize,
+                header_length: header_len,
+            });
+        }
         if (total_length as usize) > data.len() {
             return Err(Ipv4Error::TotalLengthMismatch {
                 declared: total_length as usize,
@@ -336,6 +362,55 @@ impl<'a> Ipv4Packet<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_rejects_total_length_smaller_than_minimum_header() {
+        let mut raw = vec![0u8; IPV4_MIN_HEADER_LEN];
+        raw[0] = 0x45;
+        raw[2..4].copy_from_slice(&19u16.to_be_bytes());
+
+        assert_eq!(
+            Ipv4Packet::parse(&raw, false),
+            Err(Ipv4Error::TotalLengthSmallerThanHeader {
+                total_length: 19,
+                header_length: IPV4_MIN_HEADER_LEN,
+            })
+        );
+    }
+
+    #[test]
+    fn parse_rejects_total_length_smaller_than_options_header() {
+        let mut raw = vec![0u8; 24];
+        raw[0] = 0x46;
+        raw[2..4].copy_from_slice(&20u16.to_be_bytes());
+
+        assert_eq!(
+            Ipv4Packet::parse(&raw, false),
+            Err(Ipv4Error::TotalLengthSmallerThanHeader {
+                total_length: 20,
+                header_length: 24,
+            })
+        );
+    }
+
+    #[test]
+    fn parse_accepts_total_length_equal_to_options_header() {
+        let mut raw = vec![0u8; 24];
+        raw[0] = 0x46;
+        raw[2..4].copy_from_slice(&24u16.to_be_bytes());
+        raw[8] = 64;
+        raw[9] = IP_PROTO_UDP;
+        raw[12..16].copy_from_slice(&Ipv4Address::new(192, 0, 2, 1).0);
+        raw[16..20].copy_from_slice(&Ipv4Address::new(198, 51, 100, 1).0);
+        raw[20..24].copy_from_slice(&[1, 1, 1, 0]);
+        let checksum = compute_checksum(&raw[..24]);
+        raw[10..12].copy_from_slice(&checksum.to_be_bytes());
+
+        let parsed = Ipv4Packet::parse(&raw, true).unwrap();
+        assert_eq!(parsed.header.ihl, 6);
+        assert_eq!(parsed.header.total_length, 24);
+        assert!(parsed.payload.is_empty());
+    }
 
     #[test]
     fn test_ipv4_packet_build_and_parse() {
