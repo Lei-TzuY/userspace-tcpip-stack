@@ -8,6 +8,9 @@ use std::fmt;
 pub const MQTT_PORT: u16 = 1883;
 pub const MQTTS_PORT: u16 = 8883;
 
+pub const MQTT_MAX_UTF8_STRING_LEN: usize = u16::MAX as usize;
+pub const MQTT_MAX_REMAINING_LENGTH: usize = 268_435_455;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MqttPacketType {
     Connect = 1,
@@ -74,9 +77,75 @@ impl fmt::Display for MqttError {
 
 impl std::error::Error for MqttError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MqttSerializeError {
+    Utf8StringTooLong {
+        field: &'static str,
+        length: usize,
+        max: usize,
+    },
+    RemainingLengthTooLarge {
+        length: usize,
+        max: usize,
+    },
+}
+
+impl fmt::Display for MqttSerializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MqttSerializeError::Utf8StringTooLong { field, length, max } => write!(
+                f,
+                "MQTT {} requires {} UTF-8 bytes, exceeding the {}-byte string length field limit",
+                field, length, max
+            ),
+            MqttSerializeError::RemainingLengthTooLarge { length, max } => write!(
+                f,
+                "MQTT Remaining Length {} exceeds the four-byte maximum {}",
+                length, max
+            ),
+        }
+    }
+}
+
+impl std::error::Error for MqttSerializeError {}
+
+fn validate_utf8_string_len(field: &'static str, length: usize) -> Result<(), MqttSerializeError> {
+    if length > MQTT_MAX_UTF8_STRING_LEN {
+        return Err(MqttSerializeError::Utf8StringTooLong {
+            field,
+            length,
+            max: MQTT_MAX_UTF8_STRING_LEN,
+        });
+    }
+    Ok(())
+}
+
+fn validate_remaining_length(length: usize) -> Result<(), MqttSerializeError> {
+    if length > MQTT_MAX_REMAINING_LENGTH {
+        return Err(MqttSerializeError::RemainingLengthTooLarge {
+            length,
+            max: MQTT_MAX_REMAINING_LENGTH,
+        });
+    }
+    Ok(())
+}
+
 impl MqttPacket {
     pub fn build_connect(client_id: &str, clean_session: bool) -> Self {
-        let mut payload = Vec::new();
+        Self::try_build_connect(client_id, clean_session)
+            .expect("MQTT client ID must fit its 16-bit UTF-8 length field")
+    }
+
+    pub fn try_build_connect(
+        client_id: &str,
+        clean_session: bool,
+    ) -> Result<Self, MqttSerializeError> {
+        let client_id_len = client_id.len();
+        validate_utf8_string_len("client ID", client_id_len)?;
+        let payload_len = 12usize.checked_add(client_id_len).unwrap_or(usize::MAX);
+        validate_remaining_length(payload_len)?;
+
+        let mut payload = Vec::with_capacity(payload_len);
         // Protocol Name: "MQTT" (Length 4 + "MQTT")
         payload.extend_from_slice(&[0x00, 0x04, b'M', b'Q', b'T', b'T']);
         // Protocol Level: 4 (MQTT v3.1.1)
@@ -87,16 +156,16 @@ impl MqttPacket {
         // Keep Alive (60 seconds)
         payload.extend_from_slice(&60u16.to_be_bytes());
         // Client ID String (Length + Bytes)
-        payload.extend_from_slice(&(client_id.len() as u16).to_be_bytes());
+        payload.extend_from_slice(&(client_id_len as u16).to_be_bytes());
         payload.extend_from_slice(client_id.as_bytes());
 
-        MqttPacket {
+        Ok(MqttPacket {
             packet_type: MqttPacketType::Connect,
             flags: 0,
             topic: None,
             packet_id: None,
             payload,
-        }
+        })
     }
 
     pub fn build_connack(return_code: u8) -> Self {
@@ -110,10 +179,30 @@ impl MqttPacket {
     }
 
     pub fn build_publish(topic: &str, msg: &[u8], qos: u8, packet_id: Option<u16>) -> Self {
+        Self::try_build_publish(topic, msg, qos, packet_id)
+            .expect("MQTT PUBLISH fields must fit their wire length encodings")
+    }
+
+    pub fn try_build_publish(
+        topic: &str,
+        msg: &[u8],
+        qos: u8,
+        packet_id: Option<u16>,
+    ) -> Result<Self, MqttSerializeError> {
+        let topic_len = topic.len();
+        validate_utf8_string_len("topic name", topic_len)?;
+        let packet_id_len = if qos > 0 && packet_id.is_some() { 2 } else { 0 };
+        let body_len = 2usize
+            .checked_add(topic_len)
+            .and_then(|len| len.checked_add(packet_id_len))
+            .and_then(|len| len.checked_add(msg.len()))
+            .unwrap_or(usize::MAX);
+        validate_remaining_length(body_len)?;
+
         let flags = (qos << 1) & 0x06;
-        let mut body = Vec::new();
+        let mut body = Vec::with_capacity(body_len);
         // Topic Name
-        body.extend_from_slice(&(topic.len() as u16).to_be_bytes());
+        body.extend_from_slice(&(topic_len as u16).to_be_bytes());
         body.extend_from_slice(topic.as_bytes());
         // Packet ID if QoS > 0
         if qos > 0
@@ -123,41 +212,61 @@ impl MqttPacket {
         }
         body.extend_from_slice(msg);
 
-        MqttPacket {
+        Ok(MqttPacket {
             packet_type: MqttPacketType::Publish,
             flags,
             topic: Some(topic.to_string()),
             packet_id,
             payload: body,
-        }
+        })
     }
 
     pub fn build_subscribe(packet_id: u16, topic: &str, qos: u8) -> Self {
-        let mut body = Vec::new();
+        Self::try_build_subscribe(packet_id, topic, qos)
+            .expect("MQTT SUBSCRIBE topic must fit its 16-bit UTF-8 length field")
+    }
+
+    pub fn try_build_subscribe(
+        packet_id: u16,
+        topic: &str,
+        qos: u8,
+    ) -> Result<Self, MqttSerializeError> {
+        let topic_len = topic.len();
+        validate_utf8_string_len("topic filter", topic_len)?;
+        let body_len = 5usize.checked_add(topic_len).unwrap_or(usize::MAX);
+        validate_remaining_length(body_len)?;
+
+        let mut body = Vec::with_capacity(body_len);
         body.extend_from_slice(&packet_id.to_be_bytes());
-        body.extend_from_slice(&(topic.len() as u16).to_be_bytes());
+        body.extend_from_slice(&(topic_len as u16).to_be_bytes());
         body.extend_from_slice(topic.as_bytes());
         body.push(qos);
 
-        MqttPacket {
+        Ok(MqttPacket {
             packet_type: MqttPacketType::Subscribe,
             flags: 0x02, // Required bit 1 set for SUBSCRIBE
             topic: Some(topic.to_string()),
             packet_id: Some(packet_id),
             payload: body,
-        }
+        })
     }
 
     pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("MQTT payload must fit the four-byte Remaining Length field")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, MqttSerializeError> {
+        validate_remaining_length(self.payload.len())?;
         let mut out = Vec::new();
         let header_byte = ((self.packet_type as u8) << 4) | (self.flags & 0x0F);
         out.push(header_byte);
 
         // Encode Remaining Length
-        encode_remaining_length(&mut out, self.payload.len());
+        encode_remaining_length(&mut out, self.payload.len())?;
         out.extend_from_slice(&self.payload);
 
-        out
+        Ok(out)
     }
 
     pub fn parse(data: &[u8]) -> Result<Self, MqttError> {
@@ -239,7 +348,8 @@ impl MqttPacket {
     }
 }
 
-fn encode_remaining_length(buf: &mut Vec<u8>, mut length: usize) {
+fn encode_remaining_length(buf: &mut Vec<u8>, mut length: usize) -> Result<(), MqttSerializeError> {
+    validate_remaining_length(length)?;
     loop {
         let mut byte = (length % 128) as u8;
         length /= 128;
@@ -251,6 +361,7 @@ fn encode_remaining_length(buf: &mut Vec<u8>, mut length: usize) {
             break;
         }
     }
+    Ok(())
 }
 
 fn decode_remaining_length(data: &[u8], mut offset: usize) -> Result<(usize, usize), MqttError> {
@@ -323,5 +434,25 @@ mod tests {
         broker.subscribe("home/livingroom/temp", "MobileAppClient");
         let recips = broker.publish("home/livingroom/temp");
         assert!(recips.contains(&"MobileAppClient".to_string()));
+    }
+
+    #[test]
+    fn test_remaining_length_maximum_uses_four_bytes() {
+        let mut encoded = Vec::new();
+        encode_remaining_length(&mut encoded, MQTT_MAX_REMAINING_LENGTH).unwrap();
+        assert_eq!(encoded, vec![0xff, 0xff, 0xff, 0x7f]);
+    }
+
+    #[test]
+    fn test_remaining_length_above_maximum_is_rejected() {
+        let mut encoded = Vec::new();
+        assert_eq!(
+            encode_remaining_length(&mut encoded, MQTT_MAX_REMAINING_LENGTH + 1),
+            Err(MqttSerializeError::RemainingLengthTooLarge {
+                length: MQTT_MAX_REMAINING_LENGTH + 1,
+                max: MQTT_MAX_REMAINING_LENGTH,
+            })
+        );
+        assert!(encoded.is_empty());
     }
 }
