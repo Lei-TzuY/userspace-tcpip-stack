@@ -1,0 +1,23 @@
+name: One-shot TCP option validation
+
+on:
+  push:
+    branches:
+      - stage/tcp-option-tail-validation
+
+permissions:
+  contents: write
+
+jobs:
+  patch-test-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Patch, test, and clean branch
+        run: bash scripts/one-shot-tcp-option-validation.sh
