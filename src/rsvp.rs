@@ -92,8 +92,38 @@ impl fmt::Display for RsvpError {
 
 impl std::error::Error for RsvpError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RsvpSerializeError {
+    ObjectTooLong { length: usize, max: usize },
+    MessageTooLong { length: usize, max: usize },
+}
+
+impl fmt::Display for RsvpSerializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RsvpSerializeError::ObjectTooLong { length, max } => write!(
+                f,
+                "RSVP object requires {} bytes, exceeding the {}-byte length field limit",
+                length, max
+            ),
+            RsvpSerializeError::MessageTooLong { length, max } => write!(
+                f,
+                "RSVP message requires {} bytes, exceeding the {}-byte length field limit",
+                length, max
+            ),
+        }
+    }
+}
+
+impl std::error::Error for RsvpSerializeError {}
+
 impl RsvpObject {
     pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("RSVP object must fit the 16-bit object length field")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, RsvpSerializeError> {
         let mut body = Vec::new();
         let (class_num, c_type) = match self {
             RsvpObject::Session {
@@ -157,13 +187,20 @@ impl RsvpObject {
         while body.len() % 4 != 0 {
             body.push(0x00);
         }
-        let obj_len = (body.len() + 4) as u16;
-        let mut buf = Vec::new();
+        let obj_len = body.len().checked_add(4).unwrap_or(usize::MAX);
+        if obj_len > u16::MAX as usize {
+            return Err(RsvpSerializeError::ObjectTooLong {
+                length: obj_len,
+                max: u16::MAX as usize,
+            });
+        }
+        let obj_len = obj_len as u16;
+        let mut buf = Vec::with_capacity(obj_len as usize);
         buf.extend_from_slice(&obj_len.to_be_bytes());
         buf.push(class_num);
         buf.push(c_type);
         buf.extend_from_slice(&body);
-        buf
+        Ok(buf)
     }
 
     pub fn parse(data: &[u8]) -> Option<(Self, usize)> {
@@ -362,13 +399,30 @@ impl RsvpPacket {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("RSVP packet must fit the 16-bit message length field")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, RsvpSerializeError> {
         let mut obj_bytes = Vec::new();
         for obj in &self.objects {
-            obj_bytes.extend_from_slice(&obj.serialize());
+            let encoded = obj.try_serialize()?;
+            let message_len = 8usize
+                .checked_add(obj_bytes.len())
+                .and_then(|len| len.checked_add(encoded.len()))
+                .unwrap_or(usize::MAX);
+            if message_len > u16::MAX as usize {
+                return Err(RsvpSerializeError::MessageTooLong {
+                    length: message_len,
+                    max: u16::MAX as usize,
+                });
+            }
+            obj_bytes.extend_from_slice(&encoded);
         }
 
-        let total_len = (8 + obj_bytes.len()) as u16;
-        let mut buf = Vec::new();
+        let total_len = 8 + obj_bytes.len();
+        let total_len = total_len as u16;
+        let mut buf = Vec::with_capacity(total_len as usize);
         let b0 = (self.header.version << 4) | (self.header.flags & 0x0F);
         buf.push(b0);
         buf.push(self.header.msg_type);
@@ -385,7 +439,7 @@ impl RsvpPacket {
         let csum = if csum == 0 { 0xFFFF } else { csum };
         buf[2..4].copy_from_slice(&csum.to_be_bytes());
 
-        buf
+        Ok(buf)
     }
 
     pub fn parse(data: &[u8]) -> Result<Self, RsvpError> {
