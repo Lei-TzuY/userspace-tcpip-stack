@@ -63,6 +63,51 @@ impl IpReassemblyBuffer {
         };
 
         let entries = self.buffers.entry(key.clone()).or_default();
+
+        // Reject inconsistent terminal lengths and conflicting overlaps. Once a
+        // datagram has a final fragment, no fragment may extend beyond that end;
+        // likewise, a newly arrived final fragment cannot truncate data already
+        // accepted for the same reassembly key.
+        let existing_terminal_end = entries
+            .iter()
+            .filter(|entry| !entry.more_fragments)
+            .map(|entry| entry.offset + entry.data.len())
+            .next();
+
+        let mut invalid = existing_terminal_end.is_some_and(|terminal_end| {
+            fragment_end > terminal_end || (!more_fragments && fragment_end != terminal_end)
+        });
+
+        if !more_fragments
+            && entries
+                .iter()
+                .any(|entry| entry.offset + entry.data.len() > fragment_end)
+        {
+            invalid = true;
+        }
+
+        for entry in entries.iter() {
+            let entry_end = entry.offset + entry.data.len();
+            let overlap_start = offset_bytes.max(entry.offset);
+            let overlap_end = fragment_end.min(entry_end);
+            if overlap_start < overlap_end {
+                let incoming_start = overlap_start - offset_bytes;
+                let existing_start = overlap_start - entry.offset;
+                let overlap_len = overlap_end - overlap_start;
+                if payload[incoming_start..incoming_start + overlap_len]
+                    != entry.data[existing_start..existing_start + overlap_len]
+                {
+                    invalid = true;
+                    break;
+                }
+            }
+        }
+
+        if invalid {
+            self.buffers.remove(&key);
+            return None;
+        }
+
         entries.push(FragmentEntry {
             offset: offset_bytes,
             data: payload.to_vec(),
@@ -93,7 +138,7 @@ impl IpReassemblyBuffer {
                 }
             }
 
-            if has_last && current_end >= total_len {
+            if has_last && current_end == total_len {
                 // Fully reassembled! Assemble bytes.
                 let mut full_payload = vec![0u8; total_len];
                 for entry in entries.iter() {
@@ -221,5 +266,77 @@ mod tests {
         assert_eq!(assembled.len(), IPV4_MAX_PAYLOAD_LEN);
         assert_eq!(&assembled[..prefix_len], prefix.as_slice());
         assert_eq!(&assembled[prefix_len..], &tail);
+    }
+
+    #[test]
+    fn reassembly_rejects_final_fragment_that_truncates_existing_data_without_panicking() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x9abc;
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 16]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[2u8; 4]),
+            None
+        );
+
+        // The malformed datagram is discarded, so the same key remains reusable.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[3u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[4u8; 8]),
+            Some([&[3u8; 8][..], &[4u8; 8][..]].concat())
+        );
+    }
+
+    #[test]
+    fn reassembly_rejects_conflicting_overlap_and_discards_datagram() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0xdef0;
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 16]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, true, &[2u8; 8]),
+            None
+        );
+
+        // Conflicting overlap clears the poisoned key; a clean datagram can follow.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[5u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[6u8; 8]),
+            Some([&[5u8; 8][..], &[6u8; 8][..]].concat())
+        );
+    }
+
+    #[test]
+    fn reassembly_accepts_identical_overlap() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x1357;
+        let first = [1u8; 16];
+        let overlap = [1u8; 8];
+        let tail = [2u8; 8];
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &first),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, true, &overlap),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 2, false, &tail),
+            Some([&first[..], &tail[..]].concat())
+        );
     }
 }
