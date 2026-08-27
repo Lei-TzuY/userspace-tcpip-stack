@@ -184,7 +184,7 @@ impl IpfixMessage {
         }
 
         let length = u16::from_be_bytes([data[2], data[3]]) as usize;
-        if data.len() < length {
+        if length < 16 || data.len() < length {
             return None;
         }
 
@@ -201,7 +201,7 @@ impl IpfixMessage {
             let set_len = u16::from_be_bytes([data[offset + 2], data[offset + 3]]) as usize;
 
             if set_len < 4 || offset + set_len > length {
-                break;
+                return None;
             }
 
             let set_data = &data[offset + 4..offset + set_len];
@@ -289,6 +289,10 @@ impl IpfixMessage {
             offset += set_len;
         }
 
+        if offset != length {
+            return None;
+        }
+
         Some(IpfixMessage {
             export_time,
             sequence_number,
@@ -333,5 +337,60 @@ mod tests {
         );
         assert_eq!(parsed.flow_records[0].dst_port, 443);
         assert_eq!(parsed.flow_records[0].packets, 1540);
+    }
+
+    fn empty_message() -> Vec<u8> {
+        IpfixMessage {
+            export_time: 1,
+            sequence_number: 2,
+            observation_domain_id: 3,
+            template: None,
+            flow_records: Vec::new(),
+        }
+        .serialize()
+    }
+
+    fn stamp_message_length(raw: &mut [u8]) {
+        let message_len = raw.len() as u16;
+        raw[2..4].copy_from_slice(&message_len.to_be_bytes());
+    }
+
+    #[test]
+    fn test_ipfix_rejects_declared_length_below_header() {
+        let mut raw = empty_message();
+        raw[2..4].copy_from_slice(&15u16.to_be_bytes());
+        assert!(IpfixMessage::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_ipfix_rejects_set_length_below_set_header() {
+        let mut raw = empty_message();
+        raw.extend_from_slice(&[0, 2, 0, 3]);
+        stamp_message_length(&mut raw);
+        assert!(IpfixMessage::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_ipfix_rejects_set_overrun_past_message_length() {
+        let mut raw = empty_message();
+        raw.extend_from_slice(&[0, 2, 0, 8]);
+        stamp_message_length(&mut raw);
+        assert!(IpfixMessage::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_ipfix_rejects_trailing_partial_set_header() {
+        let mut raw = empty_message();
+        raw.push(0);
+        stamp_message_length(&mut raw);
+        assert!(IpfixMessage::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_ipfix_empty_message_remains_valid() {
+        let raw = empty_message();
+        let parsed = IpfixMessage::parse(&raw).unwrap();
+        assert!(parsed.template.is_none());
+        assert!(parsed.flow_records.is_empty());
     }
 }
