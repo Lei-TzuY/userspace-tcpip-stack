@@ -27,7 +27,10 @@ use crate::icmpv6::{
     PrefixInformationOption, ipv6_multicast_mac, link_local_address,
 };
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
-use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
+use crate::ipv6::{
+    Ipv6Address, Ipv6Packet, NEXT_HEADER_DEST_OPTS, NEXT_HEADER_FRAGMENT, NEXT_HEADER_HOP_BY_HOP,
+    NEXT_HEADER_ICMPV6, NEXT_HEADER_ROUTING,
+};
 use crate::mpls::{LfibAction, LfibTable, MplsHeader, MplsPacket};
 use crate::nat::NatTable;
 use crate::ospf::OspfLsdb;
@@ -283,6 +286,66 @@ pub struct LabRouter {
     pub current_time_ms: u64,
 }
 
+const NEXT_HEADER_AUTHENTICATION: u8 = 51;
+
+/// Walks the IPv6 extension-header chain far enough to determine whether the
+/// invoking packet carries an ICMPv6 error message. `None` means the chain is
+/// truncated or a non-initial fragment prevents safe inspection; callers must
+/// conservatively suppress a generated error in that case.
+fn invoking_contains_icmpv6_error(invoking: &Ipv6Packet<'_>) -> Option<bool> {
+    let mut next_header = invoking.header.next_header;
+    let mut payload = invoking.payload;
+
+    loop {
+        match next_header {
+            NEXT_HEADER_ICMPV6 => return payload.first().map(|msg_type| *msg_type < 128),
+            NEXT_HEADER_HOP_BY_HOP | NEXT_HEADER_ROUTING | NEXT_HEADER_DEST_OPTS => {
+                if payload.len() < 2 {
+                    return None;
+                }
+                let header_len = (usize::from(payload[1]) + 1).checked_mul(8)?;
+                if payload.len() < header_len {
+                    return None;
+                }
+                next_header = payload[0];
+                payload = &payload[header_len..];
+            }
+            NEXT_HEADER_FRAGMENT => {
+                if payload.len() < 8 {
+                    return None;
+                }
+                next_header = payload[0];
+                let fragment_field = u16::from_be_bytes([payload[2], payload[3]]);
+                let fragment_offset = fragment_field >> 3;
+                if fragment_offset != 0 {
+                    return match next_header {
+                        NEXT_HEADER_ICMPV6
+                        | NEXT_HEADER_HOP_BY_HOP
+                        | NEXT_HEADER_ROUTING
+                        | NEXT_HEADER_FRAGMENT
+                        | NEXT_HEADER_DEST_OPTS
+                        | NEXT_HEADER_AUTHENTICATION => None,
+                        _ => Some(false),
+                    };
+                }
+                payload = &payload[8..];
+            }
+            NEXT_HEADER_AUTHENTICATION => {
+                if payload.len() < 2 {
+                    return None;
+                }
+                let header_len = (usize::from(payload[1]) + 2).checked_mul(4)?;
+                if payload.len() < header_len {
+                    return None;
+                }
+                next_header = payload[0];
+                payload = &payload[header_len..];
+            }
+            _ => return Some(false),
+        }
+    }
+}
+
 /// RFC 4443 section 2.4(e) suppression rules shared by router-generated
 /// ICMPv6 errors. The simulator cannot identify anycast sources, but it can
 /// reject the explicitly non-unique unspecified and multicast source forms.
@@ -299,12 +362,11 @@ fn should_send_icmpv6_error(
         return false;
     }
 
-    let invoking_is_icmpv6_error = invoking.header.next_header == NEXT_HEADER_ICMPV6
-        && invoking
-            .payload
-            .first()
-            .is_some_and(|msg_type| *msg_type < 128);
-    if invoking_is_icmpv6_error {
+    // RFC 4443 section 2.4(e): never send an ICMPv6 error in response to an
+    // ICMPv6 error. Walk extension headers rather than assuming ICMPv6 is the
+    // base header's immediate Next Header. If a malformed chain or a non-first
+    // fragment prevents a safe determination, fail closed and suppress.
+    if invoking_contains_icmpv6_error(invoking) != Some(false) {
         return false;
     }
 
