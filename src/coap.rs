@@ -50,6 +50,9 @@ pub struct CoapPacket {
 pub enum CoapError {
     PacketTooShort(usize),
     InvalidVersion(u8),
+    InvalidTokenLength(u8),
+    EmptyPayloadMarker,
+    OptionNumberOverflow,
     InvalidOptionEncoding,
 }
 
@@ -58,6 +61,15 @@ impl fmt::Display for CoapError {
         match self {
             CoapError::PacketTooShort(l) => write!(f, "CoAP packet too short ({} bytes)", l),
             CoapError::InvalidVersion(v) => write!(f, "Invalid CoAP version: {}", v),
+            CoapError::InvalidTokenLength(tkl) => {
+                write!(f, "Invalid CoAP token length: {} (max 8)", tkl)
+            }
+            CoapError::EmptyPayloadMarker => {
+                write!(f, "CoAP payload marker must be followed by payload data")
+            }
+            CoapError::OptionNumberOverflow => {
+                write!(f, "CoAP option number exceeds 16-bit range")
+            }
             CoapError::InvalidOptionEncoding => write!(f, "Malformed CoAP option delta/length"),
         }
     }
@@ -146,6 +158,9 @@ impl CoapPacket {
 
         let msg_type = (data[0] >> 4) & 0x03;
         let tkl = (data[0] & 0x0F) as usize;
+        if tkl > 8 {
+            return Err(CoapError::InvalidTokenLength(tkl as u8));
+        }
         let code = data[1];
         let message_id = u16::from_be_bytes([data[2], data[3]]);
 
@@ -162,6 +177,9 @@ impl CoapPacket {
 
         while offset < data.len() {
             if data[offset] == COAP_PAYLOAD_MARKER {
+                if offset + 1 >= data.len() {
+                    return Err(CoapError::EmptyPayloadMarker);
+                }
                 offset += 1;
                 break;
             }
@@ -178,7 +196,10 @@ impl CoapPacket {
                 return Err(CoapError::InvalidOptionEncoding);
             }
 
-            current_opt_num += delta as u16;
+            let delta = u16::try_from(delta).map_err(|_| CoapError::OptionNumberOverflow)?;
+            current_opt_num = current_opt_num
+                .checked_add(delta)
+                .ok_or(CoapError::OptionNumberOverflow)?;
             let value = data[offset..offset + len].to_vec();
             offset += len;
 
@@ -265,5 +286,44 @@ mod tests {
         assert_eq!(parsed_resp.msg_type, COAP_TYPE_ACK);
         assert_eq!(parsed_resp.code, COAP_CODE_205_CONTENT);
         assert_eq!(parsed_resp.payload, b"24.8 C");
+    }
+
+    #[test]
+    fn test_coap_rejects_token_length_above_eight() {
+        let raw = [0x49, COAP_CODE_GET, 0x12, 0x34, 0, 1, 2, 3, 4, 5, 6, 7, 8];
+        assert_eq!(
+            CoapPacket::parse(&raw),
+            Err(CoapError::InvalidTokenLength(9))
+        );
+    }
+
+    #[test]
+    fn test_coap_rejects_empty_payload_marker() {
+        let raw = [0x40, COAP_CODE_GET, 0x12, 0x34, COAP_PAYLOAD_MARKER];
+        assert_eq!(CoapPacket::parse(&raw), Err(CoapError::EmptyPayloadMarker));
+    }
+
+    #[test]
+    fn test_coap_rejects_option_number_overflow() {
+        let raw = [0x40, COAP_CODE_GET, 0x12, 0x34, 0xE0, 0xFF, 0xFF];
+        assert_eq!(
+            CoapPacket::parse(&raw),
+            Err(CoapError::OptionNumberOverflow)
+        );
+    }
+
+    #[test]
+    fn test_coap_payload_marker_with_data_remains_valid() {
+        let raw = [
+            0x40,
+            COAP_CODE_205_CONTENT,
+            0x12,
+            0x34,
+            COAP_PAYLOAD_MARKER,
+            0xAB,
+        ];
+        let parsed = CoapPacket::parse(&raw).unwrap();
+        assert!(parsed.options.is_empty());
+        assert_eq!(parsed.payload, vec![0xAB]);
     }
 }
