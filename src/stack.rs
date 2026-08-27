@@ -41,6 +41,9 @@ pub const IPV6_MAX_RTR_SOLICITATIONS: u8 = 3;
 pub const IPV6_RTR_SOLICITATION_INTERVAL_MS: u64 = 4_000;
 /// Implementation default used until a valid RA advertises a non-zero Cur Hop Limit.
 pub const IPV6_DEFAULT_HOP_LIMIT: u8 = 64;
+/// RFC 2464 default and maximum Router-Advertisement-controlled IPv6 MTU
+/// for this Ethernet-only host interface.
+pub const IPV6_ETHERNET_LINK_MTU: u32 = 1_500;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Ipv6RouterDiscoveryStatus {
@@ -158,6 +161,9 @@ pub struct NetStack {
     // RFC 4861 section 6.3.4 per-interface CurHopLimit. Zero in an RA means
     // unspecified, so the currently learned/default value is preserved.
     ipv6_default_hop_limit: u8,
+    // RFC 4861 LinkMTU for the Ethernet interface. RFC 2464 permits a valid
+    // RA to reduce this from 1500, but not below IPv6 minimum MTU 1280.
+    ipv6_link_mtu: u32,
     ipv6_path_mtu_cache: HashMap<Ipv6Address, u32>,
     // RFC 4861 Destination Cache entries learned from Redirect messages.
     // Each entry is bound to the router that was the route-selected first hop
@@ -216,6 +222,7 @@ impl NetStack {
             ipv6_router_discovery: None,
             ipv6_router_discovery_exhausted: false,
             ipv6_default_hop_limit: IPV6_DEFAULT_HOP_LIMIT,
+            ipv6_link_mtu: IPV6_ETHERNET_LINK_MTU,
             ipv6_path_mtu_cache: HashMap::new(),
             ipv6_redirect_cache: HashMap::new(),
             firewall: Firewall::new(),
@@ -311,6 +318,11 @@ impl NetStack {
         self.ipv6_default_hop_limit
     }
 
+    /// Returns the current RFC 4861 LinkMTU for the Ethernet interface.
+    pub fn ipv6_link_mtu(&self) -> u32 {
+        self.ipv6_link_mtu
+    }
+
     /// Returns the currently learned RFC 8201 Path MTU for a destination.
     pub fn ipv6_path_mtu(&self, destination: Ipv6Address) -> Option<u32> {
         self.ipv6_path_mtu_cache.get(&destination).copied()
@@ -358,6 +370,7 @@ impl NetStack {
         self.ipv6_path_mtu_cache.clear();
         self.ipv6_redirect_cache.clear();
         self.ipv6_default_hop_limit = IPV6_DEFAULT_HOP_LIMIT;
+        self.ipv6_link_mtu = IPV6_ETHERNET_LINK_MTU;
         self.pending_ndp_packets.clear();
     }
 
@@ -859,13 +872,15 @@ impl NetStack {
     }
 
     pub fn send_ip6_packet(&mut self, dst_ip: Ipv6Address, ip6_bytes: Vec<u8>) -> Option<Vec<u8>> {
-        if self
+        let effective_mtu = self
             .ipv6_path_mtu_cache
             .get(&dst_ip)
-            .is_some_and(|mtu| ip6_bytes.len() > *mtu as usize)
-        {
-            // IPv6 routers never fragment. Until source fragmentation is modelled,
-            // an RFC 8201 PMTU estimate is a hard upper bound on a source packet.
+            .copied()
+            .unwrap_or(self.ipv6_link_mtu)
+            .min(self.ipv6_link_mtu);
+        if ip6_bytes.len() > effective_mtu as usize {
+            // IPv6 source fragmentation is not modelled. Both the interface LinkMTU
+            // and any smaller RFC 8201 PMTU estimate are therefore hard upper bounds.
             return None;
         }
 
@@ -2068,6 +2083,19 @@ impl NetStack {
                                     );
                                     if ra.current_hop_limit != 0 {
                                         self.ipv6_default_hop_limit = ra.current_hop_limit;
+                                    }
+                                    if let Some(mtu) = ra.mtu
+                                        && (1280..=IPV6_ETHERNET_LINK_MTU).contains(&mtu)
+                                    {
+                                        self.ipv6_link_mtu = mtu;
+                                        // A packet queued while the old LinkMTU was in force must
+                                        // not escape after address resolution if a later RA lowers
+                                        // the interface MTU in the meantime.
+                                        for queued in self.pending_ndp_packets.values_mut() {
+                                            queued.retain(|packet| packet.len() <= mtu as usize);
+                                        }
+                                        self.pending_ndp_packets
+                                            .retain(|_, queued| !queued.is_empty());
                                     }
 
                                     // RFC 4861 sections 6.3.4 and 7.2: a valid RA may
