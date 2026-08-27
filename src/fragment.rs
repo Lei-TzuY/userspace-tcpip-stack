@@ -6,6 +6,8 @@
 use crate::ipv4::{IPV4_MIN_HEADER_LEN, Ipv4Address};
 use std::collections::HashMap;
 
+const IPV4_MAX_PAYLOAD_LEN: usize = u16::MAX as usize - IPV4_MIN_HEADER_LEN;
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct FragmentKey {
     pub src_ip: Ipv4Address,
@@ -46,6 +48,13 @@ impl IpReassemblyBuffer {
         payload: &[u8],
     ) -> Option<Vec<u8>> {
         let offset_bytes = (fragment_offset_blocks as usize) * 8;
+        let fragment_end = offset_bytes.checked_add(payload.len())?;
+        if fragment_end > IPV4_MAX_PAYLOAD_LEN {
+            // Even with the minimum IPv4 header, this fragment would make the
+            // reassembled datagram exceed the 65,535-byte Total Length limit.
+            return None;
+        }
+
         let key = FragmentKey {
             src_ip,
             dst_ip,
@@ -160,4 +169,57 @@ pub fn fragment_payload(
     }
 
     fragments
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn src() -> Ipv4Address {
+        Ipv4Address::new(192, 0, 2, 1)
+    }
+
+    fn dst() -> Ipv4Address {
+        Ipv4Address::new(198, 51, 100, 1)
+    }
+
+    #[test]
+    fn reassembly_rejects_fragment_beyond_ipv4_datagram_limit_without_poisoning_key() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x1234;
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 8191, false, &[0u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[2u8; 8]),
+            Some([&[1u8; 8][..], &[2u8; 8][..]].concat())
+        );
+    }
+
+    #[test]
+    fn reassembly_accepts_maximum_ipv4_payload_boundary() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x5678;
+        let prefix_len = 8189 * 8;
+        let prefix = vec![0xa5; prefix_len];
+        let tail = [0xde, 0xad, 0xbe];
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &prefix),
+            None
+        );
+        let assembled = reassembly
+            .add_fragment(src(), dst(), 17, id, 8189, false, &tail)
+            .expect("maximum legal IPv4 payload should reassemble");
+
+        assert_eq!(assembled.len(), IPV4_MAX_PAYLOAD_LEN);
+        assert_eq!(&assembled[..prefix_len], prefix.as_slice());
+        assert_eq!(&assembled[prefix_len..], &tail);
+    }
 }
