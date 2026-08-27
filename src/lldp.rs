@@ -65,6 +65,7 @@ pub struct LldpPacket {
 pub enum LldpError {
     PacketTooShort(usize),
     MissingMandatoryTlv(&'static str),
+    InvalidTlvLength { tlv_type: u8, length: usize },
 }
 
 impl fmt::Display for LldpError {
@@ -72,6 +73,9 @@ impl fmt::Display for LldpError {
         match self {
             LldpError::PacketTooShort(l) => write!(f, "LLDP packet too short ({} bytes)", l),
             LldpError::MissingMandatoryTlv(t) => write!(f, "Missing mandatory LLDP TLV: {}", t),
+            LldpError::InvalidTlvLength { tlv_type, length } => {
+                write!(f, "Invalid LLDP TLV {} length: {}", tlv_type, length)
+            }
         }
     }
 }
@@ -91,7 +95,15 @@ impl LldpPacket {
             offset += consumed;
 
             match tlv.tlv_type {
-                LLDP_TLV_END_OF_LLDPDU => break,
+                LLDP_TLV_END_OF_LLDPDU => {
+                    if !tlv.value.is_empty() {
+                        return Err(LldpError::InvalidTlvLength {
+                            tlv_type: LLDP_TLV_END_OF_LLDPDU,
+                            length: tlv.value.len(),
+                        });
+                    }
+                    break;
+                }
                 LLDP_TLV_CHASSIS_ID => {
                     chassis_id = Some(String::from_utf8_lossy(&tlv.value).to_string());
                 }
@@ -99,9 +111,13 @@ impl LldpPacket {
                     port_id = Some(String::from_utf8_lossy(&tlv.value).to_string());
                 }
                 LLDP_TLV_TTL => {
-                    if tlv.value.len() >= 2 {
-                        ttl = Some(u16::from_be_bytes([tlv.value[0], tlv.value[1]]));
+                    if tlv.value.len() != 2 {
+                        return Err(LldpError::InvalidTlvLength {
+                            tlv_type: LLDP_TLV_TTL,
+                            length: tlv.value.len(),
+                        });
                     }
+                    ttl = Some(u16::from_be_bytes([tlv.value[0], tlv.value[1]]));
                 }
                 LLDP_TLV_SYSTEM_NAME => {
                     system_name = Some(String::from_utf8_lossy(&tlv.value).to_string());
