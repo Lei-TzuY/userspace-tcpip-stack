@@ -22,8 +22,9 @@ pub const ICMPV6_TYPE_REDIRECT: u8 = 137;
 pub const NDP_OPT_SRC_LINK_LAYER_ADDR: u8 = 1;
 pub const NDP_OPT_TARGET_LINK_LAYER_ADDR: u8 = 2;
 pub const NDP_OPT_PREFIX_INFORMATION: u8 = 3;
-pub const NDP_OPT_ROUTE_INFORMATION: u8 = 24;
 pub const NDP_OPT_REDIRECTED_HEADER: u8 = 4;
+pub const NDP_OPT_MTU: u8 = 5;
+pub const NDP_OPT_ROUTE_INFORMATION: u8 = 24;
 
 /// RFC 4861 Neighbor Unreachability Detection defaults. Reachable Time is
 /// normally randomized around BaseReachableTime; this deterministic simulator
@@ -153,6 +154,9 @@ pub struct RouterAdvertisement {
     pub router_lifetime: u16,
     pub reachable_time: u32,
     pub retrans_timer: u32,
+    /// RFC 4861 MTU option, when present. Link-specific validity is applied
+    /// by the receiving interface rather than by the wire parser.
+    pub mtu: Option<u32>,
     pub prefixes: Vec<PrefixInformationOption>,
     pub routes: Vec<RouteInformationOption>,
 }
@@ -820,13 +824,42 @@ impl<'a> Icmpv6Packet<'a> {
         routes: &[RouteInformationOption],
         source_mac: Option<MacAddress>,
     ) -> Vec<u8> {
+        Self::build_router_advertisement_with_routes_and_mtu(
+            src_ip,
+            dst_ip,
+            current_hop_limit,
+            router_lifetime,
+            preference,
+            prefixes,
+            routes,
+            source_mac,
+            None,
+        )
+    }
+
+    /// Builds a Router Advertisement with RFC 4191 RIOs and an optional RFC 4861
+    /// MTU option. Existing builder APIs delegate here with no MTU option.
+    pub fn build_router_advertisement_with_routes_and_mtu(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        current_hop_limit: u8,
+        router_lifetime: u16,
+        preference: RouterPreference,
+        prefixes: &[PrefixInformationOption],
+        routes: &[RouteInformationOption],
+        source_mac: Option<MacAddress>,
+        mtu: Option<u32>,
+    ) -> Vec<u8> {
         let route_bytes: usize = routes
             .iter()
             .copied()
             .map(|route| usize::from(route.length_units()) * 8)
             .sum();
         let mut buf = Vec::with_capacity(
-            16 + prefixes.len() * 32 + route_bytes + usize::from(source_mac.is_some()) * 8,
+            16 + prefixes.len() * 32
+                + route_bytes
+                + usize::from(source_mac.is_some()) * 8
+                + usize::from(mtu.is_some()) * 8,
         );
         buf.push(ICMPV6_TYPE_ROUTER_ADVERT);
         buf.push(0);
@@ -841,6 +874,13 @@ impl<'a> Icmpv6Packet<'a> {
             buf.push(NDP_OPT_SRC_LINK_LAYER_ADDR);
             buf.push(1);
             buf.extend_from_slice(&mac.0);
+        }
+
+        if let Some(mtu) = mtu {
+            buf.push(NDP_OPT_MTU);
+            buf.push(1);
+            buf.extend_from_slice(&[0, 0]); // Reserved
+            buf.extend_from_slice(&mtu.to_be_bytes());
         }
 
         for prefix in prefixes {
@@ -1017,6 +1057,7 @@ impl RouterAdvertisement {
         let router_lifetime = u16::from_be_bytes([payload[2], payload[3]]);
         let reachable_time = u32::from_be_bytes(payload[4..8].try_into().ok()?);
         let retrans_timer = u32::from_be_bytes(payload[8..12].try_into().ok()?);
+        let mut mtu = None;
         let mut prefixes = Vec::new();
         let mut routes = Vec::new();
         let mut offset = 12usize;
@@ -1059,6 +1100,15 @@ impl RouterAdvertisement {
                     valid_lifetime,
                     preferred_lifetime,
                 ));
+            } else if option_type == NDP_OPT_MTU {
+                // RFC 4861 defines MTU as exactly one 8-octet unit. The RA
+                // validity rules require only non-zero option lengths, so a
+                // malformed MTU option is ignored without discarding otherwise
+                // usable information from the advertisement.
+                if option_len == 8 {
+                    let option = &payload[offset..offset + option_len];
+                    mtu = Some(u32::from_be_bytes(option[4..8].try_into().ok()?));
+                }
             } else if option_type == NDP_OPT_ROUTE_INFORMATION {
                 let option = &payload[offset..offset + option_len];
                 let prefix_length = option[2];
@@ -1093,6 +1143,7 @@ impl RouterAdvertisement {
             router_lifetime,
             reachable_time,
             retrans_timer,
+            mtu,
             prefixes,
             routes,
         })
