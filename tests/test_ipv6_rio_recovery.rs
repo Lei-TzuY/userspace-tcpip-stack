@@ -1,8 +1,8 @@
 use std::str::FromStr;
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
 use toy_tcpip::icmpv6::{
-    Icmpv6Packet, NDP_DELAY_FIRST_PROBE_TIME_MS, NDP_RETRANS_TIMER_MS, RouteInformationOption,
-    RouterPreference,
+    Icmpv6Packet, NDP_DELAY_FIRST_PROBE_TIME_MS, NDP_RETRANS_TIMER_MS, NeighborState,
+    RouteInformationOption, RouterPreference,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
@@ -289,8 +289,36 @@ fn failed_high_preference_router_stays_quarantined_over_unresolved_fallback() {
             .gateway,
         Some(fallback)
     );
+    assert_eq!(
+        stack.ndp_table.state(&preferred),
+        Some(NeighborState::Delay)
+    );
 
+    // The fresh RA proactively arms normal NUD even though quarantine prevents
+    // application traffic from selecting the preferred router. The first probe
+    // therefore appears after DELAY_FIRST_PROBE_TIME without any send_ip6_packet.
+    let revalidate_at = failed_at + NDP_DELAY_FIRST_PROBE_TIME_MS;
+    assert_eq!(stack.step_timers(revalidate_at).len(), 1);
+    assert_eq!(
+        stack.ndp_table.state(&preferred),
+        Some(NeighborState::Probe)
+    );
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .find_exact(prefix, 64)
+            .unwrap()
+            .gateway,
+        Some(fallback)
+    );
+
+    // A solicited NA answering that active probe releases quarantine and lets
+    // RFC 4191 preference select the recovered router again.
     stack.process_frame(&solicited_na_frame(&stack, preferred));
+    assert_eq!(
+        stack.ndp_table.state(&preferred),
+        Some(NeighborState::Reachable)
+    );
     assert_eq!(
         stack
             .ipv6_routing_table

@@ -2046,8 +2046,19 @@ impl NetStack {
                                     // SLLA. The enclosing Ethernet source is not a substitute.
                                     if let Some(source_mac) = icmp6.ndp_source_link_layer_address()
                                     {
-                                        self.ndp_table
-                                            .learn_stale(ip6_pkt.header.src_ip, source_mac);
+                                        let router = ip6_pkt.header.src_ip;
+                                        self.ndp_table.learn_stale(router, source_mac);
+
+                                        // A fresh RA may restore a quarantined RIO candidate, but
+                                        // route selection deliberately keeps it sidelined until NUD
+                                        // proves reachability. Arm normal STALE -> DELAY -> PROBE
+                                        // revalidation here so recovery does not depend on unrelated
+                                        // data traffic selecting the quarantined next hop first.
+                                        if self.ipv6_failed_rio_routers.contains(&router) {
+                                            let _ = self
+                                                .ndp_table
+                                                .lookup_for_transmit(&router, self.current_time_ms);
+                                        }
                                     }
 
                                     // Any valid RA is a Router Discovery response, even
