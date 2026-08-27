@@ -66,6 +66,11 @@ pub enum MqttError {
         packet_type: MqttPacketType,
         flags: u8,
     },
+    InvalidPayloadLength {
+        packet_type: MqttPacketType,
+        length: usize,
+        expected: usize,
+    },
 }
 
 impl fmt::Display for MqttError {
@@ -85,6 +90,15 @@ impl fmt::Display for MqttError {
                 f,
                 "Invalid MQTT fixed-header flags 0x{:x} for {:?}",
                 flags, packet_type
+            ),
+            MqttError::InvalidPayloadLength {
+                packet_type,
+                length,
+                expected,
+            } => write!(
+                f,
+                "Invalid MQTT payload length {} for {:?}; expected {}",
+                length, packet_type, expected
             ),
         }
     }
@@ -110,6 +124,11 @@ pub enum MqttSerializeError {
     InvalidFixedHeaderFlags {
         packet_type: MqttPacketType,
         flags: u8,
+    },
+    InvalidPayloadLength {
+        packet_type: MqttPacketType,
+        length: usize,
+        expected: usize,
     },
 }
 
@@ -142,6 +161,15 @@ impl fmt::Display for MqttSerializeError {
                 f,
                 "Invalid MQTT fixed-header flags 0x{:x} for {:?}",
                 flags, packet_type
+            ),
+            MqttSerializeError::InvalidPayloadLength {
+                packet_type,
+                length,
+                expected,
+            } => write!(
+                f,
+                "Invalid MQTT payload length {} for {:?}; expected {}",
+                length, packet_type, expected
             ),
         }
     }
@@ -178,6 +206,14 @@ fn fixed_header_flags_are_valid(packet_type: MqttPacketType, flags: u8) -> bool 
         MqttPacketType::Publish => true,
         MqttPacketType::Subscribe | MqttPacketType::Unsubscribe => flags == 0x02,
         _ => flags == 0,
+    }
+}
+
+fn fixed_payload_length(packet_type: MqttPacketType) -> Option<usize> {
+    match packet_type {
+        MqttPacketType::Connack | MqttPacketType::Puback | MqttPacketType::Unsuback => Some(2),
+        MqttPacketType::Pingreq | MqttPacketType::Pingresp | MqttPacketType::Disconnect => Some(0),
+        _ => None,
     }
 }
 
@@ -337,6 +373,24 @@ impl MqttPacket {
                 return Err(MqttSerializeError::InvalidQos(qos));
             }
         }
+        if let Some(expected) = fixed_payload_length(self.packet_type)
+            && self.payload.len() != expected
+        {
+            return Err(MqttSerializeError::InvalidPayloadLength {
+                packet_type: self.packet_type,
+                length: self.payload.len(),
+                expected,
+            });
+        }
+        if matches!(
+            self.packet_type,
+            MqttPacketType::Puback | MqttPacketType::Unsuback
+        ) {
+            let id = u16::from_be_bytes([self.payload[0], self.payload[1]]);
+            if id == 0 {
+                return Err(MqttSerializeError::InvalidPacketIdentifier(id));
+            }
+        }
         validate_remaining_length(self.payload.len())?;
         let mut out = Vec::new();
         let header_byte = ((self.packet_type as u8) << 4) | (self.flags & 0x0F);
@@ -368,6 +422,15 @@ impl MqttPacket {
         }
 
         let payload = data[offset..offset + rem_len].to_vec();
+        if let Some(expected) = fixed_payload_length(packet_type)
+            && payload.len() != expected
+        {
+            return Err(MqttError::InvalidPayloadLength {
+                packet_type,
+                length: payload.len(),
+                expected,
+            });
+        }
         let mut topic = None;
         let mut packet_id = None;
 
@@ -403,6 +466,13 @@ impl MqttPacket {
                     }
                     packet_id = Some(id);
                 }
+            }
+            MqttPacketType::Puback | MqttPacketType::Unsuback => {
+                let id = u16::from_be_bytes([payload[0], payload[1]]);
+                if id == 0 {
+                    return Err(MqttError::InvalidPacketIdentifier(id));
+                }
+                packet_id = Some(id);
             }
             MqttPacketType::Subscribe => {
                 if payload.len() < 2 {
