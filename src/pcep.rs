@@ -73,6 +73,7 @@ pub enum PcepError {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidLength,
+    InvalidObjectFraming,
 }
 
 impl fmt::Display for PcepError {
@@ -81,6 +82,7 @@ impl fmt::Display for PcepError {
             PcepError::PacketTooShort(l) => write!(f, "PCEP message too short ({} bytes)", l),
             PcepError::InvalidVersion(v) => write!(f, "Unsupported PCEP version: {}", v),
             PcepError::InvalidLength => write!(f, "Invalid PCEP length"),
+            PcepError::InvalidObjectFraming => write!(f, "Malformed PCEP object framing"),
         }
     }
 }
@@ -249,7 +251,10 @@ impl PcepObject {
         };
 
         let consumed = (obj_len + 3) & !3;
-        Some((obj, consumed.min(data.len())))
+        if consumed > data.len() {
+            return None;
+        }
+        Some((obj, consumed))
     }
 }
 
@@ -344,7 +349,7 @@ impl PcepMessage {
         let msg_type = data[1];
         let length = u16::from_be_bytes([data[2], data[3]]) as usize;
 
-        if length > data.len() {
+        if length < 4 || length > data.len() {
             return Err(PcepError::InvalidLength);
         }
 
@@ -352,12 +357,10 @@ impl PcepMessage {
         let mut offset = 4;
 
         while offset < length {
-            if let Some((obj, consumed)) = PcepObject::parse(&data[offset..length]) {
-                objects.push(obj);
-                offset += consumed;
-            } else {
-                break;
-            }
+            let (obj, consumed) =
+                PcepObject::parse(&data[offset..length]).ok_or(PcepError::InvalidObjectFraming)?;
+            objects.push(obj);
+            offset += consumed;
         }
 
         Ok(PcepMessage {
@@ -437,5 +440,74 @@ mod tests {
         }
 
         assert_eq!(PCEP_PORT, 4189);
+    }
+
+    #[test]
+    fn test_pcep_rejects_message_length_below_header() {
+        let raw = [0x20, PCEP_MSG_KEEPALIVE, 0, 3];
+        assert_eq!(PcepMessage::parse(&raw), Err(PcepError::InvalidLength));
+    }
+
+    #[test]
+    fn test_pcep_rejects_trailing_partial_object_header() {
+        let raw = [0x20, PCEP_MSG_KEEPALIVE, 0, 5, 0xAA];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_rejects_object_overrun() {
+        let raw = [0x20, PCEP_MSG_KEEPALIVE, 0, 8, 99, 0x10, 0, 8];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_rejects_missing_object_alignment_padding() {
+        let raw = [0x20, PCEP_MSG_KEEPALIVE, 0, 9, 99, 0x10, 0, 5, 0xAA];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_header_only_message_remains_valid() {
+        let raw = [0x20, PCEP_MSG_KEEPALIVE, 0, 4];
+        let parsed = PcepMessage::parse(&raw).unwrap();
+        assert_eq!(parsed.header.length, 4);
+        assert!(parsed.objects.is_empty());
+    }
+
+    #[test]
+    fn test_pcep_padded_raw_object_remains_valid() {
+        let raw = [
+            0x20,
+            PCEP_MSG_KEEPALIVE,
+            0,
+            12,
+            99,
+            0x10,
+            0,
+            5,
+            0xAA,
+            0,
+            0,
+            0,
+        ];
+        let parsed = PcepMessage::parse(&raw).unwrap();
+        assert_eq!(parsed.objects.len(), 1);
+        assert_eq!(
+            parsed.objects[0],
+            PcepObject::Raw {
+                class_num: 99,
+                ot: 1,
+                body: vec![0xAA],
+            }
+        );
     }
 }
