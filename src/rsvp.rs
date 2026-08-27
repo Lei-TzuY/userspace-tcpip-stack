@@ -191,19 +191,47 @@ impl RsvpObject {
             (RSVP_CLASS_EXPLICIT_ROUTE, 1) => {
                 let mut hops = Vec::new();
                 let mut offset = 0;
-                while offset + 8 <= body.len() {
-                    let loose = (body[offset] & 0x80) != 0;
-                    let hop_ip = Ipv4Address([
-                        body[offset + 2],
-                        body[offset + 3],
-                        body[offset + 4],
-                        body[offset + 5],
-                    ]);
-                    hops.push((loose, hop_ip));
+                let mut has_unsupported_subobject = false;
+
+                while offset < body.len() {
+                    if body.len() - offset < 4 {
+                        return None;
+                    }
+
+                    let sub_type = body[offset] & 0x7f;
                     let sub_len = body[offset + 1] as usize;
-                    offset += if sub_len >= 8 { sub_len } else { 8 };
+                    if sub_len < 4 || sub_len % 4 != 0 || sub_len > body.len() - offset {
+                        return None;
+                    }
+
+                    if sub_type == 1 {
+                        if sub_len != 8 || body[offset + 6] > 32 {
+                            return None;
+                        }
+                        let loose = (body[offset] & 0x80) != 0;
+                        let hop_ip = Ipv4Address([
+                            body[offset + 2],
+                            body[offset + 3],
+                            body[offset + 4],
+                            body[offset + 5],
+                        ]);
+                        hops.push((loose, hop_ip));
+                    } else {
+                        has_unsupported_subobject = true;
+                    }
+
+                    offset += sub_len;
                 }
-                RsvpObject::ExplicitRoute { hops }
+
+                if has_unsupported_subobject {
+                    RsvpObject::Raw {
+                        class_num,
+                        c_type,
+                        body: body.to_vec(),
+                    }
+                } else {
+                    RsvpObject::ExplicitRoute { hops }
+                }
             }
             (RSVP_CLASS_LABEL_REQUEST, 1) if body.len() >= 4 => {
                 let l3pid = u16::from_be_bytes([body[2], body[3]]);
@@ -378,6 +406,16 @@ impl RsvpPacket {
 mod tests {
     use super::*;
 
+    fn ero_object(body: &[u8]) -> Vec<u8> {
+        let obj_len = (body.len() + 4) as u16;
+        let mut data = Vec::with_capacity(obj_len as usize);
+        data.extend_from_slice(&obj_len.to_be_bytes());
+        data.push(RSVP_CLASS_EXPLICIT_ROUTE);
+        data.push(1);
+        data.extend_from_slice(body);
+        data
+    }
+
     #[test]
     fn test_rsvp_path_and_resv_signaling() {
         let src = Ipv4Address::new(10, 0, 0, 1);
@@ -413,5 +451,69 @@ mod tests {
         } else {
             panic!("Expected Label object");
         }
+    }
+
+    #[test]
+    fn test_rsvp_ero_rejects_ipv4_subobject_length_below_eight() {
+        let raw = ero_object(&[1, 4, 10, 0, 0, 1, 32, 0]);
+        assert!(RsvpObject::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_rsvp_ero_rejects_non_word_aligned_subobject_length() {
+        let raw = ero_object(&[1, 6, 10, 0, 0, 1, 32, 0]);
+        assert!(RsvpObject::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_rsvp_ero_rejects_subobject_length_beyond_object_body() {
+        let raw = ero_object(&[1, 12, 10, 0, 0, 1, 32, 0]);
+        assert!(RsvpObject::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_rsvp_ero_rejects_trailing_partial_subobject() {
+        let raw = ero_object(&[1, 8, 10, 0, 0, 1, 32, 0, 1, 8, 10, 0]);
+        assert!(RsvpObject::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_rsvp_ero_rejects_invalid_ipv4_prefix_length() {
+        let raw = ero_object(&[1, 8, 10, 0, 0, 1, 33, 0]);
+        assert!(RsvpObject::parse(&raw).is_none());
+    }
+
+    #[test]
+    fn test_rsvp_ero_preserves_unsupported_subobjects_as_raw() {
+        let body = vec![2, 8, 0, 0, 0, 0, 0, 0];
+        let raw = ero_object(&body);
+        let (parsed, consumed) = RsvpObject::parse(&raw).unwrap();
+
+        assert_eq!(consumed, raw.len());
+        assert_eq!(
+            parsed,
+            RsvpObject::Raw {
+                class_num: RSVP_CLASS_EXPLICIT_ROUTE,
+                c_type: 1,
+                body,
+            }
+        );
+    }
+
+    #[test]
+    fn test_rsvp_ero_valid_ipv4_subobjects_preserve_loose_bit() {
+        let raw = ero_object(&[1, 8, 10, 0, 0, 1, 32, 0, 0x81, 8, 10, 0, 0, 2, 32, 0]);
+        let (parsed, consumed) = RsvpObject::parse(&raw).unwrap();
+
+        assert_eq!(consumed, raw.len());
+        assert_eq!(
+            parsed,
+            RsvpObject::ExplicitRoute {
+                hops: vec![
+                    (false, Ipv4Address::new(10, 0, 0, 1)),
+                    (true, Ipv4Address::new(10, 0, 0, 2)),
+                ],
+            }
+        );
     }
 }
