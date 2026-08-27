@@ -227,10 +227,21 @@ impl PcepObject {
             (PCEP_CLASS_ERO, 1) => {
                 let mut sids = Vec::new();
                 let mut offset = 0;
-                while offset + 8 <= body.len() {
-                    let sub_type = body[offset];
+                while offset < body.len() {
+                    if offset + 2 > body.len() {
+                        return None;
+                    }
+
+                    let sub_type = body[offset] & 0x7F;
                     let sub_len = body[offset + 1] as usize;
-                    if sub_type == 36 && sub_len >= 8 {
+                    if sub_len < 2 || offset + sub_len > body.len() {
+                        return None;
+                    }
+
+                    if sub_type == 36 {
+                        if sub_len < 8 || sub_len % 4 != 0 {
+                            return None;
+                        }
                         let sid = u32::from_be_bytes([
                             body[offset + 4],
                             body[offset + 5],
@@ -239,7 +250,7 @@ impl PcepObject {
                         ]);
                         sids.push(sid);
                     }
-                    offset += if sub_len >= 8 { sub_len } else { 8 };
+                    offset += sub_len;
                 }
                 PcepObject::SrEro { sids }
             }
@@ -509,5 +520,111 @@ mod tests {
                 body: vec![0xAA],
             }
         );
+    }
+
+    #[test]
+    fn test_pcep_rejects_sr_ero_subobject_overrun() {
+        let raw = [
+            0x20,
+            PCEP_MSG_PCREP,
+            0,
+            16,
+            PCEP_CLASS_ERO,
+            0x10,
+            0,
+            12,
+            36,
+            12,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+        ];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_rejects_short_sr_ero_subobject() {
+        let raw = [
+            0x20,
+            PCEP_MSG_PCREP,
+            0,
+            16,
+            PCEP_CLASS_ERO,
+            0x10,
+            0,
+            12,
+            36,
+            7,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+        ];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_rejects_unaligned_sr_ero_subobject_length() {
+        let raw = [
+            0x20,
+            PCEP_MSG_PCREP,
+            0,
+            20,
+            PCEP_CLASS_ERO,
+            0x10,
+            0,
+            14,
+            36,
+            10,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            0,
+            0,
+            0,
+            0,
+        ];
+        assert_eq!(
+            PcepMessage::parse(&raw),
+            Err(PcepError::InvalidObjectFraming)
+        );
+    }
+
+    #[test]
+    fn test_pcep_sr_ero_loose_hop_type_is_recognized() {
+        let raw = [
+            0x20,
+            PCEP_MSG_PCREP,
+            0,
+            16,
+            PCEP_CLASS_ERO,
+            0x10,
+            0,
+            12,
+            0x80 | 36,
+            8,
+            0,
+            0,
+            0,
+            0,
+            0,
+            42,
+        ];
+        let parsed = PcepMessage::parse(&raw).unwrap();
+        assert_eq!(parsed.objects, vec![PcepObject::SrEro { sids: vec![42] }]);
     }
 }
