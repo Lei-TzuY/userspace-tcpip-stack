@@ -103,6 +103,9 @@ pub enum LldpError {
         tlv_type: u8,
         length: usize,
     },
+    DuplicateTlv {
+        tlv_type: u8,
+    },
     UnsupportedIdentifierSubtype {
         tlv_type: u8,
         subtype: u8,
@@ -126,6 +129,9 @@ impl fmt::Display for LldpError {
             ),
             LldpError::InvalidTlvLength { tlv_type, length } => {
                 write!(f, "Invalid LLDP TLV {} length: {}", tlv_type, length)
+            }
+            LldpError::DuplicateTlv { tlv_type } => {
+                write!(f, "Duplicate LLDP TLV type {}", tlv_type)
             }
             LldpError::UnsupportedIdentifierSubtype {
                 tlv_type,
@@ -305,6 +311,11 @@ impl LldpPacket {
                             found: tlv.tlv_type,
                         });
                     }
+                    if system_name.is_some() {
+                        return Err(LldpError::DuplicateTlv {
+                            tlv_type: LLDP_TLV_SYSTEM_NAME,
+                        });
+                    }
                     system_name = Some(
                         std::str::from_utf8(&tlv.value)
                             .map(str::to_owned)
@@ -458,6 +469,34 @@ mod tests {
         assert_eq!(parsed.port_id, "GigabitEthernet0/1");
         assert_eq!(parsed.ttl, 120);
         assert_eq!(parsed.system_name, Some("EdgeRouter-X".to_string()));
+    }
+
+    #[test]
+    fn test_duplicate_system_name_is_rejected() {
+        let pkt = LldpPacket {
+            chassis_id: "chassis".to_string(),
+            port_id: "eth0".to_string(),
+            ttl: 120,
+            system_name: Some("first".to_string()),
+        };
+
+        let mut raw = pkt.serialize();
+        raw.truncate(raw.len() - 2);
+        raw.extend(
+            LldpTlv {
+                tlv_type: LLDP_TLV_SYSTEM_NAME,
+                value: b"second".to_vec(),
+            }
+            .serialize(),
+        );
+        raw.extend_from_slice(&[0, 0]);
+
+        assert_eq!(
+            LldpPacket::parse(&raw),
+            Err(LldpError::DuplicateTlv {
+                tlv_type: LLDP_TLV_SYSTEM_NAME,
+            })
+        );
     }
 
     #[test]
