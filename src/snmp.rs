@@ -134,12 +134,45 @@ pub fn decode_ber_tlv(data: &[u8]) -> Result<(u8, &[u8], usize), SnmpError> {
     Ok((tag, &data[header_len..header_len + len], header_len + len))
 }
 
+pub fn decode_ber_integer(bytes: &[u8]) -> Result<i32, SnmpError> {
+    if bytes.is_empty() {
+        return Err(SnmpError::InvalidBerEncoding);
+    }
+
+    let mut content = bytes;
+    while content.len() > 1
+        && ((content[0] == 0x00 && content[1] & 0x80 == 0)
+            || (content[0] == 0xff && content[1] & 0x80 != 0))
+    {
+        content = &content[1..];
+    }
+
+    if content.len() > std::mem::size_of::<i32>() {
+        return Err(SnmpError::InvalidBerEncoding);
+    }
+
+    let mut value = if content[0] & 0x80 != 0 { -1i32 } else { 0i32 };
+    for &byte in content {
+        value = (value << 8) | i32::from(byte);
+    }
+    Ok(value)
+}
+
 pub fn encode_ber_integer(val: i32) -> Vec<u8> {
-    let mut out = Vec::new();
-    out.push(BER_TAG_INTEGER);
     let bytes = val.to_be_bytes();
-    out.push(4);
-    out.extend_from_slice(&bytes);
+    let mut start = 0usize;
+    while start < bytes.len() - 1
+        && ((bytes[start] == 0x00 && bytes[start + 1] & 0x80 == 0)
+            || (bytes[start] == 0xff && bytes[start + 1] & 0x80 != 0))
+    {
+        start += 1;
+    }
+
+    let content = &bytes[start..];
+    let mut out = Vec::with_capacity(2 + content.len());
+    out.push(BER_TAG_INTEGER);
+    out.extend(encode_ber_length(content.len()));
+    out.extend_from_slice(content);
     out
 }
 
@@ -164,10 +197,10 @@ impl SnmpMessage {
 
         // 1. Version
         let (v_tag, v_body, v_len) = decode_ber_tlv(root_body)?;
-        if v_tag != BER_TAG_INTEGER || v_body.is_empty() {
+        if v_tag != BER_TAG_INTEGER {
             return Err(SnmpError::InvalidBerEncoding);
         }
-        let version = v_body.iter().fold(0i32, |acc, &b| (acc << 8) | (b as i32));
+        let version = decode_ber_integer(v_body)?;
 
         // 2. Community
         let rem1 = &root_body[v_len..];
@@ -185,29 +218,21 @@ impl SnmpMessage {
         if req_tag != BER_TAG_INTEGER {
             return Err(SnmpError::InvalidBerEncoding);
         }
-        let request_id = req_body
-            .iter()
-            .fold(0i32, |acc, &b| (acc << 8) | (b as i32));
+        let request_id = decode_ber_integer(req_body)?;
 
         let rem_pdu1 = &pdu_body[req_len..];
         let (err_tag, err_body, err_len) = decode_ber_tlv(rem_pdu1)?;
-        let error_status = if err_tag == BER_TAG_INTEGER {
-            err_body
-                .iter()
-                .fold(0i32, |acc, &b| (acc << 8) | (b as i32))
-        } else {
-            0
-        };
+        if err_tag != BER_TAG_INTEGER {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+        let error_status = decode_ber_integer(err_body)?;
 
         let rem_pdu2 = &rem_pdu1[err_len..];
         let (idx_tag, idx_body, idx_len) = decode_ber_tlv(rem_pdu2)?;
-        let error_index = if idx_tag == BER_TAG_INTEGER {
-            idx_body
-                .iter()
-                .fold(0i32, |acc, &b| (acc << 8) | (b as i32))
-        } else {
-            0
-        };
+        if idx_tag != BER_TAG_INTEGER {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+        let error_index = decode_ber_integer(idx_body)?;
 
         let rem_pdu3 = &rem_pdu2[idx_len..];
         let mut varbinds = Vec::new();
@@ -225,9 +250,9 @@ impl SnmpMessage {
                         let val_rem = &vb_body[o_len..];
                         let value = if let Ok((v_t, v_b, _)) = decode_ber_tlv(val_rem) {
                             match v_t {
-                                BER_TAG_INTEGER => SnmpValue::Integer(
-                                    v_b.iter().fold(0i32, |acc, &b| (acc << 8) | (b as i32)),
-                                ),
+                                BER_TAG_INTEGER => decode_ber_integer(v_b)
+                                    .map(SnmpValue::Integer)
+                                    .unwrap_or(SnmpValue::Null),
                                 BER_TAG_OCTET_STRING => SnmpValue::OctetString(v_b.to_vec()),
                                 BER_TAG_NULL => SnmpValue::Null,
                                 _ => SnmpValue::Null,
@@ -447,6 +472,46 @@ mod tests {
         raw.resize(2 + num_octets, 0);
 
         assert_eq!(decode_ber_tlv(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_ber_integer_encoding_is_minimal_and_signed() {
+        let cases = [
+            (-129, vec![0x02, 0x02, 0xff, 0x7f]),
+            (-128, vec![0x02, 0x01, 0x80]),
+            (-1, vec![0x02, 0x01, 0xff]),
+            (0, vec![0x02, 0x01, 0x00]),
+            (127, vec![0x02, 0x01, 0x7f]),
+            (128, vec![0x02, 0x02, 0x00, 0x80]),
+        ];
+
+        for (value, expected) in cases {
+            assert_eq!(encode_ber_integer(value), expected);
+        }
+    }
+
+    #[test]
+    fn test_ber_integer_decoding_handles_sign_extension_and_range() {
+        assert_eq!(decode_ber_integer(&[0x80]), Ok(-128));
+        assert_eq!(decode_ber_integer(&[0xff]), Ok(-1));
+        assert_eq!(decode_ber_integer(&[0x00, 0x80]), Ok(128));
+        assert_eq!(decode_ber_integer(&[0xff, 0x7f]), Ok(-129));
+        assert_eq!(decode_ber_integer(&[0x00, 0x7f]), Ok(127));
+        assert_eq!(decode_ber_integer(&[]), Err(SnmpError::InvalidBerEncoding));
+        assert_eq!(
+            decode_ber_integer(&[0x00, 0x80, 0x00, 0x00, 0x00]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+    }
+
+    #[test]
+    fn test_snmp_negative_integer_roundtrip() {
+        let mut msg = SnmpMessage::build_get_request("public", -129, &["1.3.6.1.2.1.1.1.0"]);
+        msg.pdu.varbinds[0].value = SnmpValue::Integer(-128);
+
+        let parsed = SnmpMessage::parse(&msg.serialize()).unwrap();
+        assert_eq!(parsed.pdu.request_id, -129);
+        assert_eq!(parsed.pdu.varbinds[0].value, SnmpValue::Integer(-128));
     }
 
     #[test]
