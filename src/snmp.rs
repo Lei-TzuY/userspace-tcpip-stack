@@ -106,6 +106,9 @@ pub fn decode_ber_tlv(data: &[u8]) -> Result<(u8, &[u8], usize), SnmpError> {
         (len_byte as usize, 2)
     } else {
         let num_octets = (len_byte & 0x7F) as usize;
+        if num_octets == 0 || num_octets > std::mem::size_of::<usize>() {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
         if data.len() < 2 + num_octets {
             return Err(SnmpError::PacketTooShort);
         }
@@ -402,6 +405,23 @@ mod tests {
         assert_eq!(parsed.pdu.request_id, 42);
         assert_eq!(parsed.pdu.varbinds.len(), 1);
         assert_eq!(parsed.pdu.varbinds[0].oid, "1.3.6.1.2.1.1.1.0");
+    }
+
+    #[test]
+    fn test_ber_indefinite_length_is_rejected() {
+        assert_eq!(
+            decode_ber_tlv(&[BER_TAG_OCTET_STRING, 0x80, 0x00, 0x00]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+    }
+
+    #[test]
+    fn test_ber_oversized_length_of_length_is_rejected() {
+        let num_octets = std::mem::size_of::<usize>() + 1;
+        let mut raw = vec![BER_TAG_OCTET_STRING, 0x80 | num_octets as u8];
+        raw.resize(2 + num_octets, 0);
+
+        assert_eq!(decode_ber_tlv(&raw), Err(SnmpError::InvalidBerEncoding));
     }
 
     #[test]
