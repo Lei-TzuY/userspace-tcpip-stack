@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - staging/mqtt-connect-payload-framing
+    paths:
+      - scripts/staging_mqtt_connect_payload.py
+      - .github/workflows/staging-mqtt-connect-payload.yml
+      - tests/test_mqtt_remaining_length_canonical.rs
 
 permissions:
   contents: write
