@@ -30,6 +30,13 @@ fn is_supported_pdu_type(tag: u8) -> bool {
     )
 }
 
+fn is_request_pdu_type(tag: u8) -> bool {
+    matches!(
+        tag,
+        SNMP_PDU_GET_REQUEST | SNMP_PDU_GET_NEXT_REQUEST | SNMP_PDU_SET_REQUEST
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnmpValue {
     Integer(i32),
@@ -339,6 +346,9 @@ impl SnmpMessage {
             return Err(SnmpError::InvalidBerEncoding);
         }
         let error_index = decode_ber_integer(idx_body)?;
+        if is_request_pdu_type(pdu_tag) && (error_status != 0 || error_index != 0) {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
 
         let rem_pdu3 = &rem_pdu2[idx_len..];
         let (vb_list_tag, mut vb_list_body, vb_list_len) = decode_ber_tlv(rem_pdu3)?;
@@ -399,6 +409,11 @@ impl SnmpMessage {
         }
         if !is_supported_pdu_type(self.pdu.pdu_type) {
             return Err(SnmpError::UnsupportedTag(self.pdu.pdu_type));
+        }
+        if is_request_pdu_type(self.pdu.pdu_type)
+            && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+        {
+            return Err(SnmpError::InvalidBerEncoding);
         }
 
         // Encode Varbinds
@@ -803,6 +818,59 @@ mod tests {
             let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
             assert_eq!(parsed.pdu.pdu_type, pdu_type);
         }
+    }
+
+    #[test]
+    fn test_snmp_request_pdus_require_zero_error_fields() {
+        for pdu_type in [
+            SNMP_PDU_GET_REQUEST,
+            SNMP_PDU_GET_NEXT_REQUEST,
+            SNMP_PDU_SET_REQUEST,
+        ] {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+            msg.pdu.pdu_type = pdu_type;
+            msg.pdu.error_status = 1;
+            assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+            msg.pdu.error_status = 0;
+            msg.pdu.error_index = 1;
+            assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+        }
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_request_error_fields() {
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let fields = [
+            BER_TAG_INTEGER,
+            1,
+            1,
+            BER_TAG_INTEGER,
+            1,
+            0,
+            BER_TAG_INTEGER,
+            1,
+            0,
+        ];
+        let fields_offset = raw
+            .windows(fields.len())
+            .position(|window| window == fields)
+            .unwrap();
+        raw[fields_offset + 5] = 1;
+
+        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_response_allows_error_fields() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+        msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+        msg.pdu.error_status = 5;
+        msg.pdu.error_index = 1;
+
+        let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+        assert_eq!(parsed.pdu.error_status, 5);
+        assert_eq!(parsed.pdu.error_index, 1);
     }
 
     #[test]
