@@ -25,6 +25,9 @@ pub const CDP_CAP_ROUTER: u32 = 0x0001;
 pub const CDP_CAP_SWITCH: u32 = 0x0008;
 pub const CDP_CAP_HOST: u32 = 0x0010;
 
+const CDP_TLV_HEADER_LEN: usize = 4;
+const CDP_TLV_MAX_VALUE_LEN: usize = u16::MAX as usize - CDP_TLV_HEADER_LEN;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CdpTlv {
     pub tlv_type: u16,
@@ -73,6 +76,35 @@ impl fmt::Display for CdpError {
 }
 
 impl std::error::Error for CdpError {}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CdpSerializeError {
+    InvalidVersion(u8),
+    TlvValueTooLong {
+        tlv_type: u16,
+        length: usize,
+        max: usize,
+    },
+}
+
+impl fmt::Display for CdpSerializeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CdpSerializeError::InvalidVersion(v) => write!(f, "Invalid CDP version: {}", v),
+            CdpSerializeError::TlvValueTooLong {
+                tlv_type,
+                length,
+                max,
+            } => write!(
+                f,
+                "CDP TLV {} value is {} bytes, exceeding the {}-byte 16-bit length limit",
+                tlv_type, length, max
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CdpSerializeError {}
 
 impl CdpPacket {
     pub fn build(device_id: &str, port_id: &str, platform: &str, ip: Ipv4Address) -> Self {
@@ -124,21 +156,38 @@ impl CdpPacket {
     }
 
     pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("CDP version and TLV lengths must be representable on the wire")
+    }
+
+    pub fn try_serialize(&self) -> Result<Vec<u8>, CdpSerializeError> {
+        if self.version != 1 && self.version != 2 {
+            return Err(CdpSerializeError::InvalidVersion(self.version));
+        }
+
         let mut buf = Vec::new();
         buf.push(self.version);
         buf.push(self.ttl);
         buf.extend_from_slice(&0u16.to_be_bytes()); // Checksum placeholder
 
         for tlv in &self.tlvs {
+            if tlv.value.len() > CDP_TLV_MAX_VALUE_LEN {
+                return Err(CdpSerializeError::TlvValueTooLong {
+                    tlv_type: tlv.tlv_type,
+                    length: tlv.value.len(),
+                    max: CDP_TLV_MAX_VALUE_LEN,
+                });
+            }
+
             buf.extend_from_slice(&tlv.tlv_type.to_be_bytes());
-            let len = (4 + tlv.value.len()) as u16;
+            let len = (CDP_TLV_HEADER_LEN + tlv.value.len()) as u16;
             buf.extend_from_slice(&len.to_be_bytes());
             buf.extend_from_slice(&tlv.value);
         }
 
         let chk = compute_checksum(&buf);
         buf[2..4].copy_from_slice(&chk.to_be_bytes());
-        buf
+        Ok(buf)
     }
 
     pub fn parse(data: &[u8]) -> Result<Self, CdpError> {
@@ -258,6 +307,62 @@ mod tests {
         assert_eq!(n.port_id, "GigabitEthernet0/1");
         assert_eq!(n.platform, "cisco WS-C2960");
         assert_eq!(n.ip_address, Some(Ipv4Address::new(10, 0, 0, 1)));
+    }
+
+    #[test]
+    fn test_try_serialize_rejects_invalid_version() {
+        let pkt = CdpPacket {
+            version: 3,
+            ttl: 180,
+            checksum: 0,
+            tlvs: Vec::new(),
+        };
+
+        assert_eq!(
+            pkt.try_serialize(),
+            Err(CdpSerializeError::InvalidVersion(3))
+        );
+    }
+
+    #[test]
+    fn test_try_serialize_accepts_maximum_tlv_value() {
+        let pkt = CdpPacket {
+            version: 2,
+            ttl: 180,
+            checksum: 0,
+            tlvs: vec![CdpTlv {
+                tlv_type: CDP_TLV_DEVICE_ID,
+                value: vec![0; CDP_TLV_MAX_VALUE_LEN],
+            }],
+        };
+
+        let raw = pkt.try_serialize().unwrap();
+        assert_eq!(
+            u16::from_be_bytes([raw[6], raw[7]]) as usize,
+            u16::MAX as usize
+        );
+    }
+
+    #[test]
+    fn test_try_serialize_rejects_oversized_tlv_value() {
+        let pkt = CdpPacket {
+            version: 2,
+            ttl: 180,
+            checksum: 0,
+            tlvs: vec![CdpTlv {
+                tlv_type: CDP_TLV_DEVICE_ID,
+                value: vec![0; CDP_TLV_MAX_VALUE_LEN + 1],
+            }],
+        };
+
+        assert_eq!(
+            pkt.try_serialize(),
+            Err(CdpSerializeError::TlvValueTooLong {
+                tlv_type: CDP_TLV_DEVICE_ID,
+                length: CDP_TLV_MAX_VALUE_LEN + 1,
+                max: CDP_TLV_MAX_VALUE_LEN,
+            })
+        );
     }
 
     #[test]
