@@ -4,6 +4,9 @@ on:
   push:
     branches: [staging/lldp-system-name-utf8]
 
+permissions:
+  contents: write
+
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -20,9 +23,12 @@ jobs:
       - run: cargo test --test test_lldp_system_name_utf8 --verbose
       - run: cargo test --all-targets --verbose
       - run: cargo build --release --verbose
-      - uses: actions/upload-artifact@v4
-        with:
-          name: validated-lldp-system-name-utf8
-          path: |
-            src/lldp.rs
-            tests/test_lldp_system_name_utf8.rs
+      - name: Commit validated blobs to staging branch
+        run: |
+          git config user.name "staging-builder"
+          git config user.email "staging-builder@users.noreply.github.com"
+          git add src/lldp.rs tests/test_lldp_system_name_utf8.rs
+          if ! git diff --cached --quiet; then
+            git commit -m "staging: validate LLDP system name UTF-8"
+            git push
+          fi
