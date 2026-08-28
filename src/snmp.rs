@@ -37,6 +37,20 @@ fn is_request_pdu_type(tag: u8) -> bool {
     )
 }
 
+fn response_error_fields_are_valid(
+    error_status: i32,
+    error_index: i32,
+    varbind_count: usize,
+) -> bool {
+    if !(0..=18).contains(&error_status) || error_index < 0 {
+        return false;
+    }
+    if error_status == 0 {
+        return error_index == 0;
+    }
+    error_index == 0 || usize::try_from(error_index).is_ok_and(|index| index <= varbind_count)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnmpValue {
     Integer(i32),
@@ -390,6 +404,12 @@ impl SnmpMessage {
             vb_list_body = &vb_list_body[vb_len..];
         }
 
+        if pdu_tag == SNMP_PDU_RESPONSE
+            && !response_error_fields_are_valid(error_status, error_index, varbinds.len())
+        {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+
         Ok(SnmpMessage {
             version,
             community,
@@ -412,6 +432,15 @@ impl SnmpMessage {
         }
         if is_request_pdu_type(self.pdu.pdu_type)
             && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+        {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+        if self.pdu.pdu_type == SNMP_PDU_RESPONSE
+            && !response_error_fields_are_valid(
+                self.pdu.error_status,
+                self.pdu.error_index,
+                self.pdu.varbinds.len(),
+            )
         {
             return Err(SnmpError::InvalidBerEncoding);
         }
@@ -862,8 +891,8 @@ mod tests {
     }
 
     #[test]
-    fn test_snmp_response_allows_error_fields() {
-        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+    fn test_snmp_response_allows_valid_error_fields() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
         msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
         msg.pdu.error_status = 5;
         msg.pdu.error_index = 1;
@@ -871,6 +900,77 @@ mod tests {
         let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
         assert_eq!(parsed.pdu.error_status, 5);
         assert_eq!(parsed.pdu.error_index, 1);
+    }
+
+    #[test]
+    fn test_snmp_response_rejects_invalid_error_status() {
+        for error_status in [-1, 19] {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+            msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+            msg.pdu.error_status = error_status;
+            assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+        }
+    }
+
+    #[test]
+    fn test_snmp_response_rejects_invalid_error_index() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
+        msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+
+        msg.pdu.error_status = 0;
+        msg.pdu.error_index = 1;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+        msg.pdu.error_status = 5;
+        msg.pdu.error_index = -1;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+        msg.pdu.error_index = 2;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_invalid_response_error_fields() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
+        msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+        let raw = msg.serialize();
+        let fields = [
+            BER_TAG_INTEGER,
+            1,
+            1,
+            BER_TAG_INTEGER,
+            1,
+            0,
+            BER_TAG_INTEGER,
+            1,
+            0,
+        ];
+        let fields_offset = raw
+            .windows(fields.len())
+            .position(|window| window == fields)
+            .unwrap();
+
+        let mut no_error_with_index = raw.clone();
+        no_error_with_index[fields_offset + 8] = 1;
+        assert_eq!(
+            SnmpMessage::parse(&no_error_with_index),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut out_of_range_status = raw.clone();
+        out_of_range_status[fields_offset + 5] = 19;
+        assert_eq!(
+            SnmpMessage::parse(&out_of_range_status),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut index_past_varbinds = raw;
+        index_past_varbinds[fields_offset + 5] = 5;
+        index_past_varbinds[fields_offset + 8] = 2;
+        assert_eq!(
+            SnmpMessage::parse(&index_past_varbinds),
+            Err(SnmpError::InvalidBerEncoding)
+        );
     }
 
     #[test]
