@@ -19,8 +19,8 @@ jobs:
           fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Apply implementation and tests
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
 
           path = Path('src/snmp.rs')
@@ -47,56 +47,58 @@ jobs:
           text = text.replace(marker, replacement, 1)
 
           marker = "    #[test]\n    fn test_snmp_mib_store() {\n"
-          tests = r'''    #[test]
-    fn test_snmp_rejects_unsupported_version() {
-        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
-        msg.version = 0;
-        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+          tests = '''    #[test]
+          fn test_snmp_rejects_unsupported_version() {
+              let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+              msg.version = 0;
+              assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
 
-        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
-        let version_offset = raw
-            .windows(3)
-            .position(|window| window == [BER_TAG_INTEGER, 1, SNMP_VERSION_2C as u8])
-            .unwrap();
-        raw[version_offset + 2] = 0;
-        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
-    }
+              let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+              let version_offset = raw
+                  .windows(3)
+                  .position(|window| window == [BER_TAG_INTEGER, 1, SNMP_VERSION_2C as u8])
+                  .unwrap();
+              raw[version_offset + 2] = 0;
+              assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
+          }
 
-    #[test]
-    fn test_snmp_rejects_unsupported_pdu_type() {
-        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
-        msg.pdu.pdu_type = 0xa5;
-        assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa5)));
+          #[test]
+          fn test_snmp_rejects_unsupported_pdu_type() {
+              let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+              msg.pdu.pdu_type = 0xa5;
+              assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa5)));
 
-        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
-        let pdu_offset = raw
-            .iter()
-            .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
-            .unwrap();
-        raw[pdu_offset] = 0xa5;
-        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::UnsupportedTag(0xa5)));
-    }
+              let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+              let pdu_offset = raw
+                  .iter()
+                  .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
+                  .unwrap();
+              raw[pdu_offset] = 0xa5;
+              assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::UnsupportedTag(0xa5)));
+          }
 
-    #[test]
-    fn test_snmp_supported_pdu_types_roundtrip() {
-        for pdu_type in [
-            SNMP_PDU_GET_REQUEST,
-            SNMP_PDU_GET_NEXT_REQUEST,
-            SNMP_PDU_RESPONSE,
-            SNMP_PDU_SET_REQUEST,
-        ] {
-            let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
-            msg.pdu.pdu_type = pdu_type;
-            let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
-            assert_eq!(parsed.pdu.pdu_type, pdu_type);
-        }
-    }
+          #[test]
+          fn test_snmp_supported_pdu_types_roundtrip() {
+              for pdu_type in [
+                  SNMP_PDU_GET_REQUEST,
+                  SNMP_PDU_GET_NEXT_REQUEST,
+                  SNMP_PDU_RESPONSE,
+                  SNMP_PDU_SET_REQUEST,
+              ] {
+                  let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+                  msg.pdu.pdu_type = pdu_type;
+                  let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+                  assert_eq!(parsed.pdu.pdu_type, pdu_type);
+              }
+          }
 
-'''
+          '''
+          tests = ''.join(line[10:] if line.startswith('          ') else line for line in tests.splitlines(True))
           assert marker in text
           text = text.replace(marker, tests + marker, 1)
 
           path.write_text(text)
+          PY
       - name: Validate
         run: |
           cargo fmt --check
