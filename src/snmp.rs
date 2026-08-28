@@ -190,8 +190,8 @@ pub fn encode_ber_null() -> Vec<u8> {
 
 impl SnmpMessage {
     pub fn parse(data: &[u8]) -> Result<Self, SnmpError> {
-        let (root_tag, root_body, _) = decode_ber_tlv(data)?;
-        if root_tag != BER_TAG_SEQUENCE {
+        let (root_tag, root_body, root_len) = decode_ber_tlv(data)?;
+        if root_tag != BER_TAG_SEQUENCE || root_len != data.len() {
             return Err(SnmpError::InvalidBerEncoding);
         }
 
@@ -212,7 +212,10 @@ impl SnmpMessage {
 
         // 3. PDU
         let rem2 = &rem1[c_len..];
-        let (pdu_tag, pdu_body, _) = decode_ber_tlv(rem2)?;
+        let (pdu_tag, pdu_body, pdu_len) = decode_ber_tlv(rem2)?;
+        if pdu_len != rem2.len() {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
 
         let (req_tag, req_body, req_len) = decode_ber_tlv(pdu_body)?;
         if req_tag != BER_TAG_INTEGER {
@@ -235,41 +238,42 @@ impl SnmpMessage {
         let error_index = decode_ber_integer(idx_body)?;
 
         let rem_pdu3 = &rem_pdu2[idx_len..];
-        let mut varbinds = Vec::new();
+        let (vb_list_tag, mut vb_list_body, vb_list_len) = decode_ber_tlv(rem_pdu3)?;
+        if vb_list_tag != BER_TAG_SEQUENCE || vb_list_len != rem_pdu3.len() {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
 
-        if let Ok((vb_list_tag, mut vb_list_body, _)) = decode_ber_tlv(rem_pdu3)
-            && vb_list_tag == BER_TAG_SEQUENCE
-        {
-            while !vb_list_body.is_empty() {
-                if let Ok((vb_tag, vb_body, vb_len)) = decode_ber_tlv(vb_list_body) {
-                    if vb_tag == BER_TAG_SEQUENCE
-                        && let Ok((oid_tag, oid_body, o_len)) = decode_ber_tlv(vb_body)
-                        && (oid_tag == BER_TAG_OID || oid_tag == BER_TAG_OCTET_STRING)
-                    {
-                        let oid_str = String::from_utf8_lossy(oid_body).to_string();
-                        let val_rem = &vb_body[o_len..];
-                        let value = if let Ok((v_t, v_b, _)) = decode_ber_tlv(val_rem) {
-                            match v_t {
-                                BER_TAG_INTEGER => decode_ber_integer(v_b)
-                                    .map(SnmpValue::Integer)
-                                    .unwrap_or(SnmpValue::Null),
-                                BER_TAG_OCTET_STRING => SnmpValue::OctetString(v_b.to_vec()),
-                                BER_TAG_NULL => SnmpValue::Null,
-                                _ => SnmpValue::Null,
-                            }
-                        } else {
-                            SnmpValue::Null
-                        };
-                        varbinds.push(SnmpVarbind {
-                            oid: oid_str,
-                            value,
-                        });
-                    }
-                    vb_list_body = &vb_list_body[vb_len..];
-                } else {
-                    break;
-                }
+        let mut varbinds = Vec::new();
+        while !vb_list_body.is_empty() {
+            let (vb_tag, vb_body, vb_len) = decode_ber_tlv(vb_list_body)?;
+            if vb_tag != BER_TAG_SEQUENCE {
+                return Err(SnmpError::InvalidBerEncoding);
             }
+
+            let (oid_tag, oid_body, oid_len) = decode_ber_tlv(vb_body)?;
+            if oid_tag != BER_TAG_OID && oid_tag != BER_TAG_OCTET_STRING {
+                return Err(SnmpError::InvalidBerEncoding);
+            }
+            let oid_str = String::from_utf8_lossy(oid_body).to_string();
+
+            let val_rem = &vb_body[oid_len..];
+            let (v_tag, v_body, v_len) = decode_ber_tlv(val_rem)?;
+            if v_len != val_rem.len() {
+                return Err(SnmpError::InvalidBerEncoding);
+            }
+            let value = match v_tag {
+                BER_TAG_INTEGER => SnmpValue::Integer(decode_ber_integer(v_body)?),
+                BER_TAG_OCTET_STRING => SnmpValue::OctetString(v_body.to_vec()),
+                BER_TAG_NULL if v_body.is_empty() => SnmpValue::Null,
+                BER_TAG_NULL => return Err(SnmpError::InvalidBerEncoding),
+                tag => return Err(SnmpError::UnsupportedTag(tag)),
+            };
+
+            varbinds.push(SnmpVarbind {
+                oid: oid_str,
+                value,
+            });
+            vb_list_body = &vb_list_body[vb_len..];
         }
 
         Ok(SnmpMessage {
@@ -512,6 +516,46 @@ mod tests {
         let parsed = SnmpMessage::parse(&msg.serialize()).unwrap();
         assert_eq!(parsed.pdu.request_id, -129);
         assert_eq!(parsed.pdu.varbinds[0].value, SnmpValue::Integer(-128));
+    }
+
+    #[test]
+    fn test_snmp_rejects_root_trailing_bytes() {
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        raw.push(0);
+
+        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_rejects_malformed_varbind_instead_of_truncating_list() {
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let pdu_offset = raw
+            .iter()
+            .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
+            .unwrap();
+        let vb_list_offset = raw.len() - 2;
+
+        raw[1] += 3;
+        raw[pdu_offset + 1] += 3;
+        raw[vb_list_offset + 1] = 3;
+        raw.extend_from_slice(&[BER_TAG_SEQUENCE, 1, 0]);
+
+        assert!(SnmpMessage::parse(&raw).is_err());
+    }
+
+    #[test]
+    fn test_snmp_rejects_unsupported_varbind_value_tag() {
+        let mut raw = SnmpMessage::build_get_request("public", 1, &["1"]).serialize();
+        let value_offset = raw
+            .windows(2)
+            .rposition(|window| window == [BER_TAG_NULL, 0])
+            .unwrap();
+        raw[value_offset] = 0x40;
+
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::UnsupportedTag(0x40))
+        );
     }
 
     #[test]
