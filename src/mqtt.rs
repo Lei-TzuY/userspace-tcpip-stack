@@ -464,9 +464,12 @@ fn validate_connect_variable_header(payload: &[u8]) -> Result<(), ConnectSemanti
     let will_flag = connect_flags & 0x04 != 0;
     let will_qos = (connect_flags >> 3) & 0x03;
     let will_retain = connect_flags & 0x20 != 0;
+    let username_flag = connect_flags & 0x80 != 0;
+    let password_flag = connect_flags & 0x40 != 0;
     if connect_flags & 0x01 != 0
         || (!will_flag && (will_qos != 0 || will_retain))
         || (will_flag && will_qos == 3)
+        || (password_flag && !username_flag)
     {
         return Err(ConnectSemanticError::InvalidFlags(connect_flags));
     }
@@ -474,25 +477,50 @@ fn validate_connect_variable_header(payload: &[u8]) -> Result<(), ConnectSemanti
     Ok(())
 }
 
+fn consume_connect_field<'a>(
+    payload: &'a [u8],
+    cursor: &mut usize,
+) -> Result<&'a [u8], ConnectSemanticError> {
+    if payload.len().saturating_sub(*cursor) < 2 {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
+    }
+    let field_len = u16::from_be_bytes([payload[*cursor], payload[*cursor + 1]]) as usize;
+    let field_start = *cursor + 2;
+    let field_end = field_start
+        .checked_add(field_len)
+        .ok_or(ConnectSemanticError::PayloadTooShort(payload.len()))?;
+    if field_end > payload.len() {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
+    }
+    *cursor = field_end;
+    Ok(&payload[field_start..field_end])
+}
+
 fn validate_connect_semantics(payload: &[u8]) -> Result<(), ConnectSemanticError> {
     validate_connect_variable_header(payload)?;
-    if payload.len() < 12 {
-        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
-    }
 
-    let client_id_len = u16::from_be_bytes([payload[10], payload[11]]) as usize;
-    let client_id_end = 12usize
-        .checked_add(client_id_len)
-        .ok_or(ConnectSemanticError::PayloadTooShort(payload.len()))?;
-    if client_id_end > payload.len() {
-        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
-    }
-    std::str::from_utf8(&payload[12..client_id_end])
-        .map_err(|_| ConnectSemanticError::MalformedUtf8)?;
+    let connect_flags = payload[7];
+    let mut cursor = 10usize;
+    let client_id = consume_connect_field(payload, &mut cursor)?;
+    std::str::from_utf8(client_id).map_err(|_| ConnectSemanticError::MalformedUtf8)?;
 
-    let clean_session = payload[7] & 0x02 != 0;
-    if client_id_len == 0 && !clean_session {
+    let clean_session = connect_flags & 0x02 != 0;
+    if client_id.is_empty() && !clean_session {
         return Err(ConnectSemanticError::InvalidClientId);
+    }
+
+    if connect_flags & 0x04 != 0 {
+        consume_connect_field(payload, &mut cursor)?; // Will Topic
+        consume_connect_field(payload, &mut cursor)?; // Will Message
+    }
+    if connect_flags & 0x80 != 0 {
+        consume_connect_field(payload, &mut cursor)?; // User Name
+    }
+    if connect_flags & 0x40 != 0 {
+        consume_connect_field(payload, &mut cursor)?; // Password
+    }
+    if cursor != payload.len() {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
     }
 
     Ok(())

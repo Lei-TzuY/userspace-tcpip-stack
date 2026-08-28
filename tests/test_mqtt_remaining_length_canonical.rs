@@ -9,6 +9,12 @@ fn connect_with_remaining_length(encoded: &[u8], payload_len: usize) -> Vec<u8> 
         raw[payload_start..payload_start + 10]
             .copy_from_slice(&[0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 60]);
     }
+    if payload_len >= 12 {
+        let client_id_len =
+            u16::try_from(payload_len - 12).expect("test CONNECT Client Identifier must fit u16");
+        raw[payload_start + 10..payload_start + 12].copy_from_slice(&client_id_len.to_be_bytes());
+        raw[payload_start + 12..].fill(b'a');
+    }
     raw
 }
 
