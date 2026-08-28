@@ -31,6 +31,7 @@ pub enum TftpError {
     MissingNullTerminator,
     InvalidUtf8(&'static str),
     InvalidMode(String),
+    EmbeddedNull(&'static str),
     TrailingData { opcode: u16, length: usize },
     InvalidPacketLength { opcode: u16, length: usize },
     DataBlockTooLarge(usize),
@@ -48,6 +49,9 @@ impl fmt::Display for TftpError {
                 write!(f, "TFTP {} is not valid UTF-8", field)
             }
             TftpError::InvalidMode(mode) => write!(f, "Invalid TFTP transfer mode: {}", mode),
+            TftpError::EmbeddedNull(field) => {
+                write!(f, "TFTP {} contains an embedded null byte", field)
+            }
             TftpError::TrailingData { opcode, length } => write!(
                 f,
                 "TFTP opcode {} has {} trailing bytes after its final field",
@@ -79,6 +83,13 @@ fn is_valid_mode(mode: &str) -> bool {
     mode.eq_ignore_ascii_case("netascii")
         || mode.eq_ignore_ascii_case("octet")
         || mode.eq_ignore_ascii_case("mail")
+}
+
+fn validate_c_string(value: &str, field: &'static str) -> Result<(), TftpError> {
+    if value.as_bytes().contains(&0) {
+        return Err(TftpError::EmbeddedNull(field));
+    }
+    Ok(())
 }
 
 impl TftpPacket {
@@ -165,11 +176,16 @@ impl TftpPacket {
         }
     }
 
-    pub fn serialize(&self) -> Vec<u8> {
+    pub fn try_serialize(&self) -> Result<Vec<u8>, TftpError> {
         let mut buf = Vec::new();
 
         match self {
             TftpPacket::Rrq { filename, mode } => {
+                validate_c_string(filename, "filename")?;
+                validate_c_string(mode, "mode")?;
+                if !is_valid_mode(mode) {
+                    return Err(TftpError::InvalidMode(mode.clone()));
+                }
                 buf.extend_from_slice(&TFTP_OPCODE_RRQ.to_be_bytes());
                 buf.extend_from_slice(filename.as_bytes());
                 buf.push(0);
@@ -177,6 +193,11 @@ impl TftpPacket {
                 buf.push(0);
             }
             TftpPacket::Wrq { filename, mode } => {
+                validate_c_string(filename, "filename")?;
+                validate_c_string(mode, "mode")?;
+                if !is_valid_mode(mode) {
+                    return Err(TftpError::InvalidMode(mode.clone()));
+                }
                 buf.extend_from_slice(&TFTP_OPCODE_WRQ.to_be_bytes());
                 buf.extend_from_slice(filename.as_bytes());
                 buf.push(0);
@@ -184,6 +205,9 @@ impl TftpPacket {
                 buf.push(0);
             }
             TftpPacket::Data { block_num, data } => {
+                if data.len() > TFTP_BLOCK_SIZE {
+                    return Err(TftpError::DataBlockTooLarge(data.len()));
+                }
                 buf.extend_from_slice(&TFTP_OPCODE_DATA.to_be_bytes());
                 buf.extend_from_slice(&block_num.to_be_bytes());
                 buf.extend_from_slice(data);
@@ -196,6 +220,7 @@ impl TftpPacket {
                 error_code,
                 message,
             } => {
+                validate_c_string(message, "error message")?;
                 buf.extend_from_slice(&TFTP_OPCODE_ERROR.to_be_bytes());
                 buf.extend_from_slice(&error_code.to_be_bytes());
                 buf.extend_from_slice(message.as_bytes());
@@ -203,7 +228,12 @@ impl TftpPacket {
             }
         }
 
-        buf
+        Ok(buf)
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        self.try_serialize()
+            .expect("attempted to serialize an invalid TFTP packet")
     }
 }
 
@@ -287,6 +317,65 @@ mod tests {
         let ack = TftpPacket::Ack { block_num: 1 };
         let parsed_ack = TftpPacket::parse(&ack.serialize()).unwrap();
         assert_eq!(parsed_ack, ack);
+    }
+
+    #[test]
+    fn test_tftp_try_serialize_accepts_max_data_block() {
+        let packet = TftpPacket::Data {
+            block_num: 1,
+            data: vec![0x5a; TFTP_BLOCK_SIZE],
+        };
+
+        let serialized = packet.try_serialize().unwrap();
+        assert_eq!(serialized.len(), 4 + TFTP_BLOCK_SIZE);
+        assert_eq!(TftpPacket::parse(&serialized).unwrap(), packet);
+    }
+
+    #[test]
+    fn test_tftp_try_serialize_rejects_oversized_data_block() {
+        let packet = TftpPacket::Data {
+            block_num: 1,
+            data: vec![0x5a; TFTP_BLOCK_SIZE + 1],
+        };
+
+        assert_eq!(
+            packet.try_serialize(),
+            Err(TftpError::DataBlockTooLarge(TFTP_BLOCK_SIZE + 1))
+        );
+    }
+
+    #[test]
+    fn test_tftp_try_serialize_rejects_unknown_mode() {
+        let packet = TftpPacket::Rrq {
+            filename: "kernel.bin".to_string(),
+            mode: "binary".to_string(),
+        };
+
+        assert_eq!(
+            packet.try_serialize(),
+            Err(TftpError::InvalidMode("binary".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_tftp_try_serialize_rejects_embedded_nulls() {
+        let rrq = TftpPacket::Rrq {
+            filename: "kernel\0.bin".to_string(),
+            mode: "octet".to_string(),
+        };
+        let error = TftpPacket::Error {
+            error_code: 1,
+            message: "not\0found".to_string(),
+        };
+
+        assert_eq!(
+            rrq.try_serialize(),
+            Err(TftpError::EmbeddedNull("filename"))
+        );
+        assert_eq!(
+            error.try_serialize(),
+            Err(TftpError::EmbeddedNull("error message"))
+        );
     }
 
     #[test]
