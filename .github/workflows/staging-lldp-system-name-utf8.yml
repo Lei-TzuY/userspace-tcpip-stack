@@ -4,9 +4,6 @@ on:
   push:
     branches: [staging/lldp-system-name-utf8]
 
-permissions:
-  contents: write
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -16,9 +13,8 @@ jobs:
         with:
           components: rustfmt
       - name: Apply focused fix and regression tests
-        shell: bash
         run: |
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
           p = Path('src/lldp.rs')
           s = p.read_text()
@@ -35,7 +31,6 @@ jobs:
           elif new not in s:
               raise SystemExit('target parser expression not found')
           p.write_text(s)
-
           Path('tests/test_lldp_system_name_utf8.rs').write_text(r'''use toy_tcpip::lldp::{
     LldpError, LldpPacket, LldpTlv, LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED,
     LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME, LLDP_TLV_CHASSIS_ID, LLDP_TLV_PORT_ID,
@@ -94,14 +89,9 @@ fn packet_roundtrips_multibyte_utf8_system_name() {
       - run: cargo test --test test_lldp_system_name_utf8 --verbose
       - run: cargo test --all-targets --verbose
       - run: cargo build --release --verbose
-      - name: Commit validated product files
-        shell: bash
-        run: |
-          if git diff --quiet -- src/lldp.rs tests/test_lldp_system_name_utf8.rs; then
-            exit 0
-          fi
-          git config user.name "staging-builder"
-          git config user.email "staging-builder@users.noreply.github.com"
-          git add src/lldp.rs tests/test_lldp_system_name_utf8.rs
-          git commit -m "staging: validate LLDP system name UTF-8"
-          git push
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validated-lldp-system-name-utf8
+          path: |
+            src/lldp.rs
+            tests/test_lldp_system_name_utf8.rs
