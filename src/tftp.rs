@@ -31,6 +31,7 @@ pub enum TftpError {
     MissingNullTerminator,
     InvalidUtf8(&'static str),
     InvalidMode(String),
+    EmptyField(&'static str),
     EmbeddedNull(&'static str),
     TrailingData { opcode: u16, length: usize },
     InvalidPacketLength { opcode: u16, length: usize },
@@ -49,6 +50,7 @@ impl fmt::Display for TftpError {
                 write!(f, "TFTP {} is not valid UTF-8", field)
             }
             TftpError::InvalidMode(mode) => write!(f, "Invalid TFTP transfer mode: {}", mode),
+            TftpError::EmptyField(field) => write!(f, "TFTP {} must not be empty", field),
             TftpError::EmbeddedNull(field) => {
                 write!(f, "TFTP {} contains an embedded null byte", field)
             }
@@ -92,6 +94,13 @@ fn validate_c_string(value: &str, field: &'static str) -> Result<(), TftpError> 
     Ok(())
 }
 
+fn validate_filename(filename: &str) -> Result<(), TftpError> {
+    if filename.is_empty() {
+        return Err(TftpError::EmptyField("filename"));
+    }
+    validate_c_string(filename, "filename")
+}
+
 impl TftpPacket {
     pub fn parse(data: &[u8]) -> Result<Self, TftpError> {
         if data.len() < 4 {
@@ -108,6 +117,9 @@ impl TftpPacket {
                     .position(|&b| b == 0)
                     .ok_or(TftpError::MissingNullTerminator)?;
                 let filename = parse_text(&rest[..null1], "filename")?;
+                if filename.is_empty() {
+                    return Err(TftpError::EmptyField("filename"));
+                }
 
                 let mode_rest = &rest[null1 + 1..];
                 let null2 = mode_rest
@@ -181,7 +193,7 @@ impl TftpPacket {
 
         match self {
             TftpPacket::Rrq { filename, mode } => {
-                validate_c_string(filename, "filename")?;
+                validate_filename(filename)?;
                 validate_c_string(mode, "mode")?;
                 if !is_valid_mode(mode) {
                     return Err(TftpError::InvalidMode(mode.clone()));
@@ -193,7 +205,7 @@ impl TftpPacket {
                 buf.push(0);
             }
             TftpPacket::Wrq { filename, mode } => {
-                validate_c_string(filename, "filename")?;
+                validate_filename(filename)?;
                 validate_c_string(mode, "mode")?;
                 if !is_valid_mode(mode) {
                     return Err(TftpError::InvalidMode(mode.clone()));
@@ -355,6 +367,21 @@ mod tests {
             packet.try_serialize(),
             Err(TftpError::InvalidMode("binary".to_string()))
         );
+    }
+
+    #[test]
+    fn test_tftp_rejects_empty_filenames() {
+        let rrq_raw = [0x00, 0x01, 0x00, b'o', b'c', b't', b'e', b't', 0x00];
+        let wrq = TftpPacket::Wrq {
+            filename: String::new(),
+            mode: "octet".to_string(),
+        };
+
+        assert_eq!(
+            TftpPacket::parse(&rrq_raw),
+            Err(TftpError::EmptyField("filename"))
+        );
+        assert_eq!(wrq.try_serialize(), Err(TftpError::EmptyField("filename")));
     }
 
     #[test]
