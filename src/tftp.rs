@@ -29,6 +29,9 @@ pub enum TftpError {
     PacketTooShort(usize),
     InvalidOpcode(u16),
     MissingNullTerminator,
+    TrailingData { opcode: u16, length: usize },
+    InvalidPacketLength { opcode: u16, length: usize },
+    DataBlockTooLarge(usize),
 }
 
 impl fmt::Display for TftpError {
@@ -39,6 +42,21 @@ impl fmt::Display for TftpError {
             }
             TftpError::InvalidOpcode(op) => write!(f, "Invalid TFTP opcode: {}", op),
             TftpError::MissingNullTerminator => write!(f, "TFTP string missing null terminator"),
+            TftpError::TrailingData { opcode, length } => write!(
+                f,
+                "TFTP opcode {} has {} trailing bytes after its final field",
+                opcode, length
+            ),
+            TftpError::InvalidPacketLength { opcode, length } => write!(
+                f,
+                "TFTP opcode {} has invalid packet length {}",
+                opcode, length
+            ),
+            TftpError::DataBlockTooLarge(length) => write!(
+                f,
+                "TFTP DATA block is {} bytes, exceeding the {}-byte maximum",
+                length, TFTP_BLOCK_SIZE
+            ),
         }
     }
 }
@@ -68,6 +86,13 @@ impl TftpPacket {
                     .position(|&b| b == 0)
                     .ok_or(TftpError::MissingNullTerminator)?;
                 let mode = String::from_utf8_lossy(&mode_rest[..null2]).to_string();
+                let consumed = null1 + 1 + null2 + 1;
+                if consumed != rest.len() {
+                    return Err(TftpError::TrailingData {
+                        opcode,
+                        length: rest.len() - consumed,
+                    });
+                }
 
                 if opcode == TFTP_OPCODE_RRQ {
                     Ok(TftpPacket::Rrq { filename, mode })
@@ -78,12 +103,21 @@ impl TftpPacket {
             TFTP_OPCODE_DATA => {
                 let block_num = u16::from_be_bytes([data[2], data[3]]);
                 let chunk = data[4..].to_vec();
+                if chunk.len() > TFTP_BLOCK_SIZE {
+                    return Err(TftpError::DataBlockTooLarge(chunk.len()));
+                }
                 Ok(TftpPacket::Data {
                     block_num,
                     data: chunk,
                 })
             }
             TFTP_OPCODE_ACK => {
+                if data.len() != 4 {
+                    return Err(TftpError::InvalidPacketLength {
+                        opcode,
+                        length: data.len(),
+                    });
+                }
                 let block_num = u16::from_be_bytes([data[2], data[3]]);
                 Ok(TftpPacket::Ack { block_num })
             }
@@ -93,7 +127,13 @@ impl TftpPacket {
                 let msg_len = msg_bytes
                     .iter()
                     .position(|&b| b == 0)
-                    .unwrap_or(msg_bytes.len());
+                    .ok_or(TftpError::MissingNullTerminator)?;
+                if msg_len + 1 != msg_bytes.len() {
+                    return Err(TftpError::TrailingData {
+                        opcode,
+                        length: msg_bytes.len() - msg_len - 1,
+                    });
+                }
                 let message = String::from_utf8_lossy(&msg_bytes[..msg_len]).to_string();
                 Ok(TftpPacket::Error {
                     error_code,
@@ -226,6 +266,71 @@ mod tests {
         let ack = TftpPacket::Ack { block_num: 1 };
         let parsed_ack = TftpPacket::parse(&ack.serialize()).unwrap();
         assert_eq!(parsed_ack, ack);
+    }
+
+    #[test]
+    fn test_tftp_rrq_rejects_trailing_bytes() {
+        let mut raw = TftpPacket::Rrq {
+            filename: "kernel.bin".to_string(),
+            mode: "octet".to_string(),
+        }
+        .serialize();
+        raw.extend_from_slice(&[0xaa, 0xbb]);
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::TrailingData {
+                opcode: TFTP_OPCODE_RRQ,
+                length: 2,
+            })
+        );
+    }
+
+    #[test]
+    fn test_tftp_ack_rejects_trailing_bytes() {
+        let raw = [0x00, 0x04, 0x00, 0x01, 0xff];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::InvalidPacketLength {
+                opcode: TFTP_OPCODE_ACK,
+                length: raw.len(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_tftp_data_rejects_oversized_block() {
+        let mut raw = vec![0x00, 0x03, 0x00, 0x01];
+        raw.extend(std::iter::repeat_n(0x5a, TFTP_BLOCK_SIZE + 1));
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::DataBlockTooLarge(TFTP_BLOCK_SIZE + 1))
+        );
+    }
+
+    #[test]
+    fn test_tftp_error_requires_null_terminator() {
+        let raw = [0x00, 0x05, 0x00, 0x01, b'n', b'o'];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::MissingNullTerminator)
+        );
+    }
+
+    #[test]
+    fn test_tftp_error_rejects_trailing_bytes() {
+        let raw = [0x00, 0x05, 0x00, 0x01, b'n', b'o', 0x00, 0xff];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::TrailingData {
+                opcode: TFTP_OPCODE_ERROR,
+                length: 1,
+            })
+        );
     }
 
     #[test]
