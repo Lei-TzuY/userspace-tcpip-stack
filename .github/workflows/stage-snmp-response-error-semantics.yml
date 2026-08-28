@@ -1,0 +1,420 @@
+name: stage snmp response error semantics
+
+on:
+  push:
+    branches:
+      - stage/snmp-response-error-semantics
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/snmp.rs')
+          s = p.read_text()
+          anchor = '''fn is_request_pdu_type(tag: u8) -> bool {
+              matches!(
+                  tag,
+                  SNMP_PDU_GET_REQUEST | SNMP_PDU_GET_NEXT_REQUEST | SNMP_PDU_SET_REQUEST
+              )
+          }
+          '''
+          replacement = anchor + '''
+          fn response_error_fields_are_valid(error_status: i32, error_index: i32, varbind_count: usize) -> bool {
+              if !(0..=18).contains(&error_status) || error_index < 0 {
+                  return false;
+              }
+              if error_status == 0 {
+                  return error_index == 0;
+              }
+              error_index == 0 || usize::try_from(error_index).is_ok_and(|index| index <= varbind_count)
+          }
+          '''
+          if anchor not in s:
+              raise SystemExit('helper anchor not found')
+          s = s.replace(anchor, replacement, 1)
+
+          old_parse = '''        if is_request_pdu_type(pdu_tag) && (error_status != 0 || error_index != 0) {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  let rem_pdu3 = &rem_pdu2[idx_len..];
+          '''
+          new_parse = '''        if is_request_pdu_type(pdu_tag) && (error_status != 0 || error_index != 0) {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  let rem_pdu3 = &rem_pdu2[idx_len..];
+          '''
+          if old_parse not in s:
+              raise SystemExit('parse anchor not found')
+
+          old_vb_done = '''            vb_list_body = &vb_list_body[vb_len..];
+                  }
+
+                  Ok(SnmpMessage {
+          '''
+          new_vb_done = '''            vb_list_body = &vb_list_body[vb_len..];
+                  }
+
+                  if pdu_tag == SNMP_PDU_RESPONSE
+                      && !response_error_fields_are_valid(error_status, error_index, varbinds.len())
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  Ok(SnmpMessage {
+          '''
+          if old_vb_done not in s:
+              raise SystemExit('varbind completion anchor not found')
+          s = s.replace(old_vb_done, new_vb_done, 1)
+
+          old_ser = '''        if is_request_pdu_type(self.pdu.pdu_type)
+                      && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  // Encode Varbinds
+          '''
+          new_ser = '''        if is_request_pdu_type(self.pdu.pdu_type)
+                      && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+                  if self.pdu.pdu_type == SNMP_PDU_RESPONSE
+                      && !response_error_fields_are_valid(
+                          self.pdu.error_status,
+                          self.pdu.error_index,
+                          self.pdu.varbinds.len(),
+                      )
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  // Encode Varbinds
+          '''
+          if old_ser not in s:
+              raise SystemExit('serializer anchor not found')
+          s = s.replace(old_ser, new_ser, 1)
+
+          old_test = '''    #[test]
+              fn test_snmp_response_allows_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = 1;
+
+                  let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+                  assert_eq!(parsed.pdu.error_status, 5);
+                  assert_eq!(parsed.pdu.error_index, 1);
+              }
+          '''
+          new_test = '''    #[test]
+              fn test_snmp_response_allows_valid_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = 1;
+
+                  let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+                  assert_eq!(parsed.pdu.error_status, 5);
+                  assert_eq!(parsed.pdu.error_index, 1);
+              }
+
+              #[test]
+              fn test_snmp_response_rejects_invalid_error_status() {
+                  for error_status in [-1, 19] {
+                      let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+                      msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                      msg.pdu.error_status = error_status;
+                      assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+                  }
+              }
+
+              #[test]
+              fn test_snmp_response_rejects_invalid_error_index() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+
+                  msg.pdu.error_status = 0;
+                  msg.pdu.error_index = 1;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = -1;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+                  msg.pdu.error_index = 2;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+              }
+
+              #[test]
+              fn test_snmp_parser_rejects_invalid_response_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  let raw = msg.serialize();
+
+                  let fields = [
+                      BER_TAG_INTEGER,
+                      1,
+                      1,
+                      BER_TAG_INTEGER,
+                      1,
+                      0,
+                      BER_TAG_INTEGER,
+                      1,
+                      0,
+                  ];
+                  let fields_offset = raw
+                      .windows(fields.len())
+                      .position(|window| window == fields)
+                      .unwrap();
+
+                  let mut no_error_with_index = raw.clone();
+                  no_error_with_index[fields_offset + 8] = 1;
+                  assert_eq!(
+                      SnmpMessage::parse(&no_error_with_index),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+
+                  let mut out_of_range_status = raw.clone();
+                  out_of_range_status[fields_offset + 5] = 19;
+                  assert_eq!(
+                      SnmpMessage::parse(&out_of_range_status),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+
+                  let mut index_past_varbinds = raw;
+                  index_past_varbinds[fields_offset + 5] = 5;
+                  index_past_varbinds[fields_offset + 8] = 2;
+                  assert_eq!(
+                      SnmpMessage::parse(&index_past_varbinds),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+              }
+          '''
+          if old_test not in s:
+              raise SystemExit('response test anchor not found')
+          s = s.replace(old_test, new_test, 1)
+          p.write_text(s)
+          PY
+      - name: Validate
+        run: |
+          cargo fmt --all --check
+          cargo test --all-targets
+          cargo build --release
+      - name: Publish clean implementation branch
+        shell: bash
+        run: |
+          git fetch origin main
+          git checkout -B fix/snmp-response-error-semantics origin/main
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/snmp.rs')
+          s = p.read_text()
+          anchor = '''fn is_request_pdu_type(tag: u8) -> bool {
+              matches!(
+                  tag,
+                  SNMP_PDU_GET_REQUEST | SNMP_PDU_GET_NEXT_REQUEST | SNMP_PDU_SET_REQUEST
+              )
+          }
+          '''
+          replacement = anchor + '''
+          fn response_error_fields_are_valid(error_status: i32, error_index: i32, varbind_count: usize) -> bool {
+              if !(0..=18).contains(&error_status) || error_index < 0 {
+                  return false;
+              }
+              if error_status == 0 {
+                  return error_index == 0;
+              }
+              error_index == 0 || usize::try_from(error_index).is_ok_and(|index| index <= varbind_count)
+          }
+          '''
+          s = s.replace(anchor, replacement, 1)
+          old_vb_done = '''            vb_list_body = &vb_list_body[vb_len..];
+                  }
+
+                  Ok(SnmpMessage {
+          '''
+          new_vb_done = '''            vb_list_body = &vb_list_body[vb_len..];
+                  }
+
+                  if pdu_tag == SNMP_PDU_RESPONSE
+                      && !response_error_fields_are_valid(error_status, error_index, varbinds.len())
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  Ok(SnmpMessage {
+          '''
+          s = s.replace(old_vb_done, new_vb_done, 1)
+          old_ser = '''        if is_request_pdu_type(self.pdu.pdu_type)
+                      && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  // Encode Varbinds
+          '''
+          new_ser = '''        if is_request_pdu_type(self.pdu.pdu_type)
+                      && (self.pdu.error_status != 0 || self.pdu.error_index != 0)
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+                  if self.pdu.pdu_type == SNMP_PDU_RESPONSE
+                      && !response_error_fields_are_valid(
+                          self.pdu.error_status,
+                          self.pdu.error_index,
+                          self.pdu.varbinds.len(),
+                      )
+                  {
+                      return Err(SnmpError::InvalidBerEncoding);
+                  }
+
+                  // Encode Varbinds
+          '''
+          s = s.replace(old_ser, new_ser, 1)
+          old_test = '''    #[test]
+              fn test_snmp_response_allows_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = 1;
+
+                  let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+                  assert_eq!(parsed.pdu.error_status, 5);
+                  assert_eq!(parsed.pdu.error_index, 1);
+              }
+          '''
+          new_test = '''    #[test]
+              fn test_snmp_response_allows_valid_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = 1;
+
+                  let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+                  assert_eq!(parsed.pdu.error_status, 5);
+                  assert_eq!(parsed.pdu.error_index, 1);
+              }
+
+              #[test]
+              fn test_snmp_response_rejects_invalid_error_status() {
+                  for error_status in [-1, 19] {
+                      let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+                      msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                      msg.pdu.error_status = error_status;
+                      assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+                  }
+              }
+
+              #[test]
+              fn test_snmp_response_rejects_invalid_error_index() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+
+                  msg.pdu.error_status = 0;
+                  msg.pdu.error_index = 1;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+                  msg.pdu.error_status = 5;
+                  msg.pdu.error_index = -1;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+                  msg.pdu.error_index = 2;
+                  assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+              }
+
+              #[test]
+              fn test_snmp_parser_rejects_invalid_response_error_fields() {
+                  let mut msg = SnmpMessage::build_get_request(
+                      "public",
+                      1,
+                      &["1.3.6.1.2.1.1.1.0"],
+                  );
+                  msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+                  let raw = msg.serialize();
+
+                  let fields = [
+                      BER_TAG_INTEGER,
+                      1,
+                      1,
+                      BER_TAG_INTEGER,
+                      1,
+                      0,
+                      BER_TAG_INTEGER,
+                      1,
+                      0,
+                  ];
+                  let fields_offset = raw
+                      .windows(fields.len())
+                      .position(|window| window == fields)
+                      .unwrap();
+
+                  let mut no_error_with_index = raw.clone();
+                  no_error_with_index[fields_offset + 8] = 1;
+                  assert_eq!(
+                      SnmpMessage::parse(&no_error_with_index),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+
+                  let mut out_of_range_status = raw.clone();
+                  out_of_range_status[fields_offset + 5] = 19;
+                  assert_eq!(
+                      SnmpMessage::parse(&out_of_range_status),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+
+                  let mut index_past_varbinds = raw;
+                  index_past_varbinds[fields_offset + 5] = 5;
+                  index_past_varbinds[fields_offset + 8] = 2;
+                  assert_eq!(
+                      SnmpMessage::parse(&index_past_varbinds),
+                      Err(SnmpError::InvalidBerEncoding)
+                  );
+              }
+          '''
+          s = s.replace(old_test, new_test, 1)
+          p.write_text(s)
+          PY
+          cargo fmt --all
+          cargo fmt --all --check
+          cargo test --all-targets
+          cargo build --release
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git add src/snmp.rs
+          git commit -m 'fix(snmp): validate response error fields' -m 'Validate SNMPv2c RESPONSE error-status and error-index semantics during parsing and checked serialization.'
+          git push --force-with-lease origin fix/snmp-response-error-semantics
