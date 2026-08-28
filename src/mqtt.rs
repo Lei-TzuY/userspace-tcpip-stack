@@ -84,6 +84,7 @@ pub enum MqttError {
     InvalidConnectProtocolName,
     InvalidConnectProtocolLevel(u8),
     InvalidConnectFlags(u8),
+    InvalidConnectClientId,
 }
 
 impl fmt::Display for MqttError {
@@ -142,7 +143,7 @@ impl fmt::Display for MqttError {
             }
             MqttError::InvalidConnectPayloadLength(length) => write!(
                 f,
-                "Invalid MQTT CONNECT payload length {}; expected at least 10 bytes for the variable header",
+                "Invalid MQTT CONNECT payload length or framing: {}",
                 length
             ),
             MqttError::InvalidConnectProtocolName => {
@@ -155,6 +156,9 @@ impl fmt::Display for MqttError {
             ),
             MqttError::InvalidConnectFlags(flags) => {
                 write!(f, "Invalid MQTT CONNECT flags: 0x{:02x}", flags)
+            }
+            MqttError::InvalidConnectClientId => {
+                write!(f, "Invalid MQTT CONNECT Client Identifier")
             }
         }
     }
@@ -199,6 +203,7 @@ pub enum MqttSerializeError {
     InvalidConnectProtocolName,
     InvalidConnectProtocolLevel(u8),
     InvalidConnectFlags(u8),
+    InvalidConnectClientId,
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -269,7 +274,7 @@ impl fmt::Display for MqttSerializeError {
             }
             MqttSerializeError::InvalidConnectPayloadLength(length) => write!(
                 f,
-                "Invalid MQTT CONNECT payload length {}; expected at least 10 bytes for the variable header",
+                "Invalid MQTT CONNECT payload length or framing: {}",
                 length
             ),
             MqttSerializeError::InvalidConnectProtocolName => {
@@ -282,6 +287,9 @@ impl fmt::Display for MqttSerializeError {
             ),
             MqttSerializeError::InvalidConnectFlags(flags) => {
                 write!(f, "Invalid MQTT CONNECT flags: 0x{:02x}", flags)
+            }
+            MqttSerializeError::InvalidConnectClientId => {
+                write!(f, "Invalid MQTT CONNECT Client Identifier")
             }
         }
     }
@@ -434,6 +442,8 @@ enum ConnectSemanticError {
     InvalidProtocolName,
     InvalidProtocolLevel(u8),
     InvalidFlags(u8),
+    InvalidClientId,
+    MalformedUtf8,
 }
 
 fn validate_connect_variable_header(payload: &[u8]) -> Result<(), ConnectSemanticError> {
@@ -464,10 +474,34 @@ fn validate_connect_variable_header(payload: &[u8]) -> Result<(), ConnectSemanti
     Ok(())
 }
 
+fn validate_connect_semantics(payload: &[u8]) -> Result<(), ConnectSemanticError> {
+    validate_connect_variable_header(payload)?;
+    if payload.len() < 12 {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
+    }
+
+    let client_id_len = u16::from_be_bytes([payload[10], payload[11]]) as usize;
+    let client_id_end = 12usize
+        .checked_add(client_id_len)
+        .ok_or(ConnectSemanticError::PayloadTooShort(payload.len()))?;
+    if client_id_end > payload.len() {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
+    }
+    std::str::from_utf8(&payload[12..client_id_end])
+        .map_err(|_| ConnectSemanticError::MalformedUtf8)?;
+
+    let clean_session = payload[7] & 0x02 != 0;
+    if client_id_len == 0 && !clean_session {
+        return Err(ConnectSemanticError::InvalidClientId);
+    }
+
+    Ok(())
+}
+
 impl MqttPacket {
     pub fn build_connect(client_id: &str, clean_session: bool) -> Self {
         Self::try_build_connect(client_id, clean_session)
-            .expect("MQTT client ID must fit its 16-bit UTF-8 length field")
+            .expect("MQTT client ID must satisfy CONNECT wire requirements")
     }
 
     pub fn try_build_connect(
@@ -475,6 +509,9 @@ impl MqttPacket {
         clean_session: bool,
     ) -> Result<Self, MqttSerializeError> {
         let client_id_len = client_id.len();
+        if client_id_len == 0 && !clean_session {
+            return Err(MqttSerializeError::InvalidConnectClientId);
+        }
         validate_utf8_string_len("client ID", client_id_len)?;
         let payload_len = 12usize.checked_add(client_id_len).unwrap_or(usize::MAX);
         validate_remaining_length(payload_len)?;
@@ -688,7 +725,7 @@ impl MqttPacket {
             });
         }
         if self.packet_type == MqttPacketType::Connect {
-            match validate_connect_variable_header(&self.payload) {
+            match validate_connect_semantics(&self.payload) {
                 Ok(()) => {}
                 Err(ConnectSemanticError::PayloadTooShort(length)) => {
                     return Err(MqttSerializeError::InvalidConnectPayloadLength(length));
@@ -701,6 +738,10 @@ impl MqttPacket {
                 }
                 Err(ConnectSemanticError::InvalidFlags(flags)) => {
                     return Err(MqttSerializeError::InvalidConnectFlags(flags));
+                }
+                Err(ConnectSemanticError::InvalidClientId)
+                | Err(ConnectSemanticError::MalformedUtf8) => {
+                    return Err(MqttSerializeError::InvalidConnectClientId);
                 }
             }
         }
@@ -815,7 +856,7 @@ impl MqttPacket {
         let mut packet_id = None;
 
         match packet_type {
-            MqttPacketType::Connect => match validate_connect_variable_header(&payload) {
+            MqttPacketType::Connect => match validate_connect_semantics(&payload) {
                 Ok(()) => {}
                 Err(ConnectSemanticError::PayloadTooShort(length)) => {
                     return Err(MqttError::InvalidConnectPayloadLength(length));
@@ -828,6 +869,12 @@ impl MqttPacket {
                 }
                 Err(ConnectSemanticError::InvalidFlags(flags)) => {
                     return Err(MqttError::InvalidConnectFlags(flags));
+                }
+                Err(ConnectSemanticError::InvalidClientId) => {
+                    return Err(MqttError::InvalidConnectClientId);
+                }
+                Err(ConnectSemanticError::MalformedUtf8) => {
+                    return Err(MqttError::MalformedUtf8String);
                 }
             },
             MqttPacketType::Connack => match validate_connack_semantics(&payload) {
