@@ -29,6 +29,8 @@ pub enum TftpError {
     PacketTooShort(usize),
     InvalidOpcode(u16),
     MissingNullTerminator,
+    InvalidUtf8(&'static str),
+    InvalidMode(String),
     TrailingData { opcode: u16, length: usize },
     InvalidPacketLength { opcode: u16, length: usize },
     DataBlockTooLarge(usize),
@@ -42,6 +44,10 @@ impl fmt::Display for TftpError {
             }
             TftpError::InvalidOpcode(op) => write!(f, "Invalid TFTP opcode: {}", op),
             TftpError::MissingNullTerminator => write!(f, "TFTP string missing null terminator"),
+            TftpError::InvalidUtf8(field) => {
+                write!(f, "TFTP {} is not valid UTF-8", field)
+            }
+            TftpError::InvalidMode(mode) => write!(f, "Invalid TFTP transfer mode: {}", mode),
             TftpError::TrailingData { opcode, length } => write!(
                 f,
                 "TFTP opcode {} has {} trailing bytes after its final field",
@@ -63,6 +69,18 @@ impl fmt::Display for TftpError {
 
 impl std::error::Error for TftpError {}
 
+fn parse_text(bytes: &[u8], field: &'static str) -> Result<String, TftpError> {
+    std::str::from_utf8(bytes)
+        .map(str::to_owned)
+        .map_err(|_| TftpError::InvalidUtf8(field))
+}
+
+fn is_valid_mode(mode: &str) -> bool {
+    mode.eq_ignore_ascii_case("netascii")
+        || mode.eq_ignore_ascii_case("octet")
+        || mode.eq_ignore_ascii_case("mail")
+}
+
 impl TftpPacket {
     pub fn parse(data: &[u8]) -> Result<Self, TftpError> {
         if data.len() < 4 {
@@ -78,14 +96,17 @@ impl TftpPacket {
                     .iter()
                     .position(|&b| b == 0)
                     .ok_or(TftpError::MissingNullTerminator)?;
-                let filename = String::from_utf8_lossy(&rest[..null1]).to_string();
+                let filename = parse_text(&rest[..null1], "filename")?;
 
                 let mode_rest = &rest[null1 + 1..];
                 let null2 = mode_rest
                     .iter()
                     .position(|&b| b == 0)
                     .ok_or(TftpError::MissingNullTerminator)?;
-                let mode = String::from_utf8_lossy(&mode_rest[..null2]).to_string();
+                let mode = parse_text(&mode_rest[..null2], "mode")?;
+                if !is_valid_mode(&mode) {
+                    return Err(TftpError::InvalidMode(mode));
+                }
                 let consumed = null1 + 1 + null2 + 1;
                 if consumed != rest.len() {
                     return Err(TftpError::TrailingData {
@@ -134,7 +155,7 @@ impl TftpPacket {
                         length: msg_bytes.len() - msg_len - 1,
                     });
                 }
-                let message = String::from_utf8_lossy(&msg_bytes[..msg_len]).to_string();
+                let message = parse_text(&msg_bytes[..msg_len], "error message")?;
                 Ok(TftpPacket::Error {
                     error_code,
                     message,
@@ -266,6 +287,55 @@ mod tests {
         let ack = TftpPacket::Ack { block_num: 1 };
         let parsed_ack = TftpPacket::parse(&ack.serialize()).unwrap();
         assert_eq!(parsed_ack, ack);
+    }
+
+    #[test]
+    fn test_tftp_rrq_rejects_invalid_utf8_filename() {
+        let raw = [0x00, 0x01, 0xff, 0x00, b'o', b'c', b't', b'e', b't', 0x00];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::InvalidUtf8("filename"))
+        );
+    }
+
+    #[test]
+    fn test_tftp_wrq_rejects_invalid_utf8_mode() {
+        let raw = [0x00, 0x02, b'f', 0x00, 0xff, 0x00];
+
+        assert_eq!(TftpPacket::parse(&raw), Err(TftpError::InvalidUtf8("mode")));
+    }
+
+    #[test]
+    fn test_tftp_rrq_rejects_unknown_mode() {
+        let raw = [
+            0x00, 0x01, b'f', 0x00, b'b', b'i', b'n', b'a', b'r', b'y', 0x00,
+        ];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::InvalidMode("binary".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_tftp_mode_matching_is_case_insensitive() {
+        let rrq = TftpPacket::Rrq {
+            filename: "kernel.bin".to_string(),
+            mode: "OcTeT".to_string(),
+        };
+
+        assert_eq!(TftpPacket::parse(&rrq.serialize()).unwrap(), rrq);
+    }
+
+    #[test]
+    fn test_tftp_error_rejects_invalid_utf8_message() {
+        let raw = [0x00, 0x05, 0x00, 0x01, 0xff, 0x00];
+
+        assert_eq!(
+            TftpPacket::parse(&raw),
+            Err(TftpError::InvalidUtf8("error message"))
+        );
     }
 
     #[test]
