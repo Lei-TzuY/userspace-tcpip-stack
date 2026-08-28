@@ -162,6 +162,9 @@ pub enum LldpSerializeError {
         length: usize,
         max: usize,
     },
+    EmptyIdentifier {
+        tlv_type: u8,
+    },
 }
 
 impl fmt::Display for LldpSerializeError {
@@ -181,6 +184,9 @@ impl fmt::Display for LldpSerializeError {
                 "LLDP TLV {} value is {} bytes, exceeding the {}-byte 9-bit length limit",
                 tlv_type, length, max
             ),
+            LldpSerializeError::EmptyIdentifier { tlv_type } => {
+                write!(f, "LLDP TLV {} identifier must not be empty", tlv_type)
+            }
         }
     }
 }
@@ -362,6 +368,17 @@ impl LldpPacket {
 
     pub fn try_serialize(&self) -> Result<Vec<u8>, LldpSerializeError> {
         let mut buf = Vec::new();
+
+        if self.chassis_id.is_empty() {
+            return Err(LldpSerializeError::EmptyIdentifier {
+                tlv_type: LLDP_TLV_CHASSIS_ID,
+            });
+        }
+        if self.port_id.is_empty() {
+            return Err(LldpSerializeError::EmptyIdentifier {
+                tlv_type: LLDP_TLV_PORT_ID,
+            });
+        }
 
         // 1. Chassis ID (TLV 1): subtype + identifier.
         let mut chassis_value = Vec::with_capacity(1 + self.chassis_id.len());
@@ -625,6 +642,35 @@ mod tests {
                 tlv_type: LLDP_TLV_CHASSIS_ID,
                 length: LLDP_TLV_MAX_VALUE_LEN + 1,
                 max: LLDP_TLV_MAX_VALUE_LEN,
+            })
+        );
+    }
+
+    #[test]
+    fn test_packet_rejects_empty_identifiers() {
+        let empty_chassis = LldpPacket {
+            chassis_id: String::new(),
+            port_id: "eth0".to_string(),
+            ttl: 120,
+            system_name: None,
+        };
+        let empty_port = LldpPacket {
+            chassis_id: "chassis".to_string(),
+            port_id: String::new(),
+            ttl: 120,
+            system_name: None,
+        };
+
+        assert_eq!(
+            empty_chassis.try_serialize(),
+            Err(LldpSerializeError::EmptyIdentifier {
+                tlv_type: LLDP_TLV_CHASSIS_ID,
+            })
+        );
+        assert_eq!(
+            empty_port.try_serialize(),
+            Err(LldpSerializeError::EmptyIdentifier {
+                tlv_type: LLDP_TLV_PORT_ID,
             })
         );
     }
