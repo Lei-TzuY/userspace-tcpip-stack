@@ -16,6 +16,9 @@ pub const BER_TAG_OCTET_STRING: u8 = 0x04;
 pub const BER_TAG_NULL: u8 = 0x05;
 pub const BER_TAG_OID: u8 = 0x06;
 pub const BER_TAG_SEQUENCE: u8 = 0x30;
+pub const SNMP_EXCEPTION_NO_SUCH_OBJECT: u8 = 0x80;
+pub const SNMP_EXCEPTION_NO_SUCH_INSTANCE: u8 = 0x81;
+pub const SNMP_EXCEPTION_END_OF_MIB_VIEW: u8 = 0x82;
 
 // SNMP PDU Tags
 pub const SNMP_PDU_GET_REQUEST: u8 = 0xA0;
@@ -57,6 +60,9 @@ pub enum SnmpValue {
     OctetString(Vec<u8>),
     Null,
     Oid(String),
+    NoSuchObject,
+    NoSuchInstance,
+    EndOfMibView,
 }
 
 impl fmt::Display for SnmpValue {
@@ -66,6 +72,9 @@ impl fmt::Display for SnmpValue {
             SnmpValue::OctetString(s) => write!(f, "STRING: \"{}\"", String::from_utf8_lossy(s)),
             SnmpValue::Null => write!(f, "NULL"),
             SnmpValue::Oid(o) => write!(f, "OID: {}", o),
+            SnmpValue::NoSuchObject => write!(f, "noSuchObject"),
+            SnmpValue::NoSuchInstance => write!(f, "noSuchInstance"),
+            SnmpValue::EndOfMibView => write!(f, "endOfMibView"),
         }
     }
 }
@@ -394,6 +403,12 @@ impl SnmpMessage {
                 BER_TAG_OID => SnmpValue::Oid(decode_ber_oid(v_body)?),
                 BER_TAG_NULL if v_body.is_empty() => SnmpValue::Null,
                 BER_TAG_NULL => return Err(SnmpError::InvalidBerEncoding),
+                SNMP_EXCEPTION_NO_SUCH_OBJECT if v_body.is_empty() => SnmpValue::NoSuchObject,
+                SNMP_EXCEPTION_NO_SUCH_INSTANCE if v_body.is_empty() => SnmpValue::NoSuchInstance,
+                SNMP_EXCEPTION_END_OF_MIB_VIEW if v_body.is_empty() => SnmpValue::EndOfMibView,
+                SNMP_EXCEPTION_NO_SUCH_OBJECT
+                | SNMP_EXCEPTION_NO_SUCH_INSTANCE
+                | SNMP_EXCEPTION_END_OF_MIB_VIEW => return Err(SnmpError::InvalidBerEncoding),
                 tag => return Err(SnmpError::UnsupportedTag(tag)),
             };
 
@@ -460,6 +475,9 @@ impl SnmpMessage {
                 }
                 SnmpValue::Null => vb_bytes.extend(encode_ber_null()),
                 SnmpValue::Oid(o) => vb_bytes.extend(encode_ber_oid(o)?),
+                SnmpValue::NoSuchObject => vb_bytes.extend([SNMP_EXCEPTION_NO_SUCH_OBJECT, 0]),
+                SnmpValue::NoSuchInstance => vb_bytes.extend([SNMP_EXCEPTION_NO_SUCH_INSTANCE, 0]),
+                SnmpValue::EndOfMibView => vb_bytes.extend([SNMP_EXCEPTION_END_OF_MIB_VIEW, 0]),
             }
 
             let mut seq_vb = Vec::new();
@@ -971,6 +989,61 @@ mod tests {
             SnmpMessage::parse(&index_past_varbinds),
             Err(SnmpError::InvalidBerEncoding)
         );
+    }
+
+    #[test]
+    fn test_snmp_v2_exception_values_roundtrip() {
+        for (value, tag) in [
+            (SnmpValue::NoSuchObject, SNMP_EXCEPTION_NO_SUCH_OBJECT),
+            (SnmpValue::NoSuchInstance, SNMP_EXCEPTION_NO_SUCH_INSTANCE),
+            (SnmpValue::EndOfMibView, SNMP_EXCEPTION_END_OF_MIB_VIEW),
+        ] {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
+            msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+            msg.pdu.varbinds[0].value = value.clone();
+            let raw = msg.try_serialize().unwrap();
+            assert!(raw.windows(2).any(|window| window == [tag, 0]));
+            let parsed = SnmpMessage::parse(&raw).unwrap();
+            assert_eq!(parsed.pdu.varbinds[0].value, value);
+        }
+    }
+
+    #[test]
+    fn test_snmp_v2_exception_values_require_zero_length() {
+        for tag in [
+            SNMP_EXCEPTION_NO_SUCH_OBJECT,
+            SNMP_EXCEPTION_NO_SUCH_INSTANCE,
+            SNMP_EXCEPTION_END_OF_MIB_VIEW,
+        ] {
+            let oid = encode_ber_oid("1.3.6.1.2.1.1.1.0").unwrap();
+            let mut vb_body = oid;
+            vb_body.extend([tag, 1, 0]);
+            let mut vb = vec![BER_TAG_SEQUENCE];
+            vb.extend(encode_ber_length(vb_body.len()));
+            vb.extend(vb_body);
+            let mut vb_list = vec![BER_TAG_SEQUENCE];
+            vb_list.extend(encode_ber_length(vb.len()));
+            vb_list.extend(vb);
+            let mut pdu_body = Vec::new();
+            pdu_body.extend(encode_ber_integer(1));
+            pdu_body.extend(encode_ber_integer(0));
+            pdu_body.extend(encode_ber_integer(0));
+            pdu_body.extend(vb_list);
+            let mut pdu = vec![SNMP_PDU_RESPONSE];
+            pdu.extend(encode_ber_length(pdu_body.len()));
+            pdu.extend(pdu_body);
+            let mut body = Vec::new();
+            body.extend(encode_ber_integer(SNMP_VERSION_2C));
+            body.extend(encode_ber_string("public"));
+            body.extend(pdu);
+            let mut packet = vec![BER_TAG_SEQUENCE];
+            packet.extend(encode_ber_length(body.len()));
+            packet.extend(body);
+            assert_eq!(
+                SnmpMessage::parse(&packet),
+                Err(SnmpError::InvalidBerEncoding)
+            );
+        }
     }
 
     #[test]
