@@ -3,7 +3,12 @@ use toy_tcpip::mqtt::{MqttError, MqttPacket, MqttPacketType};
 fn connect_with_remaining_length(encoded: &[u8], payload_len: usize) -> Vec<u8> {
     let mut raw = vec![(MqttPacketType::Connect as u8) << 4];
     raw.extend_from_slice(encoded);
-    raw.resize(raw.len() + payload_len, 0);
+    let payload_start = raw.len();
+    raw.resize(payload_start + payload_len, 0);
+    if payload_len >= 10 {
+        raw[payload_start..payload_start + 10]
+            .copy_from_slice(&[0, 4, b'M', b'Q', b'T', b'T', 4, 0, 0, 60]);
+    }
     raw
 }
 

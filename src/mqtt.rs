@@ -80,6 +80,10 @@ pub enum MqttError {
     InvalidSubackReturnCode(u8),
     InvalidUnsubscribePayloadLength(usize),
     InvalidUnsubscribeTopicFilter,
+    InvalidConnectPayloadLength(usize),
+    InvalidConnectProtocolName,
+    InvalidConnectProtocolLevel(u8),
+    InvalidConnectFlags(u8),
 }
 
 impl fmt::Display for MqttError {
@@ -136,6 +140,22 @@ impl fmt::Display for MqttError {
             MqttError::InvalidUnsubscribeTopicFilter => {
                 write!(f, "Invalid MQTT UNSUBSCRIBE topic filter")
             }
+            MqttError::InvalidConnectPayloadLength(length) => write!(
+                f,
+                "Invalid MQTT CONNECT payload length {}; expected at least 10 bytes for the variable header",
+                length
+            ),
+            MqttError::InvalidConnectProtocolName => {
+                write!(f, "Invalid MQTT CONNECT protocol name; expected MQTT")
+            }
+            MqttError::InvalidConnectProtocolLevel(level) => write!(
+                f,
+                "Invalid MQTT CONNECT protocol level {}; expected 4 for MQTT v3.1.1",
+                level
+            ),
+            MqttError::InvalidConnectFlags(flags) => {
+                write!(f, "Invalid MQTT CONNECT flags: 0x{:02x}", flags)
+            }
         }
     }
 }
@@ -175,6 +195,10 @@ pub enum MqttSerializeError {
     InvalidSubackReturnCode(u8),
     InvalidUnsubscribePayloadLength(usize),
     InvalidUnsubscribeTopicFilter,
+    InvalidConnectPayloadLength(usize),
+    InvalidConnectProtocolName,
+    InvalidConnectProtocolLevel(u8),
+    InvalidConnectFlags(u8),
 }
 
 impl fmt::Display for MqttSerializeError {
@@ -242,6 +266,22 @@ impl fmt::Display for MqttSerializeError {
             ),
             MqttSerializeError::InvalidUnsubscribeTopicFilter => {
                 write!(f, "Invalid MQTT UNSUBSCRIBE topic filter")
+            }
+            MqttSerializeError::InvalidConnectPayloadLength(length) => write!(
+                f,
+                "Invalid MQTT CONNECT payload length {}; expected at least 10 bytes for the variable header",
+                length
+            ),
+            MqttSerializeError::InvalidConnectProtocolName => {
+                write!(f, "Invalid MQTT CONNECT protocol name; expected MQTT")
+            }
+            MqttSerializeError::InvalidConnectProtocolLevel(level) => write!(
+                f,
+                "Invalid MQTT CONNECT protocol level {}; expected 4 for MQTT v3.1.1",
+                level
+            ),
+            MqttSerializeError::InvalidConnectFlags(flags) => {
+                write!(f, "Invalid MQTT CONNECT flags: 0x{:02x}", flags)
             }
         }
     }
@@ -386,6 +426,42 @@ fn validate_unsubscribe_semantics(payload: &[u8]) -> Result<(u16, &str), Unsubsc
     let first_topic =
         first_topic.ok_or(UnsubscribeSemanticError::PayloadTooShort(payload.len()))?;
     Ok((packet_id, first_topic))
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectSemanticError {
+    PayloadTooShort(usize),
+    InvalidProtocolName,
+    InvalidProtocolLevel(u8),
+    InvalidFlags(u8),
+}
+
+fn validate_connect_variable_header(payload: &[u8]) -> Result<(), ConnectSemanticError> {
+    if payload.len() < 10 {
+        return Err(ConnectSemanticError::PayloadTooShort(payload.len()));
+    }
+
+    if &payload[..6] != b"\x00\x04MQTT" {
+        return Err(ConnectSemanticError::InvalidProtocolName);
+    }
+
+    let protocol_level = payload[6];
+    if protocol_level != 4 {
+        return Err(ConnectSemanticError::InvalidProtocolLevel(protocol_level));
+    }
+
+    let connect_flags = payload[7];
+    let will_flag = connect_flags & 0x04 != 0;
+    let will_qos = (connect_flags >> 3) & 0x03;
+    let will_retain = connect_flags & 0x20 != 0;
+    if connect_flags & 0x01 != 0
+        || (!will_flag && (will_qos != 0 || will_retain))
+        || (will_flag && will_qos == 3)
+    {
+        return Err(ConnectSemanticError::InvalidFlags(connect_flags));
+    }
+
+    Ok(())
 }
 
 impl MqttPacket {
@@ -611,6 +687,23 @@ impl MqttPacket {
                 flags: self.flags,
             });
         }
+        if self.packet_type == MqttPacketType::Connect {
+            match validate_connect_variable_header(&self.payload) {
+                Ok(()) => {}
+                Err(ConnectSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttSerializeError::InvalidConnectPayloadLength(length));
+                }
+                Err(ConnectSemanticError::InvalidProtocolName) => {
+                    return Err(MqttSerializeError::InvalidConnectProtocolName);
+                }
+                Err(ConnectSemanticError::InvalidProtocolLevel(level)) => {
+                    return Err(MqttSerializeError::InvalidConnectProtocolLevel(level));
+                }
+                Err(ConnectSemanticError::InvalidFlags(flags)) => {
+                    return Err(MqttSerializeError::InvalidConnectFlags(flags));
+                }
+            }
+        }
         if self.packet_type == MqttPacketType::Publish {
             let qos = (self.flags >> 1) & 0x03;
             if qos > 2 {
@@ -722,6 +815,21 @@ impl MqttPacket {
         let mut packet_id = None;
 
         match packet_type {
+            MqttPacketType::Connect => match validate_connect_variable_header(&payload) {
+                Ok(()) => {}
+                Err(ConnectSemanticError::PayloadTooShort(length)) => {
+                    return Err(MqttError::InvalidConnectPayloadLength(length));
+                }
+                Err(ConnectSemanticError::InvalidProtocolName) => {
+                    return Err(MqttError::InvalidConnectProtocolName);
+                }
+                Err(ConnectSemanticError::InvalidProtocolLevel(level)) => {
+                    return Err(MqttError::InvalidConnectProtocolLevel(level));
+                }
+                Err(ConnectSemanticError::InvalidFlags(flags)) => {
+                    return Err(MqttError::InvalidConnectFlags(flags));
+                }
+            },
             MqttPacketType::Connack => match validate_connack_semantics(&payload) {
                 Ok(()) => {}
                 Err(ConnackSemanticError::InvalidAcknowledgeFlags(flags)) => {
