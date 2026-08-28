@@ -305,7 +305,13 @@ impl LldpPacket {
                             found: tlv.tlv_type,
                         });
                     }
-                    system_name = Some(String::from_utf8_lossy(&tlv.value).to_string());
+                    system_name = Some(
+                        std::str::from_utf8(&tlv.value)
+                            .map(str::to_owned)
+                            .map_err(|_| LldpError::InvalidUtf8Identifier {
+                                tlv_type: LLDP_TLV_SYSTEM_NAME,
+                            })?,
+                    );
                 }
                 _ => {
                     if mandatory_count < 3 {
