@@ -23,6 +23,13 @@ pub const SNMP_PDU_GET_NEXT_REQUEST: u8 = 0xA1;
 pub const SNMP_PDU_RESPONSE: u8 = 0xA2;
 pub const SNMP_PDU_SET_REQUEST: u8 = 0xA3;
 
+fn is_supported_pdu_type(tag: u8) -> bool {
+    matches!(
+        tag,
+        SNMP_PDU_GET_REQUEST | SNMP_PDU_GET_NEXT_REQUEST | SNMP_PDU_RESPONSE | SNMP_PDU_SET_REQUEST
+    )
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SnmpValue {
     Integer(i32),
@@ -291,6 +298,9 @@ impl SnmpMessage {
             return Err(SnmpError::InvalidBerEncoding);
         }
         let version = decode_ber_integer(v_body)?;
+        if version != SNMP_VERSION_2C {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
 
         // 2. Community
         let rem1 = &root_body[v_len..];
@@ -305,6 +315,9 @@ impl SnmpMessage {
         let (pdu_tag, pdu_body, pdu_len) = decode_ber_tlv(rem2)?;
         if pdu_len != rem2.len() {
             return Err(SnmpError::InvalidBerEncoding);
+        }
+        if !is_supported_pdu_type(pdu_tag) {
+            return Err(SnmpError::UnsupportedTag(pdu_tag));
         }
 
         let (req_tag, req_body, req_len) = decode_ber_tlv(pdu_body)?;
@@ -381,6 +394,13 @@ impl SnmpMessage {
     }
 
     pub fn try_serialize(&self) -> Result<Vec<u8>, SnmpError> {
+        if self.version != SNMP_VERSION_2C {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+        if !is_supported_pdu_type(self.pdu.pdu_type) {
+            return Err(SnmpError::UnsupportedTag(self.pdu.pdu_type));
+        }
+
         // Encode Varbinds
         let mut vb_list_bytes = Vec::new();
         for vb in &self.pdu.varbinds {
@@ -735,6 +755,54 @@ mod tests {
             SnmpMessage::parse(&raw),
             Err(SnmpError::UnsupportedTag(0x40))
         );
+    }
+
+    #[test]
+    fn test_snmp_rejects_unsupported_version() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+        msg.version = 0;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let version_offset = raw
+            .windows(3)
+            .position(|window| window == [BER_TAG_INTEGER, 1, SNMP_VERSION_2C as u8])
+            .unwrap();
+        raw[version_offset + 2] = 0;
+        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_rejects_unsupported_pdu_type() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+        msg.pdu.pdu_type = 0xa5;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa5)));
+
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let pdu_offset = raw
+            .iter()
+            .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
+            .unwrap();
+        raw[pdu_offset] = 0xa5;
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::UnsupportedTag(0xa5))
+        );
+    }
+
+    #[test]
+    fn test_snmp_supported_pdu_types_roundtrip() {
+        for pdu_type in [
+            SNMP_PDU_GET_REQUEST,
+            SNMP_PDU_GET_NEXT_REQUEST,
+            SNMP_PDU_RESPONSE,
+            SNMP_PDU_SET_REQUEST,
+        ] {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+            msg.pdu.pdu_type = pdu_type;
+            let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+            assert_eq!(parsed.pdu.pdu_type, pdu_type);
+        }
     }
 
     #[test]
