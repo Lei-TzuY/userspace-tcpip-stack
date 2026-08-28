@@ -110,6 +110,7 @@ impl std::error::Error for CdpSerializeError {}
 pub enum CdpNeighborError {
     InvalidUtf8(u16),
     InvalidAddresses,
+    DuplicateTlv(u16),
 }
 
 impl fmt::Display for CdpNeighborError {
@@ -119,6 +120,9 @@ impl fmt::Display for CdpNeighborError {
                 write!(f, "CDP TLV {} contains invalid UTF-8", tlv_type)
             }
             CdpNeighborError::InvalidAddresses => write!(f, "Invalid CDP Addresses TLV"),
+            CdpNeighborError::DuplicateTlv(tlv_type) => {
+                write!(f, "Duplicate CDP singleton TLV {}", tlv_type)
+            }
         }
     }
 }
@@ -319,25 +323,47 @@ impl CdpNeighborTable {
         let mut port_id = String::new();
         let mut platform = String::new();
         let mut ip_address = None;
+        let mut seen_device_id = false;
+        let mut seen_port_id = false;
+        let mut seen_platform = false;
+        let mut seen_addresses = false;
 
         for tlv in &pkt.tlvs {
             match tlv.tlv_type {
                 CDP_TLV_DEVICE_ID => {
+                    if seen_device_id {
+                        return Err(CdpNeighborError::DuplicateTlv(CDP_TLV_DEVICE_ID));
+                    }
+                    seen_device_id = true;
                     device_id = std::str::from_utf8(&tlv.value)
                         .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_DEVICE_ID))?
                         .to_owned();
                 }
                 CDP_TLV_PORT_ID => {
+                    if seen_port_id {
+                        return Err(CdpNeighborError::DuplicateTlv(CDP_TLV_PORT_ID));
+                    }
+                    seen_port_id = true;
                     port_id = std::str::from_utf8(&tlv.value)
                         .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_PORT_ID))?
                         .to_owned();
                 }
                 CDP_TLV_PLATFORM => {
+                    if seen_platform {
+                        return Err(CdpNeighborError::DuplicateTlv(CDP_TLV_PLATFORM));
+                    }
+                    seen_platform = true;
                     platform = std::str::from_utf8(&tlv.value)
                         .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_PLATFORM))?
                         .to_owned();
                 }
-                CDP_TLV_ADDRESSES => ip_address = parse_cdp_addresses(&tlv.value)?,
+                CDP_TLV_ADDRESSES => {
+                    if seen_addresses {
+                        return Err(CdpNeighborError::DuplicateTlv(CDP_TLV_ADDRESSES));
+                    }
+                    seen_addresses = true;
+                    ip_address = parse_cdp_addresses(&tlv.value)?;
+                }
                 _ => {}
             }
         }
@@ -538,5 +564,40 @@ mod tests {
             table.try_ingest_packet(&pkt),
             Err(CdpNeighborError::InvalidAddresses)
         );
+    }
+
+    #[test]
+    fn test_neighbor_ingest_rejects_duplicate_device_id() {
+        let mut pkt = CdpPacket::build("switch", "Gi0/1", "cisco", Ipv4Address::new(10, 0, 0, 1));
+        pkt.tlvs.push(CdpTlv {
+            tlv_type: CDP_TLV_DEVICE_ID,
+            value: b"replacement".to_vec(),
+        });
+        let mut table = CdpNeighborTable::new();
+
+        assert_eq!(
+            table.try_ingest_packet(&pkt),
+            Err(CdpNeighborError::DuplicateTlv(CDP_TLV_DEVICE_ID))
+        );
+        assert!(table.neighbors.is_empty());
+    }
+
+    #[test]
+    fn test_neighbor_ingest_rejects_duplicate_addresses() {
+        let mut pkt = CdpPacket::build("switch", "Gi0/1", "cisco", Ipv4Address::new(10, 0, 0, 1));
+        let addresses = pkt
+            .tlvs
+            .iter()
+            .find(|tlv| tlv.tlv_type == CDP_TLV_ADDRESSES)
+            .unwrap()
+            .clone();
+        pkt.tlvs.push(addresses);
+        let mut table = CdpNeighborTable::new();
+
+        assert_eq!(
+            table.try_ingest_packet(&pkt),
+            Err(CdpNeighborError::DuplicateTlv(CDP_TLV_ADDRESSES))
+        );
+        assert!(table.neighbors.is_empty());
     }
 }
