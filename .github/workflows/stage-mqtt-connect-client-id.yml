@@ -20,6 +20,8 @@ jobs:
           components: rustfmt
       - name: Apply staged patch
         run: python scripts/stage_mqtt_connect_client_id.py
+      - name: Refresh canonical CONNECT fixture
+        run: sed -i "s/b'T', b'T', 4, 0, 0, 60/b'T', b'T', 4, 2, 0, 60/" tests/test_mqtt_remaining_length_canonical.rs
       - name: Format
         run: cargo fmt --all
       - name: Diff check
@@ -36,6 +38,6 @@ jobs:
         run: |
           git config user.name "LeiZ"
           git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
-          git add src/mqtt.rs tests/test_mqtt_connect_client_id.rs
+          git add src/mqtt.rs tests/test_mqtt_connect_client_id.rs tests/test_mqtt_remaining_length_canonical.rs
           git commit -m "stage: validated mqtt connect client id [skip ci]"
           git push origin HEAD:stage/mqtt-connect-client-id
