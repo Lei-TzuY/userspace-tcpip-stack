@@ -7,7 +7,7 @@ fn connect_with_remaining_length(encoded: &[u8], payload_len: usize) -> Vec<u8> 
     raw.resize(payload_start + payload_len, 0);
     if payload_len >= 10 {
         raw[payload_start..payload_start + 10]
-            .copy_from_slice(&[0, 4, b'M', b'Q', b'T', b'T', 4, 0, 0, 60]);
+            .copy_from_slice(&[0, 4, b'M', b'Q', b'T', b'T', 4, 2, 0, 60]);
     }
     raw
 }
