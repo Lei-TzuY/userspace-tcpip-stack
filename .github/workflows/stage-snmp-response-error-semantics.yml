@@ -179,6 +179,7 @@ jobs:
       - name: Publish clean implementation branch
         shell: bash
         run: |
+          git reset --hard HEAD
           git fetch origin main
           git checkout -B fix/snmp-response-error-semantics origin/main
           git apply /tmp/implementation.patch
