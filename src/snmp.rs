@@ -144,21 +144,18 @@ pub fn decode_ber_integer(bytes: &[u8]) -> Result<i32, SnmpError> {
     if bytes.is_empty() {
         return Err(SnmpError::InvalidBerEncoding);
     }
-
-    let mut content = bytes;
-    while content.len() > 1
-        && ((content[0] == 0x00 && content[1] & 0x80 == 0)
-            || (content[0] == 0xff && content[1] & 0x80 != 0))
+    if bytes.len() > 1
+        && ((bytes[0] == 0x00 && bytes[1] & 0x80 == 0)
+            || (bytes[0] == 0xff && bytes[1] & 0x80 != 0))
     {
-        content = &content[1..];
+        return Err(SnmpError::InvalidBerEncoding);
     }
-
-    if content.len() > std::mem::size_of::<i32>() {
+    if bytes.len() > std::mem::size_of::<i32>() {
         return Err(SnmpError::InvalidBerEncoding);
     }
 
-    let mut value = if content[0] & 0x80 != 0 { -1i32 } else { 0i32 };
-    for &byte in content {
+    let mut value = if bytes[0] & 0x80 != 0 { -1i32 } else { 0i32 };
+    for &byte in bytes {
         value = (value << 8) | i32::from(byte);
     }
     Ok(value)
@@ -610,13 +607,20 @@ mod tests {
     }
 
     #[test]
-    fn test_ber_integer_decoding_handles_sign_extension_and_range() {
+    fn test_ber_integer_decoding_requires_minimal_signed_encoding() {
         assert_eq!(decode_ber_integer(&[0x80]), Ok(-128));
         assert_eq!(decode_ber_integer(&[0xff]), Ok(-1));
         assert_eq!(decode_ber_integer(&[0x00, 0x80]), Ok(128));
         assert_eq!(decode_ber_integer(&[0xff, 0x7f]), Ok(-129));
-        assert_eq!(decode_ber_integer(&[0x00, 0x7f]), Ok(127));
         assert_eq!(decode_ber_integer(&[]), Err(SnmpError::InvalidBerEncoding));
+        assert_eq!(
+            decode_ber_integer(&[0x00, 0x7f]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+        assert_eq!(
+            decode_ber_integer(&[0xff, 0x80]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
         assert_eq!(
             decode_ber_integer(&[0x00, 0x80, 0x00, 0x00, 0x00]),
             Err(SnmpError::InvalidBerEncoding)
