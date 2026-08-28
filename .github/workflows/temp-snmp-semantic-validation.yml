@@ -101,7 +101,8 @@ jobs:
           PY
       - name: Validate
         run: |
-          cargo fmt --check
+          cargo fmt --all
+          cargo fmt --all --check
           cargo test --all-targets
           cargo build --release
       - name: Commit staging result
