@@ -120,9 +120,15 @@ pub fn decode_ber_tlv(data: &[u8]) -> Result<(u8, &[u8], usize), SnmpError> {
         if data.len() < 2 + num_octets {
             return Err(SnmpError::PacketTooShort);
         }
+        if data[2] == 0 {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
         let mut l = 0usize;
         for i in 0..num_octets {
             l = (l << 8) | (data[2 + i] as usize);
+        }
+        if l < 128 {
+            return Err(SnmpError::InvalidBerEncoding);
         }
         (l, 2 + num_octets)
     };
@@ -562,6 +568,29 @@ mod tests {
         raw.resize(2 + num_octets, 0);
 
         assert_eq!(decode_ber_tlv(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_ber_non_minimal_long_form_lengths_are_rejected() {
+        let mut short_value = vec![BER_TAG_OCTET_STRING, 0x81, 0x7f];
+        short_value.resize(3 + 127, 0);
+        assert_eq!(
+            decode_ber_tlv(&short_value),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut leading_zero = vec![BER_TAG_OCTET_STRING, 0x82, 0x00, 0x80];
+        leading_zero.resize(4 + 128, 0);
+        assert_eq!(
+            decode_ber_tlv(&leading_zero),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut canonical = vec![BER_TAG_OCTET_STRING, 0x81, 0x80];
+        canonical.resize(3 + 128, 0);
+        let (_, body, used) = decode_ber_tlv(&canonical).unwrap();
+        assert_eq!(body.len(), 128);
+        assert_eq!(used, canonical.len());
     }
 
     #[test]
