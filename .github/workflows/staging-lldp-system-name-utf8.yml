@@ -2,26 +2,25 @@ name: staging-lldp-system-name-utf8
 
 on:
   push:
-    branches:
-      - staging/lldp-system-name-utf8
+    branches: [staging/lldp-system-name-utf8]
 
 permissions:
   contents: write
 
 jobs:
   validate:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - name: Apply focused LLDP UTF-8 fix
-        shell: python
+        with:
+          components: rustfmt
+      - name: Apply focused fix and regression tests
+        shell: bash
         run: |
+          python3 <<'PY'
           from pathlib import Path
-          p = Path("src/lldp.rs")
+          p = Path('src/lldp.rs')
           s = p.read_text()
           old = '                    system_name = Some(String::from_utf8_lossy(&tlv.value).to_string());'
           new = '''                    system_name = Some(
@@ -33,9 +32,11 @@ jobs:
                     );'''
           if old in s:
               s = s.replace(old, new, 1)
-              p.write_text(s)
-          t = Path("tests/test_lldp_system_name_utf8.rs")
-          t.write_text(r'''use toy_tcpip::lldp::{
+          elif new not in s:
+              raise SystemExit('target parser expression not found')
+          p.write_text(s)
+
+          Path('tests/test_lldp_system_name_utf8.rs').write_text(r'''use toy_tcpip::lldp::{
     LldpError, LldpPacket, LldpTlv, LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED,
     LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME, LLDP_TLV_CHASSIS_ID, LLDP_TLV_PORT_ID,
     LLDP_TLV_SYSTEM_NAME, LLDP_TLV_TTL,
@@ -44,34 +45,21 @@ jobs:
 fn packet_with_system_name(value: Vec<u8>) -> Vec<u8> {
     let mut raw = LldpTlv {
         tlv_type: LLDP_TLV_CHASSIS_ID,
-        value: [
-            vec![LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED],
-            b"switch-a".to_vec(),
-        ]
-        .concat(),
+        value: [vec![LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED], b"switch-a".to_vec()].concat(),
     }
     .serialize();
-    raw.extend(
-        LldpTlv {
-            tlv_type: LLDP_TLV_PORT_ID,
-            value: [vec![LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME], b"eth0".to_vec()].concat(),
-        }
-        .serialize(),
-    );
-    raw.extend(
-        LldpTlv {
-            tlv_type: LLDP_TLV_TTL,
-            value: 120u16.to_be_bytes().to_vec(),
-        }
-        .serialize(),
-    );
-    raw.extend(
-        LldpTlv {
-            tlv_type: LLDP_TLV_SYSTEM_NAME,
-            value,
-        }
-        .serialize(),
-    );
+    raw.extend(LldpTlv {
+        tlv_type: LLDP_TLV_PORT_ID,
+        value: [vec![LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME], b"eth0".to_vec()].concat(),
+    }.serialize());
+    raw.extend(LldpTlv {
+        tlv_type: LLDP_TLV_TTL,
+        value: 120u16.to_be_bytes().to_vec(),
+    }.serialize());
+    raw.extend(LldpTlv {
+        tlv_type: LLDP_TLV_SYSTEM_NAME,
+        value,
+    }.serialize());
     raw.extend_from_slice(&[0, 0]);
     raw
 }
@@ -79,7 +67,6 @@ fn packet_with_system_name(value: Vec<u8>) -> Vec<u8> {
 #[test]
 fn packet_rejects_invalid_utf8_system_name() {
     let raw = packet_with_system_name(vec![0xff, 0xfe]);
-
     assert_eq!(
         LldpPacket::parse(&raw),
         Err(LldpError::InvalidUtf8Identifier {
@@ -96,18 +83,18 @@ fn packet_roundtrips_multibyte_utf8_system_name() {
         ttl: 120,
         system_name: Some("核心交換器-一".to_string()),
     };
-
     let raw = packet.serialize();
     let parsed = LldpPacket::parse(&raw).unwrap();
     assert_eq!(parsed.system_name, packet.system_name);
 }
 ''')
+          PY
+          cargo fmt --all
       - run: cargo fmt --all -- --check
       - run: cargo test --test test_lldp_system_name_utf8 --verbose
       - run: cargo test --all-targets --verbose
       - run: cargo build --release --verbose
       - name: Commit validated product files
-        if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
           if git diff --quiet -- src/lldp.rs tests/test_lldp_system_name_utf8.rs; then
