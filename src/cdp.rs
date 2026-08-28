@@ -106,6 +106,25 @@ impl fmt::Display for CdpSerializeError {
 
 impl std::error::Error for CdpSerializeError {}
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CdpNeighborError {
+    InvalidUtf8(u16),
+    InvalidAddresses,
+}
+
+impl fmt::Display for CdpNeighborError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            CdpNeighborError::InvalidUtf8(tlv_type) => {
+                write!(f, "CDP TLV {} contains invalid UTF-8", tlv_type)
+            }
+            CdpNeighborError::InvalidAddresses => write!(f, "Invalid CDP Addresses TLV"),
+        }
+    }
+}
+
+impl std::error::Error for CdpNeighborError {}
+
 impl CdpPacket {
     pub fn build(device_id: &str, port_id: &str, platform: &str, ip: Ipv4Address) -> Self {
         let mut tlvs = Vec::new();
@@ -236,6 +255,54 @@ impl CdpPacket {
     }
 }
 
+fn parse_cdp_addresses(value: &[u8]) -> Result<Option<Ipv4Address>, CdpNeighborError> {
+    if value.len() < 4 {
+        return Err(CdpNeighborError::InvalidAddresses);
+    }
+
+    let count = u32::from_be_bytes([value[0], value[1], value[2], value[3]]) as usize;
+    let mut offset = 4;
+    let mut ipv4 = None;
+
+    for _ in 0..count {
+        if value.len().saturating_sub(offset) < 2 {
+            return Err(CdpNeighborError::InvalidAddresses);
+        }
+
+        let protocol_type = value[offset];
+        let protocol_len = value[offset + 1] as usize;
+        offset += 2;
+
+        if value.len().saturating_sub(offset) < protocol_len + 2 {
+            return Err(CdpNeighborError::InvalidAddresses);
+        }
+
+        let protocol = &value[offset..offset + protocol_len];
+        offset += protocol_len;
+
+        let address_len = u16::from_be_bytes([value[offset], value[offset + 1]]) as usize;
+        offset += 2;
+        if value.len().saturating_sub(offset) < address_len {
+            return Err(CdpNeighborError::InvalidAddresses);
+        }
+
+        let address = &value[offset..offset + address_len];
+        offset += address_len;
+
+        if ipv4.is_none() && protocol_type == 0x01 && protocol == [0xCC] && address.len() == 4 {
+            ipv4 = Some(Ipv4Address([
+                address[0], address[1], address[2], address[3],
+            ]));
+        }
+    }
+
+    if offset != value.len() {
+        return Err(CdpNeighborError::InvalidAddresses);
+    }
+
+    Ok(ipv4)
+}
+
 impl CdpNeighborTable {
     pub fn new() -> Self {
         CdpNeighborTable {
@@ -244,6 +311,10 @@ impl CdpNeighborTable {
     }
 
     pub fn ingest_packet(&mut self, pkt: &CdpPacket) {
+        let _ = self.try_ingest_packet(pkt);
+    }
+
+    pub fn try_ingest_packet(&mut self, pkt: &CdpPacket) -> Result<bool, CdpNeighborError> {
         let mut device_id = String::new();
         let mut port_id = String::new();
         let mut platform = String::new();
@@ -251,33 +322,41 @@ impl CdpNeighborTable {
 
         for tlv in &pkt.tlvs {
             match tlv.tlv_type {
-                CDP_TLV_DEVICE_ID => device_id = String::from_utf8_lossy(&tlv.value).to_string(),
-                CDP_TLV_PORT_ID => port_id = String::from_utf8_lossy(&tlv.value).to_string(),
-                CDP_TLV_PLATFORM => platform = String::from_utf8_lossy(&tlv.value).to_string(),
-                CDP_TLV_ADDRESSES if tlv.value.len() >= 13 && tlv.value[6] == 0xCC => {
-                    ip_address = Some(Ipv4Address([
-                        tlv.value[9],
-                        tlv.value[10],
-                        tlv.value[11],
-                        tlv.value[12],
-                    ]));
+                CDP_TLV_DEVICE_ID => {
+                    device_id = std::str::from_utf8(&tlv.value)
+                        .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_DEVICE_ID))?
+                        .to_owned();
                 }
+                CDP_TLV_PORT_ID => {
+                    port_id = std::str::from_utf8(&tlv.value)
+                        .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_PORT_ID))?
+                        .to_owned();
+                }
+                CDP_TLV_PLATFORM => {
+                    platform = std::str::from_utf8(&tlv.value)
+                        .map_err(|_| CdpNeighborError::InvalidUtf8(CDP_TLV_PLATFORM))?
+                        .to_owned();
+                }
+                CDP_TLV_ADDRESSES => ip_address = parse_cdp_addresses(&tlv.value)?,
                 _ => {}
             }
         }
 
-        if !device_id.is_empty() {
-            self.neighbors.insert(
-                device_id.clone(),
-                CdpNeighbor {
-                    device_id,
-                    port_id,
-                    platform,
-                    ip_address,
-                    ttl: pkt.ttl,
-                },
-            );
+        if device_id.is_empty() {
+            return Ok(false);
         }
+
+        self.neighbors.insert(
+            device_id.clone(),
+            CdpNeighbor {
+                device_id,
+                port_id,
+                platform,
+                ip_address,
+                ttl: pkt.ttl,
+            },
+        );
+        Ok(true)
     }
 }
 
@@ -301,7 +380,7 @@ mod tests {
         assert_eq!(parsed.tlvs.len(), 5);
 
         let mut table = CdpNeighborTable::new();
-        table.ingest_packet(&parsed);
+        assert_eq!(table.try_ingest_packet(&parsed), Ok(true));
 
         let n = table.neighbors.get("Switch-Core-01").unwrap();
         assert_eq!(n.port_id, "GigabitEthernet0/1");
@@ -396,5 +475,68 @@ mod tests {
         raw[2..4].copy_from_slice(&checksum.to_be_bytes());
 
         assert_eq!(CdpPacket::parse(&raw), Err(CdpError::InvalidTlvLength));
+    }
+
+    #[test]
+    fn test_neighbor_ingest_rejects_invalid_utf8() {
+        let pkt = CdpPacket {
+            version: 2,
+            ttl: 180,
+            checksum: 0,
+            tlvs: vec![CdpTlv {
+                tlv_type: CDP_TLV_DEVICE_ID,
+                value: vec![0xFF],
+            }],
+        };
+        let mut table = CdpNeighborTable::new();
+
+        assert_eq!(
+            table.try_ingest_packet(&pkt),
+            Err(CdpNeighborError::InvalidUtf8(CDP_TLV_DEVICE_ID))
+        );
+        assert!(table.neighbors.is_empty());
+    }
+
+    #[test]
+    fn test_neighbor_ingest_rejects_truncated_address_entry() {
+        let pkt = CdpPacket {
+            version: 2,
+            ttl: 180,
+            checksum: 0,
+            tlvs: vec![
+                CdpTlv {
+                    tlv_type: CDP_TLV_DEVICE_ID,
+                    value: b"switch".to_vec(),
+                },
+                CdpTlv {
+                    tlv_type: CDP_TLV_ADDRESSES,
+                    value: vec![0, 0, 0, 1, 0x01, 0x01, 0xCC, 0x00, 0x04, 10, 0, 0],
+                },
+            ],
+        };
+        let mut table = CdpNeighborTable::new();
+
+        assert_eq!(
+            table.try_ingest_packet(&pkt),
+            Err(CdpNeighborError::InvalidAddresses)
+        );
+        assert!(table.neighbors.is_empty());
+    }
+
+    #[test]
+    fn test_neighbor_ingest_rejects_trailing_address_bytes() {
+        let mut pkt = CdpPacket::build("switch", "Gi0/1", "cisco", Ipv4Address::new(10, 0, 0, 1));
+        let addresses = pkt
+            .tlvs
+            .iter_mut()
+            .find(|tlv| tlv.tlv_type == CDP_TLV_ADDRESSES)
+            .unwrap();
+        addresses.value.push(0);
+        let mut table = CdpNeighborTable::new();
+
+        assert_eq!(
+            table.try_ingest_packet(&pkt),
+            Err(CdpNeighborError::InvalidAddresses)
+        );
     }
 }
