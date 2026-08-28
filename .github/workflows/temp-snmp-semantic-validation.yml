@@ -1,0 +1,111 @@
+name: Temporary SNMP semantic validation
+
+on:
+  push:
+    branches:
+      - staging/snmp-semantic-validation
+
+permissions:
+  contents: write
+
+jobs:
+  implement:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: staging/snmp-semantic-validation
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply implementation and tests
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/snmp.rs')
+          text = path.read_text()
+
+          marker = "pub const SNMP_PDU_SET_REQUEST: u8 = 0xA3;\n"
+          replacement = marker + "\nfn is_supported_pdu_type(tag: u8) -> bool {\n    matches!(\n        tag,\n        SNMP_PDU_GET_REQUEST\n            | SNMP_PDU_GET_NEXT_REQUEST\n            | SNMP_PDU_RESPONSE\n            | SNMP_PDU_SET_REQUEST\n    )\n}\n"
+          assert marker in text
+          text = text.replace(marker, replacement, 1)
+
+          marker = "        let version = decode_ber_integer(v_body)?;\n"
+          replacement = marker + "        if version != SNMP_VERSION_2C {\n            return Err(SnmpError::InvalidBerEncoding);\n        }\n"
+          assert marker in text
+          text = text.replace(marker, replacement, 1)
+
+          marker = "        let (pdu_tag, pdu_body, pdu_len) = decode_ber_tlv(rem2)?;\n        if pdu_len != rem2.len() {\n            return Err(SnmpError::InvalidBerEncoding);\n        }\n"
+          replacement = marker + "        if !is_supported_pdu_type(pdu_tag) {\n            return Err(SnmpError::UnsupportedTag(pdu_tag));\n        }\n"
+          assert marker in text
+          text = text.replace(marker, replacement, 1)
+
+          marker = "    pub fn try_serialize(&self) -> Result<Vec<u8>, SnmpError> {\n"
+          replacement = marker + "        if self.version != SNMP_VERSION_2C {\n            return Err(SnmpError::InvalidBerEncoding);\n        }\n        if !is_supported_pdu_type(self.pdu.pdu_type) {\n            return Err(SnmpError::UnsupportedTag(self.pdu.pdu_type));\n        }\n\n"
+          assert marker in text
+          text = text.replace(marker, replacement, 1)
+
+          marker = "    #[test]\n    fn test_snmp_mib_store() {\n"
+          tests = r'''    #[test]
+    fn test_snmp_rejects_unsupported_version() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+        msg.version = 0;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let version_offset = raw
+            .windows(3)
+            .position(|window| window == [BER_TAG_INTEGER, 1, SNMP_VERSION_2C as u8])
+            .unwrap();
+        raw[version_offset + 2] = 0;
+        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_rejects_unsupported_pdu_type() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+        msg.pdu.pdu_type = 0xa5;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa5)));
+
+        let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
+        let pdu_offset = raw
+            .iter()
+            .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
+            .unwrap();
+        raw[pdu_offset] = 0xa5;
+        assert_eq!(SnmpMessage::parse(&raw), Err(SnmpError::UnsupportedTag(0xa5)));
+    }
+
+    #[test]
+    fn test_snmp_supported_pdu_types_roundtrip() {
+        for pdu_type in [
+            SNMP_PDU_GET_REQUEST,
+            SNMP_PDU_GET_NEXT_REQUEST,
+            SNMP_PDU_RESPONSE,
+            SNMP_PDU_SET_REQUEST,
+        ] {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
+            msg.pdu.pdu_type = pdu_type;
+            let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+            assert_eq!(parsed.pdu.pdu_type, pdu_type);
+        }
+    }
+
+'''
+          assert marker in text
+          text = text.replace(marker, tests + marker, 1)
+
+          path.write_text(text)
+      - name: Validate
+        run: |
+          cargo fmt --check
+          cargo test --all-targets
+          cargo build --release
+      - name: Commit staging result
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/snmp.rs
+          git commit -m "staging: validate SNMP semantics"
+          git push origin HEAD:staging/snmp-semantic-validation
