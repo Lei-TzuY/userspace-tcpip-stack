@@ -19,8 +19,10 @@ pub const LLDP_TLV_PORT_DESCRIPTION: u8 = 4;
 pub const LLDP_TLV_SYSTEM_NAME: u8 = 5;
 pub const LLDP_TLV_SYSTEM_DESCRIPTION: u8 = 6;
 
-// IEEE 802.1AB identifier subtypes used by the high-level LldpPacket API.
+// IEEE 802.1AB identifier subtypes supported by the high-level LldpPacket API.
+pub const LLDP_CHASSIS_ID_SUBTYPE_MAC_ADDRESS: u8 = 4;
 pub const LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED: u8 = 7;
+pub const LLDP_PORT_ID_SUBTYPE_MAC_ADDRESS: u8 = 3;
 pub const LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME: u8 = 5;
 
 const LLDP_TLV_MAX_TYPE: u8 = 0x7F;
@@ -93,8 +95,22 @@ pub enum LldpError {
     PacketTooShort(usize),
     MissingMandatoryTlv(&'static str),
     MissingEndOfLldpdu,
-    InvalidMandatoryTlvOrder { expected: &'static str, found: u8 },
-    InvalidTlvLength { tlv_type: u8, length: usize },
+    InvalidMandatoryTlvOrder {
+        expected: &'static str,
+        found: u8,
+    },
+    InvalidTlvLength {
+        tlv_type: u8,
+        length: usize,
+    },
+    UnsupportedIdentifierSubtype {
+        tlv_type: u8,
+        subtype: u8,
+        expected: u8,
+    },
+    InvalidUtf8Identifier {
+        tlv_type: u8,
+    },
 }
 
 impl fmt::Display for LldpError {
@@ -110,6 +126,18 @@ impl fmt::Display for LldpError {
             ),
             LldpError::InvalidTlvLength { tlv_type, length } => {
                 write!(f, "Invalid LLDP TLV {} length: {}", tlv_type, length)
+            }
+            LldpError::UnsupportedIdentifierSubtype {
+                tlv_type,
+                subtype,
+                expected,
+            } => write!(
+                f,
+                "Unsupported LLDP TLV {} identifier subtype {} (expected {} or MAC address)",
+                tlv_type, subtype, expected
+            ),
+            LldpError::InvalidUtf8Identifier { tlv_type } => {
+                write!(f, "LLDP TLV {} identifier is not valid UTF-8", tlv_type)
             }
         }
     }
@@ -153,6 +181,44 @@ impl fmt::Display for LldpSerializeError {
 
 impl std::error::Error for LldpSerializeError {}
 
+fn parse_identifier(tlv: &LldpTlv, text_subtype: u8, mac_subtype: u8) -> Result<String, LldpError> {
+    if tlv.value.len() < 2 {
+        return Err(LldpError::InvalidTlvLength {
+            tlv_type: tlv.tlv_type,
+            length: tlv.value.len(),
+        });
+    }
+
+    let subtype = tlv.value[0];
+    if subtype == mac_subtype {
+        if tlv.value.len() != 7 {
+            return Err(LldpError::InvalidTlvLength {
+                tlv_type: tlv.tlv_type,
+                length: tlv.value.len(),
+            });
+        }
+        let mac = &tlv.value[1..];
+        return Ok(format!(
+            "{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}",
+            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]
+        ));
+    }
+
+    if subtype != text_subtype {
+        return Err(LldpError::UnsupportedIdentifierSubtype {
+            tlv_type: tlv.tlv_type,
+            subtype,
+            expected: text_subtype,
+        });
+    }
+
+    std::str::from_utf8(&tlv.value[1..])
+        .map(str::to_owned)
+        .map_err(|_| LldpError::InvalidUtf8Identifier {
+            tlv_type: tlv.tlv_type,
+        })
+}
+
 impl LldpPacket {
     pub fn parse(data: &[u8]) -> Result<Self, LldpError> {
         let mut offset = 0;
@@ -195,13 +261,11 @@ impl LldpPacket {
                             found: tlv.tlv_type,
                         });
                     }
-                    if tlv.value.len() < 2 {
-                        return Err(LldpError::InvalidTlvLength {
-                            tlv_type: LLDP_TLV_CHASSIS_ID,
-                            length: tlv.value.len(),
-                        });
-                    }
-                    chassis_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
+                    chassis_id = Some(parse_identifier(
+                        &tlv,
+                        LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED,
+                        LLDP_CHASSIS_ID_SUBTYPE_MAC_ADDRESS,
+                    )?);
                     mandatory_count = 1;
                 }
                 LLDP_TLV_PORT_ID => {
@@ -211,13 +275,11 @@ impl LldpPacket {
                             found: tlv.tlv_type,
                         });
                     }
-                    if tlv.value.len() < 2 {
-                        return Err(LldpError::InvalidTlvLength {
-                            tlv_type: LLDP_TLV_PORT_ID,
-                            length: tlv.value.len(),
-                        });
-                    }
-                    port_id = Some(String::from_utf8_lossy(&tlv.value[1..]).to_string());
+                    port_id = Some(parse_identifier(
+                        &tlv,
+                        LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME,
+                        LLDP_PORT_ID_SUBTYPE_MAC_ADDRESS,
+                    )?);
                     mandatory_count = 2;
                 }
                 LLDP_TLV_TTL => {

@@ -1,4 +1,5 @@
 use toy_tcpip::lldp::{
+    LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED, LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME,
     LLDP_TLV_CHASSIS_ID, LLDP_TLV_END_OF_LLDPDU, LLDP_TLV_PORT_ID, LLDP_TLV_TTL, LldpError,
     LldpPacket, LldpTlv,
 };
@@ -12,9 +13,14 @@ fn tlv(tlv_type: u8, value: &[u8]) -> Vec<u8> {
 }
 
 fn mandatory_prefix() -> Vec<u8> {
+    let mut chassis = vec![LLDP_CHASSIS_ID_SUBTYPE_LOCALLY_ASSIGNED];
+    chassis.extend_from_slice(b"chassis-1");
+    let mut port = vec![LLDP_PORT_ID_SUBTYPE_INTERFACE_NAME];
+    port.extend_from_slice(b"port-1");
+
     let mut raw = Vec::new();
-    raw.extend(tlv(LLDP_TLV_CHASSIS_ID, b"chassis-1"));
-    raw.extend(tlv(LLDP_TLV_PORT_ID, b"port-1"));
+    raw.extend(tlv(LLDP_TLV_CHASSIS_ID, &chassis));
+    raw.extend(tlv(LLDP_TLV_PORT_ID, &port));
     raw
 }
 
