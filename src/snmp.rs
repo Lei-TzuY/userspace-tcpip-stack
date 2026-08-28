@@ -87,12 +87,20 @@ impl std::error::Error for SnmpError {}
 
 pub fn encode_ber_length(len: usize) -> Vec<u8> {
     if len < 128 {
-        vec![len as u8]
-    } else if len <= 255 {
-        vec![0x81, len as u8]
-    } else {
-        vec![0x82, (len >> 8) as u8, (len & 0xFF) as u8]
+        return vec![len as u8];
     }
+
+    let bytes = len.to_be_bytes();
+    let first_significant = bytes
+        .iter()
+        .position(|&byte| byte != 0)
+        .unwrap_or(bytes.len() - 1);
+    let significant = &bytes[first_significant..];
+
+    let mut encoded = Vec::with_capacity(1 + significant.len());
+    encoded.push(0x80 | significant.len() as u8);
+    encoded.extend_from_slice(significant);
+    encoded
 }
 
 pub fn decode_ber_tlv(data: &[u8]) -> Result<(u8, &[u8], usize), SnmpError> {
@@ -405,6 +413,23 @@ mod tests {
         assert_eq!(parsed.pdu.request_id, 42);
         assert_eq!(parsed.pdu.varbinds.len(), 1);
         assert_eq!(parsed.pdu.varbinds[0].oid, "1.3.6.1.2.1.1.1.0");
+    }
+
+    #[test]
+    fn test_ber_length_encoding_boundaries() {
+        assert_eq!(encode_ber_length(127), vec![0x7f]);
+        assert_eq!(encode_ber_length(128), vec![0x81, 0x80]);
+        assert_eq!(encode_ber_length(255), vec![0x81, 0xff]);
+        assert_eq!(encode_ber_length(256), vec![0x82, 0x01, 0x00]);
+        assert_eq!(encode_ber_length(65_535), vec![0x82, 0xff, 0xff]);
+        assert_eq!(encode_ber_length(65_536), vec![0x83, 0x01, 0x00, 0x00]);
+    }
+
+    #[test]
+    fn test_ber_length_encoding_supports_full_usize_width() {
+        let encoded = encode_ber_length(usize::MAX);
+        assert_eq!(encoded[0], 0x80 | std::mem::size_of::<usize>() as u8);
+        assert!(encoded[1..].iter().all(|&byte| byte == 0xff));
     }
 
     #[test]
