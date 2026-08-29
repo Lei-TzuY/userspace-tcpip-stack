@@ -7,10 +7,14 @@ use toy_tcpip::snmp::{
 };
 
 const SYS_NAME_OID: &str = "1.3.6.1.2.1.1.5.0";
+const SNMP_ERROR_TOO_BIG: i32 = 1;
 const SNMP_ERROR_WRONG_TYPE: i32 = 7;
 const SNMP_ERROR_NO_CREATION: i32 = 11;
 const SNMP_ERROR_AUTHORIZATION_ERROR: i32 = 16;
 const SNMP_ERROR_NOT_WRITABLE: i32 = 17;
+const MAX_GET_BULK_REPETITIONS: usize = 64;
+const MAX_GET_BULK_VARBINDS: usize = 128;
+const MAX_RESPONSE_BYTES: usize = 1_400;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum AccessLevel {
@@ -43,7 +47,7 @@ impl CommunityAccess {
     }
 }
 
-fn build_set_error_response(
+fn build_error_response(
     request: &SnmpMessage,
     error_status: i32,
     error_index: usize,
@@ -54,22 +58,28 @@ fn build_set_error_response(
     response
 }
 
+fn build_too_big_response(request: &SnmpMessage) -> SnmpMessage {
+    let mut response = SnmpMessage::build_response(request, Vec::new());
+    response.pdu.error_status = SNMP_ERROR_TOO_BIG;
+    response
+}
+
 fn handle_set_request(mib: &mut SnmpMib, request: &SnmpMessage) -> SnmpMessage {
     for (offset, varbind) in request.pdu.varbinds.iter().enumerate() {
         let error_index = offset + 1;
         let Some(current) = mib.get(&varbind.oid) else {
-            return build_set_error_response(request, SNMP_ERROR_NO_CREATION, error_index);
+            return build_error_response(request, SNMP_ERROR_NO_CREATION, error_index);
         };
 
         if varbind.oid != SYS_NAME_OID {
-            return build_set_error_response(request, SNMP_ERROR_NOT_WRITABLE, error_index);
+            return build_error_response(request, SNMP_ERROR_NOT_WRITABLE, error_index);
         }
 
         if !matches!(
             (current, &varbind.value),
             (SnmpValue::OctetString(_), SnmpValue::OctetString(_))
         ) {
-            return build_set_error_response(request, SNMP_ERROR_WRONG_TYPE, error_index);
+            return build_error_response(request, SNMP_ERROR_WRONG_TYPE, error_index);
         }
     }
 
@@ -78,6 +88,18 @@ fn handle_set_request(mib: &mut SnmpMib, request: &SnmpMessage) -> SnmpMessage {
     }
 
     SnmpMessage::build_response(request, request.pdu.varbinds.clone())
+}
+
+fn bulk_result_count(
+    varbind_count: usize,
+    non_repeaters: usize,
+    max_repetitions: usize,
+) -> Option<usize> {
+    let non_repeater_count = non_repeaters.min(varbind_count);
+    let repeater_count = varbind_count - non_repeater_count;
+    repeater_count
+        .checked_mul(max_repetitions)
+        .and_then(|repeated| non_repeater_count.checked_add(repeated))
 }
 
 fn handle_request(
@@ -109,21 +131,29 @@ fn handle_request(
             results
         }
         SNMP_PDU_GET_BULK_REQUEST => {
+            let non_repeaters = usize::try_from(request.pdu.error_status)
+                .map_err(|_| SnmpError::InvalidBerEncoding)?;
+            let max_repetitions = usize::try_from(request.pdu.error_index)
+                .map_err(|_| SnmpError::InvalidBerEncoding)?;
+            let projected_count =
+                bulk_result_count(request.pdu.varbinds.len(), non_repeaters, max_repetitions);
+            if max_repetitions > MAX_GET_BULK_REPETITIONS
+                || projected_count.map_or(true, |count| count > MAX_GET_BULK_VARBINDS)
+            {
+                return Ok(build_too_big_response(request));
+            }
+
             let oids = request
                 .pdu
                 .varbinds
                 .iter()
                 .map(|varbind| varbind.oid.as_str())
                 .collect::<Vec<_>>();
-            let non_repeaters = usize::try_from(request.pdu.error_status)
-                .map_err(|_| SnmpError::InvalidBerEncoding)?;
-            let max_repetitions = usize::try_from(request.pdu.error_index)
-                .map_err(|_| SnmpError::InvalidBerEncoding)?;
             mib.get_bulk(&oids, non_repeaters, max_repetitions)?
         }
         SNMP_PDU_SET_REQUEST => {
             if access_level == AccessLevel::ReadOnly {
-                return Ok(build_set_error_response(
+                return Ok(build_error_response(
                     request,
                     SNMP_ERROR_AUTHORIZATION_ERROR,
                     0,
@@ -137,6 +167,19 @@ fn handle_request(
     Ok(SnmpMessage::build_response(request, results))
 }
 
+fn serialize_bounded_response(
+    request: &SnmpMessage,
+    response: SnmpMessage,
+) -> Result<Option<Vec<u8>>, SnmpError> {
+    let bytes = response.try_serialize()?;
+    if bytes.len() <= MAX_RESPONSE_BYTES {
+        return Ok(Some(bytes));
+    }
+
+    let too_big = build_too_big_response(request).try_serialize()?;
+    Ok((too_big.len() <= MAX_RESPONSE_BYTES).then_some(too_big))
+}
+
 fn handle_datagram(
     mib: &mut SnmpMib,
     packet: &[u8],
@@ -147,7 +190,7 @@ fn handle_datagram(
         return Ok(None);
     };
     let response = handle_request(mib, &request, access_level)?;
-    response.try_serialize().map(Some)
+    serialize_bounded_response(&request, response)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -259,11 +302,47 @@ mod tests {
     }
 
     #[test]
+    fn get_bulk_rejects_excessive_repetitions_before_expansion() {
+        let mut mib = SnmpMib::new();
+        let request = SnmpMessage::build_get_bulk_request(
+            "public",
+            10,
+            0,
+            (MAX_GET_BULK_REPETITIONS + 1) as i32,
+            &["1.3.6.1.2.1.1.1.0"],
+        )
+        .unwrap();
+
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
+
+        assert_eq!(response.pdu.error_status, SNMP_ERROR_TOO_BIG);
+        assert_eq!(response.pdu.error_index, 0);
+        assert!(response.pdu.varbinds.is_empty());
+    }
+
+    #[test]
+    fn get_bulk_rejects_projected_varbind_amplification() {
+        let mut mib = SnmpMib::new();
+        let oids = [
+            "1.3.6.1.2.1.1.1.0",
+            "1.3.6.1.2.1.1.3.0",
+            "1.3.6.1.2.1.1.5.0",
+        ];
+        let request = SnmpMessage::build_get_bulk_request("public", 11, 0, 64, &oids).unwrap();
+
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
+
+        assert_eq!(response.pdu.error_status, SNMP_ERROR_TOO_BIG);
+        assert_eq!(response.pdu.error_index, 0);
+        assert!(response.pdu.varbinds.is_empty());
+    }
+
+    #[test]
     fn set_request_updates_writable_sys_name() {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
             "private",
-            10,
+            12,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"edge-router.local".to_vec()),
@@ -287,7 +366,7 @@ mod tests {
         let original = mib.get(SYS_NAME_OID).cloned();
         let request = build_set_request(
             "public",
-            11,
+            13,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"blocked".to_vec()),
@@ -307,7 +386,7 @@ mod tests {
         let original = mib.get(SYS_NAME_OID).cloned();
         let request = build_set_request(
             "private",
-            12,
+            14,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::Integer(7),
@@ -326,7 +405,7 @@ mod tests {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
             "private",
-            13,
+            15,
             vec![SnmpVarbind {
                 oid: "1.3.6.1.2.1.1.1.0".to_string(),
                 value: SnmpValue::OctetString(b"changed".to_vec()),
@@ -344,7 +423,7 @@ mod tests {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
             "private",
-            14,
+            16,
             vec![SnmpVarbind {
                 oid: "1.3.6.1.2.1.1.99.0".to_string(),
                 value: SnmpValue::OctetString(b"new".to_vec()),
@@ -363,7 +442,7 @@ mod tests {
         let original = mib.get(SYS_NAME_OID).cloned();
         let request = build_set_request(
             "private",
-            15,
+            17,
             vec![
                 SnmpVarbind {
                     oid: SYS_NAME_OID.to_string(),
@@ -390,7 +469,7 @@ mod tests {
         let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
             "unknown",
-            16,
+            18,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"should-not-stick".to_vec()),
@@ -406,7 +485,7 @@ mod tests {
     fn wire_roundtrip_preserves_request_id_and_response_values() {
         let mut mib = SnmpMib::new();
         let access = CommunityAccess::new("public", "private");
-        let request = SnmpMessage::build_get_request("public", 17, &["1.3.6.1.2.1.1.3.0"]);
+        let request = SnmpMessage::build_get_request("public", 19, &["1.3.6.1.2.1.1.3.0"]);
         let packet = request.try_serialize().unwrap();
 
         let response = handle_datagram(&mut mib, &packet, &access)
@@ -414,11 +493,34 @@ mod tests {
             .expect("authorized request should produce a response");
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 17);
+        assert_eq!(parsed_response.pdu.request_id, 19);
         assert_eq!(
             parsed_response.pdu.varbinds[0].value,
             SnmpValue::TimeTicks(360000)
         );
+    }
+
+    #[test]
+    fn oversized_wire_response_is_replaced_with_too_big() {
+        let mut mib = SnmpMib::new();
+        mib.set(
+            SYS_NAME_OID,
+            SnmpValue::OctetString(vec![b'x'; MAX_RESPONSE_BYTES * 2]),
+        );
+        let access = CommunityAccess::new("public", "private");
+        let request = SnmpMessage::build_get_request("public", 20, &[SYS_NAME_OID]);
+        let packet = request.try_serialize().unwrap();
+
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("tooBig response should fit within the response bound");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
+
+        assert!(response.len() <= MAX_RESPONSE_BYTES);
+        assert_eq!(parsed_response.pdu.request_id, 20);
+        assert_eq!(parsed_response.pdu.error_status, SNMP_ERROR_TOO_BIG);
+        assert_eq!(parsed_response.pdu.error_index, 0);
+        assert!(parsed_response.pdu.varbinds.is_empty());
     }
 
     #[test]
@@ -427,7 +529,7 @@ mod tests {
         let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
             "private",
-            18,
+            21,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"wire-router.local".to_vec()),
@@ -440,7 +542,7 @@ mod tests {
             .expect("authorized request should produce a response");
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 18);
+        assert_eq!(parsed_response.pdu.request_id, 21);
         assert_eq!(parsed_response.pdu.error_status, 0);
         assert_eq!(parsed_response.pdu.error_index, 0);
         assert_eq!(parsed_response.pdu.varbinds, request.pdu.varbinds);
@@ -456,7 +558,7 @@ mod tests {
         let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
             "public",
-            19,
+            22,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"blocked".to_vec()),
@@ -479,7 +581,7 @@ mod tests {
     #[test]
     fn unsupported_pdus_are_rejected_by_handler() {
         let mut mib = SnmpMib::new();
-        let mut response = SnmpMessage::build_get_request("public", 20, &[]);
+        let mut response = SnmpMessage::build_get_request("public", 23, &[]);
         response.pdu.pdu_type = toy_tcpip::snmp::SNMP_PDU_RESPONSE;
 
         assert_eq!(
