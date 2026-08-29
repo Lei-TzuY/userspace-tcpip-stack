@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn oversized_community_is_dropped_after_bounded_parse() {
+    fn oversized_community_is_rejected_by_parser_before_agent_dispatch() {
         let mut mib = SnmpMib::new();
         let long_community = "x".repeat(MAX_COMMUNITY_BYTES + 1);
         let access = CommunityAccess::new(long_community.clone(), "private");
@@ -525,7 +525,10 @@ mod tests {
         let packet = request.try_serialize().unwrap();
 
         assert!(packet.len() <= MAX_REQUEST_BYTES);
-        assert_eq!(handle_datagram(&mut mib, &packet, &access).unwrap(), None);
+        assert_eq!(
+            handle_datagram(&mut mib, &packet, &access),
+            Err(SnmpError::ResourceLimitExceeded("community length"))
+        );
     }
 
     #[test]
