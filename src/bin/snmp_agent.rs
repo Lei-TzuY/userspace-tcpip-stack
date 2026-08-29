@@ -135,11 +135,8 @@ fn handle_request(
                 .map_err(|_| SnmpError::InvalidBerEncoding)?;
             let max_repetitions = usize::try_from(request.pdu.error_index)
                 .map_err(|_| SnmpError::InvalidBerEncoding)?;
-            let projected_count = bulk_result_count(
-                request.pdu.varbinds.len(),
-                non_repeaters,
-                max_repetitions,
-            );
+            let projected_count =
+                bulk_result_count(request.pdu.varbinds.len(), non_repeaters, max_repetitions);
             if max_repetitions > MAX_GET_BULK_REPETITIONS
                 || projected_count.map_or(true, |count| count > MAX_GET_BULK_VARBINDS)
             {
