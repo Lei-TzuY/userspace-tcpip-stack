@@ -4,7 +4,8 @@ use std::process;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use toy_tcpip::snmp::{
-    SNMP_PDU_GET_NEXT_REQUEST, SNMP_PDU_RESPONSE, SnmpError, SnmpMessage, SnmpValue,
+    SNMP_PDU_GET_NEXT_REQUEST, SNMP_PDU_RESPONSE, SNMP_PDU_SET_REQUEST, SNMP_VERSION_2C, SnmpError,
+    SnmpMessage, SnmpPdu, SnmpValue, SnmpVarbind,
 };
 
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(2);
@@ -18,6 +19,7 @@ enum Operation {
         non_repeaters: i32,
         max_repetitions: i32,
     },
+    Set(Vec<SnmpVarbind>),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -30,7 +32,7 @@ struct Config {
 
 fn usage(program: &str) -> String {
     format!(
-        "Usage:\n  {program} <agent:port> <community> get <oid> [oid ...]\n  {program} <agent:port> <community> getnext <oid> [oid ...]\n  {program} <agent:port> <community> getbulk <non-repeaters> <max-repetitions> <oid> [oid ...]"
+        "Usage:\n  {program} <agent:port> <community> get <oid> [oid ...]\n  {program} <agent:port> <community> getnext <oid> [oid ...]\n  {program} <agent:port> <community> getbulk <non-repeaters> <max-repetitions> <oid> [oid ...]\n  {program} <agent:port> <community> set <oid> <type> <value> [<oid> <type> <value> ...]\n\nSET types: string, integer, oid, ip, counter32, gauge32, timeticks, counter64, null"
     )
 }
 
@@ -44,6 +46,64 @@ fn parse_non_negative(value: &str, name: &str) -> Result<i32, String> {
     Ok(parsed)
 }
 
+fn parse_ip_address(value: &str) -> Result<[u8; 4], String> {
+    let octets = value
+        .split('.')
+        .map(|part| part.parse::<u8>())
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| format!("invalid IPv4 address '{value}'"))?;
+    if octets.len() != 4 {
+        return Err(format!("invalid IPv4 address '{value}'"));
+    }
+    Ok([octets[0], octets[1], octets[2], octets[3]])
+}
+
+fn parse_set_value(value_type: &str, value: &str) -> Result<SnmpValue, String> {
+    match value_type.to_ascii_lowercase().as_str() {
+        "string" => Ok(SnmpValue::OctetString(value.as_bytes().to_vec())),
+        "integer" => value
+            .parse::<i32>()
+            .map(SnmpValue::Integer)
+            .map_err(|_| format!("invalid integer '{value}'")),
+        "oid" => Ok(SnmpValue::Oid(value.to_string())),
+        "ip" => parse_ip_address(value).map(SnmpValue::IpAddress),
+        "counter32" => value
+            .parse::<u32>()
+            .map(SnmpValue::Counter32)
+            .map_err(|_| format!("invalid counter32 '{value}'")),
+        "gauge32" => value
+            .parse::<u32>()
+            .map(SnmpValue::Gauge32)
+            .map_err(|_| format!("invalid gauge32 '{value}'")),
+        "timeticks" => value
+            .parse::<u32>()
+            .map(SnmpValue::TimeTicks)
+            .map_err(|_| format!("invalid timeticks '{value}'")),
+        "counter64" => value
+            .parse::<u64>()
+            .map(SnmpValue::Counter64)
+            .map_err(|_| format!("invalid counter64 '{value}'")),
+        "null" if value == "-" => Ok(SnmpValue::Null),
+        "null" => Err("null values must use '-' as the value".to_string()),
+        other => Err(format!("unsupported SET type '{other}'")),
+    }
+}
+
+fn parse_set_varbinds(args: &[String]) -> Result<Vec<SnmpVarbind>, String> {
+    if args.is_empty() || !args.len().is_multiple_of(3) {
+        return Err("SET requires one or more <oid> <type> <value> triples".to_string());
+    }
+
+    args.chunks_exact(3)
+        .map(|parts| {
+            Ok(SnmpVarbind {
+                oid: parts[0].clone(),
+                value: parse_set_value(&parts[1], &parts[2])?,
+            })
+        })
+        .collect()
+}
+
 fn parse_args(args: &[String]) -> Result<Config, String> {
     if args.len() < 5 {
         return Err(usage(args.first().map_or("snmp_client", String::as_str)));
@@ -54,8 +114,8 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
     let command = args[3].to_ascii_lowercase();
 
     let (operation, oid_start) = match command.as_str() {
-        "get" => (Operation::Get, 4),
-        "getnext" => (Operation::GetNext, 4),
+        "get" => (Operation::Get, Some(4)),
+        "getnext" => (Operation::GetNext, Some(4)),
         "getbulk" => {
             if args.len() < 7 {
                 return Err(usage(&args[0]));
@@ -67,9 +127,10 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
                     non_repeaters,
                     max_repetitions,
                 },
-                6,
+                Some(6),
             )
         }
+        "set" => (Operation::Set(parse_set_varbinds(&args[4..])?), None),
         _ => {
             return Err(format!(
                 "unknown operation '{command}'\n{}",
@@ -78,8 +139,8 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
         }
     };
 
-    let oids = args[oid_start..].to_vec();
-    if oids.is_empty() {
+    let oids = oid_start.map_or_else(Vec::new, |start| args[start..].to_vec());
+    if oid_start.is_some() && oids.is_empty() {
         return Err("at least one OID is required".to_string());
     }
 
@@ -101,7 +162,7 @@ fn next_request_id() -> i32 {
 
 fn build_request(config: &Config, request_id: i32) -> Result<SnmpMessage, SnmpError> {
     let oid_refs = config.oids.iter().map(String::as_str).collect::<Vec<_>>();
-    match config.operation {
+    match &config.operation {
         Operation::Get => Ok(SnmpMessage::build_get_request(
             &config.community,
             request_id,
@@ -119,10 +180,21 @@ fn build_request(config: &Config, request_id: i32) -> Result<SnmpMessage, SnmpEr
         } => SnmpMessage::build_get_bulk_request(
             &config.community,
             request_id,
-            non_repeaters,
-            max_repetitions,
+            *non_repeaters,
+            *max_repetitions,
             &oid_refs,
         ),
+        Operation::Set(varbinds) => Ok(SnmpMessage {
+            version: SNMP_VERSION_2C,
+            community: config.community.clone(),
+            pdu: SnmpPdu {
+                pdu_type: SNMP_PDU_SET_REQUEST,
+                request_id,
+                error_status: 0,
+                error_index: 0,
+                varbinds: varbinds.clone(),
+            },
+        }),
     }
 }
 
@@ -207,7 +279,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use toy_tcpip::snmp::{SNMP_PDU_GET_BULK_REQUEST, SNMP_PDU_GET_REQUEST, SnmpPdu, SnmpVarbind};
+    use toy_tcpip::snmp::{SNMP_PDU_GET_BULK_REQUEST, SNMP_PDU_GET_REQUEST};
 
     fn strings(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_string()).collect()
@@ -262,6 +334,56 @@ mod tests {
     }
 
     #[test]
+    fn parse_set_arguments_supports_typed_multi_varbinds() {
+        let args = strings(&[
+            "snmp_client",
+            "127.0.0.1:161",
+            "private",
+            "set",
+            "1.3.6.1.2.1.1.5.0",
+            "string",
+            "edge-router.local",
+            "1.3.6.1.2.1.1.99.0",
+            "integer",
+            "7",
+        ]);
+        let config = parse_args(&args).unwrap();
+        assert_eq!(config.oids, Vec::<String>::new());
+        assert_eq!(
+            config.operation,
+            Operation::Set(vec![
+                SnmpVarbind {
+                    oid: "1.3.6.1.2.1.1.5.0".to_string(),
+                    value: SnmpValue::OctetString(b"edge-router.local".to_vec()),
+                },
+                SnmpVarbind {
+                    oid: "1.3.6.1.2.1.1.99.0".to_string(),
+                    value: SnmpValue::Integer(7),
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn parse_set_rejects_bad_triples_types_and_values() {
+        let incomplete = strings(&[
+            "snmp_client",
+            "127.0.0.1:161",
+            "private",
+            "set",
+            "1.3.6.1.2.1.1.5.0",
+            "string",
+        ]);
+        assert!(parse_args(&incomplete).is_err());
+
+        assert!(parse_set_value("unknown", "1").is_err());
+        assert!(parse_set_value("integer", "NaN").is_err());
+        assert!(parse_set_value("ip", "192.0.2.999").is_err());
+        assert!(parse_set_value("null", "anything").is_err());
+        assert_eq!(parse_set_value("null", "-").unwrap(), SnmpValue::Null);
+    }
+
+    #[test]
     fn build_each_supported_request_type() {
         let mut config = Config {
             agent: "127.0.0.1:161".to_string(),
@@ -288,6 +410,36 @@ mod tests {
         assert_eq!(bulk.pdu.pdu_type, SNMP_PDU_GET_BULK_REQUEST);
         assert_eq!(bulk.pdu.error_status, 0);
         assert_eq!(bulk.pdu.error_index, 4);
+
+        config.community = "private".to_string();
+        config.operation = Operation::Set(vec![SnmpVarbind {
+            oid: "1.3.6.1.2.1.1.5.0".to_string(),
+            value: SnmpValue::OctetString(b"router".to_vec()),
+        }]);
+        let set = build_request(&config, 10).unwrap();
+        assert_eq!(set.version, SNMP_VERSION_2C);
+        assert_eq!(set.community, "private");
+        assert_eq!(set.pdu.pdu_type, SNMP_PDU_SET_REQUEST);
+        assert_eq!(set.pdu.error_status, 0);
+        assert_eq!(set.pdu.error_index, 0);
+        assert_eq!(set.pdu.varbinds.len(), 1);
+    }
+
+    #[test]
+    fn set_request_round_trips_over_wire() {
+        let config = Config {
+            agent: "127.0.0.1:161".to_string(),
+            community: "private".to_string(),
+            operation: Operation::Set(vec![SnmpVarbind {
+                oid: "1.3.6.1.2.1.1.5.0".to_string(),
+                value: SnmpValue::OctetString(b"edge-router".to_vec()),
+            }]),
+            oids: Vec::new(),
+        };
+        let request = build_request(&config, 11).unwrap();
+        let bytes = request.try_serialize().unwrap();
+        let parsed = SnmpMessage::parse(&bytes).unwrap();
+        assert_eq!(parsed, request);
     }
 
     fn response(request_id: i32) -> SnmpMessage {
@@ -317,6 +469,9 @@ mod tests {
         let mut errored = response(42);
         errored.pdu.error_status = 5;
         errored.pdu.error_index = 1;
-        assert!(validate_response(&errored, "public", 42).is_err());
+        assert_eq!(
+            validate_response(&errored, "public", 42).unwrap_err(),
+            "agent returned error-status 5 at error-index 1"
+        );
     }
 }
