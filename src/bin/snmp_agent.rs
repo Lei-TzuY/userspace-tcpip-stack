@@ -9,7 +9,39 @@ use toy_tcpip::snmp::{
 const SYS_NAME_OID: &str = "1.3.6.1.2.1.1.5.0";
 const SNMP_ERROR_WRONG_TYPE: i32 = 7;
 const SNMP_ERROR_NO_CREATION: i32 = 11;
+const SNMP_ERROR_AUTHORIZATION_ERROR: i32 = 16;
 const SNMP_ERROR_NOT_WRITABLE: i32 = 17;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AccessLevel {
+    ReadOnly,
+    ReadWrite,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CommunityAccess {
+    read_only: String,
+    read_write: String,
+}
+
+impl CommunityAccess {
+    fn new(read_only: impl Into<String>, read_write: impl Into<String>) -> Self {
+        Self {
+            read_only: read_only.into(),
+            read_write: read_write.into(),
+        }
+    }
+
+    fn access_level(&self, community: &str) -> Option<AccessLevel> {
+        if community == self.read_write {
+            Some(AccessLevel::ReadWrite)
+        } else if community == self.read_only {
+            Some(AccessLevel::ReadOnly)
+        } else {
+            None
+        }
+    }
+}
 
 fn build_set_error_response(
     request: &SnmpMessage,
@@ -48,7 +80,11 @@ fn handle_set_request(mib: &mut SnmpMib, request: &SnmpMessage) -> SnmpMessage {
     SnmpMessage::build_response(request, request.pdu.varbinds.clone())
 }
 
-fn handle_request(mib: &mut SnmpMib, request: &SnmpMessage) -> Result<SnmpMessage, SnmpError> {
+fn handle_request(
+    mib: &mut SnmpMib,
+    request: &SnmpMessage,
+    access_level: AccessLevel,
+) -> Result<SnmpMessage, SnmpError> {
     let results = match request.pdu.pdu_type {
         SNMP_PDU_GET_REQUEST => request
             .pdu
@@ -85,32 +121,53 @@ fn handle_request(mib: &mut SnmpMib, request: &SnmpMessage) -> Result<SnmpMessag
                 .map_err(|_| SnmpError::InvalidBerEncoding)?;
             mib.get_bulk(&oids, non_repeaters, max_repetitions)?
         }
-        SNMP_PDU_SET_REQUEST => return Ok(handle_set_request(mib, request)),
+        SNMP_PDU_SET_REQUEST => {
+            if access_level == AccessLevel::ReadOnly {
+                return Ok(build_set_error_response(
+                    request,
+                    SNMP_ERROR_AUTHORIZATION_ERROR,
+                    0,
+                ));
+            }
+            return Ok(handle_set_request(mib, request));
+        }
         tag => return Err(SnmpError::UnsupportedTag(tag)),
     };
 
     Ok(SnmpMessage::build_response(request, results))
 }
 
+fn handle_datagram(
+    mib: &mut SnmpMib,
+    packet: &[u8],
+    access: &CommunityAccess,
+) -> Result<Option<Vec<u8>>, SnmpError> {
+    let request = SnmpMessage::parse(packet)?;
+    let Some(access_level) = access.access_level(&request.community) else {
+        return Ok(None);
+    };
+    let response = handle_request(mib, &request, access_level)?;
+    response.try_serialize().map(Some)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let bind_addr = env::args()
-        .nth(1)
-        .unwrap_or_else(|| "127.0.0.1:1161".to_string());
+    let mut args = env::args().skip(1);
+    let bind_addr = args.next().unwrap_or_else(|| "127.0.0.1:1161".to_string());
+    let read_community = args.next().unwrap_or_else(|| "public".to_string());
+    let write_community = args.next().unwrap_or_else(|| "private".to_string());
+    let access = CommunityAccess::new(read_community, write_community);
     let socket = UdpSocket::bind(&bind_addr)?;
     let mut mib = SnmpMib::new();
     let mut buffer = [0u8; 65_535];
 
-    eprintln!("SNMPv2c agent listening on {bind_addr}");
+    eprintln!("SNMPv2c agent listening on {bind_addr} with community access control enabled");
     loop {
         let (len, peer) = socket.recv_from(&mut buffer)?;
-        let response = SnmpMessage::parse(&buffer[..len])
-            .and_then(|request| handle_request(&mut mib, &request))
-            .and_then(|response| response.try_serialize());
-
-        match response {
-            Ok(bytes) => {
+        match handle_datagram(&mut mib, &buffer[..len], &access) {
+            Ok(Some(bytes)) => {
                 socket.send_to(&bytes, peer)?;
             }
+            Ok(None) => {}
             Err(error) => eprintln!("dropping invalid SNMP request from {peer}: {error}"),
         }
     }
@@ -120,11 +177,31 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 mod tests {
     use super::*;
 
-    fn build_set_request(request_id: i32, varbinds: Vec<SnmpVarbind>) -> SnmpMessage {
-        let mut request = SnmpMessage::build_get_request("public", request_id, &[]);
+    fn build_set_request(
+        community: &str,
+        request_id: i32,
+        varbinds: Vec<SnmpVarbind>,
+    ) -> SnmpMessage {
+        let mut request = SnmpMessage::build_get_request(community, request_id, &[]);
         request.pdu.pdu_type = SNMP_PDU_SET_REQUEST;
         request.pdu.varbinds = varbinds;
         request
+    }
+
+    #[test]
+    fn community_access_distinguishes_read_write_and_unknown() {
+        let access = CommunityAccess::new("public", "private");
+
+        assert_eq!(access.access_level("public"), Some(AccessLevel::ReadOnly));
+        assert_eq!(access.access_level("private"), Some(AccessLevel::ReadWrite));
+        assert_eq!(access.access_level("unknown"), None);
+    }
+
+    #[test]
+    fn write_community_wins_when_communities_match() {
+        let access = CommunityAccess::new("shared", "shared");
+
+        assert_eq!(access.access_level("shared"), Some(AccessLevel::ReadWrite));
     }
 
     #[test]
@@ -136,7 +213,7 @@ mod tests {
             &["1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.1.99.0"],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
 
         assert_eq!(response.pdu.request_id, 7);
         assert_eq!(response.pdu.varbinds.len(), 2);
@@ -154,7 +231,7 @@ mod tests {
             SnmpMessage::build_get_request("public", 8, &["1.3.6.1.2.1.1.1.0", "2.999.0"]);
         request.pdu.pdu_type = SNMP_PDU_GET_NEXT_REQUEST;
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
 
         assert_eq!(response.pdu.varbinds[0].oid, "1.3.6.1.2.1.1.3.0");
         assert_eq!(response.pdu.varbinds[1].oid, "2.999.0");
@@ -173,7 +250,7 @@ mod tests {
         )
         .unwrap();
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
 
         assert_eq!(response.pdu.varbinds.len(), 3);
         assert_eq!(response.pdu.varbinds[0].oid, "1.3.6.1.2.1.1.3.0");
@@ -185,6 +262,7 @@ mod tests {
     fn set_request_updates_writable_sys_name() {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
+            "private",
             10,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
@@ -192,7 +270,7 @@ mod tests {
             }],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadWrite).unwrap();
 
         assert_eq!(response.pdu.error_status, 0);
         assert_eq!(response.pdu.error_index, 0);
@@ -204,18 +282,39 @@ mod tests {
     }
 
     #[test]
+    fn read_only_set_returns_authorization_error_without_mutating_mib() {
+        let mut mib = SnmpMib::new();
+        let original = mib.get(SYS_NAME_OID).cloned();
+        let request = build_set_request(
+            "public",
+            11,
+            vec![SnmpVarbind {
+                oid: SYS_NAME_OID.to_string(),
+                value: SnmpValue::OctetString(b"blocked".to_vec()),
+            }],
+        );
+
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadOnly).unwrap();
+
+        assert_eq!(response.pdu.error_status, SNMP_ERROR_AUTHORIZATION_ERROR);
+        assert_eq!(response.pdu.error_index, 0);
+        assert_eq!(mib.get(SYS_NAME_OID).cloned(), original);
+    }
+
+    #[test]
     fn set_request_rejects_wrong_type_without_mutating_mib() {
         let mut mib = SnmpMib::new();
         let original = mib.get(SYS_NAME_OID).cloned();
         let request = build_set_request(
-            11,
+            "private",
+            12,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::Integer(7),
             }],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadWrite).unwrap();
 
         assert_eq!(response.pdu.error_status, SNMP_ERROR_WRONG_TYPE);
         assert_eq!(response.pdu.error_index, 1);
@@ -226,14 +325,15 @@ mod tests {
     fn set_request_rejects_read_only_objects() {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
-            12,
+            "private",
+            13,
             vec![SnmpVarbind {
                 oid: "1.3.6.1.2.1.1.1.0".to_string(),
                 value: SnmpValue::OctetString(b"changed".to_vec()),
             }],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadWrite).unwrap();
 
         assert_eq!(response.pdu.error_status, SNMP_ERROR_NOT_WRITABLE);
         assert_eq!(response.pdu.error_index, 1);
@@ -243,14 +343,15 @@ mod tests {
     fn set_request_rejects_unknown_objects() {
         let mut mib = SnmpMib::new();
         let request = build_set_request(
-            13,
+            "private",
+            14,
             vec![SnmpVarbind {
                 oid: "1.3.6.1.2.1.1.99.0".to_string(),
                 value: SnmpValue::OctetString(b"new".to_vec()),
             }],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadWrite).unwrap();
 
         assert_eq!(response.pdu.error_status, SNMP_ERROR_NO_CREATION);
         assert_eq!(response.pdu.error_index, 1);
@@ -261,7 +362,8 @@ mod tests {
         let mut mib = SnmpMib::new();
         let original = mib.get(SYS_NAME_OID).cloned();
         let request = build_set_request(
-            14,
+            "private",
+            15,
             vec![
                 SnmpVarbind {
                     oid: SYS_NAME_OID.to_string(),
@@ -274,7 +376,7 @@ mod tests {
             ],
         );
 
-        let response = handle_request(&mut mib, &request).unwrap();
+        let response = handle_request(&mut mib, &request, AccessLevel::ReadWrite).unwrap();
 
         assert_eq!(response.pdu.error_status, SNMP_ERROR_NOT_WRITABLE);
         assert_eq!(response.pdu.error_index, 2);
@@ -282,15 +384,37 @@ mod tests {
     }
 
     #[test]
+    fn unknown_community_datagram_is_dropped_without_mutating_mib() {
+        let mut mib = SnmpMib::new();
+        let original = mib.get(SYS_NAME_OID).cloned();
+        let access = CommunityAccess::new("public", "private");
+        let request = build_set_request(
+            "unknown",
+            16,
+            vec![SnmpVarbind {
+                oid: SYS_NAME_OID.to_string(),
+                value: SnmpValue::OctetString(b"should-not-stick".to_vec()),
+            }],
+        );
+        let packet = request.try_serialize().unwrap();
+
+        assert_eq!(handle_datagram(&mut mib, &packet, &access).unwrap(), None);
+        assert_eq!(mib.get(SYS_NAME_OID).cloned(), original);
+    }
+
+    #[test]
     fn wire_roundtrip_preserves_request_id_and_response_values() {
         let mut mib = SnmpMib::new();
-        let request = SnmpMessage::build_get_request("public", 15, &["1.3.6.1.2.1.1.3.0"]);
-        let parsed_request = SnmpMessage::parse(&request.try_serialize().unwrap()).unwrap();
+        let access = CommunityAccess::new("public", "private");
+        let request = SnmpMessage::build_get_request("public", 17, &["1.3.6.1.2.1.1.3.0"]);
+        let packet = request.try_serialize().unwrap();
 
-        let response = handle_request(&mut mib, &parsed_request).unwrap();
-        let parsed_response = SnmpMessage::parse(&response.try_serialize().unwrap()).unwrap();
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("authorized request should produce a response");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 15);
+        assert_eq!(parsed_response.pdu.request_id, 17);
         assert_eq!(
             parsed_response.pdu.varbinds[0].value,
             SnmpValue::TimeTicks(360000)
@@ -300,19 +424,23 @@ mod tests {
     #[test]
     fn set_wire_roundtrip_applies_update_and_serializes_response() {
         let mut mib = SnmpMib::new();
+        let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
-            16,
+            "private",
+            18,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"wire-router.local".to_vec()),
             }],
         );
-        let parsed_request = SnmpMessage::parse(&request.try_serialize().unwrap()).unwrap();
+        let packet = request.try_serialize().unwrap();
 
-        let response = handle_request(&mut mib, &parsed_request).unwrap();
-        let parsed_response = SnmpMessage::parse(&response.try_serialize().unwrap()).unwrap();
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("authorized request should produce a response");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 16);
+        assert_eq!(parsed_response.pdu.request_id, 18);
         assert_eq!(parsed_response.pdu.error_status, 0);
         assert_eq!(parsed_response.pdu.error_index, 0);
         assert_eq!(parsed_response.pdu.varbinds, request.pdu.varbinds);
@@ -323,13 +451,39 @@ mod tests {
     }
 
     #[test]
+    fn read_only_set_wire_response_is_authorization_error() {
+        let mut mib = SnmpMib::new();
+        let access = CommunityAccess::new("public", "private");
+        let request = build_set_request(
+            "public",
+            19,
+            vec![SnmpVarbind {
+                oid: SYS_NAME_OID.to_string(),
+                value: SnmpValue::OctetString(b"blocked".to_vec()),
+            }],
+        );
+        let packet = request.try_serialize().unwrap();
+
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("read-only SET should receive an authorization error response");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
+
+        assert_eq!(
+            parsed_response.pdu.error_status,
+            SNMP_ERROR_AUTHORIZATION_ERROR
+        );
+        assert_eq!(parsed_response.pdu.error_index, 0);
+    }
+
+    #[test]
     fn unsupported_pdus_are_rejected_by_handler() {
         let mut mib = SnmpMib::new();
-        let mut response = SnmpMessage::build_get_request("public", 17, &[]);
+        let mut response = SnmpMessage::build_get_request("public", 20, &[]);
         response.pdu.pdu_type = toy_tcpip::snmp::SNMP_PDU_RESPONSE;
 
         assert_eq!(
-            handle_request(&mut mib, &response),
+            handle_request(&mut mib, &response, AccessLevel::ReadOnly),
             Err(SnmpError::UnsupportedTag(
                 toy_tcpip::snmp::SNMP_PDU_RESPONSE
             ))
