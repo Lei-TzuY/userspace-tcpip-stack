@@ -152,9 +152,7 @@ fn handle_datagram(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut args = env::args().skip(1);
-    let bind_addr = args
-        .next()
-        .unwrap_or_else(|| "127.0.0.1:1161".to_string());
+    let bind_addr = args.next().unwrap_or_else(|| "127.0.0.1:1161".to_string());
     let read_community = args.next().unwrap_or_else(|| "public".to_string());
     let write_community = args.next().unwrap_or_else(|| "private".to_string());
     let access = CommunityAccess::new(read_community, write_community);
@@ -471,7 +469,10 @@ mod tests {
             .expect("read-only SET should receive an authorization error response");
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.error_status, SNMP_ERROR_AUTHORIZATION_ERROR);
+        assert_eq!(
+            parsed_response.pdu.error_status,
+            SNMP_ERROR_AUTHORIZATION_ERROR
+        );
         assert_eq!(parsed_response.pdu.error_index, 0);
     }
 
