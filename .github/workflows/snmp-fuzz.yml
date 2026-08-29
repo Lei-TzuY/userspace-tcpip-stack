@@ -1,0 +1,30 @@
+name: SNMP Fuzz Smoke
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "fuzz/**"
+      - "src/snmp.rs"
+      - ".github/workflows/snmp-fuzz.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "fuzz/**"
+      - "src/snmp.rs"
+      - ".github/workflows/snmp-fuzz.yml"
+
+jobs:
+  fuzz-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up nightly Rust
+        uses: dtolnay/rust-toolchain@nightly
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+      - name: Smoke fuzz SNMP message parser
+        run: cargo fuzz run snmp_message_parse -- -runs=1000 -max_len=4096
+      - name: Smoke fuzz BER primitives
+        run: cargo fuzz run snmp_ber_primitives -- -runs=1000 -max_len=4096
