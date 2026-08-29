@@ -579,7 +579,12 @@ mod tests {
         let mut mib = SnmpMib::new();
         let access = CommunityAccess::new("public", "private");
         let mut request = SnmpMessage::build_get_request("public", 22, &[]);
-        request.pdu.varbinds = repeated_oid_varbinds(MAX_REQUEST_VARBINDS);
+        request.pdu.varbinds = (0..MAX_REQUEST_VARBINDS)
+            .map(|_| SnmpVarbind {
+                oid: "1.0".to_string(),
+                value: SnmpValue::Null,
+            })
+            .collect();
         let packet = request.try_serialize().unwrap();
 
         assert!(packet.len() <= MAX_REQUEST_BYTES);
