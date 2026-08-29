@@ -25,6 +25,6 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
       - name: Smoke fuzz SNMP message parser
-        run: cargo fuzz run snmp_message_parse -- -runs=1000 -max_len=4096
+        run: cargo fuzz run snmp_message_parse -- -runs=1000 -max_len=4096 -dict=fuzz/snmp.dict
       - name: Smoke fuzz BER primitives
-        run: cargo fuzz run snmp_ber_primitives -- -runs=1000 -max_len=4096
+        run: cargo fuzz run snmp_ber_primitives -- -runs=1000 -max_len=4096 -dict=fuzz/snmp.dict
