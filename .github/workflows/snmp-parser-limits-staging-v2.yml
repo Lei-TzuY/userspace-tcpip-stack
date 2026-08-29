@@ -1,0 +1,53 @@
+name: SNMP parser limits staging v2
+
+on:
+  push:
+    branches:
+      - work/snmp-parser-limits-staging
+    paths:
+      - .github/workflows/snmp-parser-limits-staging-v2.yml
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Apply and commit cleaned staging tree
+        shell: bash
+        run: |
+          python3 tools/stage_snmp_limits.py
+          cargo fmt --all
+          cargo fmt --all -- --check
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git rm .github/workflows/snmp-parser-limits-staging.yml
+          git rm .github/workflows/snmp-parser-limits-staging-v2.yml
+          git rm tools/stage_snmp_limits.py
+          git add src/snmp.rs
+          git commit -m 'staging: parser resource limits candidate'
+          git push origin HEAD:work/snmp-parser-limits-staging
+      - name: Validate tests and release build
+        shell: bash
+        run: |
+          set +e
+          cargo test --all-targets > /tmp/staging-validation.txt 2>&1
+          test_status=$?
+          if [ $test_status -eq 0 ]; then
+            cargo build --release >> /tmp/staging-validation.txt 2>&1
+            test_status=$?
+          fi
+          set -e
+          if [ $test_status -ne 0 ]; then
+            cp /tmp/staging-validation.txt staging-validation.txt
+            git add staging-validation.txt
+            git commit -m 'staging: capture validation failure'
+            git push origin HEAD:work/snmp-parser-limits-staging
+            exit $test_status
+          fi
