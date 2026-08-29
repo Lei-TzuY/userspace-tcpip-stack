@@ -16,6 +16,12 @@ pub const BER_TAG_OCTET_STRING: u8 = 0x04;
 pub const BER_TAG_NULL: u8 = 0x05;
 pub const BER_TAG_OID: u8 = 0x06;
 pub const BER_TAG_SEQUENCE: u8 = 0x30;
+pub const SNMP_TAG_IP_ADDRESS: u8 = 0x40;
+pub const SNMP_TAG_COUNTER32: u8 = 0x41;
+pub const SNMP_TAG_GAUGE32: u8 = 0x42;
+pub const SNMP_TAG_TIME_TICKS: u8 = 0x43;
+pub const SNMP_TAG_OPAQUE: u8 = 0x44;
+pub const SNMP_TAG_COUNTER64: u8 = 0x46;
 pub const SNMP_EXCEPTION_NO_SUCH_OBJECT: u8 = 0x80;
 pub const SNMP_EXCEPTION_NO_SUCH_INSTANCE: u8 = 0x81;
 pub const SNMP_EXCEPTION_END_OF_MIB_VIEW: u8 = 0x82;
@@ -60,6 +66,12 @@ pub enum SnmpValue {
     OctetString(Vec<u8>),
     Null,
     Oid(String),
+    IpAddress([u8; 4]),
+    Counter32(u32),
+    Gauge32(u32),
+    TimeTicks(u32),
+    Opaque(Vec<u8>),
+    Counter64(u64),
     NoSuchObject,
     NoSuchInstance,
     EndOfMibView,
@@ -72,6 +84,12 @@ impl fmt::Display for SnmpValue {
             SnmpValue::OctetString(s) => write!(f, "STRING: \"{}\"", String::from_utf8_lossy(s)),
             SnmpValue::Null => write!(f, "NULL"),
             SnmpValue::Oid(o) => write!(f, "OID: {}", o),
+            SnmpValue::IpAddress(a) => write!(f, "IpAddress: {}.{}.{}.{}", a[0], a[1], a[2], a[3]),
+            SnmpValue::Counter32(v) => write!(f, "Counter32: {}", v),
+            SnmpValue::Gauge32(v) => write!(f, "Gauge32: {}", v),
+            SnmpValue::TimeTicks(v) => write!(f, "TimeTicks: {}", v),
+            SnmpValue::Opaque(v) => write!(f, "Opaque: {} bytes", v.len()),
+            SnmpValue::Counter64(v) => write!(f, "Counter64: {}", v),
             SnmpValue::NoSuchObject => write!(f, "noSuchObject"),
             SnmpValue::NoSuchInstance => write!(f, "noSuchInstance"),
             SnmpValue::EndOfMibView => write!(f, "endOfMibView"),
@@ -216,6 +234,46 @@ pub fn encode_ber_integer(val: i32) -> Vec<u8> {
     out
 }
 
+fn decode_ber_unsigned(bytes: &[u8]) -> Result<u64, SnmpError> {
+    if bytes.is_empty() || bytes[0] & 0x80 != 0 {
+        return Err(SnmpError::InvalidBerEncoding);
+    }
+    if bytes.len() > 1 && bytes[0] == 0 && bytes[1] & 0x80 == 0 {
+        return Err(SnmpError::InvalidBerEncoding);
+    }
+    let magnitude = if bytes[0] == 0 { &bytes[1..] } else { bytes };
+    if magnitude.len() > std::mem::size_of::<u64>() {
+        return Err(SnmpError::InvalidBerEncoding);
+    }
+    let mut value = 0u64;
+    for &byte in magnitude {
+        value = value
+            .checked_shl(8)
+            .and_then(|v| v.checked_add(u64::from(byte)))
+            .ok_or(SnmpError::InvalidBerEncoding)?;
+    }
+    Ok(value)
+}
+
+fn encode_ber_unsigned(tag: u8, value: u64) -> Vec<u8> {
+    let bytes = value.to_be_bytes();
+    let mut start = 0usize;
+    while start < bytes.len() - 1 && bytes[start] == 0 {
+        start += 1;
+    }
+    let content = &bytes[start..];
+    let needs_sign_octet = content[0] & 0x80 != 0;
+    let content_len = content.len() + usize::from(needs_sign_octet);
+    let mut out = Vec::with_capacity(1 + encode_ber_length(content_len).len() + content_len);
+    out.push(tag);
+    out.extend(encode_ber_length(content_len));
+    if needs_sign_octet {
+        out.push(0);
+    }
+    out.extend_from_slice(content);
+    out
+}
+
 pub fn encode_ber_string(s: &str) -> Vec<u8> {
     let mut out = Vec::new();
     out.push(BER_TAG_OCTET_STRING);
@@ -322,7 +380,6 @@ impl SnmpMessage {
             return Err(SnmpError::InvalidBerEncoding);
         }
 
-        // 1. Version
         let (v_tag, v_body, v_len) = decode_ber_tlv(root_body)?;
         if v_tag != BER_TAG_INTEGER {
             return Err(SnmpError::InvalidBerEncoding);
@@ -332,7 +389,6 @@ impl SnmpMessage {
             return Err(SnmpError::InvalidBerEncoding);
         }
 
-        // 2. Community
         let rem1 = &root_body[v_len..];
         let (c_tag, c_body, c_len) = decode_ber_tlv(rem1)?;
         if c_tag != BER_TAG_OCTET_STRING {
@@ -340,7 +396,6 @@ impl SnmpMessage {
         }
         let community = String::from_utf8_lossy(c_body).to_string();
 
-        // 3. PDU
         let rem2 = &rem1[c_len..];
         let (pdu_tag, pdu_body, pdu_len) = decode_ber_tlv(rem2)?;
         if pdu_len != rem2.len() {
@@ -403,6 +458,24 @@ impl SnmpMessage {
                 BER_TAG_OID => SnmpValue::Oid(decode_ber_oid(v_body)?),
                 BER_TAG_NULL if v_body.is_empty() => SnmpValue::Null,
                 BER_TAG_NULL => return Err(SnmpError::InvalidBerEncoding),
+                SNMP_TAG_IP_ADDRESS if v_body.len() == 4 => {
+                    SnmpValue::IpAddress([v_body[0], v_body[1], v_body[2], v_body[3]])
+                }
+                SNMP_TAG_IP_ADDRESS => return Err(SnmpError::InvalidBerEncoding),
+                SNMP_TAG_COUNTER32 => SnmpValue::Counter32(
+                    u32::try_from(decode_ber_unsigned(v_body)?)
+                        .map_err(|_| SnmpError::InvalidBerEncoding)?,
+                ),
+                SNMP_TAG_GAUGE32 => SnmpValue::Gauge32(
+                    u32::try_from(decode_ber_unsigned(v_body)?)
+                        .map_err(|_| SnmpError::InvalidBerEncoding)?,
+                ),
+                SNMP_TAG_TIME_TICKS => SnmpValue::TimeTicks(
+                    u32::try_from(decode_ber_unsigned(v_body)?)
+                        .map_err(|_| SnmpError::InvalidBerEncoding)?,
+                ),
+                SNMP_TAG_OPAQUE => SnmpValue::Opaque(v_body.to_vec()),
+                SNMP_TAG_COUNTER64 => SnmpValue::Counter64(decode_ber_unsigned(v_body)?),
                 SNMP_EXCEPTION_NO_SUCH_OBJECT if v_body.is_empty() => SnmpValue::NoSuchObject,
                 SNMP_EXCEPTION_NO_SUCH_INSTANCE if v_body.is_empty() => SnmpValue::NoSuchInstance,
                 SNMP_EXCEPTION_END_OF_MIB_VIEW if v_body.is_empty() => SnmpValue::EndOfMibView,
@@ -460,7 +533,6 @@ impl SnmpMessage {
             return Err(SnmpError::InvalidBerEncoding);
         }
 
-        // Encode Varbinds
         let mut vb_list_bytes = Vec::new();
         for vb in &self.pdu.varbinds {
             let mut vb_bytes = Vec::new();
@@ -475,6 +547,27 @@ impl SnmpMessage {
                 }
                 SnmpValue::Null => vb_bytes.extend(encode_ber_null()),
                 SnmpValue::Oid(o) => vb_bytes.extend(encode_ber_oid(o)?),
+                SnmpValue::IpAddress(a) => {
+                    vb_bytes.extend([SNMP_TAG_IP_ADDRESS, 4]);
+                    vb_bytes.extend_from_slice(a);
+                }
+                SnmpValue::Counter32(v) => {
+                    vb_bytes.extend(encode_ber_unsigned(SNMP_TAG_COUNTER32, u64::from(*v)))
+                }
+                SnmpValue::Gauge32(v) => {
+                    vb_bytes.extend(encode_ber_unsigned(SNMP_TAG_GAUGE32, u64::from(*v)))
+                }
+                SnmpValue::TimeTicks(v) => {
+                    vb_bytes.extend(encode_ber_unsigned(SNMP_TAG_TIME_TICKS, u64::from(*v)))
+                }
+                SnmpValue::Opaque(v) => {
+                    vb_bytes.push(SNMP_TAG_OPAQUE);
+                    vb_bytes.extend(encode_ber_length(v.len()));
+                    vb_bytes.extend_from_slice(v);
+                }
+                SnmpValue::Counter64(v) => {
+                    vb_bytes.extend(encode_ber_unsigned(SNMP_TAG_COUNTER64, *v))
+                }
                 SnmpValue::NoSuchObject => vb_bytes.extend([SNMP_EXCEPTION_NO_SUCH_OBJECT, 0]),
                 SnmpValue::NoSuchInstance => vb_bytes.extend([SNMP_EXCEPTION_NO_SUCH_INSTANCE, 0]),
                 SnmpValue::EndOfMibView => vb_bytes.extend([SNMP_EXCEPTION_END_OF_MIB_VIEW, 0]),
@@ -492,7 +585,6 @@ impl SnmpMessage {
         vb_seq.extend(encode_ber_length(vb_list_bytes.len()));
         vb_seq.extend(vb_list_bytes);
 
-        // Encode PDU
         let mut pdu_bytes = Vec::new();
         pdu_bytes.extend(encode_ber_integer(self.pdu.request_id));
         pdu_bytes.extend(encode_ber_integer(self.pdu.error_status));
@@ -504,7 +596,6 @@ impl SnmpMessage {
         pdu_wrapper.extend(encode_ber_length(pdu_bytes.len()));
         pdu_wrapper.extend(pdu_bytes);
 
-        // Encode Message
         let mut msg_body = Vec::new();
         msg_body.extend(encode_ber_integer(self.version));
         msg_body.extend(encode_ber_string(&self.community));
@@ -580,12 +671,12 @@ impl SnmpMib {
             "1.3.6.1.2.1.1.1.0",
             SnmpValue::OctetString(b"Toy TCP/IP Stack on Safe Rust".to_vec()),
         );
-        mib.set("1.3.6.1.2.1.1.3.0", SnmpValue::Integer(360000)); // sysUpTime (1 hr)
+        mib.set("1.3.6.1.2.1.1.3.0", SnmpValue::TimeTicks(360000)); // sysUpTime (1 hr)
         mib.set(
             "1.3.6.1.2.1.1.5.0",
             SnmpValue::OctetString(b"toy-router.local".to_vec()),
         );
-        mib.set("1.3.6.1.2.1.2.2.1.10.1", SnmpValue::Integer(1048576)); // ifInOctets (1MB)
+        mib.set("1.3.6.1.2.1.2.2.1.10.1", SnmpValue::Counter32(1048576)); // ifInOctets (1MB)
         mib
     }
 
@@ -710,6 +801,30 @@ mod tests {
     }
 
     #[test]
+    fn test_ber_unsigned_encoding_is_minimal_and_non_negative() {
+        assert_eq!(encode_ber_unsigned(SNMP_TAG_COUNTER32, 0), vec![0x41, 1, 0]);
+        assert_eq!(
+            encode_ber_unsigned(SNMP_TAG_COUNTER32, 127),
+            vec![0x41, 1, 0x7f]
+        );
+        assert_eq!(
+            encode_ber_unsigned(SNMP_TAG_COUNTER32, 128),
+            vec![0x41, 2, 0, 0x80]
+        );
+        assert_eq!(decode_ber_unsigned(&[0]), Ok(0));
+        assert_eq!(decode_ber_unsigned(&[0, 0x80]), Ok(128));
+        assert_eq!(
+            decode_ber_unsigned(&[0, 0x7f]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+        assert_eq!(
+            decode_ber_unsigned(&[0x80]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+        assert_eq!(decode_ber_unsigned(&[]), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
     fn test_ber_oid_encoding_and_decoding() {
         assert_eq!(
             encode_ber_oid("1.3.6.1.2.1.1.1.0"),
@@ -811,11 +926,11 @@ mod tests {
             .windows(2)
             .rposition(|window| window == [BER_TAG_NULL, 0])
             .unwrap();
-        raw[value_offset] = 0x40;
+        raw[value_offset] = 0x45;
 
         assert_eq!(
             SnmpMessage::parse(&raw),
-            Err(SnmpError::UnsupportedTag(0x40))
+            Err(SnmpError::UnsupportedTag(0x45))
         );
     }
 
@@ -992,6 +1107,99 @@ mod tests {
     }
 
     #[test]
+    fn test_snmp_v2_application_values_roundtrip() {
+        let values = [
+            SnmpValue::IpAddress([192, 0, 2, 1]),
+            SnmpValue::Counter32(u32::MAX),
+            SnmpValue::Gauge32(128),
+            SnmpValue::TimeTicks(360000),
+            SnmpValue::Opaque(vec![0, 1, 2, 0xff]),
+            SnmpValue::Counter64(u64::MAX),
+        ];
+
+        for value in values {
+            let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
+            msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+            msg.pdu.varbinds[0].value = value.clone();
+            let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+            assert_eq!(parsed.pdu.varbinds[0].value, value);
+        }
+    }
+
+    #[test]
+    fn test_snmp_application_unsigned_values_use_required_sign_octet() {
+        let mut msg = SnmpMessage::build_get_request("public", 1, &["1.3.6.1.2.1.1.1.0"]);
+        msg.pdu.pdu_type = SNMP_PDU_RESPONSE;
+        msg.pdu.varbinds[0].value = SnmpValue::Counter32(u32::MAX);
+        let raw = msg.try_serialize().unwrap();
+        assert!(
+            raw.windows(7)
+                .any(|w| w == [SNMP_TAG_COUNTER32, 5, 0, 0xff, 0xff, 0xff, 0xff])
+        );
+
+        msg.pdu.varbinds[0].value = SnmpValue::Counter64(u64::MAX);
+        let raw = msg.try_serialize().unwrap();
+        assert!(raw.windows(11).any(|w| w
+            == [
+                SNMP_TAG_COUNTER64,
+                9,
+                0,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff,
+                0xff
+            ]));
+    }
+
+    #[test]
+    fn test_snmp_application_values_reject_malformed_payloads() {
+        fn packet_with_value(value: &[u8]) -> Vec<u8> {
+            let oid = encode_ber_oid("1.3.6.1.2.1.1.1.0").unwrap();
+            let mut vb_body = oid;
+            vb_body.extend_from_slice(value);
+            let mut vb = vec![BER_TAG_SEQUENCE];
+            vb.extend(encode_ber_length(vb_body.len()));
+            vb.extend(vb_body);
+            let mut vb_list = vec![BER_TAG_SEQUENCE];
+            vb_list.extend(encode_ber_length(vb.len()));
+            vb_list.extend(vb);
+            let mut pdu_body = Vec::new();
+            pdu_body.extend(encode_ber_integer(1));
+            pdu_body.extend(encode_ber_integer(0));
+            pdu_body.extend(encode_ber_integer(0));
+            pdu_body.extend(vb_list);
+            let mut pdu = vec![SNMP_PDU_RESPONSE];
+            pdu.extend(encode_ber_length(pdu_body.len()));
+            pdu.extend(pdu_body);
+            let mut body = Vec::new();
+            body.extend(encode_ber_integer(SNMP_VERSION_2C));
+            body.extend(encode_ber_string("public"));
+            body.extend(pdu);
+            let mut packet = vec![BER_TAG_SEQUENCE];
+            packet.extend(encode_ber_length(body.len()));
+            packet.extend(body);
+            packet
+        }
+
+        for value in [
+            vec![SNMP_TAG_IP_ADDRESS, 3, 192, 0, 2],
+            vec![SNMP_TAG_COUNTER32, 1, 0x80],
+            vec![SNMP_TAG_GAUGE32, 2, 0, 0x7f],
+            vec![SNMP_TAG_TIME_TICKS, 6, 0, 1, 0, 0, 0, 0],
+            vec![SNMP_TAG_COUNTER64, 10, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0],
+        ] {
+            assert_eq!(
+                SnmpMessage::parse(&packet_with_value(&value)),
+                Err(SnmpError::InvalidBerEncoding)
+            );
+        }
+    }
+
+    #[test]
     fn test_snmp_v2_exception_values_roundtrip() {
         for (value, tag) in [
             (SnmpValue::NoSuchObject, SNMP_EXCEPTION_NO_SUCH_OBJECT),
@@ -1055,5 +1263,13 @@ mod tests {
         } else {
             panic!("Expected OctetString");
         }
+        assert_eq!(
+            mib.get("1.3.6.1.2.1.1.3.0"),
+            Some(&SnmpValue::TimeTicks(360000))
+        );
+        assert_eq!(
+            mib.get("1.3.6.1.2.1.2.2.1.10.1"),
+            Some(&SnmpValue::Counter32(1048576))
+        );
     }
 }
