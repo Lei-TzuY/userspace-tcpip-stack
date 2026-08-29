@@ -17,3 +17,10 @@ path = "fuzz_targets/snmp_message_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "snmp_ber_primitives"
+path = "fuzz_targets/snmp_ber_primitives.rs"
+test = false
+doc = false
+bench = false
