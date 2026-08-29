@@ -12,6 +12,9 @@ const SNMP_ERROR_WRONG_TYPE: i32 = 7;
 const SNMP_ERROR_NO_CREATION: i32 = 11;
 const SNMP_ERROR_AUTHORIZATION_ERROR: i32 = 16;
 const SNMP_ERROR_NOT_WRITABLE: i32 = 17;
+const MAX_REQUEST_BYTES: usize = 4_096;
+const MAX_COMMUNITY_BYTES: usize = 64;
+const MAX_REQUEST_VARBINDS: usize = 64;
 const MAX_GET_BULK_REPETITIONS: usize = 64;
 const MAX_GET_BULK_VARBINDS: usize = 128;
 const MAX_RESPONSE_BYTES: usize = 1_400;
@@ -185,10 +188,24 @@ fn handle_datagram(
     packet: &[u8],
     access: &CommunityAccess,
 ) -> Result<Option<Vec<u8>>, SnmpError> {
+    if packet.len() > MAX_REQUEST_BYTES {
+        return Ok(None);
+    }
+
     let request = SnmpMessage::parse(packet)?;
+    if request.community.len() > MAX_COMMUNITY_BYTES {
+        return Ok(None);
+    }
+
     let Some(access_level) = access.access_level(&request.community) else {
         return Ok(None);
     };
+
+    if request.pdu.varbinds.len() > MAX_REQUEST_VARBINDS {
+        let response = build_too_big_response(&request);
+        return serialize_bounded_response(&request, response);
+    }
+
     let response = handle_request(mib, &request, access_level)?;
     serialize_bounded_response(&request, response)
 }
@@ -201,7 +218,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let access = CommunityAccess::new(read_community, write_community);
     let socket = UdpSocket::bind(&bind_addr)?;
     let mut mib = SnmpMib::new();
-    let mut buffer = [0u8; 65_535];
+    let mut buffer = [0u8; MAX_REQUEST_BYTES + 1];
 
     eprintln!("SNMPv2c agent listening on {bind_addr} with community access control enabled");
     loop {
@@ -229,6 +246,15 @@ mod tests {
         request.pdu.pdu_type = SNMP_PDU_SET_REQUEST;
         request.pdu.varbinds = varbinds;
         request
+    }
+
+    fn repeated_oid_varbinds(count: usize) -> Vec<SnmpVarbind> {
+        (0..count)
+            .map(|_| SnmpVarbind {
+                oid: SYS_NAME_OID.to_string(),
+                value: SnmpValue::Null,
+            })
+            .collect()
     }
 
     #[test]
@@ -482,10 +508,101 @@ mod tests {
     }
 
     #[test]
+    fn oversized_datagram_is_dropped_before_parsing() {
+        let mut mib = SnmpMib::new();
+        let access = CommunityAccess::new("public", "private");
+        let packet = vec![0xff; MAX_REQUEST_BYTES + 1];
+
+        assert_eq!(handle_datagram(&mut mib, &packet, &access).unwrap(), None);
+    }
+
+    #[test]
+    fn oversized_community_is_dropped_after_bounded_parse() {
+        let mut mib = SnmpMib::new();
+        let long_community = "x".repeat(MAX_COMMUNITY_BYTES + 1);
+        let access = CommunityAccess::new(long_community.clone(), "private");
+        let request = SnmpMessage::build_get_request(&long_community, 19, &[SYS_NAME_OID]);
+        let packet = request.try_serialize().unwrap();
+
+        assert!(packet.len() <= MAX_REQUEST_BYTES);
+        assert_eq!(handle_datagram(&mut mib, &packet, &access).unwrap(), None);
+    }
+
+    #[test]
+    fn excessive_get_varbinds_return_too_big() {
+        let mut mib = SnmpMib::new();
+        let access = CommunityAccess::new("public", "private");
+        let mut request = SnmpMessage::build_get_request("public", 20, &[]);
+        request.pdu.varbinds = repeated_oid_varbinds(MAX_REQUEST_VARBINDS + 1);
+        let packet = request.try_serialize().unwrap();
+
+        assert!(packet.len() <= MAX_REQUEST_BYTES);
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("authorized oversized request should receive tooBig");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
+
+        assert_eq!(parsed_response.pdu.request_id, 20);
+        assert_eq!(parsed_response.pdu.error_status, SNMP_ERROR_TOO_BIG);
+        assert_eq!(parsed_response.pdu.error_index, 0);
+        assert!(parsed_response.pdu.varbinds.is_empty());
+    }
+
+    #[test]
+    fn excessive_set_varbinds_are_rejected_before_mutation() {
+        let mut mib = SnmpMib::new();
+        let original = mib.get(SYS_NAME_OID).cloned();
+        let access = CommunityAccess::new("public", "private");
+        let varbinds = (0..=MAX_REQUEST_VARBINDS)
+            .map(|_| SnmpVarbind {
+                oid: SYS_NAME_OID.to_string(),
+                value: SnmpValue::OctetString(b"should-not-stick".to_vec()),
+            })
+            .collect();
+        let request = build_set_request("private", 21, varbinds);
+        let packet = request.try_serialize().unwrap();
+
+        assert!(packet.len() <= MAX_REQUEST_BYTES);
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("authorized oversized SET should receive tooBig");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
+
+        assert_eq!(parsed_response.pdu.error_status, SNMP_ERROR_TOO_BIG);
+        assert_eq!(parsed_response.pdu.error_index, 0);
+        assert!(parsed_response.pdu.varbinds.is_empty());
+        assert_eq!(mib.get(SYS_NAME_OID).cloned(), original);
+    }
+
+    #[test]
+    fn maximum_request_varbind_count_is_still_served() {
+        let mut mib = SnmpMib::new();
+        let access = CommunityAccess::new("public", "private");
+        let mut request = SnmpMessage::build_get_request("public", 22, &[]);
+        request.pdu.varbinds = (0..MAX_REQUEST_VARBINDS)
+            .map(|_| SnmpVarbind {
+                oid: "1.0".to_string(),
+                value: SnmpValue::Null,
+            })
+            .collect();
+        let packet = request.try_serialize().unwrap();
+
+        assert!(packet.len() <= MAX_REQUEST_BYTES);
+        let response = handle_datagram(&mut mib, &packet, &access)
+            .unwrap()
+            .expect("request at the varbind limit should be served");
+        let parsed_response = SnmpMessage::parse(&response).unwrap();
+
+        assert_eq!(parsed_response.pdu.request_id, 22);
+        assert_eq!(parsed_response.pdu.error_status, 0);
+        assert_eq!(parsed_response.pdu.varbinds.len(), MAX_REQUEST_VARBINDS);
+    }
+
+    #[test]
     fn wire_roundtrip_preserves_request_id_and_response_values() {
         let mut mib = SnmpMib::new();
         let access = CommunityAccess::new("public", "private");
-        let request = SnmpMessage::build_get_request("public", 19, &["1.3.6.1.2.1.1.3.0"]);
+        let request = SnmpMessage::build_get_request("public", 23, &["1.3.6.1.2.1.1.3.0"]);
         let packet = request.try_serialize().unwrap();
 
         let response = handle_datagram(&mut mib, &packet, &access)
@@ -493,7 +610,7 @@ mod tests {
             .expect("authorized request should produce a response");
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 19);
+        assert_eq!(parsed_response.pdu.request_id, 23);
         assert_eq!(
             parsed_response.pdu.varbinds[0].value,
             SnmpValue::TimeTicks(360000)
@@ -508,7 +625,7 @@ mod tests {
             SnmpValue::OctetString(vec![b'x'; MAX_RESPONSE_BYTES * 2]),
         );
         let access = CommunityAccess::new("public", "private");
-        let request = SnmpMessage::build_get_request("public", 20, &[SYS_NAME_OID]);
+        let request = SnmpMessage::build_get_request("public", 24, &[SYS_NAME_OID]);
         let packet = request.try_serialize().unwrap();
 
         let response = handle_datagram(&mut mib, &packet, &access)
@@ -517,7 +634,7 @@ mod tests {
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
         assert!(response.len() <= MAX_RESPONSE_BYTES);
-        assert_eq!(parsed_response.pdu.request_id, 20);
+        assert_eq!(parsed_response.pdu.request_id, 24);
         assert_eq!(parsed_response.pdu.error_status, SNMP_ERROR_TOO_BIG);
         assert_eq!(parsed_response.pdu.error_index, 0);
         assert!(parsed_response.pdu.varbinds.is_empty());
@@ -529,7 +646,7 @@ mod tests {
         let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
             "private",
-            21,
+            25,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"wire-router.local".to_vec()),
@@ -542,7 +659,7 @@ mod tests {
             .expect("authorized request should produce a response");
         let parsed_response = SnmpMessage::parse(&response).unwrap();
 
-        assert_eq!(parsed_response.pdu.request_id, 21);
+        assert_eq!(parsed_response.pdu.request_id, 25);
         assert_eq!(parsed_response.pdu.error_status, 0);
         assert_eq!(parsed_response.pdu.error_index, 0);
         assert_eq!(parsed_response.pdu.varbinds, request.pdu.varbinds);
@@ -558,7 +675,7 @@ mod tests {
         let access = CommunityAccess::new("public", "private");
         let request = build_set_request(
             "public",
-            22,
+            26,
             vec![SnmpVarbind {
                 oid: SYS_NAME_OID.to_string(),
                 value: SnmpValue::OctetString(b"blocked".to_vec()),
@@ -581,7 +698,7 @@ mod tests {
     #[test]
     fn unsupported_pdus_are_rejected_by_handler() {
         let mut mib = SnmpMib::new();
-        let mut response = SnmpMessage::build_get_request("public", 23, &[]);
+        let mut response = SnmpMessage::build_get_request("public", 27, &[]);
         response.pdu.pdu_type = toy_tcpip::snmp::SNMP_PDU_RESPONSE;
 
         assert_eq!(
