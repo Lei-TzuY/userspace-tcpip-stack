@@ -1,0 +1,37 @@
+name: Stage SNMP MIB traversal
+
+on:
+  push:
+    branches:
+      - stage/snmp-mib-traversal
+    paths:
+      - .github/workflows/stage-snmp-mib.yml
+
+permissions:
+  contents: write
+
+jobs:
+  implement-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply focused implementation
+        run: python .tmp/apply_snmp_mib_traversal.py
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Test
+        run: cargo test --all-targets --verbose
+      - name: Release build
+        run: cargo build --release --verbose
+      - name: Commit validated implementation
+        run: |
+          git config user.name "stage-builder"
+          git config user.email "stage-builder@users.noreply.github.com"
+          git add src/snmp.rs
+          git commit -m "stage: implement SNMP MIB traversal"
+          git push origin HEAD:stage/snmp-mib-traversal
