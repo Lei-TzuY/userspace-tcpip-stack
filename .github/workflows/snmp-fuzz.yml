@@ -18,13 +18,32 @@ jobs:
   fuzz-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - snmp_message_parse
+          - snmp_ber_primitives
     steps:
       - uses: actions/checkout@v4
       - name: Set up nightly Rust
         uses: dtolnay/rust-toolchain@nightly
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
-      - name: Smoke fuzz SNMP message parser
-        run: cargo fuzz run snmp_message_parse -- -runs=1000 -max_len=4096 -dict=fuzz/snmp.dict
-      - name: Smoke fuzz BER primitives
-        run: cargo fuzz run snmp_ber_primitives -- -runs=1000 -max_len=4096 -dict=fuzz/snmp.dict
+      - name: Prepare artifact directory
+        run: mkdir -p "fuzz-artifacts/${{ matrix.target }}"
+      - name: Smoke fuzz ${{ matrix.target }}
+        run: >-
+          cargo fuzz run ${{ matrix.target }} --
+          -runs=1000
+          -max_len=4096
+          -dict=fuzz/snmp.dict
+          -artifact_prefix="fuzz-artifacts/${{ matrix.target }}/"
+      - name: Upload crash artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: snmp-fuzz-${{ matrix.target }}-${{ github.sha }}
+          path: fuzz-artifacts/${{ matrix.target }}/
+          if-no-files-found: ignore
+          retention-days: 14
