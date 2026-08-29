@@ -17,8 +17,8 @@ fn assert_round_trip(seed: &[u8], expected_pdu_type: u8) {
     let canonical = message
         .try_serialize()
         .expect("parsed fuzz seed must remain serializable");
-    let reparsed = SnmpMessage::parse(&canonical)
-        .expect("canonicalized fuzz seed must remain parseable");
+    let reparsed =
+        SnmpMessage::parse(&canonical).expect("canonicalized fuzz seed must remain parseable");
     assert_eq!(reparsed, message);
 }
 
