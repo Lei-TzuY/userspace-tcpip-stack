@@ -31,11 +31,16 @@ pub const SNMP_PDU_GET_REQUEST: u8 = 0xA0;
 pub const SNMP_PDU_GET_NEXT_REQUEST: u8 = 0xA1;
 pub const SNMP_PDU_RESPONSE: u8 = 0xA2;
 pub const SNMP_PDU_SET_REQUEST: u8 = 0xA3;
+pub const SNMP_PDU_GET_BULK_REQUEST: u8 = 0xA5;
 
 fn is_supported_pdu_type(tag: u8) -> bool {
     matches!(
         tag,
-        SNMP_PDU_GET_REQUEST | SNMP_PDU_GET_NEXT_REQUEST | SNMP_PDU_RESPONSE | SNMP_PDU_SET_REQUEST
+        SNMP_PDU_GET_REQUEST
+            | SNMP_PDU_GET_NEXT_REQUEST
+            | SNMP_PDU_RESPONSE
+            | SNMP_PDU_SET_REQUEST
+            | SNMP_PDU_GET_BULK_REQUEST
     )
 }
 
@@ -497,6 +502,9 @@ impl SnmpMessage {
         {
             return Err(SnmpError::InvalidBerEncoding);
         }
+        if pdu_tag == SNMP_PDU_GET_BULK_REQUEST && (error_status < 0 || error_index < 0) {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
 
         Ok(SnmpMessage {
             version,
@@ -529,6 +537,11 @@ impl SnmpMessage {
                 self.pdu.error_index,
                 self.pdu.varbinds.len(),
             )
+        {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+        if self.pdu.pdu_type == SNMP_PDU_GET_BULK_REQUEST
+            && (self.pdu.error_status < 0 || self.pdu.error_index < 0)
         {
             return Err(SnmpError::InvalidBerEncoding);
         }
@@ -634,6 +647,24 @@ impl SnmpMessage {
                 varbinds,
             },
         }
+    }
+
+    pub fn build_get_bulk_request(
+        community: &str,
+        request_id: i32,
+        non_repeaters: i32,
+        max_repetitions: i32,
+        oids: &[&str],
+    ) -> Result<Self, SnmpError> {
+        if non_repeaters < 0 || max_repetitions < 0 {
+            return Err(SnmpError::InvalidBerEncoding);
+        }
+
+        let mut message = Self::build_get_request(community, request_id, oids);
+        message.pdu.pdu_type = SNMP_PDU_GET_BULK_REQUEST;
+        message.pdu.error_status = non_repeaters;
+        message.pdu.error_index = max_repetitions;
+        Ok(message)
     }
 
     pub fn build_response(req: &SnmpMessage, results: Vec<SnmpVarbind>) -> Self {
@@ -952,18 +983,18 @@ mod tests {
     #[test]
     fn test_snmp_rejects_unsupported_pdu_type() {
         let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
-        msg.pdu.pdu_type = 0xa5;
-        assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa5)));
+        msg.pdu.pdu_type = 0xa4;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::UnsupportedTag(0xa4)));
 
         let mut raw = SnmpMessage::build_get_request("public", 1, &[]).serialize();
         let pdu_offset = raw
             .iter()
             .position(|&byte| byte == SNMP_PDU_GET_REQUEST)
             .unwrap();
-        raw[pdu_offset] = 0xa5;
+        raw[pdu_offset] = 0xa4;
         assert_eq!(
             SnmpMessage::parse(&raw),
-            Err(SnmpError::UnsupportedTag(0xa5))
+            Err(SnmpError::UnsupportedTag(0xa4))
         );
     }
 
@@ -974,12 +1005,86 @@ mod tests {
             SNMP_PDU_GET_NEXT_REQUEST,
             SNMP_PDU_RESPONSE,
             SNMP_PDU_SET_REQUEST,
+            SNMP_PDU_GET_BULK_REQUEST,
         ] {
             let mut msg = SnmpMessage::build_get_request("public", 1, &[]);
             msg.pdu.pdu_type = pdu_type;
             let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
             assert_eq!(parsed.pdu.pdu_type, pdu_type);
         }
+    }
+
+    #[test]
+    fn test_snmp_get_bulk_request_roundtrip() {
+        let msg = SnmpMessage::build_get_bulk_request(
+            "public",
+            77,
+            1,
+            10,
+            &["1.3.6.1.2.1.1.1.0", "1.3.6.1.2.1.2.2.1.10.1"],
+        )
+        .unwrap();
+
+        let parsed = SnmpMessage::parse(&msg.try_serialize().unwrap()).unwrap();
+        assert_eq!(parsed.pdu.pdu_type, SNMP_PDU_GET_BULK_REQUEST);
+        assert_eq!(parsed.pdu.request_id, 77);
+        assert_eq!(parsed.pdu.error_status, 1);
+        assert_eq!(parsed.pdu.error_index, 10);
+        assert_eq!(parsed.pdu.varbinds.len(), 2);
+    }
+
+    #[test]
+    fn test_snmp_get_bulk_rejects_negative_parameters() {
+        assert_eq!(
+            SnmpMessage::build_get_bulk_request("public", 1, -1, 0, &[]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+        assert_eq!(
+            SnmpMessage::build_get_bulk_request("public", 1, 0, -1, &[]),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut msg = SnmpMessage::build_get_bulk_request("public", 1, 0, 1, &[]).unwrap();
+        msg.pdu.error_status = -1;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+        msg.pdu.error_status = 0;
+        msg.pdu.error_index = -1;
+        assert_eq!(msg.try_serialize(), Err(SnmpError::InvalidBerEncoding));
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_negative_get_bulk_parameters() {
+        let msg = SnmpMessage::build_get_bulk_request("public", 1, 0, 1, &[]).unwrap();
+        let raw = msg.try_serialize().unwrap();
+        let fields = [
+            BER_TAG_INTEGER,
+            1,
+            1,
+            BER_TAG_INTEGER,
+            1,
+            0,
+            BER_TAG_INTEGER,
+            1,
+            1,
+        ];
+        let fields_offset = raw
+            .windows(fields.len())
+            .position(|window| window == fields)
+            .unwrap();
+
+        let mut negative_non_repeaters = raw.clone();
+        negative_non_repeaters[fields_offset + 5] = 0xff;
+        assert_eq!(
+            SnmpMessage::parse(&negative_non_repeaters),
+            Err(SnmpError::InvalidBerEncoding)
+        );
+
+        let mut negative_max_repetitions = raw;
+        negative_max_repetitions[fields_offset + 8] = 0xff;
+        assert_eq!(
+            SnmpMessage::parse(&negative_max_repetitions),
+            Err(SnmpError::InvalidBerEncoding)
+        );
     }
 
     #[test]
