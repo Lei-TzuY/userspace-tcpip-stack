@@ -1,0 +1,33 @@
+name: Temporary rustfmt staging
+
+on:
+  push:
+    branches:
+      - test/snmp-fuzz-corpus-validation-clean
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: test/snmp-fuzz-corpus-validation-clean
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply rustfmt
+        run: cargo fmt
+      - name: Commit canonical formatting
+        shell: bash
+        run: |
+          if git diff --quiet -- tests/snmp_fuzz_corpus.rs; then
+            exit 0
+          fi
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add tests/snmp_fuzz_corpus.rs
+          git commit -m "staging: apply rustfmt"
+          git push origin HEAD:test/snmp-fuzz-corpus-validation-clean
