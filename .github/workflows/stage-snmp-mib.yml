@@ -23,6 +23,8 @@ jobs:
       - name: Apply focused implementation
         run: python .tmp/apply_snmp_mib_traversal.py
       - name: Format
+        run: cargo fmt --all
+      - name: Check formatting
         run: cargo fmt --all -- --check
       - name: Test
         run: cargo test --all-targets --verbose
