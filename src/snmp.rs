@@ -9,6 +9,10 @@ use std::fmt;
 pub const SNMP_PORT: u16 = 161;
 pub const SNMP_TRAP_PORT: u16 = 162;
 pub const SNMP_VERSION_2C: i32 = 1;
+pub const SNMP_MAX_MESSAGE_LEN: usize = 4096;
+pub const SNMP_MAX_COMMUNITY_LEN: usize = 64;
+pub const SNMP_MAX_PARSED_VARBINDS: usize = 128;
+pub const SNMP_MAX_OID_BYTES: usize = 128;
 
 // BER Tags
 pub const BER_TAG_INTEGER: u8 = 0x02;
@@ -129,6 +133,7 @@ pub enum SnmpError {
     PacketTooShort,
     InvalidBerEncoding,
     UnsupportedTag(u8),
+    ResourceLimitExceeded(&'static str),
 }
 
 impl fmt::Display for SnmpError {
@@ -137,6 +142,9 @@ impl fmt::Display for SnmpError {
             SnmpError::PacketTooShort => write!(f, "SNMP packet too short"),
             SnmpError::InvalidBerEncoding => write!(f, "Invalid ASN.1 BER TLV encoding"),
             SnmpError::UnsupportedTag(t) => write!(f, "Unsupported BER tag 0x{:02x}", t),
+            SnmpError::ResourceLimitExceeded(resource) => {
+                write!(f, "SNMP parser resource limit exceeded: {resource}")
+            }
         }
     }
 }
@@ -380,6 +388,10 @@ pub fn decode_ber_oid(bytes: &[u8]) -> Result<String, SnmpError> {
 
 impl SnmpMessage {
     pub fn parse(data: &[u8]) -> Result<Self, SnmpError> {
+        if data.len() > SNMP_MAX_MESSAGE_LEN {
+            return Err(SnmpError::ResourceLimitExceeded("message length"));
+        }
+
         let (root_tag, root_body, root_len) = decode_ber_tlv(data)?;
         if root_tag != BER_TAG_SEQUENCE || root_len != data.len() {
             return Err(SnmpError::InvalidBerEncoding);
@@ -398,6 +410,9 @@ impl SnmpMessage {
         let (c_tag, c_body, c_len) = decode_ber_tlv(rem1)?;
         if c_tag != BER_TAG_OCTET_STRING {
             return Err(SnmpError::InvalidBerEncoding);
+        }
+        if c_body.len() > SNMP_MAX_COMMUNITY_LEN {
+            return Err(SnmpError::ResourceLimitExceeded("community length"));
         }
         let community = String::from_utf8_lossy(c_body).to_string();
 
@@ -441,6 +456,9 @@ impl SnmpMessage {
 
         let mut varbinds = Vec::new();
         while !vb_list_body.is_empty() {
+            if varbinds.len() >= SNMP_MAX_PARSED_VARBINDS {
+                return Err(SnmpError::ResourceLimitExceeded("varbind count"));
+            }
             let (vb_tag, vb_body, vb_len) = decode_ber_tlv(vb_list_body)?;
             if vb_tag != BER_TAG_SEQUENCE {
                 return Err(SnmpError::InvalidBerEncoding);
@@ -449,6 +467,9 @@ impl SnmpMessage {
             let (oid_tag, oid_body, oid_len) = decode_ber_tlv(vb_body)?;
             if oid_tag != BER_TAG_OID {
                 return Err(SnmpError::InvalidBerEncoding);
+            }
+            if oid_body.len() > SNMP_MAX_OID_BYTES {
+                return Err(SnmpError::ResourceLimitExceeded("OID length"));
             }
             let oid_str = decode_ber_oid(oid_body)?;
 
@@ -460,7 +481,12 @@ impl SnmpMessage {
             let value = match v_tag {
                 BER_TAG_INTEGER => SnmpValue::Integer(decode_ber_integer(v_body)?),
                 BER_TAG_OCTET_STRING => SnmpValue::OctetString(v_body.to_vec()),
-                BER_TAG_OID => SnmpValue::Oid(decode_ber_oid(v_body)?),
+                BER_TAG_OID => {
+                    if v_body.len() > SNMP_MAX_OID_BYTES {
+                        return Err(SnmpError::ResourceLimitExceeded("OID value length"));
+                    }
+                    SnmpValue::Oid(decode_ber_oid(v_body)?)
+                }
                 BER_TAG_NULL if v_body.is_empty() => SnmpValue::Null,
                 BER_TAG_NULL => return Err(SnmpError::InvalidBerEncoding),
                 SNMP_TAG_IP_ADDRESS if v_body.len() == 4 => {
@@ -795,6 +821,47 @@ impl SnmpMib {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_snmp_parser_rejects_oversized_message_before_ber_decode() {
+        let raw = vec![0u8; SNMP_MAX_MESSAGE_LEN + 1];
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::ResourceLimitExceeded("message length"))
+        );
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_oversized_community() {
+        let community = "x".repeat(SNMP_MAX_COMMUNITY_LEN + 1);
+        let raw = SnmpMessage::build_get_request(&community, 1, &["1.3.6.1.2.1.1.1.0"]).serialize();
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::ResourceLimitExceeded("community length"))
+        );
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_excessive_varbind_count() {
+        let oids = vec!["1.3.6.1.2.1.1.1.0"; SNMP_MAX_PARSED_VARBINDS + 1];
+        let raw = SnmpMessage::build_get_request("public", 2, &oids).serialize();
+        assert!(raw.len() <= SNMP_MAX_MESSAGE_LEN);
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::ResourceLimitExceeded("varbind count"))
+        );
+    }
+
+    #[test]
+    fn test_snmp_parser_rejects_excessive_oid_length() {
+        let oid = format!("1.3{}", ".1".repeat(SNMP_MAX_OID_BYTES));
+        let raw = SnmpMessage::build_get_request("public", 3, &[oid.as_str()]).serialize();
+        assert!(raw.len() <= SNMP_MAX_MESSAGE_LEN);
+        assert_eq!(
+            SnmpMessage::parse(&raw),
+            Err(SnmpError::ResourceLimitExceeded("OID length"))
+        );
+    }
 
     #[test]
     fn test_snmp_get_request_and_response_roundtrip() {
