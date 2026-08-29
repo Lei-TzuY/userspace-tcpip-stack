@@ -2,8 +2,8 @@ use std::env;
 use std::net::UdpSocket;
 
 use toy_tcpip::snmp::{
-    SnmpError, SnmpMessage, SnmpMib, SnmpValue, SnmpVarbind, SNMP_PDU_GET_BULK_REQUEST,
-    SNMP_PDU_GET_NEXT_REQUEST, SNMP_PDU_GET_REQUEST,
+    SNMP_PDU_GET_BULK_REQUEST, SNMP_PDU_GET_NEXT_REQUEST, SNMP_PDU_GET_REQUEST, SnmpError,
+    SnmpMessage, SnmpMib, SnmpValue, SnmpVarbind,
 };
 
 fn handle_request(mib: &SnmpMib, request: &SnmpMessage) -> Result<SnmpMessage, SnmpError> {
@@ -100,11 +100,8 @@ mod tests {
     #[test]
     fn get_next_returns_successor_and_end_of_mib_view() {
         let mib = SnmpMib::new();
-        let mut request = SnmpMessage::build_get_request(
-            "public",
-            8,
-            &["1.3.6.1.2.1.1.1.0", "2.999.0"],
-        );
+        let mut request =
+            SnmpMessage::build_get_request("public", 8, &["1.3.6.1.2.1.1.1.0", "2.999.0"]);
         request.pdu.pdu_type = SNMP_PDU_GET_NEXT_REQUEST;
 
         let response = handle_request(&mib, &request).unwrap();
