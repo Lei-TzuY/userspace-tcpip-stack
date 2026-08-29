@@ -70,7 +70,12 @@ fn parse_args(args: &[String]) -> Result<Config, String> {
                 6,
             )
         }
-        _ => return Err(format!("unknown operation '{command}'\n{}", usage(&args[0]))),
+        _ => {
+            return Err(format!(
+                "unknown operation '{command}'\n{}",
+                usage(&args[0])
+            ));
+        }
     };
 
     let oids = args[oid_start..].to_vec();
@@ -264,7 +269,10 @@ mod tests {
             operation: Operation::Get,
             oids: strings(&["1.3.6.1.2.1.1.1.0"]),
         };
-        assert_eq!(build_request(&config, 7).unwrap().pdu.pdu_type, SNMP_PDU_GET_REQUEST);
+        assert_eq!(
+            build_request(&config, 7).unwrap().pdu.pdu_type,
+            SNMP_PDU_GET_REQUEST
+        );
 
         config.operation = Operation::GetNext;
         assert_eq!(
