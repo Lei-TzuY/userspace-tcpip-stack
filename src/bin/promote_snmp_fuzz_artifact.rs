@@ -83,7 +83,8 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
         .map_err(|err| format!("failed to read artifact directory {}: {err}", dir.display()))?;
     let mut files = Vec::new();
     for entry in entries {
-        let entry = entry.map_err(|err| format!("failed to read artifact directory entry: {err}"))?;
+        let entry =
+            entry.map_err(|err| format!("failed to read artifact directory entry: {err}"))?;
         let file_type = entry.file_type().map_err(|err| {
             format!(
                 "failed to read artifact entry type {}: {err}",
@@ -99,8 +100,12 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn artifact_candidates(path: &Path) -> Result<Vec<PathBuf>, String> {
-    let metadata = fs::metadata(path)
-        .map_err(|err| format!("failed to inspect artifact source {}: {err}", path.display()))?;
+    let metadata = fs::metadata(path).map_err(|err| {
+        format!(
+            "failed to inspect artifact source {}: {err}",
+            path.display()
+        )
+    })?;
     if metadata.is_file() {
         return Ok(vec![path.to_path_buf()]);
     }
