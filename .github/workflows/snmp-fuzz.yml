@@ -81,6 +81,31 @@ jobs:
           if [ -d "fuzz/artifacts/${target}" ]; then
             find "fuzz/artifacts/${target}" -maxdepth 1 -type f -exec cp {} "${minimized_dir}/" \;
           fi
+
+          while IFS= read -r -d '' artifact; do
+            name="$(basename "${artifact}")"
+            case "${name}" in
+              minimized-from-*)
+                digest="${name#minimized-from-}"
+                ;;
+              *)
+                echo "unexpected minimized fuzz artifact name: ${artifact}" >&2
+                exit 1
+                ;;
+            esac
+
+            source_found=false
+            for prefix in crash timeout oom leak slow-unit; do
+              if [ -f "${raw_dir}/${prefix}-${digest}" ]; then
+                source_found=true
+                break
+              fi
+            done
+            if [ "${source_found}" != true ]; then
+              echo "minimized artifact has no matching raw failure: ${artifact}" >&2
+              exit 1
+            fi
+          done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
       - name: Upload crash artifacts
         if: failure() && steps.minimize.outputs.has_artifacts == 'true'
         uses: actions/upload-artifact@v4
