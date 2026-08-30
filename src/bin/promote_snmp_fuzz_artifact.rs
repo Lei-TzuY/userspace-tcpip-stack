@@ -219,6 +219,14 @@ fn validate_failure_artifact(path: &Path) -> Result<(), String> {
             path.display()
         )
     })?;
+    if bytes.len() > MAX_FUZZ_INPUT_LEN {
+        return Err(format!(
+            "raw failure artifact exceeds max fuzz input length: {}: {} > {}",
+            path.display(),
+            bytes.len(),
+            MAX_FUZZ_INPUT_LEN
+        ));
+    }
     let actual = sha1_hex(&bytes);
     if actual != digest {
         return Err(format!(
@@ -736,6 +744,24 @@ mod tests {
 
         let valid = write_failure(&source, "timeout-", &[2, 3, 4]);
         fs::write(&valid, [9, 9, 9]).expect("artifact tampering must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_oversized_raw_even_with_minimized() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-raw-size");
+        write_provenance(&source, target);
+        let oversized = vec![7_u8; MAX_FUZZ_INPUT_LEN + 1];
+        let failure = write_failure(&source, "crash-", &oversized);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(minimized.join(format!("{MINIMIZED_PREFIX}{digest}")), [1])
+            .expect("minimized artifact must be writable");
+
         assert!(artifact_candidates(&source, target).is_err());
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
