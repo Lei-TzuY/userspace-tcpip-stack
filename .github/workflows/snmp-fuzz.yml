@@ -54,6 +54,13 @@ jobs:
           mkdir -p "${minimized_dir}"
 
           while IFS= read -r -d '' artifact; do
+            case "$(basename "${artifact}")" in
+              crash-*|timeout-*|oom-*|leak-*|slow-unit-*) ;;
+              *)
+                echo "unexpected fuzz artifact file: ${artifact}" >&2
+                exit 1
+                ;;
+            esac
             cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096 || true
           done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
 
