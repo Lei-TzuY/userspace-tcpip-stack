@@ -113,13 +113,20 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
 }
 
 fn is_failure_artifact_name(name: &OsStr) -> bool {
-    name.to_str()
-        .is_some_and(|name| FAILURE_PREFIXES.iter().any(|prefix| name.starts_with(prefix)))
+    name.to_str().is_some_and(|name| {
+        FAILURE_PREFIXES
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    })
 }
 
 fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
-    let entries = fs::read_dir(path)
-        .map_err(|err| format!("failed to read artifact directory {}: {err}", path.display()))?;
+    let entries = fs::read_dir(path).map_err(|err| {
+        format!(
+            "failed to read artifact directory {}: {err}",
+            path.display()
+        )
+    })?;
 
     for entry in entries {
         let entry =
@@ -387,13 +394,7 @@ mod tests {
 
     #[test]
     fn recognizes_libfuzzer_failure_artifact_names() {
-        for name in [
-            "crash-a",
-            "timeout-b",
-            "oom-c",
-            "leak-d",
-            "slow-unit-e",
-        ] {
+        for name in ["crash-a", "timeout-b", "oom-c", "leak-d", "slow-unit-e"] {
             assert!(is_failure_artifact_name(OsStr::new(name)));
         }
         assert!(!is_failure_artifact_name(OsStr::new("notes.txt")));
@@ -408,10 +409,8 @@ mod tests {
         fs::write(source.join("crash-raw"), [1]).expect("raw artifact must be writable");
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("minimized-b"), [2])
-            .expect("minimized artifact must be writable");
-        fs::write(minimized.join("minimized-a"), [3])
-            .expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-b"), [2]).expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-a"), [3]).expect("minimized artifact must be writable");
 
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
