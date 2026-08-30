@@ -92,6 +92,12 @@ jobs:
               echo "libFuzzer artifact digest mismatch: ${artifact}" >&2
               return 1
             fi
+
+            size="$(wc -c < "${artifact}")"
+            if [ "${size}" -gt 4096 ]; then
+              echo "raw fuzz artifact exceeds max input length: ${artifact}: ${size} > 4096" >&2
+              return 1
+            fi
           }
 
           has_artifacts=false
