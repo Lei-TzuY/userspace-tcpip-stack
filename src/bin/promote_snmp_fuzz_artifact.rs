@@ -125,6 +125,34 @@ fn is_failure_artifact_name(name: &OsStr) -> bool {
     })
 }
 
+fn validate_minimized_directory_layout(path: &Path) -> Result<(), String> {
+    let entries = fs::read_dir(path).map_err(|err| {
+        format!(
+            "failed to read minimized artifact directory {}: {err}",
+            path.display()
+        )
+    })?;
+
+    for entry in entries {
+        let entry = entry
+            .map_err(|err| format!("failed to read minimized artifact directory entry: {err}"))?;
+        let file_type = entry.file_type().map_err(|err| {
+            format!(
+                "failed to read minimized artifact entry type {}: {err}",
+                entry.path().display()
+            )
+        })?;
+        if !file_type.is_file() {
+            return Err(format!(
+                "unexpected minimized artifact directory entry: {}",
+                entry.path().display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
     let entries = fs::read_dir(path).map_err(|err| {
         format!(
@@ -153,6 +181,11 @@ fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
                 entry.path().display()
             ));
         }
+    }
+
+    let minimized_dir = path.join(MINIMIZED_DIR);
+    if minimized_dir.is_dir() {
+        validate_minimized_directory_layout(&minimized_dir)?;
     }
 
     Ok(())
@@ -534,6 +567,43 @@ mod tests {
         fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
         fs::create_dir(source.join("other")).expect("unexpected directory must be creatable");
         assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_nested_minimized_entries() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-minimized-layout-dir");
+        write_provenance(&source, target);
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(minimized.join("minimized-seed"), [2])
+            .expect("minimized artifact must be writable");
+        fs::create_dir(minimized.join("nested")).expect("nested directory must be creatable");
+
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn artifact_directory_rejects_minimized_symlinks() {
+        use std::os::unix::fs::symlink;
+
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-minimized-layout-symlink");
+        write_provenance(&source, target);
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        let outside = source.join("outside");
+        fs::write(&outside, [2]).expect("symlink target must be writable");
+        symlink(&outside, minimized.join("minimized-link")).expect("symlink must be creatable");
+
+        assert!(artifact_candidates(&source, target).is_err());
+
         fs::remove_dir_all(source).expect("temporary directory must be removable");
     }
 
