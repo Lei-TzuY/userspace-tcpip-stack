@@ -219,6 +219,12 @@ fn validate_failure_artifact(path: &Path) -> Result<(), String> {
             path.display()
         )
     })?;
+    if bytes.is_empty() {
+        return Err(format!(
+            "raw failure artifact must not be empty: {}",
+            path.display()
+        ));
+    }
     if bytes.len() > MAX_FUZZ_INPUT_LEN {
         return Err(format!(
             "raw failure artifact exceeds max fuzz input length: {}: {} > {}",
@@ -756,6 +762,23 @@ mod tests {
         write_provenance(&source, target);
         let oversized = vec![7_u8; MAX_FUZZ_INPUT_LEN + 1];
         let failure = write_failure(&source, "crash-", &oversized);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(minimized.join(format!("{MINIMIZED_PREFIX}{digest}")), [1])
+            .expect("minimized artifact must be writable");
+
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_empty_raw_even_with_minimized() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-raw-empty");
+        write_provenance(&source, target);
+        let failure = write_failure(&source, "crash-", &[]);
         let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
