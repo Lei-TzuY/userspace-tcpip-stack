@@ -327,8 +327,11 @@ mod tests {
     }
 
     fn write_provenance(source: &Path, target: Target) {
-        fs::write(source.join(PROVENANCE_MARKER), format!("{}\n", target.name()))
-            .expect("target provenance must be writable");
+        fs::write(
+            source.join(PROVENANCE_MARKER),
+            format!("{}\n", target.name()),
+        )
+        .expect("target provenance must be writable");
     }
 
     #[test]
