@@ -1,10 +1,13 @@
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
 const MAX_FUZZ_INPUT_LEN: usize = 4096;
 const PROVENANCE_MARKER: &str = ".fuzz-target";
+const MINIMIZED_DIR: &str = "minimized";
+const FAILURE_PREFIXES: [&str; 5] = ["crash-", "timeout-", "oom-", "leak-", "slow-unit-"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Target {
@@ -109,6 +112,47 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
+fn is_failure_artifact_name(name: &OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        FAILURE_PREFIXES
+            .iter()
+            .any(|prefix| name.starts_with(prefix))
+    })
+}
+
+fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
+    let entries = fs::read_dir(path).map_err(|err| {
+        format!(
+            "failed to read artifact directory {}: {err}",
+            path.display()
+        )
+    })?;
+
+    for entry in entries {
+        let entry =
+            entry.map_err(|err| format!("failed to read artifact directory entry: {err}"))?;
+        let file_type = entry.file_type().map_err(|err| {
+            format!(
+                "failed to read artifact entry type {}: {err}",
+                entry.path().display()
+            )
+        })?;
+        let name = entry.file_name();
+
+        let allowed = (name == PROVENANCE_MARKER && file_type.is_file())
+            || (name == MINIMIZED_DIR && file_type.is_dir())
+            || (file_type.is_file() && is_failure_artifact_name(&name));
+        if !allowed {
+            return Err(format!(
+                "unexpected artifact directory entry: {}",
+                entry.path().display()
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 fn validate_directory_provenance(path: &Path, target: Target) -> Result<(), String> {
     let marker = path.join(PROVENANCE_MARKER);
     let recorded = fs::read_to_string(&marker).map_err(|err| {
@@ -145,8 +189,9 @@ fn artifact_candidates(path: &Path, target: Target) -> Result<Vec<PathBuf>, Stri
     }
 
     validate_directory_provenance(path, target)?;
+    validate_artifact_directory_layout(path)?;
 
-    let minimized_dir = path.join("minimized");
+    let minimized_dir = path.join(MINIMIZED_DIR);
     if minimized_dir.is_dir() {
         let minimized = files_in_dir(&minimized_dir)?;
         if !minimized.is_empty() {
@@ -348,19 +393,28 @@ mod tests {
     }
 
     #[test]
+    fn recognizes_libfuzzer_failure_artifact_names() {
+        for name in ["crash-a", "timeout-b", "oom-c", "leak-d", "slow-unit-e"] {
+            assert!(is_failure_artifact_name(OsStr::new(name)));
+        }
+        assert!(!is_failure_artifact_name(OsStr::new("notes.txt")));
+        assert!(!is_failure_artifact_name(OsStr::new("crash")));
+    }
+
+    #[test]
     fn artifact_directory_prefers_minimized_files() {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-candidates");
         write_provenance(&source, target);
         fs::write(source.join("crash-raw"), [1]).expect("raw artifact must be writable");
-        let minimized = source.join("minimized");
+        let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("crash-b"), [2]).expect("minimized artifact must be writable");
-        fs::write(minimized.join("crash-a"), [3]).expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-b"), [2]).expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-a"), [3]).expect("minimized artifact must be writable");
 
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
-            vec![minimized.join("crash-a"), minimized.join("crash-b")]
+            vec![minimized.join("minimized-a"), minimized.join("minimized-b")]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -371,7 +425,7 @@ mod tests {
         let target = Target::BerPrimitives;
         let source = temp_dir("artifact-candidates-raw");
         write_provenance(&source, target);
-        let minimized = source.join("minimized");
+        let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
         fs::write(source.join("crash-b"), [2]).expect("raw artifact must be writable");
         fs::write(source.join("crash-a"), [3]).expect("raw artifact must be writable");
@@ -387,7 +441,7 @@ mod tests {
     #[test]
     fn artifact_directory_rejects_missing_or_mismatched_provenance() {
         let source = temp_dir("artifact-provenance");
-        fs::write(source.join("crash"), [1]).expect("artifact must be writable");
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
 
         assert!(artifact_candidates(&source, Target::MessageParse).is_err());
 
@@ -396,9 +450,28 @@ mod tests {
         assert_eq!(
             artifact_candidates(&source, Target::BerPrimitives)
                 .expect("matching provenance must be accepted"),
-            vec![source.join("crash")]
+            vec![source.join("crash-seed")]
         );
 
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_unknown_top_level_entries() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-layout-file");
+        write_provenance(&source, target);
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        fs::write(source.join("notes.txt"), b"not a fuzz failure")
+            .expect("unexpected file must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+
+        let source = temp_dir("artifact-layout-dir");
+        write_provenance(&source, target);
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        fs::create_dir(source.join("other")).expect("unexpected directory must be creatable");
+        assert!(artifact_candidates(&source, target).is_err());
         fs::remove_dir_all(source).expect("temporary directory must be removable");
     }
 
