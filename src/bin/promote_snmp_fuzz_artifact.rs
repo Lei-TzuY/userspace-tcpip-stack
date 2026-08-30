@@ -32,7 +32,9 @@ impl Target {
 }
 
 fn usage(program: &str) -> String {
-    format!("usage: {program} <snmp_message_parse|snmp_ber_primitives> <artifact-path>")
+    format!(
+        "usage: {program} <snmp_message_parse|snmp_ber_primitives> <artifact-path-or-directory>"
+    )
 }
 
 fn parse_args<I>(mut args: I) -> Result<(Target, PathBuf), String>
@@ -74,6 +76,62 @@ fn read_artifact(path: &Path) -> Result<Vec<u8>, String> {
         ));
     }
     Ok(bytes)
+}
+
+fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
+    let entries = fs::read_dir(dir)
+        .map_err(|err| format!("failed to read artifact directory {}: {err}", dir.display()))?;
+    let mut files = Vec::new();
+    for entry in entries {
+        let entry =
+            entry.map_err(|err| format!("failed to read artifact directory entry: {err}"))?;
+        let file_type = entry.file_type().map_err(|err| {
+            format!(
+                "failed to read artifact entry type {}: {err}",
+                entry.path().display()
+            )
+        })?;
+        if file_type.is_file() {
+            files.push(entry.path());
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+fn artifact_candidates(path: &Path) -> Result<Vec<PathBuf>, String> {
+    let metadata = fs::metadata(path).map_err(|err| {
+        format!(
+            "failed to inspect artifact source {}: {err}",
+            path.display()
+        )
+    })?;
+    if metadata.is_file() {
+        return Ok(vec![path.to_path_buf()]);
+    }
+    if !metadata.is_dir() {
+        return Err(format!(
+            "artifact source must be a file or directory: {}",
+            path.display()
+        ));
+    }
+
+    let minimized_dir = path.join("minimized");
+    if minimized_dir.is_dir() {
+        let minimized = files_in_dir(&minimized_dir)?;
+        if !minimized.is_empty() {
+            return Ok(minimized);
+        }
+    }
+
+    let files = files_in_dir(path)?;
+    if files.is_empty() {
+        return Err(format!(
+            "artifact directory contains no files: {}",
+            path.display()
+        ));
+    }
+    Ok(files)
 }
 
 fn find_duplicate(dir: &Path, bytes: &[u8]) -> io::Result<Option<PathBuf>> {
@@ -121,7 +179,7 @@ fn promote(manifest_dir: &Path, target: Target, artifact: &Path) -> Result<PathB
 }
 
 fn main() {
-    let (target, artifact) = match parse_args(env::args()) {
+    let (target, source) = match parse_args(env::args()) {
         Ok(args) => args,
         Err(err) => {
             eprintln!("{err}");
@@ -129,12 +187,22 @@ fn main() {
         }
     };
 
-    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    match promote(manifest_dir, target, &artifact) {
-        Ok(path) => println!("promoted {}", path.display()),
+    let artifacts = match artifact_candidates(&source) {
+        Ok(artifacts) => artifacts,
         Err(err) => {
             eprintln!("{err}");
             std::process::exit(1);
+        }
+    };
+
+    let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for artifact in artifacts {
+        match promote(manifest_dir, target, &artifact) {
+            Ok(path) => println!("promoted {}", path.display()),
+            Err(err) => {
+                eprintln!("{err}");
+                std::process::exit(1);
+            }
         }
     }
 }
@@ -172,6 +240,39 @@ mod tests {
             Ok(Target::BerPrimitives)
         );
         assert!(Target::parse("other").is_err());
+    }
+
+    #[test]
+    fn artifact_directory_prefers_minimized_files() {
+        let source = temp_dir("artifact-candidates");
+        fs::write(source.join("crash-raw"), [1]).expect("raw artifact must be writable");
+        let minimized = source.join("minimized");
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(minimized.join("crash-b"), [2]).expect("minimized artifact must be writable");
+        fs::write(minimized.join("crash-a"), [3]).expect("minimized artifact must be writable");
+
+        assert_eq!(
+            artifact_candidates(&source).expect("directory discovery must succeed"),
+            vec![minimized.join("crash-a"), minimized.join("crash-b")]
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_falls_back_to_raw_files() {
+        let source = temp_dir("artifact-candidates-raw");
+        let minimized = source.join("minimized");
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(source.join("crash-b"), [2]).expect("raw artifact must be writable");
+        fs::write(source.join("crash-a"), [3]).expect("raw artifact must be writable");
+
+        assert_eq!(
+            artifact_candidates(&source).expect("directory discovery must succeed"),
+            vec![source.join("crash-a"), source.join("crash-b")]
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
     }
 
     #[test]
