@@ -114,6 +114,12 @@ jobs:
             find "fuzz/artifacts/${target}" -maxdepth 1 -type f -exec cp {} "${minimized_dir}/" \;
           fi
 
+          unexpected_entry="$(find "${minimized_dir}" -mindepth 1 -maxdepth 1 ! -type f -print -quit)"
+          if [ -n "${unexpected_entry}" ]; then
+            echo "unexpected minimized artifact entry: ${unexpected_entry}" >&2
+            exit 1
+          fi
+
           while IFS= read -r -d '' artifact; do
             name="$(basename "${artifact}")"
             case "${name}" in
@@ -135,6 +141,16 @@ jobs:
             done
             if [ "${source_found}" != true ]; then
               echo "minimized artifact has no matching raw failure: ${artifact}" >&2
+              exit 1
+            fi
+
+            size="$(wc -c < "${artifact}")"
+            if [ "${size}" -eq 0 ]; then
+              echo "minimized artifact must not be empty: ${artifact}" >&2
+              exit 1
+            fi
+            if [ "${size}" -gt 4096 ]; then
+              echo "minimized artifact exceeds max fuzz input length: ${artifact}: ${size} > 4096" >&2
               exit 1
             fi
           done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
