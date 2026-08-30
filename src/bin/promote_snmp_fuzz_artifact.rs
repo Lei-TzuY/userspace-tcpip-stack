@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 const MAX_FUZZ_INPUT_LEN: usize = 4096;
 const PROVENANCE_MARKER: &str = ".fuzz-target";
+const SCHEMA_MARKER: &str = ".fuzz-schema-version";
+const ARTIFACT_SCHEMA_VERSION: &str = "1";
 const MINIMIZED_DIR: &str = "minimized";
 const FAILURE_PREFIXES: [&str; 5] = ["crash-", "timeout-", "oom-", "leak-", "slow-unit-"];
 
@@ -104,7 +106,10 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
                 entry.path().display()
             )
         })?;
-        if file_type.is_file() && entry.file_name() != PROVENANCE_MARKER {
+        if file_type.is_file()
+            && entry.file_name() != PROVENANCE_MARKER
+            && entry.file_name() != SCHEMA_MARKER
+        {
             files.push(entry.path());
         }
     }
@@ -139,7 +144,7 @@ fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
         })?;
         let name = entry.file_name();
 
-        let allowed = (name == PROVENANCE_MARKER && file_type.is_file())
+        let allowed = ((name == PROVENANCE_MARKER || name == SCHEMA_MARKER) && file_type.is_file())
             || (name == MINIMIZED_DIR && file_type.is_dir())
             || (file_type.is_file() && is_failure_artifact_name(&name));
         if !allowed {
@@ -150,6 +155,23 @@ fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
         }
     }
 
+    Ok(())
+}
+
+fn validate_directory_schema(path: &Path) -> Result<(), String> {
+    let marker = path.join(SCHEMA_MARKER);
+    let recorded = fs::read_to_string(&marker).map_err(|err| {
+        format!(
+            "artifact directory is missing readable schema version {}: {err}",
+            marker.display()
+        )
+    })?;
+    let recorded = recorded.trim();
+    if recorded != ARTIFACT_SCHEMA_VERSION {
+        return Err(format!(
+            "unsupported artifact schema version {recorded:?}; expected {ARTIFACT_SCHEMA_VERSION}"
+        ));
+    }
     Ok(())
 }
 
@@ -188,6 +210,7 @@ fn artifact_candidates(path: &Path, target: Target) -> Result<Vec<PathBuf>, Stri
         ));
     }
 
+    validate_directory_schema(path)?;
     validate_directory_provenance(path, target)?;
     validate_artifact_directory_layout(path)?;
 
@@ -373,6 +396,11 @@ mod tests {
 
     fn write_provenance(source: &Path, target: Target) {
         fs::write(
+            source.join(SCHEMA_MARKER),
+            format!("{ARTIFACT_SCHEMA_VERSION}\n"),
+        )
+        .expect("schema version must be writable");
+        fs::write(
             source.join(PROVENANCE_MARKER),
             format!("{}\n", target.name()),
         )
@@ -439,8 +467,42 @@ mod tests {
     }
 
     #[test]
+    fn artifact_directory_rejects_missing_or_unsupported_schema() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-schema");
+        fs::write(
+            source.join(PROVENANCE_MARKER),
+            format!("{}\n", target.name()),
+        )
+        .expect("target provenance must be writable");
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::write(source.join(SCHEMA_MARKER), "2\n").expect("schema version must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::write(
+            source.join(SCHEMA_MARKER),
+            format!("{ARTIFACT_SCHEMA_VERSION}\n"),
+        )
+        .expect("schema version must be writable");
+        assert_eq!(
+            artifact_candidates(&source, target).expect("supported schema must be accepted"),
+            vec![source.join("crash-seed")]
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
     fn artifact_directory_rejects_missing_or_mismatched_provenance() {
         let source = temp_dir("artifact-provenance");
+        fs::write(
+            source.join(SCHEMA_MARKER),
+            format!("{ARTIFACT_SCHEMA_VERSION}\n"),
+        )
+        .expect("schema version must be writable");
         fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
 
         assert!(artifact_candidates(&source, Target::MessageParse).is_err());

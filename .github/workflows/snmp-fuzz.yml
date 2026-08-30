@@ -35,6 +35,7 @@ jobs:
         run: |
           artifact_dir="fuzz-artifacts/${{ matrix.target }}"
           mkdir -p "${artifact_dir}"
+          printf '%s\n' "1" > "${artifact_dir}/.fuzz-schema-version"
           printf '%s\n' "${{ matrix.target }}" > "${artifact_dir}/.fuzz-target"
       - name: Smoke fuzz ${{ matrix.target }}
         run: >-
@@ -65,7 +66,7 @@ jobs:
                 exit 1
                 ;;
             esac
-          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
+          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' ! -name '.fuzz-schema-version' -print0)
 
           echo "has_artifacts=${has_artifacts}" >> "${GITHUB_OUTPUT}"
           if [ "${has_artifacts}" != true ]; then
@@ -75,7 +76,7 @@ jobs:
 
           while IFS= read -r -d '' artifact; do
             cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096 || true
-          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
+          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' ! -name '.fuzz-schema-version' -print0)
 
           if [ -d "fuzz/artifacts/${target}" ]; then
             find "fuzz/artifacts/${target}" -maxdepth 1 -type f -exec cp {} "${minimized_dir}/" \;
