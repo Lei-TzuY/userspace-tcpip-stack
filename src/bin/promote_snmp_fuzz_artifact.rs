@@ -205,7 +205,7 @@ fn plan_promotions(
 }
 
 fn write_promotions(promotions: &[Promotion]) -> Result<Vec<PathBuf>, String> {
-    let mut written = Vec::with_capacity(promotions.len());
+    let mut written: Vec<PathBuf> = Vec::with_capacity(promotions.len());
     for promotion in promotions {
         if let Err(err) = fs::write(&promotion.destination, &promotion.bytes) {
             let mut rollback_errors = Vec::new();
