@@ -31,7 +31,11 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install cargo-fuzz --locked
       - name: Prepare artifact directory
-        run: mkdir -p "fuzz-artifacts/${{ matrix.target }}"
+        shell: bash
+        run: |
+          artifact_dir="fuzz-artifacts/${{ matrix.target }}"
+          mkdir -p "${artifact_dir}"
+          printf '%s\n' "${{ matrix.target }}" > "${artifact_dir}/.fuzz-target"
       - name: Smoke fuzz ${{ matrix.target }}
         run: >-
           cargo fuzz run ${{ matrix.target }} --
@@ -51,7 +55,7 @@ jobs:
 
           while IFS= read -r -d '' artifact; do
             cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096 || true
-          done < <(find "${raw_dir}" -maxdepth 1 -type f -print0)
+          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
 
           if [ -d "fuzz/artifacts/${target}" ]; then
             find "fuzz/artifacts/${target}" -maxdepth 1 -type f -exec cp {} "${minimized_dir}/" \;

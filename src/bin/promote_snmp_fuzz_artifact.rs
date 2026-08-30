@@ -4,6 +4,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 const MAX_FUZZ_INPUT_LEN: usize = 4096;
+const PROVENANCE_MARKER: &str = ".fuzz-target";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum Target {
@@ -22,12 +23,15 @@ impl Target {
         }
     }
 
-    fn corpus_dir(self, manifest_dir: &Path) -> PathBuf {
-        let name = match self {
+    fn name(self) -> &'static str {
+        match self {
             Self::MessageParse => "snmp_message_parse",
             Self::BerPrimitives => "snmp_ber_primitives",
-        };
-        manifest_dir.join("fuzz").join("corpus").join(name)
+        }
+    }
+
+    fn corpus_dir(self, manifest_dir: &Path) -> PathBuf {
+        manifest_dir.join("fuzz").join("corpus").join(self.name())
     }
 }
 
@@ -97,7 +101,7 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
                 entry.path().display()
             )
         })?;
-        if file_type.is_file() {
+        if file_type.is_file() && entry.file_name() != PROVENANCE_MARKER {
             files.push(entry.path());
         }
     }
@@ -105,7 +109,25 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
-fn artifact_candidates(path: &Path) -> Result<Vec<PathBuf>, String> {
+fn validate_directory_provenance(path: &Path, target: Target) -> Result<(), String> {
+    let marker = path.join(PROVENANCE_MARKER);
+    let recorded = fs::read_to_string(&marker).map_err(|err| {
+        format!(
+            "artifact directory is missing readable target provenance {}: {err}",
+            marker.display()
+        )
+    })?;
+    let recorded = recorded.trim();
+    if recorded != target.name() {
+        return Err(format!(
+            "artifact target provenance mismatch: requested {}, recorded {recorded:?}",
+            target.name()
+        ));
+    }
+    Ok(())
+}
+
+fn artifact_candidates(path: &Path, target: Target) -> Result<Vec<PathBuf>, String> {
     let metadata = fs::metadata(path).map_err(|err| {
         format!(
             "failed to inspect artifact source {}: {err}",
@@ -121,6 +143,8 @@ fn artifact_candidates(path: &Path) -> Result<Vec<PathBuf>, String> {
             path.display()
         ));
     }
+
+    validate_directory_provenance(path, target)?;
 
     let minimized_dir = path.join("minimized");
     if minimized_dir.is_dir() {
@@ -258,7 +282,7 @@ fn main() {
         }
     };
 
-    let artifacts = match artifact_candidates(&source) {
+    let artifacts = match artifact_candidates(&source, target) {
         Ok(artifacts) => artifacts,
         Err(err) => {
             eprintln!("{err}");
@@ -302,6 +326,14 @@ mod tests {
         manifest
     }
 
+    fn write_provenance(source: &Path, target: Target) {
+        fs::write(
+            source.join(PROVENANCE_MARKER),
+            format!("{}\n", target.name()),
+        )
+        .expect("target provenance must be writable");
+    }
+
     #[test]
     fn parses_supported_targets() {
         assert_eq!(
@@ -317,7 +349,9 @@ mod tests {
 
     #[test]
     fn artifact_directory_prefers_minimized_files() {
+        let target = Target::MessageParse;
         let source = temp_dir("artifact-candidates");
+        write_provenance(&source, target);
         fs::write(source.join("crash-raw"), [1]).expect("raw artifact must be writable");
         let minimized = source.join("minimized");
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
@@ -325,7 +359,7 @@ mod tests {
         fs::write(minimized.join("crash-a"), [3]).expect("minimized artifact must be writable");
 
         assert_eq!(
-            artifact_candidates(&source).expect("directory discovery must succeed"),
+            artifact_candidates(&source, target).expect("directory discovery must succeed"),
             vec![minimized.join("crash-a"), minimized.join("crash-b")]
         );
 
@@ -334,15 +368,35 @@ mod tests {
 
     #[test]
     fn artifact_directory_falls_back_to_raw_files() {
+        let target = Target::BerPrimitives;
         let source = temp_dir("artifact-candidates-raw");
+        write_provenance(&source, target);
         let minimized = source.join("minimized");
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
         fs::write(source.join("crash-b"), [2]).expect("raw artifact must be writable");
         fs::write(source.join("crash-a"), [3]).expect("raw artifact must be writable");
 
         assert_eq!(
-            artifact_candidates(&source).expect("directory discovery must succeed"),
+            artifact_candidates(&source, target).expect("directory discovery must succeed"),
             vec![source.join("crash-a"), source.join("crash-b")]
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_missing_or_mismatched_provenance() {
+        let source = temp_dir("artifact-provenance");
+        fs::write(source.join("crash"), [1]).expect("artifact must be writable");
+
+        assert!(artifact_candidates(&source, Target::MessageParse).is_err());
+
+        write_provenance(&source, Target::BerPrimitives);
+        assert!(artifact_candidates(&source, Target::MessageParse).is_err());
+        assert_eq!(
+            artifact_candidates(&source, Target::BerPrimitives)
+                .expect("matching provenance must be accepted"),
+            vec![source.join("crash")]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
