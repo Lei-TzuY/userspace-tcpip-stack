@@ -77,6 +77,74 @@ fn stable_hash(bytes: &[u8]) -> u64 {
     hash
 }
 
+fn sha1_hex(bytes: &[u8]) -> String {
+    let bit_len = (bytes.len() as u64).wrapping_mul(8);
+    let mut message = bytes.to_vec();
+    message.push(0x80);
+    while message.len() % 64 != 56 {
+        message.push(0);
+    }
+    message.extend_from_slice(&bit_len.to_be_bytes());
+
+    let mut h0 = 0x67452301_u32;
+    let mut h1 = 0xefcdab89_u32;
+    let mut h2 = 0x98badcfe_u32;
+    let mut h3 = 0x10325476_u32;
+    let mut h4 = 0xc3d2e1f0_u32;
+
+    for chunk in message.chunks_exact(64) {
+        let mut words = [0_u32; 80];
+        for (index, word) in words.iter_mut().take(16).enumerate() {
+            let offset = index * 4;
+            *word = u32::from_be_bytes([
+                chunk[offset],
+                chunk[offset + 1],
+                chunk[offset + 2],
+                chunk[offset + 3],
+            ]);
+        }
+        for index in 16..80 {
+            words[index] =
+                (words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16])
+                    .rotate_left(1);
+        }
+
+        let mut a = h0;
+        let mut b = h1;
+        let mut c = h2;
+        let mut d = h3;
+        let mut e = h4;
+
+        for (index, &word) in words.iter().enumerate() {
+            let (f, k) = match index {
+                0..=19 => ((b & c) | ((!b) & d), 0x5a827999),
+                20..=39 => (b ^ c ^ d, 0x6ed9eba1),
+                40..=59 => ((b & c) | (b & d) | (c & d), 0x8f1bbcdc),
+                _ => (b ^ c ^ d, 0xca62c1d6),
+            };
+            let temp = a
+                .rotate_left(5)
+                .wrapping_add(f)
+                .wrapping_add(e)
+                .wrapping_add(k)
+                .wrapping_add(word);
+            e = d;
+            d = c;
+            c = b.rotate_left(30);
+            b = a;
+            a = temp;
+        }
+
+        h0 = h0.wrapping_add(a);
+        h1 = h1.wrapping_add(b);
+        h2 = h2.wrapping_add(c);
+        h3 = h3.wrapping_add(d);
+        h4 = h4.wrapping_add(e);
+    }
+
+    format!("{h0:08x}{h1:08x}{h2:08x}{h3:08x}{h4:08x}")
+}
+
 fn read_artifact(path: &Path) -> Result<Vec<u8>, String> {
     let bytes = fs::read(path)
         .map_err(|err| format!("failed to read artifact {}: {err}", path.display()))?;
@@ -118,12 +186,47 @@ fn files_in_dir(dir: &Path) -> Result<Vec<PathBuf>, String> {
     Ok(files)
 }
 
+fn failure_artifact_digest(name: &OsStr) -> Option<&str> {
+    let name = name.to_str()?;
+    FAILURE_PREFIXES
+        .iter()
+        .find_map(|prefix| name.strip_prefix(prefix))
+}
+
+fn is_valid_sha1_digest(digest: &str) -> bool {
+    digest.len() == 40
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+}
+
 fn is_failure_artifact_name(name: &OsStr) -> bool {
-    name.to_str().is_some_and(|name| {
-        FAILURE_PREFIXES
-            .iter()
-            .any(|prefix| name.starts_with(prefix))
-    })
+    failure_artifact_digest(name).is_some()
+}
+
+fn validate_failure_artifact(path: &Path) -> Result<(), String> {
+    let digest = failure_artifact_digest(path.file_name().unwrap_or_default())
+        .ok_or_else(|| format!("unexpected raw failure artifact name: {}", path.display()))?;
+    if !is_valid_sha1_digest(digest) {
+        return Err(format!(
+            "raw failure artifact has invalid SHA-1 suffix: {}",
+            path.display()
+        ));
+    }
+    let bytes = fs::read(path).map_err(|err| {
+        format!(
+            "failed to read raw failure artifact {}: {err}",
+            path.display()
+        )
+    })?;
+    let actual = sha1_hex(&bytes);
+    if actual != digest {
+        return Err(format!(
+            "raw failure artifact digest mismatch: {}: expected {digest}, actual {actual}",
+            path.display()
+        ));
+    }
+    Ok(())
 }
 
 fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result<(), String> {
@@ -159,7 +262,7 @@ fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result
         })?;
         let digest = name
             .strip_prefix(MINIMIZED_PREFIX)
-            .filter(|digest| !digest.is_empty())
+            .filter(|digest| is_valid_sha1_digest(digest))
             .ok_or_else(|| {
                 format!(
                     "unexpected minimized artifact name: {}",
@@ -207,6 +310,9 @@ fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
                 "unexpected artifact directory entry: {}",
                 entry.path().display()
             ));
+        }
+        if file_type.is_file() && is_failure_artifact_name(&name) {
+            validate_failure_artifact(&entry.path())?;
         }
     }
 
@@ -467,6 +573,12 @@ mod tests {
         .expect("target provenance must be writable");
     }
 
+    fn write_failure(source: &Path, prefix: &str, bytes: &[u8]) -> PathBuf {
+        let path = source.join(format!("{prefix}{}", sha1_hex(bytes)));
+        fs::write(&path, bytes).expect("raw failure artifact must be writable");
+        path
+    }
+
     #[test]
     fn parses_supported_targets() {
         assert_eq!(
@@ -478,6 +590,11 @@ mod tests {
             Ok(Target::BerPrimitives)
         );
         assert!(Target::parse("other").is_err());
+    }
+
+    #[test]
+    fn sha1_matches_known_vector() {
+        assert_eq!(sha1_hex(b"abc"), "a9993e364706816aba3e25717850c26c9cd0d89d");
     }
 
     #[test]
@@ -494,21 +611,22 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-candidates");
         write_provenance(&source, target);
-        fs::write(source.join("crash-a"), [1]).expect("raw artifact must be writable");
-        fs::write(source.join("timeout-b"), [4]).expect("raw artifact must be writable");
+        let crash = write_failure(&source, "crash-", &[1]);
+        let timeout = write_failure(&source, "timeout-", &[4]);
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("minimized-from-b"), [2])
-            .expect("minimized artifact must be writable");
-        fs::write(minimized.join("minimized-from-a"), [3])
-            .expect("minimized artifact must be writable");
+        let crash_digest = failure_artifact_digest(crash.file_name().unwrap()).unwrap();
+        let timeout_digest = failure_artifact_digest(timeout.file_name().unwrap()).unwrap();
+        let minimized_crash = minimized.join(format!("{MINIMIZED_PREFIX}{crash_digest}"));
+        let minimized_timeout = minimized.join(format!("{MINIMIZED_PREFIX}{timeout_digest}"));
+        fs::write(&minimized_crash, [3]).expect("minimized artifact must be writable");
+        fs::write(&minimized_timeout, [2]).expect("minimized artifact must be writable");
 
+        let mut expected = vec![minimized_crash, minimized_timeout];
+        expected.sort();
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
-            vec![
-                minimized.join("minimized-from-a"),
-                minimized.join("minimized-from-b")
-            ]
+            expected
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -521,12 +639,14 @@ mod tests {
         write_provenance(&source, target);
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(source.join("crash-b"), [2]).expect("raw artifact must be writable");
-        fs::write(source.join("crash-a"), [3]).expect("raw artifact must be writable");
+        let first = write_failure(&source, "crash-", &[2]);
+        let second = write_failure(&source, "crash-", &[3]);
 
+        let mut expected = vec![first, second];
+        expected.sort();
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
-            vec![source.join("crash-a"), source.join("crash-b")]
+            expected
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -541,7 +661,7 @@ mod tests {
             format!("{}\n", target.name()),
         )
         .expect("target provenance must be writable");
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let failure = write_failure(&source, "crash-", &[1]);
 
         assert!(artifact_candidates(&source, target).is_err());
 
@@ -555,7 +675,7 @@ mod tests {
         .expect("schema version must be writable");
         assert_eq!(
             artifact_candidates(&source, target).expect("supported schema must be accepted"),
-            vec![source.join("crash-seed")]
+            vec![failure]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -569,7 +689,7 @@ mod tests {
             format!("{ARTIFACT_SCHEMA_VERSION}\n"),
         )
         .expect("schema version must be writable");
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let failure = write_failure(&source, "crash-", &[1]);
 
         assert!(artifact_candidates(&source, Target::MessageParse).is_err());
 
@@ -578,7 +698,7 @@ mod tests {
         assert_eq!(
             artifact_candidates(&source, Target::BerPrimitives)
                 .expect("matching provenance must be accepted"),
-            vec![source.join("crash-seed")]
+            vec![failure]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -589,7 +709,7 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-layout-file");
         write_provenance(&source, target);
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        write_failure(&source, "crash-", &[1]);
         fs::write(source.join("notes.txt"), b"not a fuzz failure")
             .expect("unexpected file must be writable");
         assert!(artifact_candidates(&source, target).is_err());
@@ -597,9 +717,27 @@ mod tests {
 
         let source = temp_dir("artifact-layout-dir");
         write_provenance(&source, target);
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        write_failure(&source, "crash-", &[1]);
         fs::create_dir(source.join("other")).expect("unexpected directory must be creatable");
         assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_malformed_or_tampered_raw_failures() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-raw-digest");
+        write_provenance(&source, target);
+
+        let malformed = source.join("crash-not-a-sha1");
+        fs::write(&malformed, [1]).expect("malformed artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_file(&malformed).expect("malformed artifact must be removable");
+
+        let valid = write_failure(&source, "timeout-", &[2, 3, 4]);
+        fs::write(&valid, [9, 9, 9]).expect("artifact tampering must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+
         fs::remove_dir_all(source).expect("temporary directory must be removable");
     }
 
@@ -608,7 +746,8 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-minimized-provenance");
         write_provenance(&source, target);
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let failure = write_failure(&source, "crash-", &[1]);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
 
@@ -617,14 +756,16 @@ mod tests {
         assert!(artifact_candidates(&source, target).is_err());
         fs::remove_file(&malformed).expect("malformed artifact must be removable");
 
-        let orphan = minimized.join("minimized-from-orphan");
+        let orphan = minimized.join(format!("{MINIMIZED_PREFIX}{}", sha1_hex(b"orphan")));
         fs::write(&orphan, [3]).expect("minimized artifact must be writable");
         assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_file(&orphan).expect("orphan artifact must be removable");
 
-        fs::write(source.join("timeout-orphan"), [4]).expect("raw artifact must be writable");
+        let mapped = minimized.join(format!("{MINIMIZED_PREFIX}{digest}"));
+        fs::write(&mapped, [4]).expect("minimized artifact must be writable");
         assert_eq!(
             artifact_candidates(&source, target).expect("mapped minimized artifact must succeed"),
-            vec![orphan]
+            vec![mapped]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -635,10 +776,11 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-minimized-layout-dir");
         write_provenance(&source, target);
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let failure = write_failure(&source, "crash-", &[1]);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("minimized-from-seed"), [2])
+        fs::write(minimized.join(format!("{MINIMIZED_PREFIX}{digest}")), [2])
             .expect("minimized artifact must be writable");
         fs::create_dir(minimized.join("nested")).expect("nested directory must be creatable");
 
@@ -655,13 +797,17 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-minimized-layout-symlink");
         write_provenance(&source, target);
-        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let failure = write_failure(&source, "crash-", &[1]);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
         let outside = source.join("outside");
         fs::write(&outside, [2]).expect("symlink target must be writable");
-        symlink(&outside, minimized.join("minimized-from-seed"))
-            .expect("symlink must be creatable");
+        symlink(
+            &outside,
+            minimized.join(format!("{MINIMIZED_PREFIX}{digest}")),
+        )
+        .expect("symlink must be creatable");
 
         assert!(artifact_candidates(&source, target).is_err());
 
