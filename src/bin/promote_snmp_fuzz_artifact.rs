@@ -9,6 +9,7 @@ const PROVENANCE_MARKER: &str = ".fuzz-target";
 const SCHEMA_MARKER: &str = ".fuzz-schema-version";
 const ARTIFACT_SCHEMA_VERSION: &str = "1";
 const MINIMIZED_DIR: &str = "minimized";
+const MINIMIZED_PREFIX: &str = "minimized-from-";
 const FAILURE_PREFIXES: [&str; 5] = ["crash-", "timeout-", "oom-", "leak-", "slow-unit-"];
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -125,7 +126,7 @@ fn is_failure_artifact_name(name: &OsStr) -> bool {
     })
 }
 
-fn validate_minimized_directory_layout(path: &Path) -> Result<(), String> {
+fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result<(), String> {
     let entries = fs::read_dir(path).map_err(|err| {
         format!(
             "failed to read minimized artifact directory {}: {err}",
@@ -145,6 +146,32 @@ fn validate_minimized_directory_layout(path: &Path) -> Result<(), String> {
         if !file_type.is_file() {
             return Err(format!(
                 "unexpected minimized artifact directory entry: {}",
+                entry.path().display()
+            ));
+        }
+
+        let name = entry.file_name();
+        let name = name.to_str().ok_or_else(|| {
+            format!(
+                "unexpected minimized artifact name: {}",
+                entry.path().display()
+            )
+        })?;
+        let digest = name
+            .strip_prefix(MINIMIZED_PREFIX)
+            .filter(|digest| !digest.is_empty())
+            .ok_or_else(|| {
+                format!(
+                    "unexpected minimized artifact name: {}",
+                    entry.path().display()
+                )
+            })?;
+        let source_found = FAILURE_PREFIXES
+            .iter()
+            .any(|prefix| bundle_dir.join(format!("{prefix}{digest}")).is_file());
+        if !source_found {
+            return Err(format!(
+                "minimized artifact has no matching raw failure: {}",
                 entry.path().display()
             ));
         }
@@ -185,7 +212,7 @@ fn validate_artifact_directory_layout(path: &Path) -> Result<(), String> {
 
     let minimized_dir = path.join(MINIMIZED_DIR);
     if minimized_dir.is_dir() {
-        validate_minimized_directory_layout(&minimized_dir)?;
+        validate_minimized_directory_layout(path, &minimized_dir)?;
     }
 
     Ok(())
@@ -467,15 +494,21 @@ mod tests {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-candidates");
         write_provenance(&source, target);
-        fs::write(source.join("crash-raw"), [1]).expect("raw artifact must be writable");
+        fs::write(source.join("crash-a"), [1]).expect("raw artifact must be writable");
+        fs::write(source.join("timeout-b"), [4]).expect("raw artifact must be writable");
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("minimized-b"), [2]).expect("minimized artifact must be writable");
-        fs::write(minimized.join("minimized-a"), [3]).expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-from-b"), [2])
+            .expect("minimized artifact must be writable");
+        fs::write(minimized.join("minimized-from-a"), [3])
+            .expect("minimized artifact must be writable");
 
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
-            vec![minimized.join("minimized-a"), minimized.join("minimized-b")]
+            vec![
+                minimized.join("minimized-from-a"),
+                minimized.join("minimized-from-b")
+            ]
         );
 
         fs::remove_dir_all(source).expect("temporary directory must be removable");
@@ -571,6 +604,33 @@ mod tests {
     }
 
     #[test]
+    fn artifact_directory_rejects_unmapped_minimized_files() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-minimized-provenance");
+        write_provenance(&source, target);
+        fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+
+        let malformed = minimized.join("minimized-seed");
+        fs::write(&malformed, [2]).expect("minimized artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_file(&malformed).expect("malformed artifact must be removable");
+
+        let orphan = minimized.join("minimized-from-orphan");
+        fs::write(&orphan, [3]).expect("minimized artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::write(source.join("timeout-orphan"), [4]).expect("raw artifact must be writable");
+        assert_eq!(
+            artifact_candidates(&source, target).expect("mapped minimized artifact must succeed"),
+            vec![orphan]
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
     fn artifact_directory_rejects_nested_minimized_entries() {
         let target = Target::MessageParse;
         let source = temp_dir("artifact-minimized-layout-dir");
@@ -578,7 +638,7 @@ mod tests {
         fs::write(source.join("crash-seed"), [1]).expect("artifact must be writable");
         let minimized = source.join(MINIMIZED_DIR);
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
-        fs::write(minimized.join("minimized-seed"), [2])
+        fs::write(minimized.join("minimized-from-seed"), [2])
             .expect("minimized artifact must be writable");
         fs::create_dir(minimized.join("nested")).expect("nested directory must be creatable");
 
@@ -600,7 +660,8 @@ mod tests {
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
         let outside = source.join("outside");
         fs::write(&outside, [2]).expect("symlink target must be writable");
-        symlink(&outside, minimized.join("minimized-link")).expect("symlink must be creatable");
+        symlink(&outside, minimized.join("minimized-from-seed"))
+            .expect("symlink must be creatable");
 
         assert!(artifact_candidates(&source, target).is_err());
 
