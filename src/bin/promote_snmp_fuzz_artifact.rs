@@ -479,8 +479,7 @@ mod tests {
 
         assert!(artifact_candidates(&source, target).is_err());
 
-        fs::write(source.join(SCHEMA_MARKER), "2\n")
-            .expect("schema version must be writable");
+        fs::write(source.join(SCHEMA_MARKER), "2\n").expect("schema version must be writable");
         assert!(artifact_candidates(&source, target).is_err());
 
         fs::write(
