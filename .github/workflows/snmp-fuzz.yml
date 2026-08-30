@@ -44,6 +44,7 @@ jobs:
           -dict=fuzz/snmp.dict
           -artifact_prefix="fuzz-artifacts/${{ matrix.target }}/"
       - name: Minimize crash artifacts
+        id: minimize
         if: failure()
         shell: bash
         run: |
@@ -53,14 +54,26 @@ jobs:
           minimized_dir="${raw_dir}/minimized"
           mkdir -p "${minimized_dir}"
 
+          has_artifacts=false
           while IFS= read -r -d '' artifact; do
             case "$(basename "${artifact}")" in
-              crash-*|timeout-*|oom-*|leak-*|slow-unit-*) ;;
+              crash-*|timeout-*|oom-*|leak-*|slow-unit-*)
+                has_artifacts=true
+                ;;
               *)
                 echo "unexpected fuzz artifact file: ${artifact}" >&2
                 exit 1
                 ;;
             esac
+          done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
+
+          echo "has_artifacts=${has_artifacts}" >> "${GITHUB_OUTPUT}"
+          if [ "${has_artifacts}" != true ]; then
+            echo "no libFuzzer failure artifacts were produced; skipping minimization"
+            exit 0
+          fi
+
+          while IFS= read -r -d '' artifact; do
             cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096 || true
           done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' -print0)
 
@@ -68,10 +81,10 @@ jobs:
             find "fuzz/artifacts/${target}" -maxdepth 1 -type f -exec cp {} "${minimized_dir}/" \;
           fi
       - name: Upload crash artifacts
-        if: failure()
+        if: failure() && steps.minimize.outputs.has_artifacts == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: snmp-fuzz-${{ matrix.target }}-${{ github.sha }}
           path: fuzz-artifacts/${{ matrix.target }}/
-          if-no-files-found: ignore
+          if-no-files-found: error
           retention-days: 14
