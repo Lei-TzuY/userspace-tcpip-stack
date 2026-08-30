@@ -31,6 +31,12 @@ impl Target {
     }
 }
 
+#[derive(Debug)]
+struct Promotion {
+    destination: PathBuf,
+    bytes: Vec<u8>,
+}
+
 fn usage(program: &str) -> String {
     format!(
         "usage: {program} <snmp_message_parse|snmp_ber_primitives> <artifact-path-or-directory>"
@@ -144,38 +150,103 @@ fn find_duplicate(dir: &Path, bytes: &[u8]) -> io::Result<Option<PathBuf>> {
     Ok(None)
 }
 
-fn promote(manifest_dir: &Path, target: Target, artifact: &Path) -> Result<PathBuf, String> {
-    let bytes = read_artifact(artifact)?;
+fn plan_promotions(
+    manifest_dir: &Path,
+    target: Target,
+    artifacts: &[PathBuf],
+) -> Result<Vec<Promotion>, String> {
     let corpus_dir = target.corpus_dir(manifest_dir);
+    let mut promotions: Vec<Promotion> = Vec::with_capacity(artifacts.len());
 
-    let duplicate = find_duplicate(&corpus_dir, &bytes).map_err(|err| {
-        format!(
-            "failed to inspect corpus directory {}: {err}",
-            corpus_dir.display()
-        )
-    })?;
-    if let Some(path) = duplicate {
-        return Err(format!(
-            "artifact is already present in the corpus: {}",
-            path.display()
-        ));
+    for artifact in artifacts {
+        let bytes = read_artifact(artifact)?;
+
+        let duplicate = find_duplicate(&corpus_dir, &bytes).map_err(|err| {
+            format!(
+                "failed to inspect corpus directory {}: {err}",
+                corpus_dir.display()
+            )
+        })?;
+        if let Some(path) = duplicate {
+            return Err(format!(
+                "artifact is already present in the corpus: {}",
+                path.display()
+            ));
+        }
+
+        if promotions.iter().any(|promotion| promotion.bytes == bytes) {
+            return Err(format!(
+                "artifact batch contains duplicate content: {}",
+                artifact.display()
+            ));
+        }
+
+        let destination = corpus_dir.join(format!("regression-{:016x}.bin", stable_hash(&bytes)));
+        if destination.exists() {
+            return Err(format!(
+                "hash collision with existing corpus entry: {}",
+                destination.display()
+            ));
+        }
+        if promotions
+            .iter()
+            .any(|promotion| promotion.destination == destination)
+        {
+            return Err(format!(
+                "hash collision within artifact batch: {}",
+                destination.display()
+            ));
+        }
+
+        promotions.push(Promotion { destination, bytes });
     }
 
-    let destination = corpus_dir.join(format!("regression-{:016x}.bin", stable_hash(&bytes)));
-    if destination.exists() {
-        return Err(format!(
-            "hash collision with existing corpus entry: {}",
-            destination.display()
-        ));
-    }
+    Ok(promotions)
+}
 
-    fs::write(&destination, bytes).map_err(|err| {
-        format!(
-            "failed to write promoted corpus entry {}: {err}",
-            destination.display()
-        )
-    })?;
-    Ok(destination)
+fn write_promotions(promotions: &[Promotion]) -> Result<Vec<PathBuf>, String> {
+    let mut written: Vec<PathBuf> = Vec::with_capacity(promotions.len());
+    for promotion in promotions {
+        if let Err(err) = fs::write(&promotion.destination, &promotion.bytes) {
+            let mut rollback_errors = Vec::new();
+            for path in written.iter().rev() {
+                if let Err(rollback_err) = fs::remove_file(path) {
+                    rollback_errors.push(format!("{}: {rollback_err}", path.display()));
+                }
+            }
+
+            let mut message = format!(
+                "failed to write promoted corpus entry {}: {err}",
+                promotion.destination.display()
+            );
+            if !rollback_errors.is_empty() {
+                message.push_str(&format!(
+                    "; rollback also failed for {}",
+                    rollback_errors.join(", ")
+                ));
+            }
+            return Err(message);
+        }
+        written.push(promotion.destination.clone());
+    }
+    Ok(written)
+}
+
+fn promote_batch(
+    manifest_dir: &Path,
+    target: Target,
+    artifacts: &[PathBuf],
+) -> Result<Vec<PathBuf>, String> {
+    let promotions = plan_promotions(manifest_dir, target, artifacts)?;
+    write_promotions(&promotions)
+}
+
+fn promote(manifest_dir: &Path, target: Target, artifact: &Path) -> Result<PathBuf, String> {
+    let promoted = promote_batch(manifest_dir, target, &[artifact.to_path_buf()])?;
+    promoted
+        .into_iter()
+        .next()
+        .ok_or_else(|| "promotion unexpectedly produced no output".to_string())
 }
 
 fn main() {
@@ -196,13 +267,15 @@ fn main() {
     };
 
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    for artifact in artifacts {
-        match promote(manifest_dir, target, &artifact) {
-            Ok(path) => println!("promoted {}", path.display()),
-            Err(err) => {
-                eprintln!("{err}");
-                std::process::exit(1);
+    match promote_batch(manifest_dir, target, &artifacts) {
+        Ok(paths) => {
+            for path in paths {
+                println!("promoted {}", path.display());
             }
+        }
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
         }
     }
 }
@@ -317,6 +390,70 @@ mod tests {
         fs::write(corpus_dir.join("existing.bin"), [1, 2, 3])
             .expect("existing corpus entry must be writable");
         assert!(promote(&manifest, target, &duplicate).is_err());
+
+        fs::remove_dir_all(manifest).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn batch_validation_failure_does_not_write_partial_corpus() {
+        let target = Target::MessageParse;
+        let manifest = prepare_manifest(target);
+        let corpus_dir = target.corpus_dir(&manifest);
+        let first = manifest.join("first");
+        let invalid = manifest.join("invalid");
+        fs::write(&first, [1, 2, 3]).expect("first artifact must be writable");
+        fs::write(&invalid, []).expect("invalid artifact must be writable");
+
+        assert!(promote_batch(&manifest, target, &[first, invalid]).is_err());
+        assert!(
+            files_in_dir(&corpus_dir)
+                .expect("corpus directory must remain readable")
+                .is_empty()
+        );
+
+        fs::remove_dir_all(manifest).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn batch_rejects_duplicate_content_without_writes() {
+        let target = Target::BerPrimitives;
+        let manifest = prepare_manifest(target);
+        let corpus_dir = target.corpus_dir(&manifest);
+        let first = manifest.join("first");
+        let second = manifest.join("second");
+        fs::write(&first, [4, 5, 6]).expect("first artifact must be writable");
+        fs::write(&second, [4, 5, 6]).expect("second artifact must be writable");
+
+        assert!(promote_batch(&manifest, target, &[first, second]).is_err());
+        assert!(
+            files_in_dir(&corpus_dir)
+                .expect("corpus directory must remain readable")
+                .is_empty()
+        );
+
+        fs::remove_dir_all(manifest).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn batch_promotion_writes_all_preflighted_artifacts() {
+        let target = Target::MessageParse;
+        let manifest = prepare_manifest(target);
+        let first = manifest.join("first");
+        let second = manifest.join("second");
+        fs::write(&first, [7, 8, 9]).expect("first artifact must be writable");
+        fs::write(&second, [10, 11, 12]).expect("second artifact must be writable");
+
+        let promoted = promote_batch(&manifest, target, &[first, second])
+            .expect("batch promotion must succeed");
+        assert_eq!(promoted.len(), 2);
+        assert_eq!(
+            fs::read(&promoted[0]).expect("first promoted artifact must be readable"),
+            [7, 8, 9]
+        );
+        assert_eq!(
+            fs::read(&promoted[1]).expect("second promoted artifact must be readable"),
+            [10, 11, 12]
+        );
 
         fs::remove_dir_all(manifest).expect("temporary directory must be removable");
     }
