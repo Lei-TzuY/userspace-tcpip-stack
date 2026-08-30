@@ -97,6 +97,10 @@ jobs:
             fi
 
             size="$(wc -c < "${artifact}")"
+            if [ "${size}" -eq 0 ]; then
+              echo "raw fuzz artifact must not be empty: ${artifact}" >&2
+              return 1
+            fi
             if [ "${size}" -gt 4096 ]; then
               echo "raw fuzz artifact exceeds max input length: ${artifact}: ${size} > 4096" >&2
               return 1
