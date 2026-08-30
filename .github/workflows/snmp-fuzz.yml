@@ -55,17 +55,49 @@ jobs:
           minimized_dir="${raw_dir}/minimized"
           mkdir -p "${minimized_dir}"
 
-          has_artifacts=false
-          while IFS= read -r -d '' artifact; do
-            case "$(basename "${artifact}")" in
+          verify_artifact_digest() {
+            artifact="$1"
+            name="$(basename "${artifact}")"
+            digest=""
+            case "${name}" in
               crash-*|timeout-*|oom-*|leak-*|slow-unit-*)
-                has_artifacts=true
+                for prefix in crash timeout oom leak slow-unit; do
+                  case "${name}" in
+                    "${prefix}-"*)
+                      digest="${name#${prefix}-}"
+                      break
+                      ;;
+                  esac
+                done
                 ;;
               *)
                 echo "unexpected fuzz artifact file: ${artifact}" >&2
-                exit 1
+                return 1
                 ;;
             esac
+
+            case "${digest}" in
+              ''|*[!0-9a-f]* )
+                echo "invalid libFuzzer artifact digest: ${artifact}" >&2
+                return 1
+                ;;
+            esac
+            if [ "${#digest}" -ne 40 ]; then
+              echo "invalid libFuzzer artifact digest length: ${artifact}" >&2
+              return 1
+            fi
+
+            actual="$(sha1sum "${artifact}" | awk '{print $1}')"
+            if [ "${actual}" != "${digest}" ]; then
+              echo "libFuzzer artifact digest mismatch: ${artifact}" >&2
+              return 1
+            fi
+          }
+
+          has_artifacts=false
+          while IFS= read -r -d '' artifact; do
+            verify_artifact_digest "${artifact}"
+            has_artifacts=true
           done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' ! -name '.fuzz-schema-version' -print0)
 
           echo "has_artifacts=${has_artifacts}" >> "${GITHUB_OUTPUT}"
