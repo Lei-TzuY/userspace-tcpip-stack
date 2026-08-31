@@ -13,6 +13,8 @@ on:
       - "fuzz/**"
       - "src/snmp.rs"
       - ".github/workflows/snmp-fuzz.yml"
+  schedule:
+    - cron: "43 5 * * 3"
 
 permissions:
   contents: read
@@ -27,6 +29,8 @@ jobs:
         target:
           - snmp_message_parse
           - snmp_ber_primitives
+    env:
+      FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Set up nightly Rust
@@ -43,7 +47,7 @@ jobs:
       - name: Smoke fuzz ${{ matrix.target }}
         run: >-
           cargo fuzz run ${{ matrix.target }} --
-          -runs=1000
+          -runs=${FUZZ_RUNS}
           -max_len=4096
           -dict=fuzz/snmp.dict
           -artifact_prefix="fuzz-artifacts/${{ matrix.target }}/"
