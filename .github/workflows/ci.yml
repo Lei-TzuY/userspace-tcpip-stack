@@ -25,11 +25,11 @@ jobs:
       - name: Cargo Fmt Check
         run: cargo fmt --all -- --check
       - name: Cargo Test All Targets
-        run: cargo test --all-targets --verbose
+        run: cargo test --locked --all-targets --verbose
       - name: Cargo Test Documentation
-        run: cargo test --doc --verbose
+        run: cargo test --locked --doc --verbose
       - name: Cargo Build Release
-        run: cargo build --release --verbose
+        run: cargo build --locked --release --verbose
 
   msrv:
     name: Minimum supported Rust 1.88
@@ -41,4 +41,4 @@ jobs:
         with:
           toolchain: 1.88.0
       - name: Test all targets on MSRV
-        run: cargo test --all-targets --verbose
+        run: cargo test --locked --all-targets --verbose
