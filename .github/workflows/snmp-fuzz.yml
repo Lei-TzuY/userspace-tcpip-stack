@@ -120,7 +120,10 @@ jobs:
           fi
 
           while IFS= read -r -d '' artifact; do
-            cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096 || true
+            if ! timeout --signal=TERM --kill-after=5s 60s \
+              cargo fuzz tmin "${target}" "${artifact}" -- -max_len=4096; then
+              echo "minimization did not complete for ${artifact}; retaining raw artifact" >&2
+            fi
           done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' ! -name '.fuzz-schema-version' -print0)
 
           if [ -d "fuzz/artifacts/${target}" ]; then
