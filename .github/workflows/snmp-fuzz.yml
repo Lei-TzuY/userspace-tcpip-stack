@@ -76,6 +76,7 @@ jobs:
           cargo fuzz run ${{ matrix.target }} --
           -runs=${FUZZ_RUNS}
           -max_len=4096
+          -timeout=10
           -dict=fuzz/snmp.dict
           -artifact_prefix="fuzz-artifacts/${{ matrix.target }}/"
       - name: Minimize crash artifacts
