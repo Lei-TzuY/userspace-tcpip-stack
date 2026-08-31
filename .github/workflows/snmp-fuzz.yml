@@ -190,4 +190,5 @@ jobs:
           name: snmp-fuzz-${{ matrix.target }}-${{ github.sha }}
           path: fuzz-artifacts/${{ matrix.target }}/
           if-no-files-found: error
+          include-hidden-files: true
           retention-days: 14
