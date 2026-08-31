@@ -50,6 +50,14 @@ jobs:
         uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb # nightly
       - name: Install cargo-fuzz 0.13.2
         run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Validate fuzz run count
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${FUZZ_RUNS}" =~ ^[1-9][0-9]{0,6}$ ]] || (( 10#${FUZZ_RUNS} > 1000000 )); then
+            echo "invalid fuzz run count: ${FUZZ_RUNS}; expected an integer from 1 to 1000000" >&2
+            exit 1
+          fi
       - name: Prepare artifact directory
         shell: bash
         run: |
