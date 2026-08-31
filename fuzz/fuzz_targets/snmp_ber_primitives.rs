@@ -15,7 +15,9 @@ fuzz_target!(|data: &[u8]| {
             .expect("encoded BER integer must decode as a TLV");
         assert_eq!(tag, BER_TAG_INTEGER);
         assert_eq!(consumed, encoded.len());
-        assert_eq!(decode_ber_integer(body), Ok(value));
+        let reparsed = decode_ber_integer(body).expect("encoded BER integer body must decode");
+        assert_eq!(reparsed, value);
+        assert_eq!(encode_ber_integer(reparsed), encoded);
     }
 
     if let Ok(oid) = decode_ber_oid(data) {
@@ -24,6 +26,11 @@ fuzz_target!(|data: &[u8]| {
             .expect("encoded BER OID must decode as a TLV");
         assert_eq!(tag, BER_TAG_OID);
         assert_eq!(consumed, encoded.len());
-        assert_eq!(decode_ber_oid(body), Ok(oid));
+        let reparsed = decode_ber_oid(body).expect("encoded BER OID body must decode");
+        assert_eq!(reparsed, oid);
+        assert_eq!(
+            encode_ber_oid(&reparsed).expect("reparsed OID must be serializable"),
+            encoded
+        );
     }
 });
