@@ -154,14 +154,15 @@ jobs:
                 ;;
             esac
 
-            source_found=false
+            source=""
             for prefix in crash timeout oom leak slow-unit; do
-              if [ -f "${raw_dir}/${prefix}-${digest}" ]; then
-                source_found=true
+              candidate="${raw_dir}/${prefix}-${digest}"
+              if [ -f "${candidate}" ]; then
+                source="${candidate}"
                 break
               fi
             done
-            if [ "${source_found}" != true ]; then
+            if [ -z "${source}" ]; then
               echo "minimized artifact has no matching raw failure: ${artifact}" >&2
               exit 1
             fi
@@ -173,6 +174,12 @@ jobs:
             fi
             if [ "${size}" -gt 4096 ]; then
               echo "minimized artifact exceeds max fuzz input length: ${artifact}: ${size} > 4096" >&2
+              exit 1
+            fi
+
+            source_size="$(wc -c < "${source}")"
+            if [ "${size}" -gt "${source_size}" ]; then
+              echo "minimized artifact is larger than raw failure: ${artifact}: ${size} > ${source_size}" >&2
               exit 1
             fi
           done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
