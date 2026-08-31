@@ -21,6 +21,13 @@ on:
       - ".github/workflows/snmp-fuzz.yml"
   schedule:
     - cron: "43 5 * * 3"
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "libFuzzer iterations per SNMP target"
+        required: true
+        default: "10000"
+        type: string
 
 permissions:
   contents: read
@@ -36,7 +43,7 @@ jobs:
           - snmp_message_parse
           - snmp_ber_primitives
     env:
-      FUZZ_RUNS: ${{ github.event_name == 'schedule' && '100000' || '1000' }}
+      FUZZ_RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || (github.event_name == 'schedule' && '100000' || '1000') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Set up nightly Rust
