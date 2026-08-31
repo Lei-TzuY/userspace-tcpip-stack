@@ -11,5 +11,10 @@ fuzz_target!(|data: &[u8]| {
         let reparsed = SnmpMessage::parse(&encoded)
             .expect("serialized SNMP message must parse again");
         assert_eq!(reparsed, message);
+
+        let reencoded = reparsed
+            .try_serialize()
+            .expect("reparsed SNMP message must serialize again");
+        assert_eq!(reencoded, encoded);
     }
 });
