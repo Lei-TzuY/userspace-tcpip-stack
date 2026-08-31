@@ -6,12 +6,14 @@ on:
     paths:
       - "fuzz/**"
       - "src/snmp.rs"
+      - "src/bin/promote_snmp_fuzz_artifact.rs"
       - ".github/workflows/snmp-fuzz.yml"
   pull_request:
     branches: [ main ]
     paths:
       - "fuzz/**"
       - "src/snmp.rs"
+      - "src/bin/promote_snmp_fuzz_artifact.rs"
       - ".github/workflows/snmp-fuzz.yml"
   schedule:
     - cron: "43 5 * * 3"
