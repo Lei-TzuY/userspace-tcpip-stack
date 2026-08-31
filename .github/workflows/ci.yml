@@ -26,6 +26,8 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Cargo Test All Targets
         run: cargo test --all-targets --verbose
+      - name: Cargo Test Documentation
+        run: cargo test --doc --verbose
       - name: Cargo Build Release
         run: cargo build --release --verbose
 
