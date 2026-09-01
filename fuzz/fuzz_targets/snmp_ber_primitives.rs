@@ -15,6 +15,13 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(prefix_tag, tag);
         assert_eq!(prefix_body, body);
         assert_eq!(prefix_consumed, consumed);
+
+        if consumed > 0 {
+            assert!(
+                decode_ber_tlv(&prefix[..consumed - 1]).is_err(),
+                "truncated BER TLV prefix must not decode successfully"
+            );
+        }
     }
 
     if let Ok(value) = decode_ber_integer(data) {
