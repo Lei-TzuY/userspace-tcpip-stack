@@ -451,14 +451,6 @@ fn artifact_candidates(path: &Path, target: Target) -> Result<Vec<PathBuf>, Stri
     validate_directory_provenance(path, target)?;
     validate_artifact_directory_layout(path)?;
 
-    let minimized_dir = path.join(MINIMIZED_DIR);
-    if minimized_dir.is_dir() {
-        let minimized = files_in_dir(&minimized_dir)?;
-        if !minimized.is_empty() {
-            return Ok(minimized);
-        }
-    }
-
     let files = files_in_dir(path)?;
     if files.is_empty() {
         return Err(format!(
@@ -466,6 +458,24 @@ fn artifact_candidates(path: &Path, target: Target) -> Result<Vec<PathBuf>, Stri
             path.display()
         ));
     }
+
+    let minimized_dir = path.join(MINIMIZED_DIR);
+    if minimized_dir.is_dir() {
+        let mut candidates = Vec::with_capacity(files.len());
+        for raw in &files {
+            let digest = failure_artifact_digest(raw.file_name().unwrap_or_default())
+                .expect("raw failure name already validated");
+            let minimized = minimized_dir.join(format!("{MINIMIZED_PREFIX}{digest}"));
+            candidates.push(if minimized.is_file() {
+                minimized
+            } else {
+                raw.clone()
+            });
+        }
+        candidates.sort();
+        return Ok(candidates);
+    }
+
     Ok(files)
 }
 
@@ -697,6 +707,30 @@ mod tests {
         expected.sort();
         assert_eq!(
             artifact_candidates(&source, target).expect("directory discovery must succeed"),
+            expected
+        );
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_falls_back_per_raw_failure_when_minimization_is_partial() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-candidates-partial");
+        write_provenance(&source, target);
+        let crash = write_failure(&source, "crash-", &[1, 2]);
+        let timeout = write_failure(&source, "timeout-", &[4, 5]);
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        let crash_digest = failure_artifact_digest(crash.file_name().unwrap()).unwrap();
+        let minimized_crash = minimized.join(format!("{MINIMIZED_PREFIX}{crash_digest}"));
+        fs::write(&minimized_crash, [3]).expect("minimized artifact must be writable");
+
+        let mut expected = vec![minimized_crash, timeout];
+        expected.sort();
+        assert_eq!(
+            artifact_candidates(&source, target)
+                .expect("partial minimization must retain raw fallback"),
             expected
         );
 
