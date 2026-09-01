@@ -250,6 +250,7 @@ fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result
             path.display()
         )
     })?;
+    let mut minimized_digests = std::collections::HashSet::new();
 
     for entry in entries {
         let entry = entry
@@ -294,15 +295,13 @@ fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result
                 )
             })?;
 
-        let minimized_len = entry
-            .metadata()
-            .map_err(|err| {
-                format!(
-                    "failed to inspect minimized artifact {}: {err}",
-                    entry.path().display()
-                )
-            })?
-            .len() as usize;
+        let minimized_bytes = fs::read(entry.path()).map_err(|err| {
+            format!(
+                "failed to read minimized artifact {}: {err}",
+                entry.path().display()
+            )
+        })?;
+        let minimized_len = minimized_bytes.len();
         if minimized_len == 0 {
             return Err(format!(
                 "minimized artifact must not be empty: {}",
@@ -332,6 +331,14 @@ fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result
                 entry.path().display(),
                 minimized_len,
                 source_len
+            ));
+        }
+
+        let minimized_digest = sha1_hex(&minimized_bytes);
+        if !minimized_digests.insert(minimized_digest) {
+            return Err(format!(
+                "duplicate minimized artifact content: {}",
+                entry.path().display()
             ));
         }
     }
@@ -817,6 +824,33 @@ mod tests {
         fs::create_dir(&minimized).expect("minimized directory must be creatable");
         fs::write(minimized.join(format!("{MINIMIZED_PREFIX}{digest}")), [1])
             .expect("minimized artifact must be writable");
+
+        assert!(artifact_candidates(&source, target).is_err());
+
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_duplicate_minimized_content() {
+        let target = Target::MessageParse;
+        let source = temp_dir("artifact-minimized-duplicate");
+        write_provenance(&source, target);
+        let crash = write_failure(&source, "crash-", &[1, 2]);
+        let timeout = write_failure(&source, "timeout-", &[3, 4]);
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        let crash_digest = failure_artifact_digest(crash.file_name().unwrap()).unwrap();
+        let timeout_digest = failure_artifact_digest(timeout.file_name().unwrap()).unwrap();
+        fs::write(
+            minimized.join(format!("{MINIMIZED_PREFIX}{crash_digest}")),
+            [9],
+        )
+        .expect("minimized artifact must be writable");
+        fs::write(
+            minimized.join(format!("{MINIMIZED_PREFIX}{timeout_digest}")),
+            [9],
+        )
+        .expect("minimized artifact must be writable");
 
         assert!(artifact_candidates(&source, target).is_err());
 
