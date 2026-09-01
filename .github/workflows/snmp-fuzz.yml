@@ -192,6 +192,7 @@ jobs:
               echo "minimized artifact has no matching raw failure: ${artifact}" >&2
               exit 1
             fi
+            verify_artifact_digest "${source}"
 
             size="$(wc -c < "${artifact}")"
             if [ "${size}" -eq 0 ]; then
