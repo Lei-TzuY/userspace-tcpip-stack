@@ -88,7 +88,18 @@ jobs:
           target="${{ matrix.target }}"
           raw_dir="fuzz-artifacts/${target}"
           minimized_dir="${raw_dir}/minimized"
+
+          if [ -L "${minimized_dir}" ] || { [ -e "${minimized_dir}" ] && [ ! -d "${minimized_dir}" ]; }; then
+            echo "invalid minimized artifact directory: ${minimized_dir}" >&2
+            exit 1
+          fi
           mkdir -p "${minimized_dir}"
+
+          unexpected_entry="$(find "${raw_dir}" -mindepth 1 -maxdepth 1 ! -type f ! -path "${minimized_dir}" -print -quit)"
+          if [ -n "${unexpected_entry}" ]; then
+            echo "unexpected top-level fuzz artifact entry: ${unexpected_entry}" >&2
+            exit 1
+          fi
 
           verify_artifact_digest() {
             artifact="$1"
