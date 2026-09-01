@@ -35,7 +35,7 @@ impl AtsStreamShaper {
     }
 
     /// Computes the Eligibility Time (ET) for a newly arrived frame
-    /// ET = max(ET_prev + frame_transmission_time, arrival_time)
+    /// ET = max(ET_prev, arrival_time) + frame_transmission_time
     pub fn compute_eligibility_time(
         &mut self,
         frame_length_bytes: usize,
@@ -45,15 +45,15 @@ impl AtsStreamShaper {
             return arrival_time_us;
         }
 
-        // Frame transmission time in microseconds = (bytes * 8 * 1,000,000) / CIR
-        let tx_time_us =
-            ((frame_length_bytes as u64) * 8 * 1_000_000) / self.committed_info_rate_bps;
+        // Convert serialization time to whole microseconds with ceiling division. Rounding down
+        // would make frames faster than one microsecond consume zero scheduler time and allow an
+        // unbounded number of frames to receive the same eligibility timestamp.
+        let frame_bits_us = (frame_length_bytes as u128) * 8 * 1_000_000;
+        let cir = self.committed_info_rate_bps as u128;
+        let tx_time_us = frame_bits_us.div_ceil(cir).min(u64::MAX as u128) as u64;
 
-        let et = if arrival_time_us > self.last_eligibility_time_us {
-            arrival_time_us + tx_time_us
-        } else {
-            self.last_eligibility_time_us + tx_time_us
-        };
+        let base = arrival_time_us.max(self.last_eligibility_time_us);
+        let et = base.saturating_add(tx_time_us);
 
         self.last_eligibility_time_us = et;
         et
@@ -139,6 +139,23 @@ mod tests {
         // Next frame arrives at 500µs (before et1) -> ET = 1100 + 1000 = 2100µs
         let et2 = shaper.compute_eligibility_time(1000, 500);
         assert_eq!(et2, 2100);
+    }
+
+    #[test]
+    fn submicrosecond_frames_still_consume_scheduler_time() {
+        let mut shaper = AtsStreamShaper::new(1, 10_000_000_000, 1500);
+
+        // A 64-byte frame takes 0.0512µs at 10 Gbps. Whole-microsecond scheduling must round
+        // upward rather than treating the frame as free.
+        assert_eq!(shaper.compute_eligibility_time(64, 100), 101);
+        assert_eq!(shaper.compute_eligibility_time(64, 100), 102);
+    }
+
+    #[test]
+    fn eligibility_time_saturates_instead_of_overflowing() {
+        let mut shaper = AtsStreamShaper::new(1, 1, 1500);
+        assert_eq!(shaper.compute_eligibility_time(1, u64::MAX - 1), u64::MAX);
+        assert_eq!(shaper.last_eligibility_time_us, u64::MAX);
     }
 
     #[test]
