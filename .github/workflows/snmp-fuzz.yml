@@ -208,6 +208,17 @@ jobs:
               echo "minimized artifact is larger than raw failure: ${artifact}: ${size} > ${source_size}" >&2
               exit 1
             fi
+
+            replay_log="$(mktemp)"
+            if timeout --signal=TERM --kill-after=5s 30s \
+              cargo fuzz run "${target}" "${artifact}" -- -runs=1 -max_len=4096 -timeout=10 \
+              >"${replay_log}" 2>&1; then
+              echo "minimized artifact no longer reproduces a fuzz failure: ${artifact}" >&2
+              cat "${replay_log}" >&2
+              rm -f "${replay_log}"
+              exit 1
+            fi
+            rm -f "${replay_log}"
           done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
       - name: Upload crash artifacts
         if: failure() && steps.minimize.outputs.has_artifacts == 'true'
