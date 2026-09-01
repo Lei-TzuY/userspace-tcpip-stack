@@ -155,7 +155,7 @@ impl UrgencyBasedScheduler {
             .map(|(idx, _)| idx)?;
 
         let frame = self.scheduled_queue.remove(idx)?;
-        self.transmitted_frames_count += 1;
+        self.transmitted_frames_count = self.transmitted_frames_count.saturating_add(1);
         Some(frame)
     }
 }
@@ -235,6 +235,17 @@ mod tests {
         let frame = ubs.dequeue_eligible_frame(1000).unwrap();
         assert_eq!(frame.stream_id, 10);
         assert_eq!(ubs.transmitted_frames_count, 1);
+    }
+
+    #[test]
+    fn transmitted_frame_counter_saturates_at_u64_max() {
+        let mut ubs = UrgencyBasedScheduler::new();
+        ubs.register_shaper(AtsStreamShaper::new(10, 0, 1500));
+        ubs.transmitted_frames_count = u64::MAX;
+        ubs.enqueue_frame(10, 0, vec![0xAA]).unwrap();
+
+        assert!(ubs.dequeue_eligible_frame(0).is_some());
+        assert_eq!(ubs.transmitted_frames_count, u64::MAX);
     }
 
     #[test]
