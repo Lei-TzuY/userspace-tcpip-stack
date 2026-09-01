@@ -17,6 +17,10 @@ fuzz_target!(|data: &[u8]| {
             .expect("reparsed SNMP message must serialize again");
         assert_eq!(reencoded, encoded);
 
+        if !encoded.is_empty() {
+            assert!(SnmpMessage::parse(&encoded[..encoded.len() - 1]).is_err());
+        }
+
         let mut with_trailing = encoded.clone();
         with_trailing.push(0);
         assert!(SnmpMessage::parse(&with_trailing).is_err());
