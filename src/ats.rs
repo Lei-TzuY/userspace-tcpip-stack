@@ -61,7 +61,9 @@ impl AtsStreamShaper {
         arrival_time_us: u64,
     ) -> u64 {
         if self.committed_info_rate_bps == 0 {
-            return arrival_time_us;
+            let et = arrival_time_us.max(self.last_eligibility_time_us);
+            self.last_eligibility_time_us = et;
+            return et;
         }
 
         let length_recovery_duration_us =
@@ -186,6 +188,15 @@ mod tests {
     #[test]
     fn regressing_arrival_timestamps_do_not_regress_stream_eligibility() {
         let mut shaper = AtsStreamShaper::new(1, 8_000_000, 1500); // 1 byte/µs
+
+        assert_eq!(shaper.compute_eligibility_time(500, 1000), 1000);
+        assert_eq!(shaper.compute_eligibility_time(500, 0), 1000);
+        assert_eq!(shaper.last_eligibility_time_us, 1000);
+    }
+
+    #[test]
+    fn zero_rate_streams_preserve_eligibility_ordering() {
+        let mut shaper = AtsStreamShaper::new(1, 0, 1500);
 
         assert_eq!(shaper.compute_eligibility_time(500, 1000), 1000);
         assert_eq!(shaper.compute_eligibility_time(500, 0), 1000);
