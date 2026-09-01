@@ -140,8 +140,15 @@ jobs:
           }
 
           has_artifacts=false
+          declare -A raw_digests=()
           while IFS= read -r -d '' artifact; do
             verify_artifact_digest "${artifact}"
+            raw_digest="$(sha1sum "${artifact}" | awk '{print $1}')"
+            if [[ -n "${raw_digests[${raw_digest}]+present}" ]]; then
+              echo "duplicate raw fuzz artifact content: ${artifact}; SHA-1 ${raw_digest}" >&2
+              exit 1
+            fi
+            raw_digests["${raw_digest}"]="${artifact}"
             has_artifacts=true
           done < <(find "${raw_dir}" -maxdepth 1 -type f ! -name '.fuzz-target' ! -name '.fuzz-schema-version' -print0)
 
