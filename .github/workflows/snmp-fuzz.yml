@@ -210,10 +210,21 @@ jobs:
             fi
 
             replay_log="$(mktemp)"
-            if timeout --signal=TERM --kill-after=5s 30s \
+            set +e
+            timeout --signal=TERM --kill-after=5s 30s \
               cargo fuzz run "${target}" "${artifact}" -- -runs=1 -max_len=4096 -timeout=10 \
-              >"${replay_log}" 2>&1; then
+              >"${replay_log}" 2>&1
+            replay_status=$?
+            set -e
+
+            if [ "${replay_status}" -eq 0 ]; then
               echo "minimized artifact no longer reproduces a fuzz failure: ${artifact}" >&2
+              cat "${replay_log}" >&2
+              rm -f "${replay_log}"
+              exit 1
+            fi
+            if [ "${replay_status}" -eq 124 ] || [ "${replay_status}" -eq 137 ] || [ "${replay_status}" -eq 143 ]; then
+              echo "minimized artifact replay did not complete cleanly: ${artifact}; status ${replay_status}" >&2
               cat "${replay_log}" >&2
               rm -f "${replay_log}"
               exit 1
