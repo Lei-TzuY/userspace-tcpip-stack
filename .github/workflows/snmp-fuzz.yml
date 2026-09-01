@@ -168,6 +168,7 @@ jobs:
             exit 1
           fi
 
+          declare -A minimized_digests=()
           while IFS= read -r -d '' artifact; do
             name="$(basename "${artifact}")"
             case "${name}" in
@@ -248,6 +249,11 @@ jobs:
               echo "minimized artifact changed during replay: ${artifact}" >&2
               exit 1
             fi
+            if [[ -n "${minimized_digests[${minimized_digest}]+present}" ]]; then
+              echo "duplicate minimized artifact content: ${artifact}; SHA-1 ${minimized_digest}" >&2
+              exit 1
+            fi
+            minimized_digests["${minimized_digest}"]="${artifact}"
           done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
       - name: Upload crash artifacts
         if: failure() && steps.minimize.outputs.has_artifacts == 'true'
