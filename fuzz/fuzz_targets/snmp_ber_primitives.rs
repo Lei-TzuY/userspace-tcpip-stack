@@ -33,6 +33,10 @@ fuzz_target!(|data: &[u8]| {
         let reparsed = decode_ber_integer(body).expect("encoded BER integer body must decode");
         assert_eq!(reparsed, value);
         assert_eq!(encode_ber_integer(reparsed), encoded);
+        assert!(
+            decode_ber_tlv(&encoded[..encoded.len() - 1]).is_err(),
+            "truncated canonical BER integer TLV must not decode successfully"
+        );
     }
 
     if let Ok(oid) = decode_ber_oid(data) {
@@ -46,6 +50,10 @@ fuzz_target!(|data: &[u8]| {
         assert_eq!(
             encode_ber_oid(&reparsed).expect("reparsed OID must be serializable"),
             encoded
+        );
+        assert!(
+            decode_ber_tlv(&encoded[..encoded.len() - 1]).is_err(),
+            "truncated canonical BER OID TLV must not decode successfully"
         );
     }
 });
