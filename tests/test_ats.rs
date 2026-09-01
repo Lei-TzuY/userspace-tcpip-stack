@@ -2,11 +2,12 @@ use toy_tcpip::ats::{AtsFrame, AtsStreamShaper, UrgencyBasedScheduler};
 
 #[test]
 fn test_ats_stream_shaper_eligibility_time() {
-    let mut shaper = AtsStreamShaper::new(1, 16_000_000, 2000); // 16 Mbps = 2 bytes/µs
+    let mut shaper = AtsStreamShaper::new(1, 16_000_000, 1000); // 2 bytes/µs, 1000-byte burst
 
-    // Frame 1: 500 bytes -> 250µs tx time
+    // The committed burst starts full, so frames that fit within available credit are immediately
+    // eligible. Once that credit is exhausted, CIR determines how quickly more bytes recover.
     let et1 = shaper.compute_eligibility_time(500, 1000);
-    assert_eq!(et1, 1250);
+    assert_eq!(et1, 1000);
 
     let frame = AtsFrame {
         stream_id: 1,
@@ -16,18 +17,22 @@ fn test_ats_stream_shaper_eligibility_time() {
         payload: vec![0x11; 500],
     };
     assert_eq!(frame.stream_id, 1);
-    assert_eq!(frame.eligibility_time_us, 1250);
+    assert_eq!(frame.eligibility_time_us, 1000);
 
-    // Frame 2 arrives at 1100µs -> ET2 = 1250 + 250 = 1500µs
     let et2 = shaper.compute_eligibility_time(500, 1100);
-    assert_eq!(et2, 1500);
+    assert_eq!(et2, 1100);
+
+    // No additional refill time has elapsed, so this frame must wait for CIR recovery.
+    let et3 = shaper.compute_eligibility_time(500, 1100);
+    assert_eq!(et3, 1250);
 }
 
 #[test]
 fn test_urgency_based_scheduler_flow_prioritization() {
     let mut ubs = UrgencyBasedScheduler::new();
-    ubs.register_shaper(AtsStreamShaper::new(1, 8_000_000, 1500)); // 1 byte/µs
-    ubs.register_shaper(AtsStreamShaper::new(2, 16_000_000, 1500)); // 2 bytes/µs
+    // CBS=0 disables burst credit so this integration test isolates CIR-based eligibility ordering.
+    ubs.register_shaper(AtsStreamShaper::new(1, 8_000_000, 0)); // 1 byte/µs
+    ubs.register_shaper(AtsStreamShaper::new(2, 16_000_000, 0)); // 2 bytes/µs
 
     // Enqueue 1000 bytes for stream 1 at t=0 -> ET=1000µs
     ubs.enqueue_frame(1, 0, vec![0x11; 1000]).unwrap();

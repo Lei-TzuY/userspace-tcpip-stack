@@ -22,20 +22,39 @@ pub struct AtsStreamShaper {
     pub committed_info_rate_bps: u64,    // CIR in bits per second
     pub committed_burst_size_bytes: u32, // CBS in bytes
     pub last_eligibility_time_us: u64,   // Eligibility Time (ET) of previous frame
+    pub bucket_empty_time_us: i128,      // Most recent instant at which the token bucket was empty
 }
 
 impl AtsStreamShaper {
     pub fn new(stream_id: u32, cir_bps: u64, cbs_bytes: u32) -> Self {
+        let empty_to_full_duration_us = Self::duration_us(cbs_bytes as usize, cir_bps);
+
         AtsStreamShaper {
             stream_id,
             committed_info_rate_bps: cir_bps,
             committed_burst_size_bytes: cbs_bytes,
             last_eligibility_time_us: 0,
+            // IEEE 802.1Qcr initializes BucketEmptyTime far enough in the past that the bucket
+            // starts full. Using signed scheduler time lets an arrival at t=0 consume that burst.
+            bucket_empty_time_us: -empty_to_full_duration_us,
         }
     }
 
-    /// Computes the Eligibility Time (ET) for a newly arrived frame
-    /// ET = max(ET_prev, arrival_time) + frame_transmission_time
+    fn duration_us(bytes: usize, rate_bps: u64) -> i128 {
+        if rate_bps == 0 {
+            return 0;
+        }
+
+        let bits_us = (bytes as u128).saturating_mul(8).saturating_mul(1_000_000);
+        bits_us.div_ceil(rate_bps as u128).min(i128::MAX as u128) as i128
+    }
+
+    /// Computes the Eligibility Time (ET) for a newly arrived frame.
+    ///
+    /// This follows the simplified IEEE 802.1Qcr ProcessFrame model for a one-to-one stream,
+    /// scheduler, and scheduler-group mapping. CBS controls how far BucketEmptyTime may trail the
+    /// current time, allowing a full committed burst to be immediately eligible while CIR controls
+    /// the refill rate after that burst is consumed.
     pub fn compute_eligibility_time(
         &mut self,
         frame_length_bytes: usize,
@@ -45,16 +64,29 @@ impl AtsStreamShaper {
             return arrival_time_us;
         }
 
-        // Convert serialization time to whole microseconds with ceiling division. Rounding down
-        // would make frames faster than one microsecond consume zero scheduler time and allow an
-        // unbounded number of frames to receive the same eligibility timestamp.
-        let frame_bits_us = (frame_length_bytes as u128) * 8 * 1_000_000;
-        let cir = self.committed_info_rate_bps as u128;
-        let tx_time_us = frame_bits_us.div_ceil(cir).min(u64::MAX as u128) as u64;
+        let length_recovery_duration_us =
+            Self::duration_us(frame_length_bytes, self.committed_info_rate_bps);
+        let empty_to_full_duration_us = Self::duration_us(
+            self.committed_burst_size_bytes as usize,
+            self.committed_info_rate_bps,
+        );
 
-        let base = arrival_time_us.max(self.last_eligibility_time_us);
-        let et = base.saturating_add(tx_time_us);
+        let scheduler_eligibility_time_us = self
+            .bucket_empty_time_us
+            .saturating_add(length_recovery_duration_us);
+        let bucket_full_time_us = self
+            .bucket_empty_time_us
+            .saturating_add(empty_to_full_duration_us);
+        let eligibility_time_us = (arrival_time_us as i128).max(scheduler_eligibility_time_us);
 
+        self.bucket_empty_time_us = if eligibility_time_us < bucket_full_time_us {
+            scheduler_eligibility_time_us
+        } else {
+            scheduler_eligibility_time_us
+                .saturating_add(eligibility_time_us.saturating_sub(bucket_full_time_us))
+        };
+
+        let et = eligibility_time_us.min(u64::MAX as i128) as u64;
         self.last_eligibility_time_us = et;
         et
     }
@@ -129,31 +161,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_ats_eligibility_time_calculation() {
-        let mut shaper = AtsStreamShaper::new(1, 8_000_000, 1500); // 8 Mbps (1000 bytes/ms = 1 byte/µs)
+    fn committed_burst_is_immediately_eligible_then_rate_limits_excess() {
+        let mut shaper = AtsStreamShaper::new(1, 8_000_000, 1500); // 1 byte/µs, 1500-byte burst
 
-        // 1000 bytes at 8 Mbps takes 1000µs
-        let et1 = shaper.compute_eligibility_time(1000, 100);
-        assert_eq!(et1, 100 + 1000); // 1100µs
-
-        // Next frame arrives at 500µs (before et1) -> ET = 1100 + 1000 = 2100µs
-        let et2 = shaper.compute_eligibility_time(1000, 500);
-        assert_eq!(et2, 2100);
+        assert_eq!(shaper.compute_eligibility_time(1000, 100), 100);
+        assert_eq!(shaper.compute_eligibility_time(500, 100), 100);
+        assert_eq!(shaper.compute_eligibility_time(1, 100), 101);
     }
 
     #[test]
-    fn submicrosecond_frames_still_consume_scheduler_time() {
-        let mut shaper = AtsStreamShaper::new(1, 10_000_000_000, 1500);
+    fn idle_time_refills_committed_burst_credit() {
+        let mut shaper = AtsStreamShaper::new(1, 8_000_000, 1000); // 1 byte/µs
 
-        // A 64-byte frame takes 0.0512µs at 10 Gbps. Whole-microsecond scheduling must round
-        // upward rather than treating the frame as free.
+        assert_eq!(shaper.compute_eligibility_time(1000, 100), 100);
+        assert_eq!(shaper.compute_eligibility_time(1000, 500), 1100);
+
+        // Once enough idle time has passed to refill the bucket, another full CBS is eligible at
+        // arrival rather than carrying the previous virtual finish time forever.
+        assert_eq!(shaper.compute_eligibility_time(1000, 2500), 2500);
+    }
+
+    #[test]
+    fn submicrosecond_excess_frames_still_consume_scheduler_time() {
+        let mut shaper = AtsStreamShaper::new(1, 10_000_000_000, 64);
+
+        assert_eq!(shaper.compute_eligibility_time(64, 100), 100);
         assert_eq!(shaper.compute_eligibility_time(64, 100), 101);
         assert_eq!(shaper.compute_eligibility_time(64, 100), 102);
     }
 
     #[test]
     fn eligibility_time_saturates_instead_of_overflowing() {
-        let mut shaper = AtsStreamShaper::new(1, 1, 1500);
+        let mut shaper = AtsStreamShaper::new(1, 1, 1);
+        shaper.bucket_empty_time_us = u64::MAX as i128 - 1;
+
         assert_eq!(shaper.compute_eligibility_time(1, u64::MAX - 1), u64::MAX);
         assert_eq!(shaper.last_eligibility_time_us, u64::MAX);
     }
@@ -163,15 +204,13 @@ mod tests {
         let mut ubs = UrgencyBasedScheduler::new();
         ubs.register_shaper(AtsStreamShaper::new(10, 8_000_000, 1500));
 
-        let payload = vec![0xAA; 500]; // 500 bytes = 500µs tx time
+        let payload = vec![0xAA; 500];
         let et = ubs.enqueue_frame(10, 1000, payload).unwrap();
-        assert_eq!(et, 1500);
+        assert_eq!(et, 1000);
 
-        // At t=1200µs: not eligible yet
-        assert!(ubs.dequeue_eligible_frame(1200).is_none());
+        assert!(ubs.dequeue_eligible_frame(999).is_none());
 
-        // At t=1600µs: eligible and dequeued
-        let frame = ubs.dequeue_eligible_frame(1600).unwrap();
+        let frame = ubs.dequeue_eligible_frame(1000).unwrap();
         assert_eq!(frame.stream_id, 10);
         assert_eq!(ubs.transmitted_frames_count, 1);
     }
