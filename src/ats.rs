@@ -77,7 +77,9 @@ impl AtsStreamShaper {
         let bucket_full_time_us = self
             .bucket_empty_time_us
             .saturating_add(empty_to_full_duration_us);
-        let eligibility_time_us = (arrival_time_us as i128).max(scheduler_eligibility_time_us);
+        let eligibility_time_us = (arrival_time_us as i128)
+            .max(self.last_eligibility_time_us as i128)
+            .max(scheduler_eligibility_time_us);
 
         self.bucket_empty_time_us = if eligibility_time_us < bucket_full_time_us {
             scheduler_eligibility_time_us
@@ -179,6 +181,15 @@ mod tests {
         // Once enough idle time has passed to refill the bucket, another full CBS is eligible at
         // arrival rather than carrying the previous virtual finish time forever.
         assert_eq!(shaper.compute_eligibility_time(1000, 2500), 2500);
+    }
+
+    #[test]
+    fn regressing_arrival_timestamps_do_not_regress_stream_eligibility() {
+        let mut shaper = AtsStreamShaper::new(1, 8_000_000, 1500); // 1 byte/µs
+
+        assert_eq!(shaper.compute_eligibility_time(500, 1000), 1000);
+        assert_eq!(shaper.compute_eligibility_time(500, 0), 1000);
+        assert_eq!(shaper.last_eligibility_time_us, 1000);
     }
 
     #[test]
