@@ -7,7 +7,15 @@ use toy_tcpip::snmp::{
 };
 
 fuzz_target!(|data: &[u8]| {
-    let _ = decode_ber_tlv(data);
+    if let Ok((tag, body, consumed)) = decode_ber_tlv(data) {
+        assert!(consumed <= data.len());
+        let prefix = &data[..consumed];
+        let (prefix_tag, prefix_body, prefix_consumed) =
+            decode_ber_tlv(prefix).expect("consumed BER TLV prefix must decode identically");
+        assert_eq!(prefix_tag, tag);
+        assert_eq!(prefix_body, body);
+        assert_eq!(prefix_consumed, consumed);
+    }
 
     if let Ok(value) = decode_ber_integer(data) {
         let encoded = encode_ber_integer(value);
