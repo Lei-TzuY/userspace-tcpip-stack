@@ -210,6 +210,7 @@ jobs:
               exit 1
             fi
 
+            minimized_digest="$(sha1sum "${artifact}" | awk '{print $1}')"
             replay_log="$(mktemp)"
             set +e
             timeout --signal=TERM --kill-after=5s 30s \
@@ -241,6 +242,12 @@ jobs:
                 ;;
             esac
             rm -f "${replay_log}"
+
+            replayed_digest="$(sha1sum "${artifact}" | awk '{print $1}')"
+            if [ "${replayed_digest}" != "${minimized_digest}" ]; then
+              echo "minimized artifact changed during replay: ${artifact}" >&2
+              exit 1
+            fi
           done < <(find "${minimized_dir}" -maxdepth 1 -type f -print0)
       - name: Upload crash artifacts
         if: failure() && steps.minimize.outputs.has_artifacts == 'true'
