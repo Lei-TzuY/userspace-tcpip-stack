@@ -140,19 +140,19 @@ impl UrgencyBasedScheduler {
         Ok(et)
     }
 
-    /// Selects and transmits the next eligible frame whose Eligibility Time <= current_time_us
+    /// Selects and transmits the most urgent eligible frame whose Eligibility Time <= current_time_us
     pub fn dequeue_eligible_frame(&mut self, current_time_us: u64) -> Option<AtsFrame> {
-        if let Some(idx) = self
+        let idx = self
             .scheduled_queue
             .iter()
-            .position(|f| f.eligibility_time_us <= current_time_us)
-        {
-            let frame = self.scheduled_queue.remove(idx)?;
-            self.transmitted_frames_count += 1;
-            Some(frame)
-        } else {
-            None
-        }
+            .enumerate()
+            .filter(|(_, frame)| frame.eligibility_time_us <= current_time_us)
+            .min_by_key(|(_, frame)| frame.eligibility_time_us)
+            .map(|(idx, _)| idx)?;
+
+        let frame = self.scheduled_queue.remove(idx)?;
+        self.transmitted_frames_count += 1;
+        Some(frame)
     }
 }
 
@@ -213,5 +213,25 @@ mod tests {
         let frame = ubs.dequeue_eligible_frame(1000).unwrap();
         assert_eq!(frame.stream_id, 10);
         assert_eq!(ubs.transmitted_frames_count, 1);
+    }
+
+    #[test]
+    fn dequeue_prefers_earliest_eligibility_time_when_multiple_are_ready() {
+        let mut ubs = UrgencyBasedScheduler::new();
+        ubs.register_shaper(AtsStreamShaper::new(1, 8_000_000, 0));
+        ubs.register_shaper(AtsStreamShaper::new(2, 16_000_000, 0));
+
+        // Enqueue the less urgent frame first so FIFO ordering would choose incorrectly once both
+        // frames are eligible.
+        assert_eq!(ubs.enqueue_frame(1, 0, vec![0x11; 1000]).unwrap(), 1000);
+        assert_eq!(ubs.enqueue_frame(2, 0, vec![0x22; 400]).unwrap(), 200);
+
+        let first = ubs.dequeue_eligible_frame(1000).unwrap();
+        assert_eq!(first.stream_id, 2);
+        assert_eq!(first.eligibility_time_us, 200);
+
+        let second = ubs.dequeue_eligible_frame(1000).unwrap();
+        assert_eq!(second.stream_id, 1);
+        assert_eq!(second.eligibility_time_us, 1000);
     }
 }
