@@ -283,13 +283,55 @@ fn validate_minimized_directory_layout(bundle_dir: &Path, path: &Path) -> Result
                     entry.path().display()
                 )
             })?;
-        let source_found = FAILURE_PREFIXES
+        let source = FAILURE_PREFIXES
             .iter()
-            .any(|prefix| bundle_dir.join(format!("{prefix}{digest}")).is_file());
-        if !source_found {
+            .map(|prefix| bundle_dir.join(format!("{prefix}{digest}")))
+            .find(|candidate| candidate.is_file())
+            .ok_or_else(|| {
+                format!(
+                    "minimized artifact has no matching raw failure: {}",
+                    entry.path().display()
+                )
+            })?;
+
+        let minimized_len = entry
+            .metadata()
+            .map_err(|err| {
+                format!(
+                    "failed to inspect minimized artifact {}: {err}",
+                    entry.path().display()
+                )
+            })?
+            .len() as usize;
+        if minimized_len == 0 {
             return Err(format!(
-                "minimized artifact has no matching raw failure: {}",
+                "minimized artifact must not be empty: {}",
                 entry.path().display()
+            ));
+        }
+        if minimized_len > MAX_FUZZ_INPUT_LEN {
+            return Err(format!(
+                "minimized artifact exceeds max fuzz input length: {}: {} > {}",
+                entry.path().display(),
+                minimized_len,
+                MAX_FUZZ_INPUT_LEN
+            ));
+        }
+
+        let source_len = fs::metadata(&source)
+            .map_err(|err| {
+                format!(
+                    "failed to inspect matching raw failure {}: {err}",
+                    source.display()
+                )
+            })?
+            .len() as usize;
+        if minimized_len > source_len {
+            return Err(format!(
+                "minimized artifact is larger than matching raw failure: {}: {} > {}",
+                entry.path().display(),
+                minimized_len,
+                source_len
             ));
         }
     }
@@ -817,6 +859,51 @@ mod tests {
             vec![mapped]
         );
 
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+    }
+
+    #[test]
+    fn artifact_directory_rejects_invalid_minimized_sizes() {
+        let target = Target::MessageParse;
+
+        let source = temp_dir("artifact-minimized-empty");
+        write_provenance(&source, target);
+        let failure = write_failure(&source, "crash-", &[1]);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(minimized.join(format!("{MINIMIZED_PREFIX}{digest}")), [])
+            .expect("empty minimized artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+
+        let source = temp_dir("artifact-minimized-larger");
+        write_provenance(&source, target);
+        let failure = write_failure(&source, "timeout-", &[1]);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(
+            minimized.join(format!("{MINIMIZED_PREFIX}{digest}")),
+            [2, 3],
+        )
+        .expect("larger minimized artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
+        fs::remove_dir_all(source).expect("temporary directory must be removable");
+
+        let source = temp_dir("artifact-minimized-oversized");
+        write_provenance(&source, target);
+        let raw = vec![7_u8; MAX_FUZZ_INPUT_LEN];
+        let failure = write_failure(&source, "oom-", &raw);
+        let digest = failure_artifact_digest(failure.file_name().unwrap()).unwrap();
+        let minimized = source.join(MINIMIZED_DIR);
+        fs::create_dir(&minimized).expect("minimized directory must be creatable");
+        fs::write(
+            minimized.join(format!("{MINIMIZED_PREFIX}{digest}")),
+            vec![8_u8; MAX_FUZZ_INPUT_LEN + 1],
+        )
+        .expect("oversized minimized artifact must be writable");
+        assert!(artifact_candidates(&source, target).is_err());
         fs::remove_dir_all(source).expect("temporary directory must be removable");
     }
 
