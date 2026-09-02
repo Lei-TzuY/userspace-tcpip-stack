@@ -64,6 +64,7 @@ pub enum BfdError {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidLength(u8),
+    PollFinalBothSet,
     UnsupportedAuthentication,
     UnsupportedMultipoint,
     ZeroDetectMultiplier,
@@ -78,6 +79,9 @@ impl fmt::Display for BfdError {
                 write!(f, "Invalid BFD version: expected 1, found {}", v)
             }
             BfdError::InvalidLength(l) => write!(f, "Invalid BFD length field: {}", l),
+            BfdError::PollFinalBothSet => {
+                write!(f, "BFD Poll and Final bits must not both be set")
+            }
             BfdError::UnsupportedAuthentication => {
                 write!(f, "Authenticated BFD packets are not supported")
             }
@@ -119,6 +123,9 @@ impl BfdControlPacket {
 
         if (length as usize) < min_length || (length as usize) > data.len() {
             return Err(BfdError::InvalidLength(length));
+        }
+        if poll && r#final {
+            return Err(BfdError::PollFinalBothSet);
         }
         if auth {
             return Err(BfdError::UnsupportedAuthentication);
@@ -337,6 +344,18 @@ mod tests {
         assert_eq!(
             BfdControlPacket::parse(&raw),
             Err(BfdError::InvalidLength(24))
+        );
+    }
+
+    #[test]
+    fn test_bfd_parser_rejects_poll_and_final_together() {
+        let mut raw =
+            BfdControlPacket::build_control(BfdState::Down, 0x12345678, 0, 50_000).serialize();
+        raw[1] |= 0x30;
+
+        assert_eq!(
+            BfdControlPacket::parse(&raw),
+            Err(BfdError::PollFinalBothSet)
         );
     }
 
