@@ -64,6 +64,7 @@ pub enum BfdError {
     PacketTooShort(usize),
     InvalidVersion(u8),
     InvalidLength(u8),
+    UnsupportedAuthentication,
     ZeroDetectMultiplier,
     ZeroMyDiscriminator,
 }
@@ -76,6 +77,9 @@ impl fmt::Display for BfdError {
                 write!(f, "Invalid BFD version: expected 1, found {}", v)
             }
             BfdError::InvalidLength(l) => write!(f, "Invalid BFD length field: {}", l),
+            BfdError::UnsupportedAuthentication => {
+                write!(f, "Authenticated BFD packets are not supported")
+            }
             BfdError::ZeroDetectMultiplier => write!(f, "BFD Detect Mult must not be zero"),
             BfdError::ZeroMyDiscriminator => write!(f, "BFD My Discriminator must not be zero"),
         }
@@ -104,6 +108,9 @@ impl BfdControlPacket {
         let r#final = (b1 & 0x10) != 0;
         let cpi = (b1 & 0x08) != 0;
         let auth = (b1 & 0x04) != 0;
+        if auth {
+            return Err(BfdError::UnsupportedAuthentication);
+        }
         let demand = (b1 & 0x02) != 0;
         let multipoint = (b1 & 0x01) != 0;
 
@@ -294,6 +301,18 @@ mod tests {
         assert_eq!(parsed.my_discriminator, 0x12345678);
         assert_eq!(parsed.your_discriminator, 0x87654321);
         assert_eq!(parsed.desired_min_tx_interval_us, 50_000);
+    }
+
+    #[test]
+    fn test_bfd_parser_rejects_unverified_authenticated_packet() {
+        let mut raw =
+            BfdControlPacket::build_control(BfdState::Down, 0x12345678, 0, 50_000).serialize();
+        raw[1] |= 0x04;
+
+        assert_eq!(
+            BfdControlPacket::parse(&raw),
+            Err(BfdError::UnsupportedAuthentication)
+        );
     }
 
     #[test]
