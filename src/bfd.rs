@@ -112,11 +112,17 @@ impl BfdControlPacket {
         let r#final = (b1 & 0x10) != 0;
         let cpi = (b1 & 0x08) != 0;
         let auth = (b1 & 0x04) != 0;
+        let demand = (b1 & 0x02) != 0;
+        let multipoint = (b1 & 0x01) != 0;
+        let length = data[3];
+        let min_length = if auth { 26 } else { BFD_MIN_PACKET_LEN };
+
+        if (length as usize) < min_length || (length as usize) > data.len() {
+            return Err(BfdError::InvalidLength(length));
+        }
         if auth {
             return Err(BfdError::UnsupportedAuthentication);
         }
-        let demand = (b1 & 0x02) != 0;
-        let multipoint = (b1 & 0x01) != 0;
         if multipoint {
             return Err(BfdError::UnsupportedMultipoint);
         }
@@ -124,11 +130,6 @@ impl BfdControlPacket {
         let detect_mult = data[2];
         if detect_mult == 0 {
             return Err(BfdError::ZeroDetectMultiplier);
-        }
-        let length = data[3];
-
-        if (length as usize) < BFD_MIN_PACKET_LEN || (length as usize) > data.len() {
-            return Err(BfdError::InvalidLength(length));
         }
 
         let my_discriminator = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
@@ -315,10 +316,24 @@ mod tests {
         let mut raw =
             BfdControlPacket::build_control(BfdState::Down, 0x12345678, 0, 50_000).serialize();
         raw[1] |= 0x04;
+        raw[3] = 26;
+        raw.extend_from_slice(&[0, 0]);
 
         assert_eq!(
             BfdControlPacket::parse(&raw),
             Err(BfdError::UnsupportedAuthentication)
+        );
+    }
+
+    #[test]
+    fn test_bfd_parser_validates_authenticated_minimum_length_first() {
+        let mut raw =
+            BfdControlPacket::build_control(BfdState::Down, 0x12345678, 0, 50_000).serialize();
+        raw[1] |= 0x04;
+
+        assert_eq!(
+            BfdControlPacket::parse(&raw),
+            Err(BfdError::InvalidLength(24))
         );
     }
 
