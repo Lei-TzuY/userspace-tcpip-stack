@@ -58,23 +58,31 @@ impl BfdV6Session {
 
         self.your_discriminator = pkt.my_discriminator;
 
-        match (self.state, pkt.state) {
+        let state_changed = match (self.state, pkt.state) {
             (BfdState::Down, BfdState::Down) => {
                 self.state = BfdState::Init;
-                Some(self.build_outbound_packet(false))
+                true
             }
             (BfdState::Down, BfdState::Init)
             | (BfdState::Init, BfdState::Init)
             | (BfdState::Init, BfdState::Up) => {
                 self.state = BfdState::Up;
-                Some(self.build_outbound_packet(false))
+                true
             }
             (BfdState::Up, BfdState::Down)
             | (BfdState::Init | BfdState::Up, BfdState::AdminDown) => {
                 self.state = BfdState::Down;
-                Some(self.build_outbound_packet(false))
+                true
             }
-            _ => None,
+            _ => false,
+        };
+
+        if state_changed || pkt.poll {
+            let mut response = self.build_outbound_packet(false);
+            response.r#final = pkt.poll;
+            Some(response)
+        } else {
+            None
         }
     }
 }
@@ -121,6 +129,32 @@ mod tests {
         let resp2 = session.process_inbound_packet(&incoming_init).unwrap();
         assert_eq!(session.state, BfdState::Up);
         assert_eq!(resp2.state, BfdState::Up);
+    }
+
+    #[test]
+    fn test_bfd_v6_poll_request_gets_final_response_without_state_change() {
+        let peer_v6 = Ipv6Address::from_str("2001:db8:bfd:1::2").unwrap();
+        let mut session = BfdV6Session::new(peer_v6, 0x11223344, true);
+        session.state = BfdState::Up;
+        session.your_discriminator = 0x99887766;
+
+        let mut incoming = BfdControlPacket::build_control(
+            BfdState::Up,
+            0x99887766,
+            session.my_discriminator,
+            50_000,
+        );
+        incoming.poll = true;
+
+        let response = session
+            .process_inbound_packet(&incoming)
+            .expect("Poll request must receive a Final response");
+        assert_eq!(session.state, BfdState::Up);
+        assert_eq!(response.state, BfdState::Up);
+        assert!(!response.poll);
+        assert!(response.r#final);
+        assert_eq!(response.my_discriminator, session.my_discriminator);
+        assert_eq!(response.your_discriminator, incoming.my_discriminator);
     }
 
     #[test]
