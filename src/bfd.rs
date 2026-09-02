@@ -65,6 +65,7 @@ pub enum BfdError {
     InvalidVersion(u8),
     InvalidLength(u8),
     UnsupportedAuthentication,
+    UnsupportedMultipoint,
     ZeroDetectMultiplier,
     ZeroMyDiscriminator,
 }
@@ -79,6 +80,9 @@ impl fmt::Display for BfdError {
             BfdError::InvalidLength(l) => write!(f, "Invalid BFD length field: {}", l),
             BfdError::UnsupportedAuthentication => {
                 write!(f, "Authenticated BFD packets are not supported")
+            }
+            BfdError::UnsupportedMultipoint => {
+                write!(f, "Multipoint BFD packets are not supported")
             }
             BfdError::ZeroDetectMultiplier => write!(f, "BFD Detect Mult must not be zero"),
             BfdError::ZeroMyDiscriminator => write!(f, "BFD My Discriminator must not be zero"),
@@ -113,6 +117,9 @@ impl BfdControlPacket {
         }
         let demand = (b1 & 0x02) != 0;
         let multipoint = (b1 & 0x01) != 0;
+        if multipoint {
+            return Err(BfdError::UnsupportedMultipoint);
+        }
 
         let detect_mult = data[2];
         if detect_mult == 0 {
@@ -312,6 +319,18 @@ mod tests {
         assert_eq!(
             BfdControlPacket::parse(&raw),
             Err(BfdError::UnsupportedAuthentication)
+        );
+    }
+
+    #[test]
+    fn test_bfd_parser_rejects_multipoint_packet() {
+        let mut raw =
+            BfdControlPacket::build_control(BfdState::Down, 0x12345678, 0, 50_000).serialize();
+        raw[1] |= 0x01;
+
+        assert_eq!(
+            BfdControlPacket::parse(&raw),
+            Err(BfdError::UnsupportedMultipoint)
         );
     }
 
