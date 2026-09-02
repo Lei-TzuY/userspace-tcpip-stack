@@ -199,7 +199,7 @@ impl BfdControlPacket {
         buf[1] = b1;
 
         buf[2] = self.detect_mult;
-        buf[3] = self.length.max(24);
+        buf[3] = BFD_MIN_PACKET_LEN as u8;
         buf[4..8].copy_from_slice(&self.my_discriminator.to_be_bytes());
         buf[8..12].copy_from_slice(&self.your_discriminator.to_be_bytes());
         buf[12..16].copy_from_slice(&self.desired_min_tx_interval_us.to_be_bytes());
@@ -319,6 +319,20 @@ mod tests {
         assert_eq!(parsed.my_discriminator, 0x12345678);
         assert_eq!(parsed.your_discriminator, 0x87654321);
         assert_eq!(parsed.desired_min_tx_interval_us, 50_000);
+    }
+
+    #[test]
+    fn test_bfd_serializer_uses_actual_encoded_length() {
+        let mut pkt = BfdControlPacket::build_control(BfdState::Up, 0x12345678, 0x87654321, 50_000);
+        pkt.length = u8::MAX;
+
+        let raw = pkt.serialize();
+
+        assert_eq!(raw.len(), BFD_MIN_PACKET_LEN);
+        assert_eq!(raw[3] as usize, raw.len());
+        let parsed =
+            BfdControlPacket::parse(&raw).expect("serialized packet must remain parseable");
+        assert_eq!(parsed.length as usize, raw.len());
     }
 
     #[test]
