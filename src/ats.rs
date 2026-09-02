@@ -113,9 +113,17 @@ impl UrgencyBasedScheduler {
         }
     }
 
-    /// Registers a stream shaper
-    pub fn register_shaper(&mut self, shaper: AtsStreamShaper) {
+    /// Registers a stream shaper without replacing existing per-stream shaping state.
+    ///
+    /// Returns `true` when the stream was newly registered and `false` when a shaper with the same
+    /// stream ID already exists. Replacing a live shaper would reset its BucketEmptyTime and last
+    /// Eligibility Time, allowing later frames to bypass the stream's accumulated rate state.
+    pub fn register_shaper(&mut self, shaper: AtsStreamShaper) -> bool {
+        if self.shapers.contains_key(&shaper.stream_id) {
+            return false;
+        }
         self.shapers.insert(shaper.stream_id, shaper);
+        true
     }
 
     /// Enqueues an ingress frame, assigning its ATS eligibility time
@@ -235,6 +243,24 @@ mod tests {
         let frame = ubs.dequeue_eligible_frame(1000).unwrap();
         assert_eq!(frame.stream_id, 10);
         assert_eq!(ubs.transmitted_frames_count, 1);
+    }
+
+    #[test]
+    fn duplicate_registration_does_not_reset_stream_shaping_state() {
+        let mut ubs = UrgencyBasedScheduler::new();
+        assert!(ubs.register_shaper(AtsStreamShaper::new(10, 8_000_000, 0)));
+        assert_eq!(ubs.enqueue_frame(10, 0, vec![0xAA; 1000]).unwrap(), 1000);
+
+        assert!(!ubs.register_shaper(AtsStreamShaper::new(10, 8_000_000_000, 1500)));
+        assert_eq!(ubs.enqueue_frame(10, 0, vec![0xBB; 1000]).unwrap(), 3000);
+
+        let shaper = ubs
+            .shapers
+            .get(&10)
+            .expect("original shaper must remain registered");
+        assert_eq!(shaper.committed_info_rate_bps, 8_000_000);
+        assert_eq!(shaper.committed_burst_size_bytes, 0);
+        assert_eq!(shaper.last_eligibility_time_us, 3000);
     }
 
     #[test]
