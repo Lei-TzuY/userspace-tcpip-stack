@@ -55,6 +55,9 @@ impl BfdV6Session {
         {
             return None;
         }
+        if self.state == BfdState::AdminDown {
+            return None;
+        }
 
         self.your_discriminator = pkt.my_discriminator;
 
@@ -155,6 +158,26 @@ mod tests {
         assert!(response.r#final);
         assert_eq!(response.my_discriminator, session.my_discriminator);
         assert_eq!(response.your_discriminator, incoming.my_discriminator);
+    }
+
+    #[test]
+    fn test_bfd_v6_admin_down_discards_poll_without_side_effects() {
+        let peer_v6 = Ipv6Address::from_str("2001:db8:bfd:1::2").unwrap();
+        let mut session = BfdV6Session::new(peer_v6, 0x11223344, true);
+        session.state = BfdState::AdminDown;
+        session.your_discriminator = 0x99887766;
+
+        let mut incoming = BfdControlPacket::build_control(
+            BfdState::Up,
+            0xaabbccdd,
+            session.my_discriminator,
+            50_000,
+        );
+        incoming.poll = true;
+
+        assert!(session.process_inbound_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::AdminDown);
+        assert_eq!(session.your_discriminator, 0x99887766);
     }
 
     #[test]
