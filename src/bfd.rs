@@ -244,33 +244,36 @@ impl BfdSession {
 
         self.remote_discriminator = pkt.my_discriminator;
 
-        match (self.state, pkt.state) {
+        let state_changed = match (self.state, pkt.state) {
             (BfdState::Down, BfdState::Down) => {
                 self.state = BfdState::Init;
-                Some(BfdControlPacket::build_control(
-                    self.state,
-                    self.local_discriminator,
-                    self.remote_discriminator,
-                    self.tx_interval_us,
-                ))
+                true
             }
             (BfdState::Down, BfdState::Init)
             | (BfdState::Init, BfdState::Init)
             | (BfdState::Init, BfdState::Up) => {
                 self.state = BfdState::Up;
-                Some(BfdControlPacket::build_control(
-                    self.state,
-                    self.local_discriminator,
-                    self.remote_discriminator,
-                    self.tx_interval_us,
-                ))
+                true
             }
             (BfdState::Init | BfdState::Up, BfdState::AdminDown)
             | (BfdState::Up, BfdState::Down) => {
                 self.state = BfdState::Down;
-                None
+                false
             }
-            _ => None,
+            _ => false,
+        };
+
+        if state_changed || pkt.poll {
+            let mut response = BfdControlPacket::build_control(
+                self.state,
+                self.local_discriminator,
+                self.remote_discriminator,
+                self.tx_interval_us,
+            );
+            response.r#final = pkt.poll;
+            Some(response)
+        } else {
+            None
         }
     }
 }
@@ -298,18 +301,41 @@ mod tests {
         let mut session = BfdSession::new(0x1001, 100_000);
         assert_eq!(session.state, BfdState::Down);
 
-        // Remote sends Down packet -> Local transitions to Init
         let incoming_down = BfdControlPacket::build_control(BfdState::Down, 0x2002, 0, 100_000);
         let resp = session.process_packet(&incoming_down).unwrap();
         assert_eq!(session.state, BfdState::Init);
         assert_eq!(resp.state, BfdState::Init);
 
-        // Remote sends Init/Up packet -> Local transitions to Up
         let incoming_init =
             BfdControlPacket::build_control(BfdState::Init, 0x2002, 0x1001, 100_000);
         let resp2 = session.process_packet(&incoming_init).unwrap();
         assert_eq!(session.state, BfdState::Up);
         assert_eq!(resp2.state, BfdState::Up);
+    }
+
+    #[test]
+    fn test_bfd_poll_request_gets_final_response_without_state_change() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.state = BfdState::Up;
+        session.remote_discriminator = 0x2002;
+
+        let mut incoming = BfdControlPacket::build_control(
+            BfdState::Up,
+            session.remote_discriminator,
+            session.local_discriminator,
+            100_000,
+        );
+        incoming.poll = true;
+
+        let response = session
+            .process_packet(&incoming)
+            .expect("Poll request must receive a Final response");
+        assert_eq!(session.state, BfdState::Up);
+        assert_eq!(response.state, BfdState::Up);
+        assert!(!response.poll);
+        assert!(response.r#final);
+        assert_eq!(response.my_discriminator, session.local_discriminator);
+        assert_eq!(response.your_discriminator, incoming.my_discriminator);
     }
 
     #[test]
@@ -343,6 +369,7 @@ mod tests {
         assert_eq!(session.state, BfdState::Down);
         assert_eq!(session.remote_discriminator, 0x3003);
     }
+
     #[test]
     fn test_bfd_up_transitions_down_when_remote_signals_down() {
         let mut session = BfdSession::new(0x1001, 100_000);
