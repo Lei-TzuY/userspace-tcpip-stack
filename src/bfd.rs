@@ -256,6 +256,9 @@ impl BfdSession {
         {
             return None;
         }
+        if self.state == BfdState::AdminDown {
+            return None;
+        }
 
         self.remote_discriminator = pkt.my_discriminator;
 
@@ -455,5 +458,23 @@ mod tests {
         assert!(session.process_packet(&incoming).is_none());
         assert_eq!(session.state, BfdState::Down);
         assert_eq!(session.remote_discriminator, 0x3003);
+    }
+
+    #[test]
+    fn test_bfd_admin_down_session_discards_control_packet_without_mutation() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.state = BfdState::AdminDown;
+        session.remote_discriminator = 0x2002;
+        let mut incoming = BfdControlPacket::build_control(
+            BfdState::Down,
+            0x3003,
+            session.local_discriminator,
+            100_000,
+        );
+        incoming.poll = true;
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::AdminDown);
+        assert_eq!(session.remote_discriminator, 0x2002);
     }
 }
