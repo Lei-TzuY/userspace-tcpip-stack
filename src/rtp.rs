@@ -287,7 +287,11 @@ impl RtcpSenderReport {
     }
 
     pub fn parse(data: &[u8]) -> Option<Self> {
-        if data.len() < 28 || data[1] != RTCP_PT_SR || u16::from_be_bytes([data[2], data[3]]) != 6 {
+        if data.len() < 28
+            || data[0] >> 6 != 2
+            || data[1] != RTCP_PT_SR
+            || u16::from_be_bytes([data[2], data[3]]) != 6
+        {
             return None;
         }
 
@@ -421,6 +425,15 @@ mod tests {
         let sr = RtcpSenderReport::build(0x11223344, 0xE584123400000000, 160000, 50, 8000);
         let mut raw = sr.serialize();
         raw[2..4].copy_from_slice(&5u16.to_be_bytes());
+
+        assert_eq!(RtcpSenderReport::parse(&raw), None);
+    }
+
+    #[test]
+    fn test_rtcp_sender_report_rejects_invalid_version() {
+        let sr = RtcpSenderReport::build(0x11223344, 0xE584123400000000, 160000, 50, 8000);
+        let mut raw = sr.serialize();
+        raw[0] = (1 << 6) | (raw[0] & 0x3F);
 
         assert_eq!(RtcpSenderReport::parse(&raw), None);
     }
