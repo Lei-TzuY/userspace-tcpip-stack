@@ -260,6 +260,7 @@ impl BfdSession {
             || pkt.detect_mult == 0
             || (pkt.poll && pkt.r#final)
             || pkt.auth
+            || pkt.multipoint
         {
             return None;
         }
@@ -473,6 +474,18 @@ mod tests {
         session.remote_discriminator = 0x2002;
         let mut incoming = BfdControlPacket::build_control(BfdState::Down, 0x3003, 0, 100_000);
         incoming.auth = true;
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0x2002);
+    }
+
+    #[test]
+    fn test_bfd_session_rejects_multipoint_without_mutation() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.remote_discriminator = 0x2002;
+        let mut incoming = BfdControlPacket::build_control(BfdState::Down, 0x3003, 0, 100_000);
+        incoming.multipoint = true;
 
         assert!(session.process_packet(&incoming).is_none());
         assert_eq!(session.state, BfdState::Down);
