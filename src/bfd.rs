@@ -256,7 +256,8 @@ impl BfdSession {
 
     /// Advances the BFD FSM upon receiving a remote BFD control packet
     pub fn process_packet(&mut self, pkt: &BfdControlPacket) -> Option<BfdControlPacket> {
-        if pkt.my_discriminator == 0
+        if pkt.version != 1
+            || pkt.my_discriminator == 0
             || pkt.detect_mult == 0
             || (pkt.poll && pkt.r#final)
             || pkt.auth
@@ -443,6 +444,18 @@ mod tests {
         assert!(session.process_packet(&incoming).is_none());
         assert_eq!(session.state, BfdState::Down);
         assert_eq!(session.remote_discriminator, 0);
+    }
+
+    #[test]
+    fn test_bfd_session_rejects_invalid_version_without_mutation() {
+        let mut session = BfdSession::new(0x1001, 100_000);
+        session.remote_discriminator = 0x2002;
+        let mut incoming = BfdControlPacket::build_control(BfdState::Down, 0x3003, 0, 100_000);
+        incoming.version = 0;
+
+        assert!(session.process_packet(&incoming).is_none());
+        assert_eq!(session.state, BfdState::Down);
+        assert_eq!(session.remote_discriminator, 0x2002);
     }
 
     #[test]
