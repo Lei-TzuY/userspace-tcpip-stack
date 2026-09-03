@@ -149,7 +149,7 @@ impl BfdAuthHeader {
                 Some(BfdAuthHeader::SimplePassword { key_id, password })
             }
             BFD_AUTH_SIMPLE_PASSWORD => None,
-            BFD_AUTH_KEYED_MD5 | BFD_AUTH_METICULOUS_KEYED_MD5 if auth_len >= 24 => {
+            BFD_AUTH_KEYED_MD5 | BFD_AUTH_METICULOUS_KEYED_MD5 if auth_len == 24 => {
                 let sequence_number = u32::from_be_bytes(data[4..8].try_into().ok()?);
                 let mut auth_key_hash = [0u8; 16];
                 auth_key_hash.copy_from_slice(&data[8..24]);
@@ -160,7 +160,8 @@ impl BfdAuthHeader {
                     auth_key_hash,
                 })
             }
-            BFD_AUTH_KEYED_SHA1 | BFD_AUTH_METICULOUS_KEYED_SHA1 if auth_len >= 28 => {
+            BFD_AUTH_KEYED_MD5 | BFD_AUTH_METICULOUS_KEYED_MD5 => None,
+            BFD_AUTH_KEYED_SHA1 | BFD_AUTH_METICULOUS_KEYED_SHA1 if auth_len == 28 => {
                 let sequence_number = u32::from_be_bytes(data[4..8].try_into().ok()?);
                 let mut auth_key_hash = [0u8; 20];
                 auth_key_hash.copy_from_slice(&data[8..28]);
@@ -171,6 +172,7 @@ impl BfdAuthHeader {
                     auth_key_hash,
                 })
             }
+            BFD_AUTH_KEYED_SHA1 | BFD_AUTH_METICULOUS_KEYED_SHA1 => None,
             _ => {
                 let raw_data = data[3..auth_len].to_vec();
                 Some(BfdAuthHeader::Raw {
@@ -607,6 +609,26 @@ mod tests {
             BfdAuthHeader::parse(&[BFD_AUTH_SIMPLE_PASSWORD, 3, 7]),
             None
         );
+    }
+
+    #[test]
+    fn test_bfd_keyed_md5_rejects_noncanonical_auth_length() {
+        let mut auth = vec![BFD_AUTH_KEYED_MD5, 25, 7, 0];
+        auth.extend_from_slice(&0x01020304u32.to_be_bytes());
+        auth.extend_from_slice(&[0xAA; 16]);
+        auth.push(0);
+
+        assert_eq!(BfdAuthHeader::parse(&auth), None);
+    }
+
+    #[test]
+    fn test_bfd_keyed_sha1_rejects_noncanonical_auth_length() {
+        let mut auth = vec![BFD_AUTH_KEYED_SHA1, 29, 7, 0];
+        auth.extend_from_slice(&0x01020304u32.to_be_bytes());
+        auth.extend_from_slice(&[0xAA; 20]);
+        auth.push(0);
+
+        assert_eq!(BfdAuthHeader::parse(&auth), None);
     }
 
     #[test]
