@@ -53,18 +53,39 @@ fn test_oran_bfp_9bit_compression_and_decompression_happy_path() {
 #[test]
 fn test_oran_bfp_14bit_high_fidelity() {
     let original: Vec<ComplexIq> = vec![
-        ComplexIq { i: 12345, q: -23456 },
-        ComplexIq { i: -30000, q: 31000 },
+        ComplexIq {
+            i: 12345,
+            q: -23456,
+        },
+        ComplexIq {
+            i: -30000,
+            q: 31000,
+        },
         ComplexIq { i: 500, q: -1200 },
         ComplexIq { i: 18000, q: 19500 },
-        ComplexIq { i: -14200, q: -15600 },
+        ComplexIq {
+            i: -14200,
+            q: -15600,
+        },
         ComplexIq { i: 8900, q: -9200 },
-        ComplexIq { i: -22000, q: 21000 },
+        ComplexIq {
+            i: -22000,
+            q: 21000,
+        },
         ComplexIq { i: 11000, q: -4000 },
         ComplexIq { i: -7000, q: 6000 },
-        ComplexIq { i: 26000, q: -25000 },
-        ComplexIq { i: -17500, q: 18500 },
-        ComplexIq { i: 32000, q: -31500 },
+        ComplexIq {
+            i: 26000,
+            q: -25000,
+        },
+        ComplexIq {
+            i: -17500,
+            q: 18500,
+        },
+        ComplexIq {
+            i: 32000,
+            q: -31500,
+        },
     ];
 
     let compressed = OranBfpEngine::compress_prb(1, &original, 14).unwrap();
@@ -106,8 +127,14 @@ fn test_oran_bfp_zero_iq_samples() {
 #[test]
 fn test_oran_bfp_large_dynamic_range_clamping() {
     let mut extreme = vec![ComplexIq::default(); 12];
-    extreme[0] = ComplexIq { i: 32767, q: -32768 };
-    extreme[11] = ComplexIq { i: -32768, q: 32767 };
+    extreme[0] = ComplexIq {
+        i: 32767,
+        q: -32768,
+    };
+    extreme[11] = ComplexIq {
+        i: -32768,
+        q: 32767,
+    };
 
     let compressed = OranBfpEngine::compress_prb(3, &extreme, 12).unwrap();
     let decompressed = OranBfpEngine::decompress_prb(&compressed).unwrap();

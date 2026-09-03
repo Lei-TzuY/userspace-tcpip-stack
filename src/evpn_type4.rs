@@ -34,11 +34,7 @@ pub struct EvpnType4Route {
 }
 
 impl EvpnType4Route {
-    pub fn new(
-        rd: [u8; 8],
-        esi: EthernetSegmentId,
-        originating_ip: Ipv4Address,
-    ) -> Self {
+    pub fn new(rd: [u8; 8], esi: EthernetSegmentId, originating_ip: Ipv4Address) -> Self {
         EvpnType4Route {
             route_distinguisher: rd,
             esi,

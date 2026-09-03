@@ -52,5 +52,8 @@ fn test_tsn_cqf_jitter_bound_lifecycle() {
 
     // Evaluate violating SLA: Max 300 µs delay (< 316 µs)
     let violation = engine.evaluate_stream_sla(300_000, 200_000);
-    assert!(matches!(violation, SlaComplianceResult::LatencyViolation { .. }));
+    assert!(matches!(
+        violation,
+        SlaComplianceResult::LatencyViolation { .. }
+    ));
 }

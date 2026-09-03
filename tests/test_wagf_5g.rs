@@ -34,7 +34,8 @@ fn test_wagf_session_establishment_and_n3_encapsulation_happy_path() {
 
     // Step 3: PDU Session established for Fixed VoIP (CoS = 6 -> 5QI = 1)
     let upf_teid = 0xABCDEF01;
-    wagf.complete_pdu_session_setup(&sess_id, upf_teid, 6).unwrap();
+    wagf.complete_pdu_session_setup(&sess_id, upf_teid, 6)
+        .unwrap();
     let pdu_sess = wagf.sessions.get(&sess_id).unwrap();
     assert_eq!(pdu_sess.state, WirelineSessionState::PduActive);
     assert_eq!(pdu_sess.active_5qi, 1);
@@ -42,7 +43,9 @@ fn test_wagf_session_establishment_and_n3_encapsulation_happy_path() {
 
     // Step 4: Encapsulate Fixed Voice Frame into N3 GTP-U
     let voice_packet = b"RTP Voice Data Payload";
-    let gtp_frame = wagf.encapsulate_fixed_to_n3(&sess_id, voice_packet).unwrap();
+    let gtp_frame = wagf
+        .encapsulate_fixed_to_n3(&sess_id, voice_packet)
+        .unwrap();
 
     assert_eq!(gtp_frame[0], 0x30); // GTP-U v1
     assert_eq!(gtp_frame[1], 0xFF); // G-PDU

@@ -1,8 +1,8 @@
 use toy_tcpip::ethernet::MacAddress;
 use toy_tcpip::flowspec_l2::{
-    FlowspecL2Action, FlowspecL2Decision, FlowspecL2Engine, FlowspecL2Match, FlowspecL2Rule,
     FLOWSPEC_L2_TYPE_DST_MAC, FLOWSPEC_L2_TYPE_ETHERTYPE, FLOWSPEC_L2_TYPE_PCP,
-    FLOWSPEC_L2_TYPE_SRC_MAC, FLOWSPEC_L2_TYPE_VLAN_ID,
+    FLOWSPEC_L2_TYPE_SRC_MAC, FLOWSPEC_L2_TYPE_VLAN_ID, FlowspecL2Action, FlowspecL2Decision,
+    FlowspecL2Engine, FlowspecL2Match, FlowspecL2Rule,
 };
 
 #[test]
@@ -42,7 +42,7 @@ fn test_flowspec_l2_qinq_and_rate_limiting() {
     qinq_frame.extend_from_slice(&300u16.to_be_bytes()); // VLAN 300
     // Inner C-TAG
     qinq_frame.extend_from_slice(&[0x81, 0x00]);
-    qinq_frame.extend_from_slice(&20u16.to_be_bytes());  // VLAN 20
+    qinq_frame.extend_from_slice(&20u16.to_be_bytes()); // VLAN 20
     // EtherType IPv4
     qinq_frame.extend_from_slice(&[0x08, 0x00]);
     qinq_frame.extend_from_slice(b"PAYLOAD_DATA");

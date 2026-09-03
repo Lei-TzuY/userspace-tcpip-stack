@@ -317,7 +317,10 @@ impl MupRib {
 
     pub fn add_type1_route(&mut self, route: MupType1InterworkRoute) {
         if let Some(pos) = self.type1_routes.iter().position(|r| {
-            r.rd == route.rd && r.prefix == route.prefix && r.prefix_len == route.prefix_len && r.teid == route.teid
+            r.rd == route.rd
+                && r.prefix == route.prefix
+                && r.prefix_len == route.prefix_len
+                && r.teid == route.teid
         }) {
             self.type1_routes[pos] = route;
         } else {
@@ -347,7 +350,9 @@ impl MupRib {
 
     pub fn add_type4_route(&mut self, route: MupType4SessionRoute) {
         if let Some(pos) = self.type4_routes.iter().position(|r| {
-            r.rd == route.rd && r.endpoint_addr == route.endpoint_addr && r.pdu_session_id == route.pdu_session_id
+            r.rd == route.rd
+                && r.endpoint_addr == route.endpoint_addr
+                && r.pdu_session_id == route.pdu_session_id
         }) {
             self.type4_routes[pos] = route;
         } else {
@@ -355,7 +360,11 @@ impl MupRib {
         }
     }
 
-    pub fn resolve_ue_sid(&self, rd: &RouteDistinguisher, ue_ip: &Ipv4Address) -> Option<&Ipv6Address> {
+    pub fn resolve_ue_sid(
+        &self,
+        rd: &RouteDistinguisher,
+        ue_ip: &Ipv4Address,
+    ) -> Option<&Ipv6Address> {
         let mut best_match: Option<&MupType2DirectRoute> = None;
         let mut max_prefix_len = 0;
 
@@ -378,7 +387,11 @@ impl MupRib {
             .map(|r| &r.srv6_sid)
     }
 
-    pub fn resolve_session_sid(&self, rd: &RouteDistinguisher, pdu_session_id: u32) -> Option<&Ipv6Address> {
+    pub fn resolve_session_sid(
+        &self,
+        rd: &RouteDistinguisher,
+        pdu_session_id: u32,
+    ) -> Option<&Ipv6Address> {
         self.type4_routes
             .iter()
             .find(|r| r.rd == *rd && r.pdu_session_id == pdu_session_id)
@@ -396,9 +409,7 @@ mod tests {
             admin: 65000,
             assigned: 1,
         };
-        let sid = Ipv6Address([
-            0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x01,
-        ]);
+        let sid = Ipv6Address([0xfd, 0x00, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x01]);
         let t1 = MupType1InterworkRoute::new(
             rd.clone(),
             Ipv4Address::new(10, 0, 0, 0),

@@ -52,7 +52,8 @@ fn test_mcx_emergency_preemption() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: false,
         ambient_listening_allowed: false,
-    }).unwrap();
+    })
+    .unwrap();
 
     mcx.provision_user_profile(McxUserProfile {
         mcx_id: chief.to_string(),
@@ -60,10 +61,12 @@ fn test_mcx_emergency_preemption() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: true,
         ambient_listening_allowed: true,
-    }).unwrap();
+    })
+    .unwrap();
 
     let group = "sip:tactical-response@police.gov";
-    mcx.create_group(group, 5, 65, vec![officer, chief]).unwrap();
+    mcx.create_group(group, 5, 65, vec![officer, chief])
+        .unwrap();
 
     // Officer talks in routine mode
     let res1 = mcx.request_floor(group, officer, false).unwrap();
@@ -80,7 +83,11 @@ fn test_mcx_emergency_preemption() {
 
     // Active floor is now held by Chief
     match &mcx.groups.get(group).unwrap().floor_state {
-        FloorState::Granted { holder_mcx_id, is_emergency, .. } => {
+        FloorState::Granted {
+            holder_mcx_id,
+            is_emergency,
+            ..
+        } => {
             assert_eq!(holder_mcx_id, chief);
             assert_eq!(*is_emergency, true);
         }
@@ -105,7 +112,8 @@ fn test_mcx_floor_denied_busy_when_lower_priority() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: true,
         ambient_listening_allowed: true,
-    }).unwrap();
+    })
+    .unwrap();
 
     mcx.provision_user_profile(McxUserProfile {
         mcx_id: officer.to_string(),
@@ -113,10 +121,12 @@ fn test_mcx_floor_denied_busy_when_lower_priority() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: true,
         ambient_listening_allowed: false,
-    }).unwrap();
+    })
+    .unwrap();
 
     let group = "sip:ops@police.gov";
-    mcx.create_group(group, 5, 65, vec![chief, officer]).unwrap();
+    mcx.create_group(group, 5, 65, vec![chief, officer])
+        .unwrap();
 
     // Chief holds the floor
     mcx.request_floor(group, chief, false).unwrap();
@@ -146,7 +156,8 @@ fn test_mcx_unauthorized_emergency_call_rejection() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: false, // Not permitted for emergency
         ambient_listening_allowed: false,
-    }).unwrap();
+    })
+    .unwrap();
 
     let group = "sip:training@police.gov";
     mcx.create_group(group, 10, 65, vec![cadet]).unwrap();
@@ -170,10 +181,12 @@ fn test_mcx_non_member_and_invalid_priority_handling() {
         allowed_services: vec![McxServiceType::Mcptt],
         emergency_call_capable: true,
         ambient_listening_allowed: false,
-    }).unwrap();
+    })
+    .unwrap();
 
     let group = "sip:restricted@police.gov";
-    mcx.create_group(group, 5, 65, vec!["sip:allowed@police.gov"]).unwrap();
+    mcx.create_group(group, 5, 65, vec!["sip:allowed@police.gov"])
+        .unwrap();
 
     // Outsider is not a member of restricted group
     let err1 = mcx.request_floor(group, outsider, false);

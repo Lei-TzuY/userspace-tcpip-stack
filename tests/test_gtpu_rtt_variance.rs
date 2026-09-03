@@ -1,5 +1,5 @@
 use toy_tcpip::gtpu_rtt_variance::{
-    AsymmetryVerdict, GtpuRttVarianceEngine, DEFAULT_GRANULARITY_US, MIN_RTO_US,
+    AsymmetryVerdict, DEFAULT_GRANULARITY_US, GtpuRttVarianceEngine, MIN_RTO_US,
 };
 
 #[test]

@@ -119,7 +119,9 @@ impl TsnCqfRingAlignEngine {
 
     /// Calculate max cycle latency across dual rings.
     pub fn max_ring_delay(&self) -> u32 {
-        self.ring0_config.cycle_delay.max(self.ring1_config.cycle_delay)
+        self.ring0_config
+            .cycle_delay
+            .max(self.ring1_config.cycle_delay)
     }
 
     /// Ingest a frame from one of the dual rings at the given current cycle.
@@ -212,7 +214,8 @@ impl TsnCqfRingAlignEngine {
             let target_cycle = self.held_frames[i].origin_tx_cycle + max_delay;
             if current_cycle >= target_cycle {
                 let frame = self.held_frames.remove(i);
-                self.released_sequences.push((frame.stream_id, frame.sequence_num));
+                self.released_sequences
+                    .push((frame.stream_id, frame.sequence_num));
                 self.total_single_ring_frames += 1;
                 expired.push(frame);
             } else {

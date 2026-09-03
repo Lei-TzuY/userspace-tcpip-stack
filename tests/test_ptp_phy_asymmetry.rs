@@ -1,6 +1,4 @@
-use toy_tcpip::ptp_phy_asymmetry::{
-    PortPhyCalibration, PtpFourTimestamps, PtpPhyAsymmetryEngine,
-};
+use toy_tcpip::ptp_phy_asymmetry::{PortPhyCalibration, PtpFourTimestamps, PtpPhyAsymmetryEngine};
 
 #[test]
 fn test_ptp_phy_asymmetry_subnanosecond_compensation() {

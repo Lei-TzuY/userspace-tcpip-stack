@@ -79,7 +79,7 @@ fn test_pcrf_rx_engine_admission_and_qci_authorization() {
 #[test]
 fn test_diameter_rx_rar_raa_wire_codec() {
     use toy_tcpip::diameter_rx::{
-        ReAuthAnswer, ReAuthRequest, DIAMETER_CMD_RE_AUTH,
+        DIAMETER_CMD_RE_AUTH, ReAuthAnswer, ReAuthRequest,
         SPECIFIC_ACTION_INDICATION_OF_LOSS_OF_BEARER,
     };
 
@@ -118,7 +118,10 @@ fn test_diameter_rx_rar_raa_bearer_loss_and_release_lifecycle() {
     };
 
     let mut pcrf = PcrfRxEngine::new(5_000_000);
-    let mut pcscf = PcscfRxClient::new("pcscf.ims.mnc001.mcc310.3gppnetwork.org", "ims.mnc001.mcc310.3gppnetwork.org");
+    let mut pcscf = PcscfRxClient::new(
+        "pcscf.ims.mnc001.mcc310.3gppnetwork.org",
+        "ims.mnc001.mcc310.3gppnetwork.org",
+    );
 
     let sess_id = "ims-voice-session-42";
     pcscf.register_session(sess_id, "VoLTE-Voice");
@@ -134,14 +137,16 @@ fn test_diameter_rx_rar_raa_bearer_loss_and_release_lifecycle() {
     assert_eq!(aaa.get_avp(268).unwrap().as_u32().unwrap(), 2001);
 
     // 1. Radio bearer is temporarily lost -> PCRF sends RAR (Loss of Bearer)
-    let rar_loss = pcrf.generate_rar(
-        sess_id,
-        SPECIFIC_ACTION_INDICATION_OF_LOSS_OF_BEARER,
-        "pcrf.epc.mnc001.mcc310.3gppnetwork.org",
-        "epc.mnc001.mcc310.3gppnetwork.org",
-        &pcscf.local_host,
-        &pcscf.local_realm,
-    ).expect("generate RAR");
+    let rar_loss = pcrf
+        .generate_rar(
+            sess_id,
+            SPECIFIC_ACTION_INDICATION_OF_LOSS_OF_BEARER,
+            "pcrf.epc.mnc001.mcc310.3gppnetwork.org",
+            "epc.mnc001.mcc310.3gppnetwork.org",
+            &pcscf.local_host,
+            &pcscf.local_realm,
+        )
+        .expect("generate RAR");
 
     let raa = pcscf.handle_rar(&rar_loss);
     assert_eq!(raa.result_code, 2001);
@@ -153,14 +158,16 @@ fn test_diameter_rx_rar_raa_bearer_loss_and_release_lifecycle() {
     assert!(ok);
 
     // 2. Radio bearer cannot recover and is released -> PCRF sends RAR (Release of Bearer)
-    let rar_release = pcrf.generate_rar(
-        sess_id,
-        SPECIFIC_ACTION_INDICATION_OF_RELEASE_OF_BEARER,
-        "pcrf.epc.mnc001.mcc310.3gppnetwork.org",
-        "epc.mnc001.mcc310.3gppnetwork.org",
-        &pcscf.local_host,
-        &pcscf.local_realm,
-    ).expect("generate RAR");
+    let rar_release = pcrf
+        .generate_rar(
+            sess_id,
+            SPECIFIC_ACTION_INDICATION_OF_RELEASE_OF_BEARER,
+            "pcrf.epc.mnc001.mcc310.3gppnetwork.org",
+            "epc.mnc001.mcc310.3gppnetwork.org",
+            &pcscf.local_host,
+            &pcscf.local_realm,
+        )
+        .expect("generate RAR");
 
     let raa2 = pcscf.handle_rar(&rar_release);
     assert_eq!(raa2.result_code, 2001);
@@ -172,7 +179,7 @@ fn test_diameter_rx_rar_raa_bearer_loss_and_release_lifecycle() {
 #[test]
 fn test_diameter_rx_asr_asa_wire_codec() {
     use toy_tcpip::diameter_rx::{
-        AbortSessionAnswer, AbortSessionRequest, ABORT_CAUSE_INSUFFICIENT_SERVER_RESOURCES,
+        ABORT_CAUSE_INSUFFICIENT_SERVER_RESOURCES, AbortSessionAnswer, AbortSessionRequest,
         DIAMETER_CMD_ABORT_SESSION,
     };
 
@@ -204,8 +211,8 @@ fn test_diameter_rx_asr_asa_wire_codec() {
 #[test]
 fn test_diameter_rx_asr_asa_session_abort_lifecycle() {
     use toy_tcpip::diameter_rx::{
-        AaRequest, MediaComponentDescription, MediaType, PcrfRxEngine, PcscfRxClient,
-        ABORT_CAUSE_INSUFFICIENT_SERVER_RESOURCES,
+        ABORT_CAUSE_INSUFFICIENT_SERVER_RESOURCES, AaRequest, MediaComponentDescription, MediaType,
+        PcrfRxEngine, PcscfRxClient,
     };
 
     let mut pcrf = PcrfRxEngine::new(10_000_000);

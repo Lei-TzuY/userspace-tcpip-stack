@@ -11,9 +11,7 @@ fn test_redcap_smartwatch_attachment_and_initial_bwp_allocation_happy_path() {
     let mut redcap = RedCapEngine::new("gnb-shibuya-01");
 
     // Configure Cell 1: 100 MHz wideband carrier with 20 MHz RedCap Initial BWP
-    redcap
-        .configure_cell(1001, 100, true, true, 20, 0)
-        .unwrap();
+    redcap.configure_cell(1001, 100, true, true, 20, 0).unwrap();
 
     let smartwatch_cap = RedCapCapability {
         device_type: RedCapDeviceType::Wearable,
@@ -70,9 +68,7 @@ fn test_redcap_cell_access_barring() {
 fn test_redcap_power_saving_edrx_and_rrm_relaxation() {
     let mut redcap = RedCapEngine::new("gnb-factory-03");
 
-    redcap
-        .configure_cell(3001, 50, true, true, 10, 0)
-        .unwrap();
+    redcap.configure_cell(3001, 50, true, true, 10, 0).unwrap();
 
     let sensor_cap = RedCapCapability {
         device_type: RedCapDeviceType::IndustrialSensor,
@@ -85,7 +81,9 @@ fn test_redcap_power_saving_edrx_and_rrm_relaxation() {
     };
 
     let ue_id = "ue-vibration-sensor-agv";
-    redcap.handle_random_access(3001, ue_id, sensor_cap).unwrap();
+    redcap
+        .handle_random_access(3001, ue_id, sensor_cap)
+        .unwrap();
 
     // Enable 60-second eDRX cycle and stationary RRM relaxation
     redcap
@@ -105,9 +103,7 @@ fn test_redcap_power_saving_edrx_and_rrm_relaxation() {
 fn test_redcap_excessive_bandwidth_rejection() {
     let mut redcap = RedCapEngine::new("gnb-cctv-04");
 
-    redcap
-        .configure_cell(4001, 100, true, true, 20, 0)
-        .unwrap();
+    redcap.configure_cell(4001, 100, true, true, 20, 0).unwrap();
 
     // Device falsely claims RedCap but requests 50 MHz (> 20 MHz FR1 limit)
     let invalid_cap = RedCapCapability {
@@ -140,9 +136,7 @@ fn test_redcap_disconnect_and_cell_errors() {
     assert_eq!(err_bwp, Err(RedCapError::InvalidInitialBwp { bwp_mhz: 40 }));
 
     // Valid cell
-    redcap
-        .configure_cell(5001, 100, true, true, 20, 0)
-        .unwrap();
+    redcap.configure_cell(5001, 100, true, true, 20, 0).unwrap();
 
     let cap = RedCapCapability {
         device_type: RedCapDeviceType::Wearable,

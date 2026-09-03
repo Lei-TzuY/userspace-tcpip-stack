@@ -46,19 +46,11 @@ pub struct ReanchorFlowRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ReanchorAction {
     /// Forward packet over currently active leg with assigned sequence number.
-    ForwardOnLeg {
-        leg_id: u32,
-        assigned_seq: u32,
-    },
+    ForwardOnLeg { leg_id: u32, assigned_seq: u32 },
     /// Inject End Marker on source leg to terminate transmission on that path.
-    SendEndMarker {
-        source_leg_id: u32,
-        final_seq: u32,
-    },
+    SendEndMarker { source_leg_id: u32, final_seq: u32 },
     /// Packet buffered temporarily during path switch.
-    BufferPendingDrain {
-        target_leg_id: u32,
-    },
+    BufferPendingDrain { target_leg_id: u32 },
 }
 
 /// 5G GTP-U Flow Re-Anchoring Engine.
@@ -101,7 +93,11 @@ impl GtpuFlowReanchorEngine {
     }
 
     /// Initiate mid-session migration of a flow to a target access leg.
-    pub fn trigger_migration(&mut self, flow_id: u32, target_leg_id: u32) -> Option<ReanchorAction> {
+    pub fn trigger_migration(
+        &mut self,
+        flow_id: u32,
+        target_leg_id: u32,
+    ) -> Option<ReanchorAction> {
         if let Some(flow) = self.flows.iter_mut().find(|f| f.flow_id == flow_id) {
             flow.target_leg_id = Some(target_leg_id);
             flow.frozen_seq_num = Some(flow.next_seq_num);
@@ -150,12 +146,10 @@ impl GtpuFlowReanchorEngine {
                         assigned_seq: seq,
                     })
                 }
-                FlowMigrationState::DrainingSource => {
-                    Some(ReanchorAction::ForwardOnLeg {
-                        leg_id: flow.current_leg_id,
-                        assigned_seq: seq,
-                    })
-                }
+                FlowMigrationState::DrainingSource => Some(ReanchorAction::ForwardOnLeg {
+                    leg_id: flow.current_leg_id,
+                    assigned_seq: seq,
+                }),
                 FlowMigrationState::EndMarkerSent => {
                     // Forward directly on target leg with uninterrupted sequence
                     let target = flow.target_leg_id.unwrap_or(flow.current_leg_id);
@@ -184,10 +178,22 @@ mod tests {
 
         // 2. Dispatch 2 normal packets on Leg 1
         let a1 = engine.dispatch_packet(100);
-        assert_eq!(a1, Some(ReanchorAction::ForwardOnLeg { leg_id: 1, assigned_seq: 1000 }));
+        assert_eq!(
+            a1,
+            Some(ReanchorAction::ForwardOnLeg {
+                leg_id: 1,
+                assigned_seq: 1000
+            })
+        );
 
         let a2 = engine.dispatch_packet(100);
-        assert_eq!(a2, Some(ReanchorAction::ForwardOnLeg { leg_id: 1, assigned_seq: 1001 }));
+        assert_eq!(
+            a2,
+            Some(ReanchorAction::ForwardOnLeg {
+                leg_id: 1,
+                assigned_seq: 1001
+            })
+        );
 
         // 3. Trigger live migration from Leg 1 to Leg 2 (5G NR)
         let m_act = engine.trigger_migration(100, 2);
@@ -202,13 +208,25 @@ mod tests {
 
         // 4. Next packet is seamlessly steered to Leg 2 with continuous sequence 1002
         let a3 = engine.dispatch_packet(100);
-        assert_eq!(a3, Some(ReanchorAction::ForwardOnLeg { leg_id: 2, assigned_seq: 1002 }));
+        assert_eq!(
+            a3,
+            Some(ReanchorAction::ForwardOnLeg {
+                leg_id: 2,
+                assigned_seq: 1002
+            })
+        );
 
         // 5. Complete migration
         assert!(engine.complete_migration(100));
         assert_eq!(engine.total_migrations_completed, 1);
 
         let a4 = engine.dispatch_packet(100);
-        assert_eq!(a4, Some(ReanchorAction::ForwardOnLeg { leg_id: 2, assigned_seq: 1003 }));
+        assert_eq!(
+            a4,
+            Some(ReanchorAction::ForwardOnLeg {
+                leg_id: 2,
+                assigned_seq: 1003
+            })
+        );
     }
 }

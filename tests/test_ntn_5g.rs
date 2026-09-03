@@ -143,7 +143,10 @@ fn test_ntn_handover_evaluation_elevation_threshold() {
 
     let status2 = ntn.evaluate_handover("sat-low", &ue, 15.0).unwrap();
     match status2 {
-        NtnHandoverStatus::HandoverRequired { elevation_deg, min_threshold_deg } => {
+        NtnHandoverStatus::HandoverRequired {
+            elevation_deg,
+            min_threshold_deg,
+        } => {
             assert!(elevation_deg < min_threshold_deg);
         }
         _ => panic!("Expected HandoverRequired"),

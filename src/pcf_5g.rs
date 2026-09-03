@@ -315,7 +315,10 @@ impl PcfEngine {
         let mut modified = Vec::new();
 
         // If usage threshold reached (> 100 MB), throttle best-effort rule gate
-        if req.triggers.contains(&PolicyEventTrigger::UsageReportThresholdReached) {
+        if req
+            .triggers
+            .contains(&PolicyEventTrigger::UsageReportThresholdReached)
+        {
             for rule in &mut assoc.pcc_rules {
                 if rule.five_qi == 9 {
                     rule.mbr_dl_kbps = Some(1_000); // Throttled to 1 Mbps
@@ -350,10 +353,10 @@ impl PcfEngine {
             .ok_or("Active PDU session policy association not found for subscriber")?;
 
         let (five_qi, qfi, precedence) = match req.media_type {
-            AfMediaType::Audio => (1, 1, 10),              // 5QI=1 (GBR Conversational Voice)
-            AfMediaType::Video => (2, 2, 20),              // 5QI=2 (GBR Conversational Video)
-            AfMediaType::Gaming => (3, 3, 30),             // 5QI=3 (GBR Real Time Gaming)
-            AfMediaType::MissionCritical => (65, 4, 5),    // 5QI=65 (Mission Critical User Plane)
+            AfMediaType::Audio => (1, 1, 10), // 5QI=1 (GBR Conversational Voice)
+            AfMediaType::Video => (2, 2, 20), // 5QI=2 (GBR Conversational Video)
+            AfMediaType::Gaming => (3, 3, 30), // 5QI=3 (GBR Real Time Gaming)
+            AfMediaType::MissionCritical => (65, 4, 5), // 5QI=65 (Mission Critical User Plane)
         };
 
         let rule_id = format!("pcc-dyn-{}", assoc.next_rule_id);

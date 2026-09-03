@@ -59,7 +59,11 @@ pub struct TsnCqfBurstAbsorbEngine {
 impl TsnCqfBurstAbsorbEngine {
     pub fn new(cycle_duration_ns: u64, max_cycle_queue_capacity_bytes: usize) -> Self {
         Self {
-            cycle_duration_ns: if cycle_duration_ns == 0 { 100_000 } else { cycle_duration_ns },
+            cycle_duration_ns: if cycle_duration_ns == 0 {
+                100_000
+            } else {
+                cycle_duration_ns
+            },
             max_cycle_queue_capacity_bytes,
             current_cycle_index: 0,
             cycle_queue_odd_bytes: 0,
@@ -106,8 +110,10 @@ impl TsnCqfBurstAbsorbEngine {
         if let Some(stream) = self.streams.iter_mut().find(|s| s.stream_id == stream_id) {
             if current_time_ns > stream.last_token_update_ns {
                 let elapsed_ns = current_time_ns - stream.last_token_update_ns;
-                let added_bytes = (elapsed_ns as u128 * stream.committed_rate_bps as u128 / 8_000_000_000) as usize;
-                stream.current_tokens_bytes = (stream.current_tokens_bytes + added_bytes).min(stream.peak_burst_size_bytes);
+                let added_bytes = (elapsed_ns as u128 * stream.committed_rate_bps as u128
+                    / 8_000_000_000) as usize;
+                stream.current_tokens_bytes =
+                    (stream.current_tokens_bytes + added_bytes).min(stream.peak_burst_size_bytes);
                 stream.last_token_update_ns = current_time_ns;
             }
         }
@@ -195,7 +201,9 @@ impl TsnCqfBurstAbsorbEngine {
         // Drain buffered burst frames into next transmission queue if capacity permits
         for stream in &mut self.streams {
             if stream.currently_buffered_bytes > 0 {
-                let to_drain = stream.currently_buffered_bytes.min(stream.committed_burst_size_bytes);
+                let to_drain = stream
+                    .currently_buffered_bytes
+                    .min(stream.committed_burst_size_bytes);
                 let target_queue = if (next_cycle + 1) % 2 == 0 {
                     &mut self.cycle_queue_even_bytes
                 } else {
@@ -240,15 +248,37 @@ mod tests {
 
         // Ingest conforming frame within committed burst size
         let v1 = engine.ingest_frame(1, 1500, 10_000);
-        assert!(matches!(v1, BurstAbsorbVerdict::ConformingIngress { stream_id: 1, frame_bytes: 1500, target_cycle: 1, .. }));
+        assert!(matches!(
+            v1,
+            BurstAbsorbVerdict::ConformingIngress {
+                stream_id: 1,
+                frame_bytes: 1500,
+                target_cycle: 1,
+                ..
+            }
+        ));
 
         // Ingest frame exceeding remaining tokens -> Absorbed into burst buffer
         let v2 = engine.ingest_frame(1, 1000, 15_000);
-        assert!(matches!(v2, BurstAbsorbVerdict::BurstAbsorbedBuffered { stream_id: 1, frame_bytes: 1000, .. }));
+        assert!(matches!(
+            v2,
+            BurstAbsorbVerdict::BurstAbsorbedBuffered {
+                stream_id: 1,
+                frame_bytes: 1000,
+                ..
+            }
+        ));
 
         // Ingest frame exceeding buffer capacity -> Drop
         let v3 = engine.ingest_frame(1, 3500, 20_000);
-        assert!(matches!(v3, BurstAbsorbVerdict::NonConformingBurstDrop { stream_id: 1, reason: "Burst absorption buffer overflow", .. }));
+        assert!(matches!(
+            v3,
+            BurstAbsorbVerdict::NonConformingBurstDrop {
+                stream_id: 1,
+                reason: "Burst absorption buffer overflow",
+                ..
+            }
+        ));
 
         // Cycle drain
         let drained = engine.tick_cycle_drain(1);

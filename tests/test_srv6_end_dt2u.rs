@@ -1,7 +1,7 @@
 //! Integration tests for SRv6 End.DT2U L2 EVPN Unicast Lookup (RFC 8986 §4.13)
 
 use std::net::Ipv6Addr;
-use toy_tcpip::ethernet::{EthernetFrame, MacAddress, ETHERTYPE_IPV4};
+use toy_tcpip::ethernet::{ETHERTYPE_IPV4, EthernetFrame, MacAddress};
 use toy_tcpip::srv6_end_dt2u::{
     EndDt2uResult, Srv6EndDt2uEngine, TenantAttachmentCircuit, TenantMacVrf, UnknownUnicastPolicy,
 };
@@ -25,7 +25,11 @@ fn test_srv6_end_dt2u_multi_tenant_and_flooding_policy() {
     engine.bind_sid(tenant_red_sid, vrf_red);
 
     // 2. Tenant BLUE (Policy: Flood to access circuits)
-    let mut vrf_blue = TenantMacVrf::new(20, "BLUE".to_string(), UnknownUnicastPolicy::FloodToAccessCircuits);
+    let mut vrf_blue = TenantMacVrf::new(
+        20,
+        "BLUE".to_string(),
+        UnknownUnicastPolicy::FloodToAccessCircuits,
+    );
     vrf_blue.add_ac(TenantAttachmentCircuit {
         ac_id: 201,
         port_name: "xe-0/0/2".to_string(),
@@ -42,16 +46,16 @@ fn test_srv6_end_dt2u_multi_tenant_and_flooding_policy() {
 
     // Test Known Unicast forwarding in RED
     let src_mac = MacAddress::new([0x00, 0x99, 0x99, 0x99, 0x99, 0x99]);
-    let packet = EthernetFrame::serialize(
-        red_mac1,
-        src_mac,
-        ETHERTYPE_IPV4,
-        b"RED Tenant Data",
-    );
+    let packet = EthernetFrame::serialize(red_mac1, src_mac, ETHERTYPE_IPV4, b"RED Tenant Data");
 
     let res_red = engine.process_end_dt2u(&tenant_red_sid, &packet, false);
     match res_red {
-        EndDt2uResult::ForwardedToAc { table_id, ac_id, dst_mac, .. } => {
+        EndDt2uResult::ForwardedToAc {
+            table_id,
+            ac_id,
+            dst_mac,
+            ..
+        } => {
             assert_eq!(table_id, 10);
             assert_eq!(ac_id, 101);
             assert_eq!(dst_mac, red_mac1);
@@ -70,7 +74,12 @@ fn test_srv6_end_dt2u_multi_tenant_and_flooding_policy() {
 
     let res_blue_unk = engine.process_end_dt2u(&tenant_blue_sid, &packet_blue_unk, false);
     match res_blue_unk {
-        EndDt2uResult::FloodedToAcs { table_id, mut ac_ids, dst_mac, .. } => {
+        EndDt2uResult::FloodedToAcs {
+            table_id,
+            mut ac_ids,
+            dst_mac,
+            ..
+        } => {
             assert_eq!(table_id, 20);
             assert_eq!(dst_mac, unknown_blue);
             ac_ids.sort();

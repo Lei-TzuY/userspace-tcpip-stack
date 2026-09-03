@@ -71,8 +71,8 @@ pub struct DetNetFLabelPath {
 pub struct DetNetIpMplsFlowProfile {
     pub flow_id: u32,
     pub flow_key: DetNetIpFlowKey,
-    pub s_label: u32,      // 20-bit DetNet Service Label
-    pub s_tc: u8,          // 3-bit Service TC / EXP
+    pub s_label: u32, // 20-bit DetNet Service Label
+    pub s_tc: u8,     // 3-bit Service TC / EXP
     pub f_paths: Vec<DetNetFLabelPath>,
 }
 
@@ -218,7 +218,9 @@ impl DetNetIpMplsEngine {
         // Parse label stack until S=1
         loop {
             if offset + 4 > mpls_frame.len() {
-                return DetNetIpMplsEgressResult::InvalidMplsPacket("Incomplete label stack".to_string());
+                return DetNetIpMplsEgressResult::InvalidMplsPacket(
+                    "Incomplete label stack".to_string(),
+                );
             }
             let label_raw = u32::from_be_bytes([
                 mpls_frame[offset],
@@ -240,7 +242,11 @@ impl DetNetIpMplsEngine {
                 }
                 let dcw = match DetNetMplsControlWord::parse(&mpls_frame[offset..offset + 4]) {
                     Some(cw) => cw,
-                    None => return DetNetIpMplsEgressResult::InvalidMplsPacket("Invalid d-CW (nibble != 0)".to_string()),
+                    None => {
+                        return DetNetIpMplsEgressResult::InvalidMplsPacket(
+                            "Invalid d-CW (nibble != 0)".to_string(),
+                        );
+                    }
                 };
                 offset += 4;
 
@@ -310,7 +316,9 @@ mod tests {
         });
 
         // Build sample IP packet
-        let mut ip_pkt = vec![0x45, 0xA0, 0x00, 0x20, 0, 0, 0, 0, 64, 17, 0, 0, 192, 168, 1, 10, 10, 0, 0, 50];
+        let mut ip_pkt = vec![
+            0x45, 0xA0, 0x00, 0x20, 0, 0, 0, 0, 64, 17, 0, 0, 192, 168, 1, 10, 10, 0, 0, 50,
+        ];
         // UDP ports
         ip_pkt.extend_from_slice(&8000u16.to_be_bytes());
         ip_pkt.extend_from_slice(&8000u16.to_be_bytes());
@@ -320,7 +328,11 @@ mod tests {
         // 1. Ingress Encapsulation & Replication
         let encap = engine.ingress_encap(&ip_pkt);
         let frames = match encap {
-            DetNetIpMplsIngressResult::Replicated { flow_id, seq, mpls_packets } => {
+            DetNetIpMplsIngressResult::Replicated {
+                flow_id,
+                seq,
+                mpls_packets,
+            } => {
                 assert_eq!(flow_id, 1);
                 assert_eq!(seq, 0);
                 assert_eq!(mpls_packets.len(), 2);
@@ -332,7 +344,11 @@ mod tests {
         // 2. Primary frame arrives at egress
         let decap1 = engine.egress_decap(&frames[0].1);
         match decap1 {
-            DetNetIpMplsEgressResult::AcceptedUnique { s_label, seq, ip_packet } => {
+            DetNetIpMplsEgressResult::AcceptedUnique {
+                s_label,
+                seq,
+                ip_packet,
+            } => {
                 assert_eq!(s_label, 4000);
                 assert_eq!(seq, 0);
                 assert_eq!(ip_packet, ip_pkt);
@@ -347,7 +363,10 @@ mod tests {
                 assert_eq!(s_label, 4000);
                 assert_eq!(seq, 0);
             }
-            other => panic!("Expected DuplicateDropped for backup frame, got {:?}", other),
+            other => panic!(
+                "Expected DuplicateDropped for backup frame, got {:?}",
+                other
+            ),
         }
     }
 }

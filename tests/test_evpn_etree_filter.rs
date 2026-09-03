@@ -1,8 +1,6 @@
 use toy_tcpip::ethernet::MacAddress;
 use toy_tcpip::evpn_etree::ETreeRole;
-use toy_tcpip::evpn_etree_filter::{
-    ETreeForwardVerdict, EvpnETreeFilterEngine,
-};
+use toy_tcpip::evpn_etree_filter::{ETreeForwardVerdict, EvpnETreeFilterEngine};
 
 #[test]
 fn test_evpn_etree_known_unicast_and_overlay_filtering() {
@@ -22,13 +20,8 @@ fn test_evpn_etree_known_unicast_and_overlay_filtering() {
     engine.learn_mac(vni, leaf2_mac, "port-leaf2", ETreeRole::Leaf);
 
     // 1. Leaf1 to Root -> Permitted
-    let verdict_leaf_to_root = engine.evaluate_known_unicast(
-        vni,
-        "port-leaf1",
-        200,
-        leaf1_mac,
-        root_mac,
-    );
+    let verdict_leaf_to_root =
+        engine.evaluate_known_unicast(vni, "port-leaf1", 200, leaf1_mac, root_mac);
     assert_eq!(
         verdict_leaf_to_root,
         ETreeForwardVerdict::Forward {
@@ -38,13 +31,8 @@ fn test_evpn_etree_known_unicast_and_overlay_filtering() {
     );
 
     // 2. Leaf1 to Leaf2 -> Dropped Leaf-to-Leaf
-    let verdict_leaf_to_leaf = engine.evaluate_known_unicast(
-        vni,
-        "port-leaf1",
-        200,
-        leaf1_mac,
-        leaf2_mac,
-    );
+    let verdict_leaf_to_leaf =
+        engine.evaluate_known_unicast(vni, "port-leaf1", 200, leaf1_mac, leaf2_mac);
     match verdict_leaf_to_leaf {
         ETreeForwardVerdict::DropLeafToLeaf(reason) => {
             assert!(reason.contains("port-leaf1"));
@@ -53,13 +41,8 @@ fn test_evpn_etree_known_unicast_and_overlay_filtering() {
     }
 
     // 3. Root to Leaf1 -> Permitted
-    let verdict_root_to_leaf = engine.evaluate_known_unicast(
-        vni,
-        "port-root",
-        200,
-        root_mac,
-        leaf1_mac,
-    );
+    let verdict_root_to_leaf =
+        engine.evaluate_known_unicast(vni, "port-root", 200, root_mac, leaf1_mac);
     assert_eq!(
         verdict_root_to_leaf,
         ETreeForwardVerdict::Forward {

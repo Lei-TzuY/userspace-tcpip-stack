@@ -5,7 +5,7 @@
 //! phase step adjustments, high-precision cross-timestamping (PTP_SYS_OFFSET_PRECISE) for
 //! host system clock disciplining, and hardware TX/RX event timestamping FIFO ring buffers.
 
-use crate::ptp::{PtpPacket, PtpTimestamp, PTP_MSG_DELAY_REQ, PTP_MSG_SYNC};
+use crate::ptp::{PTP_MSG_DELAY_REQ, PTP_MSG_SYNC, PtpPacket, PtpTimestamp};
 use std::collections::VecDeque;
 
 /// Sub-nanosecond scale factor (2^32 fractional units per nanosecond).
@@ -59,9 +59,8 @@ impl PtpHardwareClock {
     pub fn step_time_ns(&mut self, step_ns: i64) {
         self.total_stepped_ns += step_ns;
 
-        let total_ns = (self.seconds as i128) * 1_000_000_000
-            + (self.nanoseconds as i128)
-            + (step_ns as i128);
+        let total_ns =
+            (self.seconds as i128) * 1_000_000_000 + (self.nanoseconds as i128) + (step_ns as i128);
 
         if total_ns >= 0 {
             self.seconds = (total_ns / 1_000_000_000) as u64;

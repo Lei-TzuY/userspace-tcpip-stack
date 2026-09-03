@@ -1,6 +1,4 @@
-use toy_tcpip::tsn_cqf_ring_align::{
-    RingAlignVerdict, TsnCqfRingAlignEngine, TsnRingId,
-};
+use toy_tcpip::tsn_cqf_ring_align::{RingAlignVerdict, TsnCqfRingAlignEngine, TsnRingId};
 
 #[test]
 fn test_tsn_cqf_ring_align_lifecycle() {

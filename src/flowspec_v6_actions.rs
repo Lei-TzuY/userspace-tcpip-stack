@@ -46,7 +46,10 @@ impl FlowspecV6ActionCommunity {
                 }
                 buf[7] = flags;
             }
-            FlowspecV6ActionCommunity::RedirectRouteTarget { admin_asn, target_val } => {
+            FlowspecV6ActionCommunity::RedirectRouteTarget {
+                admin_asn,
+                target_val,
+            } => {
                 buf[1] = FS_ACTION_SUBTYPE_REDIRECT_RT;
                 buf[2..4].copy_from_slice(&admin_asn.to_be_bytes());
                 buf[4..8].copy_from_slice(&target_val.to_be_bytes());
@@ -68,7 +71,9 @@ impl FlowspecV6ActionCommunity {
             FS_ACTION_SUBTYPE_TRAFFIC_RATE => {
                 let float_bytes = [buf[4], buf[5], buf[6], buf[7]];
                 let rate = f32::from_be_bytes(float_bytes);
-                Some(FlowspecV6ActionCommunity::TrafficRate { rate_bytes_sec: rate })
+                Some(FlowspecV6ActionCommunity::TrafficRate {
+                    rate_bytes_sec: rate,
+                })
             }
             FS_ACTION_SUBTYPE_TRAFFIC_ACTION => {
                 let flags = buf[7];
@@ -80,7 +85,10 @@ impl FlowspecV6ActionCommunity {
             FS_ACTION_SUBTYPE_REDIRECT_RT => {
                 let admin_asn = u16::from_be_bytes([buf[2], buf[3]]);
                 let target_val = u32::from_be_bytes([buf[4], buf[5], buf[6], buf[7]]);
-                Some(FlowspecV6ActionCommunity::RedirectRouteTarget { admin_asn, target_val })
+                Some(FlowspecV6ActionCommunity::RedirectRouteTarget {
+                    admin_asn,
+                    target_val,
+                })
             }
             FS_ACTION_SUBTYPE_TRAFFIC_MARKING => {
                 let dscp = buf[7] & 0x3F;
@@ -207,10 +215,16 @@ impl FlowspecV6ActionEngine {
                     remarked = true;
                     final_dscp = *dscp;
                 }
-                FlowspecV6ActionCommunity::RedirectRouteTarget { admin_asn, target_val } => {
+                FlowspecV6ActionCommunity::RedirectRouteTarget {
+                    admin_asn,
+                    target_val,
+                } => {
                     redirect_target = Some((*admin_asn, *target_val));
                 }
-                FlowspecV6ActionCommunity::TrafficAction { terminal: _, sample: _ } => {}
+                FlowspecV6ActionCommunity::TrafficAction {
+                    terminal: _,
+                    sample: _,
+                } => {}
             }
         }
 
@@ -237,7 +251,9 @@ mod tests {
 
     #[test]
     fn test_flowspec_v6_action_codecs() {
-        let rate_action = FlowspecV6ActionCommunity::TrafficRate { rate_bytes_sec: 1250000.0 };
+        let rate_action = FlowspecV6ActionCommunity::TrafficRate {
+            rate_bytes_sec: 1250000.0,
+        };
         let rate_ser = rate_action.serialize();
         let rate_parsed = FlowspecV6ActionCommunity::parse(&rate_ser).unwrap();
         assert_eq!(rate_parsed, rate_action);
@@ -247,7 +263,10 @@ mod tests {
         let mark_parsed = FlowspecV6ActionCommunity::parse(&mark_ser).unwrap();
         assert_eq!(mark_parsed, mark_action);
 
-        let redir_action = FlowspecV6ActionCommunity::RedirectRouteTarget { admin_asn: 65001, target_val: 500 };
+        let redir_action = FlowspecV6ActionCommunity::RedirectRouteTarget {
+            admin_asn: 65001,
+            target_val: 500,
+        };
         let redir_ser = redir_action.serialize();
         let redir_parsed = FlowspecV6ActionCommunity::parse(&redir_ser).unwrap();
         assert_eq!(redir_parsed, redir_action);

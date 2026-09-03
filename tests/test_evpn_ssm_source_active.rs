@@ -1,7 +1,7 @@
 // tests/test_evpn_ssm_source_active.rs
 
 use toy_tcpip::evpn_ssm_source_active::{
-    EvpnSourceActiveEngine, SourceActiveVerdict, DEFAULT_SOURCE_INACTIVITY_TIMEOUT_SECS,
+    DEFAULT_SOURCE_INACTIVITY_TIMEOUT_SECS, EvpnSourceActiveEngine, SourceActiveVerdict,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 

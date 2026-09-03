@@ -191,10 +191,7 @@ impl NrfEngine {
     }
 
     /// Nnrf_NFManagement_NFDeregister: Withdraw NF from service.
-    pub fn deregister_nf(
-        &mut self,
-        nf_instance_id: &str,
-    ) -> Result<(), &'static str> {
+    pub fn deregister_nf(&mut self, nf_instance_id: &str) -> Result<(), &'static str> {
         let profile = self
             .profiles
             .get_mut(nf_instance_id)
@@ -214,7 +211,9 @@ impl NrfEngine {
         let mut expired = Vec::new();
 
         for (id, profile) in self.profiles.iter_mut() {
-            if profile.nf_status == NfStatus::Registered && current_time_s >= profile.lease_expires_at_s {
+            if profile.nf_status == NfStatus::Registered
+                && current_time_s >= profile.lease_expires_at_s
+            {
                 profile.nf_status = NfStatus::Suspended;
                 expired.push((id.clone(), profile.nf_type));
             }

@@ -56,7 +56,9 @@ pub struct DetNetRTagHeader {
 
 impl DetNetRTagHeader {
     pub fn new(seq: u16) -> Self {
-        DetNetRTagHeader { sequence_number: seq }
+        DetNetRTagHeader {
+            sequence_number: seq,
+        }
     }
 
     pub fn serialize(&self) -> [u8; 6] {
@@ -214,7 +216,9 @@ impl DetNetTsnGateway {
         // Check R-TAG (at offset 16)
         let rtag = match DetNetRTagHeader::parse(&tsn_frame[16..22]) {
             Some(r) => r,
-            None => return DetNetTsnForwardResult::InvalidFrame("Missing or invalid R-TAG".to_string()),
+            None => {
+                return DetNetTsnForwardResult::InvalidFrame("Missing or invalid R-TAG".to_string());
+            }
         };
 
         // FRER Elimination Check: Check if duplicate sequence
@@ -290,7 +294,13 @@ mod tests {
         // Ingress Encap
         let encap_res = gateway.encapsulate_ip_to_tsn(&ip_pkt);
         let tsn_frame = match encap_res {
-            DetNetTsnForwardResult::EncapsulatedTsnFrame { vlan_id, pcp, queue_id, frame, .. } => {
+            DetNetTsnForwardResult::EncapsulatedTsnFrame {
+                vlan_id,
+                pcp,
+                queue_id,
+                frame,
+                ..
+            } => {
                 assert_eq!(vlan_id, 100);
                 assert_eq!(pcp, 6);
                 assert_eq!(queue_id, 6);
@@ -311,7 +321,10 @@ mod tests {
         // Egress Decap 2 (Duplicate frame with identical seq dropped by FRER)
         let decap_res2 = gateway.decapsulate_tsn_to_ip(stream_id, &tsn_frame);
         match decap_res2 {
-            DetNetTsnForwardResult::DuplicateDropped { stream_id: s_id, seq } => {
+            DetNetTsnForwardResult::DuplicateDropped {
+                stream_id: s_id,
+                seq,
+            } => {
                 assert_eq!(s_id, stream_id);
                 assert_eq!(seq, 0);
             }

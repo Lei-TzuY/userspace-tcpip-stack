@@ -99,12 +99,23 @@ impl GtpuFlowLabelEntropyEngine {
     fn hash_fnv1a(t: &InnerPacketTuple) -> u32 {
         let mut h: u32 = 0x811C9DC5;
         let bytes: [u8; 19] = [
-            t.src_ip[0], t.src_ip[1], t.src_ip[2], t.src_ip[3],
-            t.dst_ip[0], t.dst_ip[1], t.dst_ip[2], t.dst_ip[3],
-            (t.src_port >> 8) as u8, (t.src_port & 0xFF) as u8,
-            (t.dst_port >> 8) as u8, (t.dst_port & 0xFF) as u8,
+            t.src_ip[0],
+            t.src_ip[1],
+            t.src_ip[2],
+            t.src_ip[3],
+            t.dst_ip[0],
+            t.dst_ip[1],
+            t.dst_ip[2],
+            t.dst_ip[3],
+            (t.src_port >> 8) as u8,
+            (t.src_port & 0xFF) as u8,
+            (t.dst_port >> 8) as u8,
+            (t.dst_port & 0xFF) as u8,
             t.protocol,
-            (t.teid >> 24) as u8, (t.teid >> 16) as u8, (t.teid >> 8) as u8, (t.teid & 0xFF) as u8,
+            (t.teid >> 24) as u8,
+            (t.teid >> 16) as u8,
+            (t.teid >> 8) as u8,
+            (t.teid & 0xFF) as u8,
             t.qfi,
             0xA5,
         ];
@@ -118,12 +129,23 @@ impl GtpuFlowLabelEntropyEngine {
     fn hash_crc32(t: &InnerPacketTuple) -> u32 {
         let mut crc: u32 = 0xFFFF_FFFF;
         let bytes: [u8; 18] = [
-            t.src_ip[0], t.src_ip[1], t.src_ip[2], t.src_ip[3],
-            t.dst_ip[0], t.dst_ip[1], t.dst_ip[2], t.dst_ip[3],
-            (t.src_port >> 8) as u8, (t.src_port & 0xFF) as u8,
-            (t.dst_port >> 8) as u8, (t.dst_port & 0xFF) as u8,
+            t.src_ip[0],
+            t.src_ip[1],
+            t.src_ip[2],
+            t.src_ip[3],
+            t.dst_ip[0],
+            t.dst_ip[1],
+            t.dst_ip[2],
+            t.dst_ip[3],
+            (t.src_port >> 8) as u8,
+            (t.src_port & 0xFF) as u8,
+            (t.dst_port >> 8) as u8,
+            (t.dst_port & 0xFF) as u8,
             t.protocol,
-            (t.teid >> 24) as u8, (t.teid >> 16) as u8, (t.teid >> 8) as u8, (t.teid & 0xFF) as u8,
+            (t.teid >> 24) as u8,
+            (t.teid >> 16) as u8,
+            (t.teid >> 8) as u8,
+            (t.teid & 0xFF) as u8,
             t.qfi,
         ];
         for &b in &bytes {
@@ -149,12 +171,24 @@ impl GtpuFlowLabelEntropyEngine {
         c = c.wrapping_add(0xdeadbeef);
 
         // Mix 3 words
-        a = a.wrapping_sub(c); a ^= c.rotate_left(4); c = c.wrapping_add(b);
-        b = b.wrapping_sub(a); b ^= a.rotate_left(6); a = a.wrapping_add(c);
-        c = c.wrapping_sub(b); c ^= b.rotate_left(8); b = b.wrapping_add(a);
-        a = a.wrapping_sub(c); a ^= c.rotate_left(16); c = c.wrapping_add(b);
-        b = b.wrapping_sub(a); b ^= a.rotate_left(19); a = a.wrapping_add(c);
-        c = c.wrapping_sub(b); c ^= b.rotate_left(4); c = c.wrapping_add(a);
+        a = a.wrapping_sub(c);
+        a ^= c.rotate_left(4);
+        c = c.wrapping_add(b);
+        b = b.wrapping_sub(a);
+        b ^= a.rotate_left(6);
+        a = a.wrapping_add(c);
+        c = c.wrapping_sub(b);
+        c ^= b.rotate_left(8);
+        b = b.wrapping_add(a);
+        a = a.wrapping_sub(c);
+        a ^= c.rotate_left(16);
+        c = c.wrapping_add(b);
+        b = b.wrapping_sub(a);
+        b ^= a.rotate_left(19);
+        a = a.wrapping_add(c);
+        c = c.wrapping_sub(b);
+        c ^= b.rotate_left(4);
+        c = c.wrapping_add(a);
 
         c
     }
@@ -175,15 +209,7 @@ mod tests {
         let mut engine = GtpuFlowLabelEntropyEngine::new(FlowLabelAlgorithm::Fnv1aEntropy, 8);
 
         // Stream 1: User 1 web traffic
-        let t1 = InnerPacketTuple::new(
-            [10, 0, 0, 1],
-            [192, 168, 1, 1],
-            54321,
-            443,
-            6,
-            0x10001,
-            9,
-        );
+        let t1 = InnerPacketTuple::new([10, 0, 0, 1], [192, 168, 1, 1], 54321, 443, 6, 0x10001, 9);
 
         let v1 = engine.compute_flow_label(&t1);
         assert!(v1.flow_label_20bit <= 0x000F_FFFF);
@@ -195,15 +221,7 @@ mod tests {
         assert_eq!(v1.ecmp_bin, v1_dup.ecmp_bin);
 
         // Stream 2: User 2 video traffic with different TEID/QFI
-        let t2 = InnerPacketTuple::new(
-            [10, 0, 0, 2],
-            [192, 168, 1, 2],
-            54322,
-            443,
-            6,
-            0x20002,
-            5,
-        );
+        let t2 = InnerPacketTuple::new([10, 0, 0, 2], [192, 168, 1, 2], 54322, 443, 6, 0x20002, 5);
         let v2 = engine.compute_flow_label(&t2);
         assert!(v2.flow_label_20bit <= 0x000F_FFFF);
 

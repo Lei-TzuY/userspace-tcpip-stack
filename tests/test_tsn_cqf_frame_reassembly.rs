@@ -95,6 +95,13 @@ fn test_tsn_cqf_frame_reassembly_integration() {
 
     let swept = engine.sweep_timeouts(500_000);
     assert_eq!(swept.len(), 1);
-    assert!(matches!(swept[0], FrameReassemblyVerdict::TimeoutFlushed { stream_id: 99, frame_id: 2001, dropped_bytes: 300 }));
+    assert!(matches!(
+        swept[0],
+        FrameReassemblyVerdict::TimeoutFlushed {
+            stream_id: 99,
+            frame_id: 2001,
+            dropped_bytes: 300
+        }
+    ));
     assert!(engine.buffers.is_empty());
 }

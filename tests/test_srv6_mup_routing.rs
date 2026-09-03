@@ -1,7 +1,7 @@
 use toy_tcpip::evpn::RouteDistinguisher;
 use toy_tcpip::srv6_mup_routing::{
-    MupRib, MupType1InterworkRoute, MupType2DirectRoute, BGP_SAFI_MUP, MUP_ROUTE_TYPE_DIRECT,
-    MUP_ROUTE_TYPE_INTERWORK,
+    BGP_SAFI_MUP, MUP_ROUTE_TYPE_DIRECT, MUP_ROUTE_TYPE_INTERWORK, MupRib, MupType1InterworkRoute,
+    MupType2DirectRoute,
 };
 use toy_tcpip::{Ipv4Address, Ipv6Address};
 
@@ -79,13 +79,20 @@ fn test_mup_rib_routing_steering() {
     ));
 
     // Specific UE match
-    let ue_direct = rib.resolve_ue_sid(&rd, &Ipv4Address::new(10, 20, 5, 10)).unwrap();
+    let ue_direct = rib
+        .resolve_ue_sid(&rd, &Ipv4Address::new(10, 20, 5, 10))
+        .unwrap();
     assert_eq!(*ue_direct, sid_cell2);
 
     // Aggregate subnet match
-    let ue_subnet = rib.resolve_ue_sid(&rd, &Ipv4Address::new(10, 20, 99, 1)).unwrap();
+    let ue_subnet = rib
+        .resolve_ue_sid(&rd, &Ipv4Address::new(10, 20, 99, 1))
+        .unwrap();
     assert_eq!(*ue_subnet, sid_cell1);
 
     // Non-existent IP
-    assert!(rib.resolve_ue_sid(&rd, &Ipv4Address::new(192, 168, 1, 1)).is_none());
+    assert!(
+        rib.resolve_ue_sid(&rd, &Ipv4Address::new(192, 168, 1, 1))
+            .is_none()
+    );
 }

@@ -68,8 +68,14 @@ impl PolicyCounterStatusReport {
 
     pub fn to_avp(&self) -> DiameterAvp {
         let mut inner = Vec::new();
-        inner.push(DiameterAvp::new_utf8(AVP_POLICY_COUNTER_IDENTIFIER, &self.counter_id));
-        inner.push(DiameterAvp::new_utf8(AVP_POLICY_COUNTER_STATUS, &self.current_status));
+        inner.push(DiameterAvp::new_utf8(
+            AVP_POLICY_COUNTER_IDENTIFIER,
+            &self.counter_id,
+        ));
+        inner.push(DiameterAvp::new_utf8(
+            AVP_POLICY_COUNTER_STATUS,
+            &self.current_status,
+        ));
 
         let mut payload = Vec::new();
         for a in inner {
@@ -85,9 +91,15 @@ impl PolicyCounterStatusReport {
         let data = &avp.data;
 
         while offset + 8 <= data.len() {
-            let code = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let code = u32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             let flags = data[offset + 4];
-            let len = u32::from_be_bytes([0, data[offset + 5], data[offset + 6], data[offset + 7]]) as usize;
+            let len = u32::from_be_bytes([0, data[offset + 5], data[offset + 6], data[offset + 7]])
+                as usize;
             if len < 8 || offset + len > data.len() {
                 break;
             }
@@ -144,12 +156,18 @@ impl SpendingLimitRequest {
     pub fn to_diameter_message(&self, hop_by_hop_id: u32, end_to_end_id: u32) -> DiameterMessage {
         let mut avps = Vec::new();
         avps.push(DiameterAvp::new_utf8(AVP_SESSION_ID, &self.session_id));
-        avps.push(DiameterAvp::new_u32(AVP_SL_REQUEST_TYPE, self.request_type as u32));
+        avps.push(DiameterAvp::new_u32(
+            AVP_SL_REQUEST_TYPE,
+            self.request_type as u32,
+        ));
 
         // Subscription-Id grouped AVP
         let mut sub_inner = Vec::new();
         sub_inner.push(DiameterAvp::new_u32(AVP_SUBSCRIPTION_ID_TYPE, 0)); // END_USER_E164 / IMSI
-        sub_inner.push(DiameterAvp::new_utf8(AVP_SUBSCRIPTION_ID_DATA, &self.subscription_id));
+        sub_inner.push(DiameterAvp::new_utf8(
+            AVP_SUBSCRIPTION_ID_DATA,
+            &self.subscription_id,
+        ));
         let mut sub_payload = Vec::new();
         for a in sub_inner {
             sub_payload.extend_from_slice(&a.serialize());
@@ -191,8 +209,15 @@ impl SpendingLimitRequest {
             let mut offset = 0;
             let data = &sub_avp.data;
             while offset + 8 <= data.len() {
-                let code = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
-                let len = u32::from_be_bytes([0, data[offset + 5], data[offset + 6], data[offset + 7]]) as usize;
+                let code = u32::from_be_bytes([
+                    data[offset],
+                    data[offset + 1],
+                    data[offset + 2],
+                    data[offset + 3],
+                ]);
+                let len =
+                    u32::from_be_bytes([0, data[offset + 5], data[offset + 6], data[offset + 7]])
+                        as usize;
                 if len < 8 || offset + len > data.len() {
                     break;
                 }
@@ -413,12 +438,7 @@ impl OcsSyEngine {
     }
 
     /// Sets or initializes the current status of a subscriber policy counter.
-    pub fn set_counter_status(
-        &mut self,
-        subscriber_id: &str,
-        counter_id: &str,
-        status: &str,
-    ) {
+    pub fn set_counter_status(&mut self, subscriber_id: &str, counter_id: &str, status: &str) {
         self.subscriber_counters
             .entry(subscriber_id.to_string())
             .or_default()
@@ -463,7 +483,9 @@ impl OcsSyEngine {
 
         let mut notifications = Vec::new();
         for (sess_id, (sub_id, subscribed_list)) in &self.active_sessions {
-            if sub_id == subscriber_id && (subscribed_list.is_empty() || subscribed_list.contains(&counter_id.to_string())) {
+            if sub_id == subscriber_id
+                && (subscribed_list.is_empty() || subscribed_list.contains(&counter_id.to_string()))
+            {
                 let report = PolicyCounterStatusReport::new(counter_id, new_status);
                 let snr = SpendingStatusNotificationRequest::new(sess_id).with_report(report);
                 notifications.push(snr);
@@ -515,18 +537,23 @@ impl PcrfSyClient {
         subscriber_id: &str,
         counters: &[&str],
     ) -> SpendingLimitRequest {
-        let mut slr = SpendingLimitRequest::new(session_id, SlRequestType::InitialRequest, subscriber_id);
+        let mut slr =
+            SpendingLimitRequest::new(session_id, SlRequestType::InitialRequest, subscriber_id);
         for &c in counters {
             slr = slr.with_counter(c);
         }
-        self.session_counter_cache.insert(session_id.to_string(), HashMap::new());
+        self.session_counter_cache
+            .insert(session_id.to_string(), HashMap::new());
         slr
     }
 
     /// Processes a Spending-Limit-Answer (SLA) received from OCS.
     pub fn process_sla(&mut self, sla: &SpendingLimitAnswer) {
         if sla.result_code == DIAMETER_SUCCESS {
-            let cache = self.session_counter_cache.entry(sla.session_id.clone()).or_default();
+            let cache = self
+                .session_counter_cache
+                .entry(sla.session_id.clone())
+                .or_default();
             for r in &sla.reports {
                 cache.insert(r.counter_id.clone(), r.current_status.clone());
             }
@@ -538,7 +565,10 @@ impl PcrfSyClient {
         &mut self,
         snr: &SpendingStatusNotificationRequest,
     ) -> SpendingStatusNotificationAnswer {
-        let cache = self.session_counter_cache.entry(snr.session_id.clone()).or_default();
+        let cache = self
+            .session_counter_cache
+            .entry(snr.session_id.clone())
+            .or_default();
         for r in &snr.reports {
             cache.insert(r.counter_id.clone(), r.current_status.clone());
         }
@@ -560,7 +590,11 @@ impl PcrfSyClient {
         subscriber_id: &str,
         counters: &[&str],
     ) -> SpendingLimitRequest {
-        let mut slr = SpendingLimitRequest::new(session_id, SlRequestType::IntermediateRequest, subscriber_id);
+        let mut slr = SpendingLimitRequest::new(
+            session_id,
+            SlRequestType::IntermediateRequest,
+            subscriber_id,
+        );
         for &c in counters {
             slr = slr.with_counter(c);
         }

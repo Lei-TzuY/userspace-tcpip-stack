@@ -39,8 +39,16 @@ fn test_rlc_am_pdu_framing_and_status_pdu_round_trip() {
     let status_pdu = RlcStatusPdu {
         ack_sn: 105,
         nacks: vec![
-            RlcNackRange { nack_sn: 101, so_start: None, so_end: None },
-            RlcNackRange { nack_sn: 103, so_start: None, so_end: None },
+            RlcNackRange {
+                nack_sn: 101,
+                so_start: None,
+                so_end: None,
+            },
+            RlcNackRange {
+                nack_sn: 103,
+                so_start: None,
+                so_end: None,
+            },
         ],
     };
     let wire_status = status_pdu.serialize();
@@ -51,8 +59,12 @@ fn test_rlc_am_pdu_framing_and_status_pdu_round_trip() {
 
 #[test]
 fn test_rlc_segmentation_and_reassembly() {
-    let mut tx = RlcEntity::new(RlcEntityMode::Am { sn_size: RlcAmSnSize::Am18Bits });
-    let mut rx = RlcEntity::new(RlcEntityMode::Am { sn_size: RlcAmSnSize::Am18Bits });
+    let mut tx = RlcEntity::new(RlcEntityMode::Am {
+        sn_size: RlcAmSnSize::Am18Bits,
+    });
+    let mut rx = RlcEntity::new(RlcEntityMode::Am {
+        sn_size: RlcAmSnSize::Am18Bits,
+    });
 
     // Generate 1500-byte SDU
     let original_sdu: Vec<u8> = (0..1500).map(|i| (i % 256) as u8).collect();
@@ -90,8 +102,12 @@ fn test_rlc_segmentation_and_reassembly() {
 
 #[test]
 fn test_rlc_am_arq_nack_and_retransmission() {
-    let mut tx = RlcEntity::new(RlcEntityMode::Am { sn_size: RlcAmSnSize::Am18Bits });
-    let mut rx = RlcEntity::new(RlcEntityMode::Am { sn_size: RlcAmSnSize::Am18Bits });
+    let mut tx = RlcEntity::new(RlcEntityMode::Am {
+        sn_size: RlcAmSnSize::Am18Bits,
+    });
+    let mut rx = RlcEntity::new(RlcEntityMode::Am {
+        sn_size: RlcAmSnSize::Am18Bits,
+    });
 
     let sdu0 = b"Packet-0-Data".to_vec();
     let sdu1 = b"Packet-1-Data".to_vec();
@@ -110,7 +126,11 @@ fn test_rlc_am_arq_nack_and_retransmission() {
     // Simulate missing SDU 1 tracking: insert empty reassembly state for gap detection
     let mut status = RlcStatusPdu {
         ack_sn: 3,
-        nacks: vec![RlcNackRange { nack_sn: 1, so_start: None, so_end: None }],
+        nacks: vec![RlcNackRange {
+            nack_sn: 1,
+            so_start: None,
+            so_end: None,
+        }],
     };
 
     // Transmitter processes Status PDU

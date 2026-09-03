@@ -1,7 +1,7 @@
 use toy_tcpip::flowspec_v6::{
-    matches_ipv6_cidr, parse_flowspec_v6_nlri, serialize_flowspec_v6_nlri, FlowspecV6Action,
-    FlowspecV6Decision, FlowspecV6Engine, FlowspecV6Match, FlowspecV6Rule, BGP_AFI_IPV6,
-    BGP_SAFI_FLOWSPEC_IPV6,
+    BGP_AFI_IPV6, BGP_SAFI_FLOWSPEC_IPV6, FlowspecV6Action, FlowspecV6Decision, FlowspecV6Engine,
+    FlowspecV6Match, FlowspecV6Rule, matches_ipv6_cidr, parse_flowspec_v6_nlri,
+    serialize_flowspec_v6_nlri,
 };
 use toy_tcpip::ipv6::Ipv6Address;
 
@@ -116,11 +116,15 @@ fn test_flowspec_v6_engine_ddos_mitigation_and_redirect() {
 fn test_flowspec_v6_wire_nlri_encoding_decoding() {
     let match_rule = FlowspecV6Match {
         dst_prefix: Some((
-            Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x11, 0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            Ipv6Address([
+                0x20, 0x01, 0x0d, 0xb8, 0x11, 0x11, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
             64,
         )),
         src_prefix: Some((
-            Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x22, 0x22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            Ipv6Address([
+                0x20, 0x01, 0x0d, 0xb8, 0x22, 0x22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
             64,
         )),
         next_header: Some(17),

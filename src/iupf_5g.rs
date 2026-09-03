@@ -16,8 +16,14 @@ use std::collections::HashMap;
 /// Destination PDU Session Anchor (PSA) target for N9 forwarding.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoutingTarget {
-    LocalEdgePsa { n9_teid: u32, edge_upf_ip: [u8; 4] },
-    CentralInternetPsa { n9_teid: u32, central_upf_ip: [u8; 4] },
+    LocalEdgePsa {
+        n9_teid: u32,
+        edge_upf_ip: [u8; 4],
+    },
+    CentralInternetPsa {
+        n9_teid: u32,
+        central_upf_ip: [u8; 4],
+    },
 }
 
 /// Uplink Classifier (ULCL) Traffic Filter Rule.
@@ -46,7 +52,7 @@ impl UlclFilterRule {
 pub struct IUpfSessionContext {
     pub session_id: String,
     pub ue_ip: [u8; 4],
-    pub n3_access_teid: u32,   // TEID allocated by I-UPF for uplink from gNodeB
+    pub n3_access_teid: u32, // TEID allocated by I-UPF for uplink from gNodeB
     pub gnb_downlink_teid: u32, // TEID allocated by gNodeB for downlink from I-UPF
     pub ulcl_rules: Vec<UlclFilterRule>,
     pub default_target: RoutingTarget,
@@ -111,13 +117,21 @@ impl IUpfEngine {
             handover_active: false,
         };
 
-        self.n3_teid_to_session.insert(n3_access_teid, session_id.to_string());
+        self.n3_teid_to_session
+            .insert(n3_access_teid, session_id.to_string());
         self.sessions.insert(session_id.to_string(), ctx);
     }
 
     /// Add an Uplink Classifier (ULCL) filter rule for local edge steering.
-    pub fn add_ulcl_rule(&mut self, session_id: &str, rule: UlclFilterRule) -> Result<(), IUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(IUpfError::SessionNotFound)?;
+    pub fn add_ulcl_rule(
+        &mut self,
+        session_id: &str,
+        rule: UlclFilterRule,
+    ) -> Result<(), IUpfError> {
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
         sess.ulcl_rules.push(rule);
         Ok(())
     }
@@ -128,7 +142,9 @@ impl IUpfEngine {
         n3_gtp_packet: &[u8],
     ) -> Result<DispatchedN9Packet, IUpfError> {
         if n3_gtp_packet.len() < 8 {
-            return Err(IUpfError::InvalidGtpPacket("GTP-U packet shorter than 8 bytes"));
+            return Err(IUpfError::InvalidGtpPacket(
+                "GTP-U packet shorter than 8 bytes",
+            ));
         }
 
         // Parse N3 TEID
@@ -144,11 +160,16 @@ impl IUpfEngine {
             .get(&n3_teid)
             .ok_or(IUpfError::SessionNotFound)?;
 
-        let sess = self.sessions.get(session_id).ok_or(IUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
         let user_ip_payload = &n3_gtp_packet[8..];
 
         if user_ip_payload.len() < 20 {
-            return Err(IUpfError::InvalidGtpPacket("IP payload too short for IPv4 header"));
+            return Err(IUpfError::InvalidGtpPacket(
+                "IP payload too short for IPv4 header",
+            ));
         }
 
         // Extract Destination IPv4 address (bytes 16..20 in IPv4 header)
@@ -189,7 +210,10 @@ impl IUpfEngine {
 
     /// Initiate Handover Relocation: pauses downlink and starts buffering in-flight packets.
     pub fn initiate_handover(&mut self, session_id: &str) -> Result<(), IUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(IUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
         if sess.handover_active {
             return Err(IUpfError::HandoverAlreadyActive);
         }
@@ -203,7 +227,10 @@ impl IUpfEngine {
         session_id: &str,
         payload: &[u8],
     ) -> Result<Option<Vec<u8>>, IUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(IUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
 
         if sess.handover_active {
             // Buffer packet until target gNodeB path is confirmed
@@ -227,7 +254,10 @@ impl IUpfEngine {
         session_id: &str,
         new_gnb_teid: u32,
     ) -> Result<Vec<Vec<u8>>, IUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(IUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
         sess.gnb_downlink_teid = new_gnb_teid;
         sess.handover_active = false;
 
@@ -247,7 +277,10 @@ impl IUpfEngine {
 
     /// Remove an I-UPF session.
     pub fn remove_session(&mut self, session_id: &str) -> Result<(), IUpfError> {
-        let sess = self.sessions.remove(session_id).ok_or(IUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .remove(session_id)
+            .ok_or(IUpfError::SessionNotFound)?;
         self.n3_teid_to_session.remove(&sess.n3_access_teid);
         Ok(())
     }

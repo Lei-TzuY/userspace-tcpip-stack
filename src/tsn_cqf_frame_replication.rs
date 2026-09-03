@@ -185,15 +185,24 @@ impl TsnCqfFrameReplicationEngine {
 
     /// Register a stream for ingress cyclic frame replication.
     pub fn register_stream(&mut self, stream_id: u32) {
-        if !self.ingress_generators.iter().any(|g| g.stream_id == stream_id) {
+        if !self
+            .ingress_generators
+            .iter()
+            .any(|g| g.stream_id == stream_id)
+        {
             self.ingress_generators.push(ReplicationStreamGenerator {
                 stream_id,
                 next_sequence_number: 1,
                 active: true,
             });
         }
-        if !self.egress_recoveries.iter().any(|r| r.stream_id == stream_id) {
-            self.egress_recoveries.push(EliminationStreamRecovery::new(stream_id));
+        if !self
+            .egress_recoveries
+            .iter()
+            .any(|r| r.stream_id == stream_id)
+        {
+            self.egress_recoveries
+                .push(EliminationStreamRecovery::new(stream_id));
         }
     }
 

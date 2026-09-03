@@ -17,8 +17,16 @@ fn test_ptp_pdv_floor_filter_in_congested_network() {
         // Congested packets experience +10,000 to +150,000 ns random queuing delay
         // Clean floor packets occur periodically
         let is_clean = (seq % 10) == 0;
-        let fwd_pdv = if is_clean { 0 } else { ((seq as i64 * 37) % 150) * 1_000 };
-        let rev_pdv = if is_clean { 0 } else { ((seq as i64 * 53) % 200) * 1_000 };
+        let fwd_pdv = if is_clean {
+            0
+        } else {
+            ((seq as i64 * 37) % 150) * 1_000
+        };
+        let rev_pdv = if is_clean {
+            0
+        } else {
+            ((seq as i64 * 53) % 200) * 1_000
+        };
 
         let t1 = (seq as i64) * 10_000_000;
         let t2 = t1 + 23_800 + fwd_pdv;
@@ -55,7 +63,9 @@ fn test_ptp_time_error_cte_and_dte_metrics() {
         filter.push_sample(PtpTimestampSample::new(seq, t1, t2, t3, t4));
     }
 
-    let metrics = filter.compute_time_error_metrics().expect("compute time error");
+    let metrics = filter
+        .compute_time_error_metrics()
+        .expect("compute time error");
     assert_eq!(metrics.cte_ns, 50.0);
     assert_eq!(metrics.dte_peak_to_peak_ns, 20);
     assert_eq!(metrics.max_abs_te_ns, 60);
@@ -190,7 +200,8 @@ fn test_ptp_pdv_wdm_fiber_asymmetry_ratio_compensation() {
         combined_filter.push_sample(PtpTimestampSample::new(seq, t1, t2, t3, t4));
     }
 
-    let combined_estimate = combined_filter.compute_estimate().expect("combined estimate");
+    let combined_estimate = combined_filter
+        .compute_estimate()
+        .expect("combined estimate");
     assert_eq!(combined_estimate.estimated_offset_ns, -1220);
 }
-

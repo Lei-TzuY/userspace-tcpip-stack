@@ -38,7 +38,10 @@ fn test_nsce_slice_discovery_and_sla_happy_path() {
     let res = nsce.assess_slice_sla("SST1-SD000001", 3, 5).unwrap();
     assert_eq!(res, SlaAssessmentResult::WithinContract);
     assert_eq!(
-        nsce.slice_profiles.get("SST1-SD000001").unwrap().adaptation_state,
+        nsce.slice_profiles
+            .get("SST1-SD000001")
+            .unwrap()
+            .adaptation_state,
         SliceAdaptationState::Nominal
     );
 }
@@ -69,7 +72,11 @@ fn test_nsce_latency_sla_violation_alert() {
     // Latency is 9ms (exceeds 4ms threshold)
     let res = nsce.assess_slice_sla("SST2-SD000002", 9, 2).unwrap();
     match res {
-        SlaAssessmentResult::SlaViolationAlert { observed_value, threshold_value, .. } => {
+        SlaAssessmentResult::SlaViolationAlert {
+            observed_value,
+            threshold_value,
+            ..
+        } => {
             assert_eq!(observed_value, 9);
             assert_eq!(threshold_value, 4);
         }
@@ -77,7 +84,10 @@ fn test_nsce_latency_sla_violation_alert() {
     }
 
     assert_eq!(
-        nsce.slice_profiles.get("SST2-SD000002").unwrap().adaptation_state,
+        nsce.slice_profiles
+            .get("SST2-SD000002")
+            .unwrap()
+            .adaptation_state,
         SliceAdaptationState::SlaDegraded
     );
 }
@@ -108,7 +118,11 @@ fn test_nsce_packet_loss_sla_violation_alert() {
     // Loss rate is 35 ppm (exceeds 10 ppm threshold)
     let res = nsce.assess_slice_sla("SST3-SD000003", 10, 35).unwrap();
     match res {
-        SlaAssessmentResult::SlaViolationAlert { observed_value, threshold_value, .. } => {
+        SlaAssessmentResult::SlaViolationAlert {
+            observed_value,
+            threshold_value,
+            ..
+        } => {
             assert_eq!(observed_value, 35);
             assert_eq!(threshold_value, 10);
         }
@@ -140,21 +154,33 @@ fn test_nsce_dynamic_slice_adaptation_and_reset() {
     nsce.register_slice_profile(profile);
 
     // Request 1000 Mbps bandwidth boost
-    let new_tp = nsce.request_slice_adaptation("SST4-SD000004", 1000).unwrap();
+    let new_tp = nsce
+        .request_slice_adaptation("SST4-SD000004", 1000)
+        .unwrap();
     assert_eq!(new_tp, 3000);
     assert_eq!(
-        nsce.slice_profiles.get("SST4-SD000004").unwrap().adaptation_state,
+        nsce.slice_profiles
+            .get("SST4-SD000004")
+            .unwrap()
+            .adaptation_state,
         SliceAdaptationState::AdaptedBoosted
     );
 
     // Reset back to nominal
-    nsce.reset_slice_adaptation("SST4-SD000004").expect("Reset failed");
+    nsce.reset_slice_adaptation("SST4-SD000004")
+        .expect("Reset failed");
     assert_eq!(
-        nsce.slice_profiles.get("SST4-SD000004").unwrap().allocated_throughput_mbps,
+        nsce.slice_profiles
+            .get("SST4-SD000004")
+            .unwrap()
+            .allocated_throughput_mbps,
         2000
     );
     assert_eq!(
-        nsce.slice_profiles.get("SST4-SD000004").unwrap().adaptation_state,
+        nsce.slice_profiles
+            .get("SST4-SD000004")
+            .unwrap()
+            .adaptation_state,
         SliceAdaptationState::Nominal
     );
 }

@@ -184,7 +184,10 @@ impl WagfEngine {
         session_id: &str,
         amf_ue_ngap_id: u64,
     ) -> Result<(), WagfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(WagfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(WagfError::SessionNotFound)?;
         sess.amf_ue_ngap_id = Some(amf_ue_ngap_id);
         sess.state = WirelineSessionState::NasRegistered;
         Ok(())
@@ -203,7 +206,10 @@ impl WagfEngine {
             .cloned()
             .ok_or(WagfError::QosMappingNotFound)?;
 
-        let sess = self.sessions.get_mut(session_id).ok_or(WagfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(WagfError::SessionNotFound)?;
         if sess.state != WirelineSessionState::NasRegistered {
             return Err(WagfError::InvalidSessionState(
                 "Session must be NasRegistered before establishing PDU session",
@@ -224,7 +230,10 @@ impl WagfEngine {
         session_id: &str,
         fixed_payload: &[u8],
     ) -> Result<Vec<u8>, WagfError> {
-        let sess = self.sessions.get(session_id).ok_or(WagfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get(session_id)
+            .ok_or(WagfError::SessionNotFound)?;
         if sess.state != WirelineSessionState::PduActive {
             return Err(WagfError::InvalidSessionState("PDU session is not active"));
         }
@@ -248,7 +257,10 @@ impl WagfEngine {
 
     /// Terminate a wireline subscriber line session.
     pub fn terminate_line_session(&mut self, session_id: &str) -> Result<(), WagfError> {
-        let sess = self.sessions.remove(session_id).ok_or(WagfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .remove(session_id)
+            .ok_or(WagfError::SessionNotFound)?;
         self.line_to_session.remove(&sess.line_id);
         Ok(())
     }

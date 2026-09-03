@@ -48,10 +48,20 @@ pub struct MupBufferedPacket {
 /// Event emission from the MUP Handover State Machine.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MupHandoverEvent {
-    Prepared { session_id: u32 },
-    Executing { session_id: u32, target_sid: Ipv6Address },
-    Completed { session_id: u32, flushed_packets: usize },
-    Released { session_id: u32 },
+    Prepared {
+        session_id: u32,
+    },
+    Executing {
+        session_id: u32,
+        target_sid: Ipv6Address,
+    },
+    Completed {
+        session_id: u32,
+        flushed_packets: usize,
+    },
+    Released {
+        session_id: u32,
+    },
     Error(String),
 }
 
@@ -77,7 +87,11 @@ impl MupHandoverEngine {
             gnb_teid_to_session: HashMap::new(),
             sid_to_session: HashMap::new(),
             in_flight_buffers: HashMap::new(),
-            max_buffer_per_session: if max_buffer_per_session == 0 { 100 } else { max_buffer_per_session },
+            max_buffer_per_session: if max_buffer_per_session == 0 {
+                100
+            } else {
+                max_buffer_per_session
+            },
         }
     }
 
@@ -119,7 +133,10 @@ impl MupHandoverEngine {
         };
 
         if session.state != MupSessionState::Active {
-            return MupHandoverEvent::Error(format!("Invalid state {:?} for prepare", session.state));
+            return MupHandoverEvent::Error(format!(
+                "Invalid state {:?} for prepare",
+                session.state
+            ));
         }
 
         session.state = MupSessionState::HandoverPreparing;
@@ -133,8 +150,13 @@ impl MupHandoverEngine {
             None => return MupHandoverEvent::Error("Session not found".to_string()),
         };
 
-        if session.state != MupSessionState::HandoverPreparing && session.state != MupSessionState::Active {
-            return MupHandoverEvent::Error(format!("Invalid state {:?} for execution", session.state));
+        if session.state != MupSessionState::HandoverPreparing
+            && session.state != MupSessionState::Active
+        {
+            return MupHandoverEvent::Error(format!(
+                "Invalid state {:?} for execution",
+                session.state
+            ));
         }
 
         session.state = MupSessionState::HandoverExecuting;
@@ -174,14 +196,23 @@ impl MupHandoverEngine {
     }
 
     /// Step 3: Complete Handover (End Marker received) - Re-binds to target gNB/SID and flushes buffer.
-    pub fn complete_handover(&mut self, cmd: MupHandoverCommand) -> (MupHandoverEvent, Vec<MupBufferedPacket>) {
+    pub fn complete_handover(
+        &mut self,
+        cmd: MupHandoverCommand,
+    ) -> (MupHandoverEvent, Vec<MupBufferedPacket>) {
         let session = match self.sessions.get_mut(&cmd.session_id) {
             Some(s) => s,
-            None => return (MupHandoverEvent::Error("Session not found".to_string()), Vec::new()),
+            None => {
+                return (
+                    MupHandoverEvent::Error("Session not found".to_string()),
+                    Vec::new(),
+                );
+            }
         };
 
         // Remove old lookups
-        self.gnb_teid_to_session.remove(&(session.gnb_ip, session.teid));
+        self.gnb_teid_to_session
+            .remove(&(session.gnb_ip, session.teid));
         self.sid_to_session.remove(&session.mup_sid);
 
         // Update to target
@@ -193,7 +224,8 @@ impl MupHandoverEngine {
         // Insert new lookups
         self.gnb_teid_to_session
             .insert((cmd.target_gnb_ip, cmd.target_teid), cmd.session_id);
-        self.sid_to_session.insert(cmd.target_mup_sid, cmd.session_id);
+        self.sid_to_session
+            .insert(cmd.target_mup_sid, cmd.session_id);
 
         // Flush in-flight buffer
         let flushed: Vec<MupBufferedPacket> = self
@@ -215,7 +247,8 @@ impl MupHandoverEngine {
     /// Step 4: Release / Teardown Session.
     pub fn release_session(&mut self, session_id: u32) -> MupHandoverEvent {
         if let Some(session) = self.sessions.remove(&session_id) {
-            self.gnb_teid_to_session.remove(&(session.gnb_ip, session.teid));
+            self.gnb_teid_to_session
+                .remove(&(session.gnb_ip, session.teid));
             self.sid_to_session.remove(&session.mup_sid);
             self.in_flight_buffers.remove(&session_id);
             MupHandoverEvent::Released { session_id }
@@ -236,11 +269,15 @@ mod tests {
         let ue_ip = Ipv4Address::new(10, 45, 0, 100);
         let gnb1 = Ipv4Address::new(192, 168, 10, 1);
         let gnb2 = Ipv4Address::new(192, 168, 20, 1);
-        let sid1 = Ipv6Address::from_bytes([0x20, 0x01, 0x0d, 0xb8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
-        let sid2 = Ipv6Address::from_bytes([0x20, 0x01, 0x0d, 0xb8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
+        let sid1 =
+            Ipv6Address::from_bytes([0x20, 0x01, 0x0d, 0xb8, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+        let sid2 =
+            Ipv6Address::from_bytes([0x20, 0x01, 0x0d, 0xb8, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
 
         // Create Session
-        engine.create_session(1, ue_ip, gnb1, 10001, sid1, 9).unwrap();
+        engine
+            .create_session(1, ue_ip, gnb1, 10001, sid1, 9)
+            .unwrap();
 
         // 1. In Active state, packet forwards immediately
         let pkt = engine.handle_packet(1, true, b"Ping1".to_vec()).unwrap();
@@ -258,19 +295,32 @@ mod tests {
             target_mup_sid: sid2,
         };
         let exec = engine.execute_handover(cmd.clone());
-        assert_eq!(exec, MupHandoverEvent::Executing { session_id: 1, target_sid: sid2 });
+        assert_eq!(
+            exec,
+            MupHandoverEvent::Executing {
+                session_id: 1,
+                target_sid: sid2
+            }
+        );
 
         // 4. In-flight packets during execution are buffered
-        let pkt_inflight1 = engine.handle_packet(1, true, b"InFlight1".to_vec()).unwrap();
+        let pkt_inflight1 = engine
+            .handle_packet(1, true, b"InFlight1".to_vec())
+            .unwrap();
         assert_eq!(pkt_inflight1, None);
 
-        let pkt_inflight2 = engine.handle_packet(1, false, b"InFlight2".to_vec()).unwrap();
+        let pkt_inflight2 = engine
+            .handle_packet(1, false, b"InFlight2".to_vec())
+            .unwrap();
         assert_eq!(pkt_inflight2, None);
 
         // 5. Complete Handover
         let (comp, flushed) = engine.complete_handover(cmd);
         match comp {
-            MupHandoverEvent::Completed { session_id, flushed_packets } => {
+            MupHandoverEvent::Completed {
+                session_id,
+                flushed_packets,
+            } => {
                 assert_eq!(session_id, 1);
                 assert_eq!(flushed_packets, 2);
             }
@@ -281,7 +331,9 @@ mod tests {
         assert_eq!(flushed[1].payload, b"InFlight2");
 
         // 6. Active on target gNB
-        let active_pkt = engine.handle_packet(1, true, b"ActiveTarget".to_vec()).unwrap();
+        let active_pkt = engine
+            .handle_packet(1, true, b"ActiveTarget".to_vec())
+            .unwrap();
         assert_eq!(active_pkt, Some(b"ActiveTarget".to_vec()));
 
         assert_eq!(engine.gnb_teid_to_session.get(&(gnb2, 20002)), Some(&1));

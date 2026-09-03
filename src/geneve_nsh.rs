@@ -236,7 +236,12 @@ impl SffEngine {
 
         let current_target = match self.hops.get(&(nsh.spi, nsh.si)) {
             Some(t) => t.clone(),
-            None => return SffForwardAction::Drop(format!("No SFC route for SPI {} SI {}", nsh.spi, nsh.si)),
+            None => {
+                return SffForwardAction::Drop(format!(
+                    "No SFC route for SPI {} SI {}",
+                    nsh.spi, nsh.si
+                ));
+            }
         };
 
         match current_target {
@@ -297,9 +302,21 @@ mod tests {
         let spi = 500;
 
         // Hop 255 -> Firewall
-        sff.add_hop(spi, 255, SffHopTarget::LocalSf { sf_name: "WAF_Cluster_1".to_string() });
+        sff.add_hop(
+            spi,
+            255,
+            SffHopTarget::LocalSf {
+                sf_name: "WAF_Cluster_1".to_string(),
+            },
+        );
         // Hop 254 -> DPI
-        sff.add_hop(spi, 254, SffHopTarget::LocalSf { sf_name: "DPI_Inspector".to_string() });
+        sff.add_hop(
+            spi,
+            254,
+            SffHopTarget::LocalSf {
+                sf_name: "DPI_Inspector".to_string(),
+            },
+        );
         // Hop 253 -> Egress
         sff.add_hop(spi, 253, SffHopTarget::Egress);
 
@@ -309,7 +326,11 @@ mod tests {
         // Step 1: Hop 255
         let action1 = sff.process_nsh(nsh0);
         let nsh1 = match action1 {
-            SffForwardAction::ForwardToSf { sf_instance, updated_nsh, .. } => {
+            SffForwardAction::ForwardToSf {
+                sf_instance,
+                updated_nsh,
+                ..
+            } => {
                 assert_eq!(sf_instance, "WAF_Cluster_1");
                 assert_eq!(updated_nsh.si, 254);
                 updated_nsh
@@ -320,7 +341,11 @@ mod tests {
         // Step 2: Hop 254
         let action2 = sff.process_nsh(nsh1);
         let nsh2 = match action2 {
-            SffForwardAction::ForwardToSf { sf_instance, updated_nsh, .. } => {
+            SffForwardAction::ForwardToSf {
+                sf_instance,
+                updated_nsh,
+                ..
+            } => {
                 assert_eq!(sf_instance, "DPI_Inspector");
                 assert_eq!(updated_nsh.si, 253);
                 updated_nsh

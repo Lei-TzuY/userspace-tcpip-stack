@@ -122,7 +122,10 @@ fn test_paws_discards_old_duplicate_inside_the_window() {
     );
     let reply = feed(&mut conn, &stale, 130).expect("PAWS still acknowledges");
 
-    assert_eq!(conn.stats.paws_discards, 1, "segment counted as a PAWS drop");
+    assert_eq!(
+        conn.stats.paws_discards, 1,
+        "segment counted as a PAWS drop"
+    );
     assert_eq!(conn.rcv_nxt, 5101, "receive sequence did not advance");
     assert_eq!(conn.rx_buffer.len(), 100, "stale payload was not delivered");
     assert!(
@@ -222,13 +225,7 @@ fn test_timestamp_option_is_ignored_when_not_negotiated() {
         "SYN-ACK must not offer timestamps the client did not request"
     );
 
-    let ack = from_client(
-        5001,
-        SERVER_ISN.wrapping_add(1),
-        TcpFlags::ack(),
-        &[],
-        &[],
-    );
+    let ack = from_client(5001, SERVER_ISN.wrapping_add(1), TcpFlags::ack(), &[], &[]);
     feed(&mut conn, &ack, 110);
     assert_eq!(conn.state, TcpState::Established);
 
@@ -288,7 +285,11 @@ fn test_paws_accepts_timestamps_across_the_32_bit_wrap() {
     feed(&mut conn, &wrapped, 120).expect("ACK");
 
     assert_eq!(conn.stats.paws_discards, 0, "a wrapped clock is not stale");
-    assert_eq!(conn.rx_buffer.len(), 20, "data across the wrap is delivered");
+    assert_eq!(
+        conn.rx_buffer.len(),
+        20,
+        "data across the wrap is delivered"
+    );
     assert_eq!(conn.ts_recent, 0x0000_0040);
 }
 

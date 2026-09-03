@@ -1,6 +1,4 @@
-use toy_tcpip::gtpu_jitter_buf::{
-    GtpuJitterBufEngine, JitterBufferAction,
-};
+use toy_tcpip::gtpu_jitter_buf::{GtpuJitterBufEngine, JitterBufferAction};
 
 #[test]
 fn test_gtpu_jitter_buf_lifecycle() {
@@ -40,7 +38,10 @@ fn test_gtpu_jitter_buf_lifecycle() {
     assert_eq!(jbuf.expected_seq, 13);
 
     // 4. Duplicate packet 10 arrived late -> DropDuplicate
-    assert_eq!(jbuf.push_packet(10, vec![10], 1050), JitterBufferAction::DropDuplicate);
+    assert_eq!(
+        jbuf.push_packet(10, vec![10], 1050),
+        JitterBufferAction::DropDuplicate
+    );
 
     // 5. Packet 15 arrives at t=2000 (packets 13, 14 lost)
     let a15 = jbuf.push_packet(15, vec![15], 2000);

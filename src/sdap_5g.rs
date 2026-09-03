@@ -377,8 +377,7 @@ impl SdapEntity {
         if !header_present {
             // No SDAP header — use default QFI = 0 for transparent mode
             let qfi = 0;
-            self.delivered_sdus
-                .push((qfi, drb_id, pdu_bytes.to_vec()));
+            self.delivered_sdus.push((qfi, drb_id, pdu_bytes.to_vec()));
             return Some((qfi, pdu_bytes.to_vec()));
         }
 
@@ -408,8 +407,7 @@ impl SdapEntity {
             self.apply_reflective_mapping(qfi, drb_id);
         }
 
-        self.delivered_sdus
-            .push((qfi, drb_id, sdu.clone()));
+        self.delivered_sdus.push((qfi, drb_id, sdu.clone()));
         Some((qfi, sdu))
     }
 
@@ -460,8 +458,7 @@ impl SdapEntity {
 
     /// Get the current mapping table as a sorted vector (for debugging/testing).
     pub fn get_mapping_table(&self) -> Vec<QosFlowMapping> {
-        let mut entries: Vec<QosFlowMapping> =
-            self.qos_flow_map.values().cloned().collect();
+        let mut entries: Vec<QosFlowMapping> = self.qos_flow_map.values().cloned().collect();
         entries.sort_by_key(|e| e.qfi);
         entries
     }

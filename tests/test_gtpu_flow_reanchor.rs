@@ -1,5 +1,5 @@
 use toy_tcpip::gtpu_flow_reanchor::{
-    FlowMigrationState, GtpuFlowReanchorEngine, ReanchorAction, GTPU_MSG_END_MARKER,
+    FlowMigrationState, GTPU_MSG_END_MARKER, GtpuFlowReanchorEngine, ReanchorAction,
 };
 
 #[test]
@@ -12,10 +12,22 @@ fn test_gtpu_flow_reanchor_lifecycle() {
 
     // 2. Dispatch 2 packets
     let p1 = engine.dispatch_packet(42);
-    assert_eq!(p1, Some(ReanchorAction::ForwardOnLeg { leg_id: 1, assigned_seq: 500 }));
+    assert_eq!(
+        p1,
+        Some(ReanchorAction::ForwardOnLeg {
+            leg_id: 1,
+            assigned_seq: 500
+        })
+    );
 
     let p2 = engine.dispatch_packet(42);
-    assert_eq!(p2, Some(ReanchorAction::ForwardOnLeg { leg_id: 1, assigned_seq: 501 }));
+    assert_eq!(
+        p2,
+        Some(ReanchorAction::ForwardOnLeg {
+            leg_id: 1,
+            assigned_seq: 501
+        })
+    );
 
     // 3. Trigger live migration to Leg 2 (Wi-Fi)
     let m = engine.trigger_migration(42, 2);
@@ -29,7 +41,13 @@ fn test_gtpu_flow_reanchor_lifecycle() {
 
     // 4. Dispatch next packet -> immediately forwarded on Leg 2 with seq 502
     let p3 = engine.dispatch_packet(42);
-    assert_eq!(p3, Some(ReanchorAction::ForwardOnLeg { leg_id: 2, assigned_seq: 502 }));
+    assert_eq!(
+        p3,
+        Some(ReanchorAction::ForwardOnLeg {
+            leg_id: 2,
+            assigned_seq: 502
+        })
+    );
 
     // 5. Complete migration
     assert!(engine.complete_migration(42));

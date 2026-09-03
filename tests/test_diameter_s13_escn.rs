@@ -1,8 +1,6 @@
 //! Integration tests for 3GPP TS 29.272 Diameter S13 ESCN and Batch Audit Engine.
 
-use toy_tcpip::diameter_s13_escn::{
-    EscnVerdict, S13EquipmentStatus, S13EscnEngine,
-};
+use toy_tcpip::diameter_s13_escn::{EscnVerdict, S13EquipmentStatus, S13EscnEngine};
 
 #[test]
 fn test_diameter_s13_escn_integration() {
@@ -31,9 +29,18 @@ fn test_diameter_s13_escn_integration() {
     }
 
     // Edge cache audit
-    let audit_batch = vec![("860011112222333".to_string(), S13EquipmentStatus::WhiteListed)];
-    let res = engine.audit_edge_cache("mme-edge-paris.epc.mnc001.mcc208.3gppnetwork.org", &audit_batch);
+    let audit_batch = vec![(
+        "860011112222333".to_string(),
+        S13EquipmentStatus::WhiteListed,
+    )];
+    let res = engine.audit_edge_cache(
+        "mme-edge-paris.epc.mnc001.mcc208.3gppnetwork.org",
+        &audit_batch,
+    );
     assert_eq!(res.len(), 1);
-    assert_eq!(res[0].eir_authoritative_status, S13EquipmentStatus::GrayListed);
+    assert_eq!(
+        res[0].eir_authoritative_status,
+        S13EquipmentStatus::GrayListed
+    );
     assert!(!res[0].synchronized);
 }

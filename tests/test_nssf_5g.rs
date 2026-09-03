@@ -11,10 +11,16 @@ use toy_tcpip::sba_5g::NfType;
 #[test]
 fn test_nssf_registration_slice_selection_happy_path() {
     let mut nssf = NssfEngine::new("nssf-core-001");
-    let plmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
+    let plmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
 
     let embb = Snssai { sst: 1, sd: None };
-    let urllc = Snssai { sst: 2, sd: Some([1, 2, 3]) };
+    let urllc = Snssai {
+        sst: 2,
+        sd: Some([1, 2, 3]),
+    };
 
     // Configure PLMN slices
     nssf.configure_plmn_slices(plmn, vec![embb.clone(), urllc.clone()]);
@@ -47,9 +53,15 @@ fn test_nssf_registration_slice_selection_happy_path() {
 
     assert_eq!(info.allowed_nssai_list.len(), 2);
     assert_eq!(info.allowed_nssai_list[0].snssai, embb);
-    assert_eq!(info.allowed_nssai_list[0].nsi_id.as_deref(), Some("nsi-embb-edge-01"));
+    assert_eq!(
+        info.allowed_nssai_list[0].nsi_id.as_deref(),
+        Some("nsi-embb-edge-01")
+    );
     assert_eq!(info.allowed_nssai_list[1].snssai, urllc);
-    assert_eq!(info.allowed_nssai_list[1].nsi_id.as_deref(), Some("nsi-urllc-factory-01"));
+    assert_eq!(
+        info.allowed_nssai_list[1].nsi_id.as_deref(),
+        Some("nsi-urllc-factory-01")
+    );
 
     assert!(info.rejected_nssai_list.is_empty());
     assert_eq!(info.target_amf_set_id.as_deref(), Some("amf-set-01"));
@@ -64,7 +76,10 @@ fn test_nssf_registration_slice_selection_happy_path() {
 #[test]
 fn test_nssf_rejection_not_subscribed() {
     let mut nssf = NssfEngine::new("nssf-core-002");
-    let plmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
+    let plmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
 
     let embb = Snssai { sst: 1, sd: None };
     let miot = Snssai { sst: 3, sd: None }; // Not in subscriber's subscription
@@ -97,7 +112,10 @@ fn test_nssf_rejection_not_subscribed() {
 
     assert_eq!(info.rejected_nssai_list.len(), 1);
     assert_eq!(info.rejected_nssai_list[0].0, miot);
-    assert_eq!(info.rejected_nssai_list[0].1, SnssaiRejectionCause::NotSubscribed);
+    assert_eq!(
+        info.rejected_nssai_list[0].1,
+        SnssaiRejectionCause::NotSubscribed
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +125,10 @@ fn test_nssf_rejection_not_subscribed() {
 #[test]
 fn test_nssf_rejection_not_available_in_current_ta() {
     let mut nssf = NssfEngine::new("nssf-core-003");
-    let plmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
+    let plmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
 
     let embb = Snssai { sst: 1, sd: None };
     let urllc = Snssai { sst: 2, sd: None };
@@ -155,7 +176,10 @@ fn test_nssf_rejection_not_available_in_current_ta() {
 #[test]
 fn test_nssf_default_to_subscribed_when_no_requested_nssai() {
     let mut nssf = NssfEngine::new("nssf-core-004");
-    let plmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
+    let plmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
     let embb = Snssai { sst: 1, sd: None };
 
     nssf.configure_plmn_slices(plmn, vec![embb.clone()]);
@@ -191,7 +215,10 @@ fn test_nssf_default_to_subscribed_when_no_requested_nssai() {
 #[test]
 fn test_nssf_candidate_amf_set_resolution() {
     let mut nssf = NssfEngine::new("nssf-core-005");
-    let plmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
+    let plmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
     let embb = Snssai { sst: 1, sd: None };
 
     nssf.configure_plmn_slices(plmn, vec![embb.clone()]);

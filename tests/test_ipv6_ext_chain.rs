@@ -1,9 +1,9 @@
 use std::str::FromStr;
 use toy_tcpip::ipv6::{Ipv6Address, Ipv6Header, Ipv6Packet};
 use toy_tcpip::ipv6_ext::{
-    compute_flow_label, Ipv6ExtError, Ipv6ExtensionChain, Ipv6ExtensionHeader, Ipv6Option,
     IPV6_EXT_DEST_OPTIONS, IPV6_EXT_FRAGMENT, IPV6_EXT_HOP_BY_HOP, IPV6_EXT_NO_NEXT_HEADER,
-    MAX_EXTENSION_HEADERS,
+    Ipv6ExtError, Ipv6ExtensionChain, Ipv6ExtensionHeader, Ipv6Option, MAX_EXTENSION_HEADERS,
+    compute_flow_label,
 };
 
 #[test]
@@ -35,7 +35,11 @@ fn test_ipv6_hop_by_hop_and_destination_options_roundtrip() {
 
     let (serialized_exts, first_nh) = chain.serialize();
     assert_eq!(first_nh, IPV6_EXT_HOP_BY_HOP);
-    assert_eq!(serialized_exts.len() % 8, 0, "Extension chain must align to 8 octets");
+    assert_eq!(
+        serialized_exts.len() % 8,
+        0,
+        "Extension chain must align to 8 octets"
+    );
 
     // Prepend IPv6 fixed header
     let src = Ipv6Address::from_str("2001:db8:1::1").unwrap();

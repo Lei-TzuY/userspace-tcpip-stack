@@ -1,7 +1,7 @@
 //! Integration tests for 3GPP TS 29.509 / TS 29.503 / TS 33.501 5G AUSF & UDM Engine.
 
 use toy_tcpip::ausf_udm_5g::*;
-use toy_tcpip::nas_5g::{verify_5g_aka_challenge, PduSessionType, SscMode};
+use toy_tcpip::nas_5g::{PduSessionType, SscMode, verify_5g_aka_challenge};
 use toy_tcpip::ngap_5g::Snssai;
 
 // ---------------------------------------------------------------------------
@@ -134,9 +134,7 @@ fn test_nausf_ue_authentication_rejection_on_mismatched_res() {
         res_star: bad_res,
     };
 
-    let confirm_resp = ausf
-        .handle_authenticate_confirmation(&confirm_req)
-        .unwrap();
+    let confirm_resp = ausf.handle_authenticate_confirmation(&confirm_req).unwrap();
     assert!(!confirm_resp.success);
     assert!(confirm_resp.k_seaf.is_none());
 }
@@ -165,7 +163,9 @@ fn test_nudm_sdm_am_and_sm_subscription_retrieval() {
     udm.provision_subscriber("imsi-208950000000003", k, opc, snssais, dnn_cfg);
 
     // Query AM Data
-    let am_data = udm.get_am_data("imsi-208950000000003").expect("AM data missing");
+    let am_data = udm
+        .get_am_data("imsi-208950000000003")
+        .expect("AM data missing");
     assert_eq!(am_data.supported_snssais.len(), 1);
     assert_eq!(am_data.supported_snssais[0].sst, 1);
 

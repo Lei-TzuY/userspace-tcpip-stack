@@ -52,7 +52,12 @@ pub struct GtpuRttSmoothEngine {
 }
 
 impl GtpuRttSmoothEngine {
-    pub fn new(session_id: u32, alpha_fast_frac: (u64, u64), alpha_slow_frac: (u64, u64), spike_threshold_pct: u32) -> Self {
+    pub fn new(
+        session_id: u32,
+        alpha_fast_frac: (u64, u64),
+        alpha_slow_frac: (u64, u64),
+        spike_threshold_pct: u32,
+    ) -> Self {
         let alpha_fast_scaled = (alpha_fast_frac.0 * FIXED_POINT_SCALE) / alpha_fast_frac.1.max(1);
         let alpha_slow_scaled = (alpha_slow_frac.0 * FIXED_POINT_SCALE) / alpha_slow_frac.1.max(1);
 
@@ -83,12 +88,14 @@ impl GtpuRttSmoothEngine {
 
         // Update Fast EMA: EMA_fast = alpha * sample + (1 - alpha) * EMA_fast
         let fast_term1 = (sample_fp * self.alpha_fast_scaled) >> FIXED_POINT_SHIFT;
-        let fast_term2 = (self.fast_ema_fp * (FIXED_POINT_SCALE - self.alpha_fast_scaled)) >> FIXED_POINT_SHIFT;
+        let fast_term2 =
+            (self.fast_ema_fp * (FIXED_POINT_SCALE - self.alpha_fast_scaled)) >> FIXED_POINT_SHIFT;
         self.fast_ema_fp = fast_term1 + fast_term2;
 
         // Update Slow EMA: EMA_slow = alpha * sample + (1 - alpha) * EMA_slow
         let slow_term1 = (sample_fp * self.alpha_slow_scaled) >> FIXED_POINT_SHIFT;
-        let slow_term2 = (self.slow_ema_fp * (FIXED_POINT_SCALE - self.alpha_slow_scaled)) >> FIXED_POINT_SHIFT;
+        let slow_term2 =
+            (self.slow_ema_fp * (FIXED_POINT_SCALE - self.alpha_slow_scaled)) >> FIXED_POINT_SHIFT;
         self.slow_ema_fp = slow_term1 + slow_term2;
 
         let fast_us = self.fast_ema_us();
@@ -148,7 +155,11 @@ mod tests {
         // Sudden severe spike to 100 ms (100,000 µs)
         let v1 = engine.feed_sample(100_000);
         match v1 {
-            RttAnomalyVerdict::LatencySpike { fast_ema_us, slow_ema_us, ratio_percent } => {
+            RttAnomalyVerdict::LatencySpike {
+                fast_ema_us,
+                slow_ema_us,
+                ratio_percent,
+            } => {
                 assert!(fast_ema_us > slow_ema_us);
                 assert!(ratio_percent >= 150);
             }

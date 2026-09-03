@@ -40,7 +40,8 @@ impl UuTokenBucket {
         if self.last_update_us > 0 && now_us > self.last_update_us {
             let elapsed_sec = (now_us - self.last_update_us) as f64 / 1_000_000.0;
             let added_tokens = elapsed_sec * self.rate_bytes_per_sec as f64;
-            self.available_tokens = (self.available_tokens + added_tokens).min(self.burst_capacity_bytes as f64);
+            self.available_tokens =
+                (self.available_tokens + added_tokens).min(self.burst_capacity_bytes as f64);
         }
         self.last_update_us = now_us;
 
@@ -73,7 +74,12 @@ impl EvpnUuRateLimitEngine {
         }
     }
 
-    pub fn configure_vni_limit(&mut self, vni: u32, rate_bytes_per_sec: u64, burst_capacity_bytes: u64) {
+    pub fn configure_vni_limit(
+        &mut self,
+        vni: u32,
+        rate_bytes_per_sec: u64,
+        burst_capacity_bytes: u64,
+    ) {
         self.vni_buckets.insert(
             vni,
             UuTokenBucket::new(rate_bytes_per_sec, burst_capacity_bytes),
@@ -81,7 +87,12 @@ impl EvpnUuRateLimitEngine {
     }
 
     /// Evaluates whether an unknown unicast frame on `vni` is permitted.
-    pub fn police_unknown_unicast(&mut self, vni: u32, bytes: usize, now_us: u64) -> UuRateLimitVerdict {
+    pub fn police_unknown_unicast(
+        &mut self,
+        vni: u32,
+        bytes: usize,
+        now_us: u64,
+    ) -> UuRateLimitVerdict {
         self.total_evaluated_frames += 1;
 
         if let Some(bucket) = self.vni_buckets.get_mut(&vni) {

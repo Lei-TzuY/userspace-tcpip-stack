@@ -29,13 +29,7 @@ fn test_e2sm_kpm_telemetry_collection_and_serialization() {
         dl_packet_loss_ppm: 50,
     }];
 
-    let kpm_msg = e2_node.collect_kpm_telemetry(
-        650_000,
-        350.0,
-        42,
-        slice_stats,
-        ue_stats,
-    );
+    let kpm_msg = e2_node.collect_kpm_telemetry(650_000, 350.0, 42, slice_stats, ue_stats);
 
     assert_eq!(kpm_msg.cell_id, 0x001001_00000001);
     assert_eq!(kpm_msg.cell_records.len(), 4);
@@ -117,10 +111,16 @@ fn test_xapp_closed_loop_prb_congestion_mitigation() {
     assert!(action_opt.is_some());
 
     let (header, message) = action_opt.unwrap();
-    assert_eq!(header.ric_control_style_type, RC_STYLE_CONNECTED_MODE_MOBILITY);
+    assert_eq!(
+        header.ric_control_style_type,
+        RC_STYLE_CONNECTED_MODE_MOBILITY
+    );
     assert_eq!(header.ric_control_action_id, RC_ACTION_ADJUST_A3_OFFSET);
     assert_eq!(message.parameters[0].param_id, RC_PARAM_ID_A3_OFFSET_DB);
-    assert_eq!(message.parameters[0].param_value, RcParameterValue::Integer(-3));
+    assert_eq!(
+        message.parameters[0].param_value,
+        RcParameterValue::Integer(-3)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -149,10 +149,19 @@ fn test_xapp_closed_loop_slice_sla_delay_violation() {
 
     let (header, message) = action_opt.unwrap();
     assert_eq!(header.ue_id, Some(0x5002));
-    assert_eq!(header.ric_control_style_type, RC_STYLE_SLICE_SLA_ENFORCEMENT);
+    assert_eq!(
+        header.ric_control_style_type,
+        RC_STYLE_SLICE_SLA_ENFORCEMENT
+    );
     assert_eq!(header.ric_control_action_id, RC_ACTION_SET_PRB_QUOTA);
-    assert_eq!(message.parameters[0].param_id, RC_PARAM_ID_GUARANTEED_PRB_PPM);
-    assert_eq!(message.parameters[0].param_value, RcParameterValue::Integer(100_000));
+    assert_eq!(
+        message.parameters[0].param_id,
+        RC_PARAM_ID_GUARANTEED_PRB_PPM
+    );
+    assert_eq!(
+        message.parameters[0].param_value,
+        RcParameterValue::Integer(100_000)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -171,9 +180,21 @@ fn test_a1_policy_translation_to_e2sm_rc() {
     };
 
     let (header, message) = xapp.translate_a1_policy_to_rc_control(&a1_policy);
-    assert_eq!(header.ric_control_style_type, RC_STYLE_SLICE_SLA_ENFORCEMENT);
+    assert_eq!(
+        header.ric_control_style_type,
+        RC_STYLE_SLICE_SLA_ENFORCEMENT
+    );
     assert_eq!(message.parameters.len(), 2);
-    assert_eq!(message.parameters[0].param_id, RC_PARAM_ID_GUARANTEED_PRB_PPM);
-    assert_eq!(message.parameters[0].param_value, RcParameterValue::Integer(300_000));
-    assert_eq!(message.parameters[1].param_value, RcParameterValue::Integer(4));
+    assert_eq!(
+        message.parameters[0].param_id,
+        RC_PARAM_ID_GUARANTEED_PRB_PPM
+    );
+    assert_eq!(
+        message.parameters[0].param_value,
+        RcParameterValue::Integer(300_000)
+    );
+    assert_eq!(
+        message.parameters[1].param_value,
+        RcParameterValue::Integer(4)
+    );
 }

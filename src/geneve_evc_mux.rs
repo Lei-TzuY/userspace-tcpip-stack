@@ -3,7 +3,7 @@
 //! Implements multi-tenant Carrier Ethernet Service Multiplexing (E-Line & E-LAN)
 //! over Geneve overlay tunnels (UDP port 6081) with CE-VLAN ID translation and metadata options.
 
-use crate::geneve::{GeneveOption, GenevePacket, ETHERTYPE_TRANSPARENT_ETH};
+use crate::geneve::{ETHERTYPE_TRANSPARENT_ETH, GeneveOption, GenevePacket};
 use crate::ipv4::Ipv4Address;
 use std::collections::HashMap;
 
@@ -81,7 +81,11 @@ impl GeneveEvcEngine {
     ) {
         self.egress_mappings.insert(
             profile.geneve_vni,
-            (egress_if.to_string(), profile.egress_delivery, profile.evc_id),
+            (
+                egress_if.to_string(),
+                profile.egress_delivery,
+                profile.evc_id,
+            ),
         );
         self.ingress_mappings
             .insert((ingress_if.to_string(), ce_vlan), profile);
@@ -107,13 +111,16 @@ impl GeneveEvcEngine {
             0 // Untagged / default PVID
         };
 
-        let profile = match self.ingress_mappings.get(&(ingress_if.to_string(), ce_vlan)) {
+        let profile = match self
+            .ingress_mappings
+            .get(&(ingress_if.to_string(), ce_vlan))
+        {
             Some(p) => p,
             None => {
                 return Err(format!(
                     "No EVC service mapping for interface {} VLAN {}",
                     ingress_if, ce_vlan
-                ))
+                ));
             }
         };
 
@@ -145,7 +152,10 @@ impl GeneveEvcEngine {
     }
 
     /// Egress UNI: Decapsulates incoming Geneve packet and delivers customer frame.
-    pub fn decapsulate_evc_packet(&self, geneve_pkt: &GenevePacket) -> Result<EvcDecapResult, String> {
+    pub fn decapsulate_evc_packet(
+        &self,
+        geneve_pkt: &GenevePacket,
+    ) -> Result<EvcDecapResult, String> {
         let (out_if, delivery_action, evc_id) = match self.egress_mappings.get(&geneve_pkt.vni) {
             Some(entry) => entry,
             None => return Err(format!("Unmapped Geneve VNI {}", geneve_pkt.vni)),
@@ -218,9 +228,7 @@ mod tests {
 
         // Customer frame with VLAN 100
         let mut frame = vec![
-            0x00, 0x11, 0x22, 0x33, 0x44, 0x55,
-            0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb,
-            0x81, 0x00,
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0x81, 0x00,
             0x00, 0x64, // VLAN 100
             0x08, 0x00,
         ];
@@ -231,13 +239,19 @@ mod tests {
         assert_eq!(encap.remote_vtep, Ipv4Address::new(10, 0, 0, 2));
         assert_eq!(encap.geneve_packet.vni, 50001);
         assert_eq!(encap.geneve_packet.options.len(), 1);
-        assert_eq!(encap.geneve_packet.options[0].class, GENEVE_OPT_CLASS_CARRIER_ETHERNET);
+        assert_eq!(
+            encap.geneve_packet.options[0].class,
+            GENEVE_OPT_CLASS_CARRIER_ETHERNET
+        );
 
         // Egress Decap
         let decap = engine.decapsulate_evc_packet(&encap.geneve_packet).unwrap();
         assert_eq!(decap.out_if, "uni-2");
         assert_eq!(decap.evc_id, 1001);
         // VLAN should be translated to 300
-        assert_eq!(u16::from_be_bytes([decap.customer_frame[14], decap.customer_frame[15]]) & 0x0FFF, 300);
+        assert_eq!(
+            u16::from_be_bytes([decap.customer_frame[14], decap.customer_frame[15]]) & 0x0FFF,
+            300
+        );
     }
 }

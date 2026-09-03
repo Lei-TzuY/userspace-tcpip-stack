@@ -1,6 +1,4 @@
-use toy_tcpip::gtpu_rtt_dup::{
-    DupDispatchDecision, DuplicationState, GtpuRttDupEngine,
-};
+use toy_tcpip::gtpu_rtt_dup::{DupDispatchDecision, DuplicationState, GtpuRttDupEngine};
 
 #[test]
 fn test_gtpu_rtt_dup_lifecycle() {
@@ -8,7 +6,10 @@ fn test_gtpu_rtt_dup_lifecycle() {
     let mut engine = GtpuRttDupEngine::new(1, 2, 25_000, 5_000, 2);
 
     // 1. Initial State: SinglePath
-    assert_eq!(engine.evaluate_dispatch(), DupDispatchDecision::SinglePrimary);
+    assert_eq!(
+        engine.evaluate_dispatch(),
+        DupDispatchDecision::SinglePrimary
+    );
 
     // 2. Primary leg experiences jitter spike (RTTVAR = 7,000 µs) -> Transitions to Duplicating
     engine.update_primary_telemetry(20_000, 7_000);
@@ -28,6 +29,9 @@ fn test_gtpu_rtt_dup_lifecycle() {
     // 4. 2nd healthy sample -> Reverts to SinglePath
     engine.update_primary_telemetry(14_000, 1_500);
     assert_eq!(engine.current_state, DuplicationState::SinglePath);
-    assert_eq!(engine.evaluate_dispatch(), DupDispatchDecision::SinglePrimary);
+    assert_eq!(
+        engine.evaluate_dispatch(),
+        DupDispatchDecision::SinglePrimary
+    );
     assert_eq!(engine.total_state_transitions, 2);
 }

@@ -124,8 +124,8 @@ pub struct PduSessionResourceAdmittedItem {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SnStatusItem {
     pub drb_id: u8,
-    pub dl_count: u32, // Next DL COUNT to assign
-    pub ul_count: u32, // First missing UL COUNT
+    pub dl_count: u32,                          // Next DL COUNT to assign
+    pub ul_count: u32,                          // First missing UL COUNT
     pub receive_status_bitmap: Option<Vec<u8>>, // Lost UL packet gap bitmap
 }
 

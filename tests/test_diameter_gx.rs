@@ -75,7 +75,7 @@ fn test_pcef_gx_session_lifecycle_and_rule_installation() {
 #[test]
 fn test_diameter_gx_rar_raa_wire_codec() {
     use toy_tcpip::diameter_gx::{
-        GxReAuthAnswer, GxReAuthRequest, DIAMETER_APPLICATION_GX, DIAMETER_CMD_RE_AUTH,
+        DIAMETER_APPLICATION_GX, DIAMETER_CMD_RE_AUTH, GxReAuthAnswer, GxReAuthRequest,
     };
 
     let mut volte_rule = PccRule::new("rule-volte-qci1", 1, 64_000, 64_000);
@@ -124,7 +124,7 @@ fn test_diameter_gx_rar_raa_wire_codec() {
 
 #[test]
 fn test_diameter_gx_pcrf_pcef_push_rule_and_traffic_enforcement() {
-    use toy_tcpip::diameter_gx::{PcrfGxEngine, PccRule};
+    use toy_tcpip::diameter_gx::{PccRule, PcrfGxEngine};
 
     let mut pcrf = PcrfGxEngine::new("pcrf.carrier.com", "carrier.com");
     let mut pcef = PcefGxEngine::new("carrier.com");
@@ -141,7 +141,10 @@ fn test_diameter_gx_pcrf_pcef_push_rule_and_traffic_enforcement() {
         IpCanType::ThreeGppEps,
     );
     let (cca, _rules) = pcrf.handle_ccr_initial(&ccr);
-    assert_eq!(cca.get_avp(268).unwrap().as_u32().unwrap(), DIAMETER_SUCCESS);
+    assert_eq!(
+        cca.get_avp(268).unwrap().as_u32().unwrap(),
+        DIAMETER_SUCCESS
+    );
     assert_eq!(pcrf.active_session_count(), 1);
 
     pcef.handle_session_establishment(sess_id, imsi, IpCanType::ThreeGppEps);
@@ -168,8 +171,16 @@ fn test_diameter_gx_pcrf_pcef_push_rule_and_traffic_enforcement() {
 
     let installed_pcef = pcef.installed_rules.get(sess_id).unwrap();
     assert_eq!(installed_pcef.len(), 2); // IMS signalling + VoLTE voice (Internet was removed)
-    assert!(installed_pcef.iter().any(|r| r.rule_name == "rule-volte-voice"));
-    assert!(!installed_pcef.iter().any(|r| r.rule_name == "rule-default-internet"));
+    assert!(
+        installed_pcef
+            .iter()
+            .any(|r| r.rule_name == "rule-volte-voice")
+    );
+    assert!(
+        !installed_pcef
+            .iter()
+            .any(|r| r.rule_name == "rule-default-internet")
+    );
 
     // 3. Evaluate packet enforcement
     // Matches VoLTE Voice filter -> Allowed and counted

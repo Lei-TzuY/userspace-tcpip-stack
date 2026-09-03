@@ -75,7 +75,8 @@ impl EvpnL3EsiFastWithdrawEngine {
             for route in routes {
                 if &route.key == key {
                     let active_pes = self.active_esi_pes.get(esi);
-                    let primary_up = active_pes.map_or(false, |pes| pes.contains(&route.primary_pe));
+                    let primary_up =
+                        active_pes.map_or(false, |pes| pes.contains(&route.primary_pe));
 
                     if primary_up {
                         return EvpnL3ForwardingState::ActivePrimary(route.primary_pe);
@@ -107,7 +108,9 @@ impl EvpnL3EsiFastWithdrawEngine {
             pes.remove(withdrawn_pe);
         }
 
-        self.esi_to_prefixes.get(esi).map_or(0, |routes| routes.len())
+        self.esi_to_prefixes
+            .get(esi)
+            .map_or(0, |routes| routes.len())
     }
 }
 

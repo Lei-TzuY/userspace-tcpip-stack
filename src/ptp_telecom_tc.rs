@@ -16,7 +16,7 @@ pub const PTP_SUB_NS_SCALE: i64 = 65536; // 2^16
 pub enum TelecomTcMode {
     #[default]
     PeerToPeer, // P2P TC: includes residence time + ingress peer link delay
-    EndToEnd,   // E2E TC: includes residence time only
+    EndToEnd, // E2E TC: includes residence time only
 }
 
 /// PTP Telecom Transparent Clock (T-TC) Engine.
@@ -120,7 +120,11 @@ impl TelecomPeerTransparentClockEngine {
         } else {
             0
         };
-        let asym = self.port_asymmetry_ns.get(&ingress_port).copied().unwrap_or(0);
+        let asym = self
+            .port_asymmetry_ns
+            .get(&ingress_port)
+            .copied()
+            .unwrap_or(0);
 
         let delta = residence_time + peer_delay + asym;
         self.corrections_performed += 1;
@@ -142,7 +146,11 @@ impl TelecomPeerTransparentClockEngine {
         } else {
             0
         };
-        let asym = self.port_asymmetry_ns.get(&ingress_port).copied().unwrap_or(0);
+        let asym = self
+            .port_asymmetry_ns
+            .get(&ingress_port)
+            .copied()
+            .unwrap_or(0);
 
         let delta_ns = residence_time + peer_delay + asym;
         let delta_scaled = delta_ns.saturating_mul(PTP_SUB_NS_SCALE);

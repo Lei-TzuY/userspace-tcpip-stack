@@ -85,7 +85,14 @@ impl EvpnDhtEngine {
     }
 
     /// Register or refresh host activity (e.g. upon seeing an ingress frame).
-    pub fn touch_host(&mut self, vni: u32, port_id: u32, mac: MacAddress, ip: Ipv4Address, current_time_secs: u64) {
+    pub fn touch_host(
+        &mut self,
+        vni: u32,
+        port_id: u32,
+        mac: MacAddress,
+        ip: Ipv4Address,
+        current_time_secs: u64,
+    ) {
         if let Some(h) = self.hosts.iter_mut().find(|h| h.vni == vni && h.mac == mac) {
             h.port_id = port_id;
             h.ip = ip;
@@ -127,7 +134,9 @@ impl EvpnDhtEngine {
                         });
                     }
                 }
-                HostTrackingState::Probing { ref mut retries_left } => {
+                HostTrackingState::Probing {
+                    ref mut retries_left,
+                } => {
                     if *retries_left > 0 {
                         *retries_left -= 1;
                         host.total_probes_sent += 1;

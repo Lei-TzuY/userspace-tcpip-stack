@@ -1,6 +1,4 @@
-use toy_tcpip::gtpu_atsss_split::{
-    AtsssAccessLeg, AtsssSteeringRule, GtpuAtsssSplitEngine,
-};
+use toy_tcpip::gtpu_atsss_split::{AtsssAccessLeg, AtsssSteeringRule, GtpuAtsssSplitEngine};
 
 #[test]
 fn test_gtpu_atsss_split_and_failover() {

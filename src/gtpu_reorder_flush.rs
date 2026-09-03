@@ -113,7 +113,11 @@ impl GtpuReorderFlushEngine {
             let mut flushed = Vec::new();
             flushed.push((seq_number, payload_bytes));
 
-            while let Some(pos) = self.buffer.iter().position(|p| p.seq_number == self.next_expected_seq) {
+            while let Some(pos) = self
+                .buffer
+                .iter()
+                .position(|p| p.seq_number == self.next_expected_seq)
+            {
                 let p = self.buffer.remove(pos);
                 self.next_expected_seq += 1;
                 self.total_in_order_emitted += 1;
@@ -161,7 +165,11 @@ impl GtpuReorderFlushEngine {
 
             // Flush all consecutive packets starting at or above new next_expected_seq
             let mut flushed = Vec::new();
-            while let Some(pos) = self.buffer.iter().position(|p| p.seq_number <= self.next_expected_seq) {
+            while let Some(pos) = self
+                .buffer
+                .iter()
+                .position(|p| p.seq_number <= self.next_expected_seq)
+            {
                 let p = self.buffer.remove(pos);
                 if p.seq_number == self.next_expected_seq {
                     self.next_expected_seq += 1;
@@ -170,7 +178,11 @@ impl GtpuReorderFlushEngine {
             }
 
             // Also advance if buffer has immediately next sequences
-            while let Some(pos) = self.buffer.iter().position(|p| p.seq_number == self.next_expected_seq) {
+            while let Some(pos) = self
+                .buffer
+                .iter()
+                .position(|p| p.seq_number == self.next_expected_seq)
+            {
                 let p = self.buffer.remove(pos);
                 self.next_expected_seq += 1;
                 flushed.push((p.seq_number, p.payload_bytes));
@@ -196,7 +208,11 @@ impl GtpuReorderFlushEngine {
                 self.total_flushed_on_gap += 1;
 
                 let mut flushed = Vec::new();
-                while let Some(pos) = self.buffer.iter().position(|p| p.seq_number == self.next_expected_seq) {
+                while let Some(pos) = self
+                    .buffer
+                    .iter()
+                    .position(|p| p.seq_number == self.next_expected_seq)
+                {
                     let p = self.buffer.remove(pos);
                     self.next_expected_seq += 1;
                     flushed.push((p.seq_number, p.payload_bytes));

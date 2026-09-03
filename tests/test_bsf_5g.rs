@@ -28,7 +28,9 @@ fn test_bsf_register_and_discover_by_ue_ipv4() {
         pcf_diameter_realm: None,
     };
 
-    let created = bsf.register_binding(&req).expect("Failed to register binding");
+    let created = bsf
+        .register_binding(&req)
+        .expect("Failed to register binding");
     assert!(!created.binding_id.is_empty());
 
     // AF discovers serving PCF by UE IP
@@ -56,7 +58,10 @@ fn test_bsf_discover_by_supi_multiple_sessions() {
     let mut bsf = BsfEngine::new("bsf-core-002");
     let supi = "imsi-208950000000002";
     let embb = Snssai { sst: 1, sd: None };
-    let ims_slice = Snssai { sst: 1, sd: Some([0, 0, 1]) };
+    let ims_slice = Snssai {
+        sst: 1,
+        sd: Some([0, 0, 1]),
+    };
 
     // Session 1: Internet on PCF-1
     let req1 = CreateBindingRequest {

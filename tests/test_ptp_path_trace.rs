@@ -2,9 +2,8 @@
 
 use toy_tcpip::ptp_path_trace::{
     CLOCK_CLASS_FREERUN, CLOCK_CLASS_HOLDOVER_IN_SPEC, CLOCK_CLASS_HOLDOVER_OUT_OF_SPEC,
-    CLOCK_CLASS_LOCKED, MAX_PATH_TRACE_DEPTH, PTP_TLV_TYPE_PATH_TRACE,
-    PathTraceRejectReason, PathTraceTlv, PathTraceValidation,
-    PtpPathTraceEngine, TelecomAnnounce, UpstreamRefState,
+    CLOCK_CLASS_LOCKED, MAX_PATH_TRACE_DEPTH, PTP_TLV_TYPE_PATH_TRACE, PathTraceRejectReason,
+    PathTraceTlv, PathTraceValidation, PtpPathTraceEngine, TelecomAnnounce, UpstreamRefState,
 };
 
 #[test]
@@ -24,7 +23,10 @@ fn test_path_trace_tlv_serialize_parse_roundtrip() {
     // Header (4 bytes) + 3 × 8 bytes = 28 bytes
     assert_eq!(bytes.len(), 28);
     // TLV type should be PATH_TRACE (0x0008)
-    assert_eq!(u16::from_be_bytes([bytes[0], bytes[1]]), PTP_TLV_TYPE_PATH_TRACE);
+    assert_eq!(
+        u16::from_be_bytes([bytes[0], bytes[1]]),
+        PTP_TLV_TYPE_PATH_TRACE
+    );
     // Length should be 24 (3 × 8)
     assert_eq!(u16::from_be_bytes([bytes[2], bytes[3]]), 24);
 
@@ -61,7 +63,10 @@ fn test_path_trace_loop_detection_and_depth_limit() {
     let mut looped_pt = pt.clone();
     looped_pt.path.push(id_a); // Duplicate!
     let result = PtpPathTraceEngine::validate_path_trace(&looped_pt);
-    assert!(matches!(result, PathTraceValidation::LoopAt { position: 2, .. }));
+    assert!(matches!(
+        result,
+        PathTraceValidation::LoopAt { position: 2, .. }
+    ));
 
     // Test depth limit
     let mut deep_pt = PathTraceTlv::new();
@@ -141,7 +146,10 @@ fn test_holdover_fault_propagation_cascade() {
     // === Upstream failure: GM reference lost ===
     bc1.signal_upstream_loss();
     assert_eq!(bc1.holdover_transitions, 1);
-    assert!(matches!(bc1.upstream_state, UpstreamRefState::HoldoverInSpec { elapsed_sec: 0 }));
+    assert!(matches!(
+        bc1.upstream_state,
+        UpstreamRefState::HoldoverInSpec { elapsed_sec: 0 }
+    ));
 
     // Downstream announce should now show holdover-in-spec
     let holdover_announce = bc1.generate_downstream_announce().unwrap();
@@ -151,14 +159,23 @@ fn test_holdover_fault_propagation_cascade() {
     bc1.advance_holdover_timer(600); // 600 seconds > 1000/2 = 500
     let degraded_announce = bc1.generate_downstream_announce().unwrap();
     assert_eq!(degraded_announce.clock_class, CLOCK_CLASS_HOLDOVER_IN_SPEC);
-    assert_eq!(degraded_announce.clock_accuracy, bc1.holdover_budget.degraded_accuracy);
+    assert_eq!(
+        degraded_announce.clock_accuracy,
+        bc1.holdover_budget.degraded_accuracy
+    );
 
     // Advance past full budget → transitions to HoldoverOutOfSpec
     bc1.advance_holdover_timer(500); // Total now 1100 > 1000
-    assert!(matches!(bc1.upstream_state, UpstreamRefState::HoldoverOutOfSpec));
+    assert!(matches!(
+        bc1.upstream_state,
+        UpstreamRefState::HoldoverOutOfSpec
+    ));
 
     let out_of_spec_announce = bc1.generate_downstream_announce().unwrap();
-    assert_eq!(out_of_spec_announce.clock_class, CLOCK_CLASS_HOLDOVER_OUT_OF_SPEC);
+    assert_eq!(
+        out_of_spec_announce.clock_class,
+        CLOCK_CLASS_HOLDOVER_OUT_OF_SPEC
+    );
 
     // === Upstream restored ===
     bc1.signal_upstream_restore();

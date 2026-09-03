@@ -41,12 +41,8 @@ fn test_dns_reverse_ptr_queries_v4_and_v6() {
     assert_eq!(parsed_v4.questions[0].name, "1.2.0.192.in-addr.arpa");
     assert_eq!(parsed_v4.questions[0].qtype, DNS_TYPE_PTR);
 
-    let resp_v4 = DnsMessage::build_ptr_response(
-        0x1111,
-        "1.2.0.192.in-addr.arpa",
-        "host1.example.org",
-        300,
-    );
+    let resp_v4 =
+        DnsMessage::build_ptr_response(0x1111, "1.2.0.192.in-addr.arpa", "host1.example.org", 300);
     let parsed_resp_v4 = DnsMessage::parse(&resp_v4).unwrap();
     assert_eq!(
         parsed_resp_v4.answers[0].data,
@@ -68,8 +64,7 @@ fn test_dns_cname_mx_txt_srv_records() {
     let id = 0x3333;
 
     // CNAME
-    let cname_wire =
-        DnsMessage::build_cname_response(id, "www.example.com", "example.com", 600);
+    let cname_wire = DnsMessage::build_cname_response(id, "www.example.com", "example.com", 600);
     let cname_msg = DnsMessage::parse(&cname_wire).unwrap();
     assert_eq!(
         cname_msg.answers[0].data,
@@ -139,7 +134,10 @@ fn test_dns_nxdomain_and_caching_resolver() {
 
     // Positive Cache
     let ip4 = Ipv4Address::new(93, 184, 216, 34);
-    let ip6 = Ipv6Address([0x26, 0x06, 0x28, 0x00, 0x02, 0x20, 0x00, 0x01, 0x02, 0x48, 0x18, 0x93, 0x25, 0xc8, 0x19, 0x46]);
+    let ip6 = Ipv6Address([
+        0x26, 0x06, 0x28, 0x00, 0x02, 0x20, 0x00, 0x01, 0x02, 0x48, 0x18, 0x93, 0x25, 0xc8, 0x19,
+        0x46,
+    ]);
     let ans_a = DnsAnswer {
         name: "example.com".to_string(),
         rtype: DNS_TYPE_A,
@@ -164,12 +162,18 @@ fn test_dns_nxdomain_and_caching_resolver() {
     assert_eq!(cache.lookup_aaaa("example.com", now + 100), Some(vec![ip6]));
 
     // Check TTL decrement
-    let lookup_res = cache.lookup("example.com", DNS_TYPE_A, now + 100).unwrap().unwrap();
+    let lookup_res = cache
+        .lookup("example.com", DNS_TYPE_A, now + 100)
+        .unwrap()
+        .unwrap();
     assert_eq!(lookup_res[0].ttl, 200);
 
     // Negative Cache
     cache.insert_negative("invalid.domain", DNS_TYPE_A, 60, now);
-    assert_eq!(cache.lookup("invalid.domain", DNS_TYPE_A, now + 30), Some(Err(())));
+    assert_eq!(
+        cache.lookup("invalid.domain", DNS_TYPE_A, now + 30),
+        Some(Err(()))
+    );
 
     // Purge expired
     cache.purge_expired(now + 350);

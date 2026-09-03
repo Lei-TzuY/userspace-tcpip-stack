@@ -37,7 +37,11 @@ fn test_detnet_mpls_dual_path_failover_and_elimination() {
     // 1. Ingress Replicate
     let result = engine.ingress_replicate(100, telemetry_packet);
     let frames = match result {
-        DetNetMplsResult::ReplicatedPaths { s_label, seq, frames } => {
+        DetNetMplsResult::ReplicatedPaths {
+            s_label,
+            seq,
+            frames,
+        } => {
             assert_eq!(s_label, 5000);
             assert_eq!(seq, 0);
             assert_eq!(frames.len(), 2);
@@ -50,7 +54,11 @@ fn test_detnet_mpls_dual_path_failover_and_elimination() {
     let primary_pdu = &frames[0].1[4..];
     let res1 = engine.egress_eliminate(primary_pdu);
     match res1 {
-        DetNetMplsResult::AcceptedUnique { s_label, seq, payload } => {
+        DetNetMplsResult::AcceptedUnique {
+            s_label,
+            seq,
+            payload,
+        } => {
             assert_eq!(s_label, 5000);
             assert_eq!(seq, 0);
             assert_eq!(payload, telemetry_packet);

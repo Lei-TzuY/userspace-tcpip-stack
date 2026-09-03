@@ -1,8 +1,6 @@
 // tests/test_gtpu_qos_marking.rs
 
-use toy_tcpip::gtpu_qos_marking::{
-    FiveQiProfile, FiveQiResourceType, GtpuQosMarkingEngine,
-};
+use toy_tcpip::gtpu_qos_marking::{FiveQiProfile, FiveQiResourceType, GtpuQosMarkingEngine};
 
 #[test]
 fn test_gtpu_qos_marking_lifecycle() {

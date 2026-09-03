@@ -1,6 +1,4 @@
-use toy_tcpip::tsn_cqf_gate_coord::{
-    CoordinatedCqfFrame, GateCoordVerdict, TsnCqfGateCoordEngine,
-};
+use toy_tcpip::tsn_cqf_gate_coord::{CoordinatedCqfFrame, GateCoordVerdict, TsnCqfGateCoordEngine};
 
 #[test]
 fn test_tsn_cqf_gate_coordination_lifecycle() {

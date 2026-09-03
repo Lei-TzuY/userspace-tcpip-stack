@@ -828,7 +828,11 @@ impl SocketRuntime {
     }
 
     /// Sets TCP_NODELAY option to disable Nagle's algorithm.
-    pub fn tcp_set_nodelay(&mut self, handle: TcpStreamHandle, nodelay: bool) -> Result<(), SocketError> {
+    pub fn tcp_set_nodelay(
+        &mut self,
+        handle: TcpStreamHandle,
+        nodelay: bool,
+    ) -> Result<(), SocketError> {
         self.key_of(handle)?;
         self.tcp_options.entry(handle).or_default().nodelay = nodelay;
         Ok(())
@@ -837,11 +841,19 @@ impl SocketRuntime {
     /// Reads TCP_NODELAY setting.
     pub fn tcp_nodelay(&self, handle: TcpStreamHandle) -> Result<bool, SocketError> {
         self.key_of(handle)?;
-        Ok(self.tcp_options.get(&handle).map(|o| o.nodelay).unwrap_or(false))
+        Ok(self
+            .tcp_options
+            .get(&handle)
+            .map(|o| o.nodelay)
+            .unwrap_or(false))
     }
 
     /// Sets non-blocking I/O mode for a TCP stream.
-    pub fn tcp_set_nonblocking(&mut self, handle: TcpStreamHandle, nonblocking: bool) -> Result<(), SocketError> {
+    pub fn tcp_set_nonblocking(
+        &mut self,
+        handle: TcpStreamHandle,
+        nonblocking: bool,
+    ) -> Result<(), SocketError> {
         self.key_of(handle)?;
         self.tcp_options.entry(handle).or_default().nonblocking = nonblocking;
         Ok(())
@@ -850,11 +862,19 @@ impl SocketRuntime {
     /// Reads non-blocking I/O setting.
     pub fn tcp_nonblocking(&self, handle: TcpStreamHandle) -> Result<bool, SocketError> {
         self.key_of(handle)?;
-        Ok(self.tcp_options.get(&handle).map(|o| o.nonblocking).unwrap_or(false))
+        Ok(self
+            .tcp_options
+            .get(&handle)
+            .map(|o| o.nonblocking)
+            .unwrap_or(false))
     }
 
     /// Sets read timeout in milliseconds for a TCP stream.
-    pub fn tcp_set_read_timeout(&mut self, handle: TcpStreamHandle, timeout_ms: Option<u64>) -> Result<(), SocketError> {
+    pub fn tcp_set_read_timeout(
+        &mut self,
+        handle: TcpStreamHandle,
+        timeout_ms: Option<u64>,
+    ) -> Result<(), SocketError> {
         self.key_of(handle)?;
         self.tcp_options.entry(handle).or_default().read_timeout_ms = timeout_ms;
         Ok(())
@@ -863,7 +883,10 @@ impl SocketRuntime {
     /// Reads read timeout setting.
     pub fn tcp_read_timeout(&self, handle: TcpStreamHandle) -> Result<Option<u64>, SocketError> {
         self.key_of(handle)?;
-        Ok(self.tcp_options.get(&handle).and_then(|o| o.read_timeout_ms))
+        Ok(self
+            .tcp_options
+            .get(&handle)
+            .and_then(|o| o.read_timeout_ms))
     }
 
     /// Returns the bound local address of a UDP socket.
@@ -875,7 +898,11 @@ impl SocketRuntime {
     }
 
     /// Sets SO_BROADCAST option on a UDP socket.
-    pub fn udp_set_broadcast(&mut self, handle: UdpSocketHandle, broadcast: bool) -> Result<(), SocketError> {
+    pub fn udp_set_broadcast(
+        &mut self,
+        handle: UdpSocketHandle,
+        broadcast: bool,
+    ) -> Result<(), SocketError> {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
@@ -888,11 +915,19 @@ impl SocketRuntime {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
-        Ok(self.udp_options.get(&handle).map(|o| o.broadcast).unwrap_or(false))
+        Ok(self
+            .udp_options
+            .get(&handle)
+            .map(|o| o.broadcast)
+            .unwrap_or(false))
     }
 
     /// Sets non-blocking mode on a UDP socket.
-    pub fn udp_set_nonblocking(&mut self, handle: UdpSocketHandle, nonblocking: bool) -> Result<(), SocketError> {
+    pub fn udp_set_nonblocking(
+        &mut self,
+        handle: UdpSocketHandle,
+        nonblocking: bool,
+    ) -> Result<(), SocketError> {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
@@ -905,11 +940,19 @@ impl SocketRuntime {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
-        Ok(self.udp_options.get(&handle).map(|o| o.nonblocking).unwrap_or(false))
+        Ok(self
+            .udp_options
+            .get(&handle)
+            .map(|o| o.nonblocking)
+            .unwrap_or(false))
     }
 
     /// Sets IP_MULTICAST_TTL on a UDP socket.
-    pub fn udp_set_multicast_ttl(&mut self, handle: UdpSocketHandle, ttl: u8) -> Result<(), SocketError> {
+    pub fn udp_set_multicast_ttl(
+        &mut self,
+        handle: UdpSocketHandle,
+        ttl: u8,
+    ) -> Result<(), SocketError> {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
@@ -922,15 +965,26 @@ impl SocketRuntime {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
-        Ok(self.udp_options.get(&handle).map(|o| o.multicast_ttl).unwrap_or(1))
+        Ok(self
+            .udp_options
+            .get(&handle)
+            .map(|o| o.multicast_ttl)
+            .unwrap_or(1))
     }
 
     /// Sets IP_MULTICAST_LOOP on a UDP socket.
-    pub fn udp_set_multicast_loop_v4(&mut self, handle: UdpSocketHandle, loopback: bool) -> Result<(), SocketError> {
+    pub fn udp_set_multicast_loop_v4(
+        &mut self,
+        handle: UdpSocketHandle,
+        loopback: bool,
+    ) -> Result<(), SocketError> {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
-        self.udp_options.entry(handle).or_default().multicast_loopback = loopback;
+        self.udp_options
+            .entry(handle)
+            .or_default()
+            .multicast_loopback = loopback;
         Ok(())
     }
 
@@ -939,7 +993,11 @@ impl SocketRuntime {
         if !self.udp_sockets.contains_key(&handle) {
             return Err(SocketError::InvalidSocket);
         }
-        Ok(self.udp_options.get(&handle).map(|o| o.multicast_loopback).unwrap_or(true))
+        Ok(self
+            .udp_options
+            .get(&handle)
+            .map(|o| o.multicast_loopback)
+            .unwrap_or(true))
     }
 
     pub fn get_tcp_connection(&self, key: &TcpConnectionKey) -> Option<&TcpConnection> {

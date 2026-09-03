@@ -226,10 +226,7 @@ mod tests {
 
     #[test]
     fn test_diameter_s13_imeidb_lifecycle() {
-        let mut engine = S13ImeiDbEngine::new(
-            "imeidb.gsma.org",
-            "gsma.org",
-        );
+        let mut engine = S13ImeiDbEngine::new("imeidb.gsma.org", "gsma.org");
 
         // 1. Register a stolen foreign device
         engine.register_device(

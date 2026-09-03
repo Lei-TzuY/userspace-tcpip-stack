@@ -86,7 +86,11 @@ impl S13RoamingMismatchEngine {
         allocated_mcc: &str,
         risk_weight: u8,
     ) {
-        if let Some(existing) = self.country_mappings.iter_mut().find(|m| m.tac_prefix == tac_prefix) {
+        if let Some(existing) = self
+            .country_mappings
+            .iter_mut()
+            .find(|m| m.tac_prefix == tac_prefix)
+        {
             existing.allocated_country_iso = allocated_country_iso.to_string();
             existing.allocated_mcc = allocated_mcc.to_string();
             existing.risk_weight = risk_weight;
@@ -135,12 +139,19 @@ impl S13RoamingMismatchEngine {
             .max_by_key(|m| m.tac_prefix.len());
 
         let (country_iso, allocated_mcc, risk) = match mapping {
-            Some(m) => (m.allocated_country_iso.clone(), m.allocated_mcc.clone(), m.risk_weight),
+            Some(m) => (
+                m.allocated_country_iso.clone(),
+                m.allocated_mcc.clone(),
+                m.risk_weight,
+            ),
             None => ("UNKNOWN".to_string(), "000".to_string(), 50),
         };
 
         // Check if origin country is on national security / sanctions blacklist
-        if self.blacklisted_origin_countries.contains(&country_iso.to_uppercase()) {
+        if self
+            .blacklisted_origin_countries
+            .contains(&country_iso.to_uppercase())
+        {
             self.total_blocked_roamers += 1;
             return RoamingValidationVerdict::BlacklistedCountryBlocked {
                 imei: imei.to_string(),
@@ -204,14 +215,23 @@ mod tests {
 
         // Domestic check (US TAC on US network 310-410)
         let v1 = engine.evaluate_roaming_equipment("012345678901234", "310410");
-        assert!(matches!(v1, RoamingValidationVerdict::DomesticConformant { .. }));
+        assert!(matches!(
+            v1,
+            RoamingValidationVerdict::DomesticConformant { .. }
+        ));
 
         // International roaming (UK TAC on US network 310-410)
         let v2 = engine.evaluate_roaming_equipment("353918001234567", "310410");
-        assert!(matches!(v2, RoamingValidationVerdict::AuthorizedInternationalRoaming { .. }));
+        assert!(matches!(
+            v2,
+            RoamingValidationVerdict::AuthorizedInternationalRoaming { .. }
+        ));
 
         // Blacklisted country origin
         let v3 = engine.evaluate_roaming_equipment("990012345678901", "310410");
-        assert!(matches!(v3, RoamingValidationVerdict::BlacklistedCountryBlocked { .. }));
+        assert!(matches!(
+            v3,
+            RoamingValidationVerdict::BlacklistedCountryBlocked { .. }
+        ));
     }
 }

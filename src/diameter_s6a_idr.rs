@@ -102,7 +102,9 @@ impl S6aIdrEngine {
 
     pub fn handle_ida(&mut self, ida: &S6aIdrMessage) -> bool {
         self.total_ida_received += 1;
-        ida.avps.iter().any(|a| matches!(a, S6aIdrAvp::ResultCode(2001)))
+        ida.avps
+            .iter()
+            .any(|a| matches!(a, S6aIdrAvp::ResultCode(2001)))
     }
 }
 

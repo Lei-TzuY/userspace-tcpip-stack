@@ -51,7 +51,8 @@ fn test_smf_pdu_session_create_sm_context_happy_path() {
     assert_eq!(resp.n2_sm_info.upf_gtpu_teid, resp.upf_n3_ul_teid);
 
     // 2. Verify N1 SM Container contains valid PduSessionEstablishmentAccept
-    let n1_pdu = NasPdu::from_bytes(&resp.n1_sm_container).expect("Failed to parse N1 SM container");
+    let n1_pdu =
+        NasPdu::from_bytes(&resp.n1_sm_container).expect("Failed to parse N1 SM container");
     match n1_pdu.gsm_message {
         Some(Nas5GsmMessage::EstablishmentAccept(ref acc)) => {
             assert_eq!(acc.pdu_session_id, 1);
@@ -110,7 +111,10 @@ fn test_smf_pdu_session_update_sm_context_initial_dl_tunnel() {
     assert_eq!(update_resp.current_state, SmContextState::Active);
 
     // Verify UPF PFCP session now contains Downlink PDR & FAR pointing to gNB
-    let sess = smf.active_sessions.get(&create_resp.sm_context_ref).unwrap();
+    let sess = smf
+        .active_sessions
+        .get(&create_resp.sm_context_ref)
+        .unwrap();
     assert_eq!(sess.state, SmContextState::Active);
     assert_eq!(sess.gnb_n3_dl_ip, Some(gnb_dl_ip));
     assert_eq!(sess.gnb_n3_dl_teid, Some(gnb_dl_teid));
@@ -120,10 +124,7 @@ fn test_smf_pdu_session_update_sm_context_initial_dl_tunnel() {
     assert_eq!(upf_sess.fars.len(), 2);
 
     let dl_far = upf_sess.fars.iter().find(|f| f.far_id == 2).unwrap();
-    assert_eq!(
-        dl_far.outer_header_creation,
-        Some((gnb_dl_teid, gnb_dl_ip))
-    );
+    assert_eq!(dl_far.outer_header_creation, Some((gnb_dl_teid, gnb_dl_ip)));
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +171,10 @@ fn test_smf_pdu_session_handover_execution_dl_tunnel_switch() {
     assert_eq!(ho_resp.current_state, SmContextState::Active);
 
     // Verify UPF FAR was updated to target gNodeB
-    let sess = smf.active_sessions.get(&create_resp.sm_context_ref).unwrap();
+    let sess = smf
+        .active_sessions
+        .get(&create_resp.sm_context_ref)
+        .unwrap();
     assert_eq!(sess.gnb_n3_dl_ip, Some(target_gnb_ip));
     assert_eq!(sess.gnb_n3_dl_teid, Some(target_gnb_teid));
 
@@ -264,7 +268,9 @@ fn test_smf_ipam_pool_exhaustion() {
     assert!(smf.handle_create_sm_context(&req1).is_ok());
     assert!(smf.handle_create_sm_context(&req2).is_ok());
     // Third allocation should fail with IPAM exhaustion
-    let err = smf.handle_create_sm_context(&req3).expect_err("Should exhaust IP pool");
+    let err = smf
+        .handle_create_sm_context(&req3)
+        .expect_err("Should exhaust IP pool");
     assert!(err.contains("IPAM"));
 }
 
@@ -290,7 +296,9 @@ fn test_end_to_end_5g_nas_smf_pfcp_ngap_pipeline() {
         user_location_tai: 100,
         n1_sm_container: ue_nas_pdu,
     };
-    let create_resp = smf.handle_create_sm_context(&create_req).expect("Create SM Context failed");
+    let create_resp = smf
+        .handle_create_sm_context(&create_req)
+        .expect("Create SM Context failed");
 
     // 3. AMF forwards n2_sm_info (PduSessionResourceSetupRequest) to gNodeB over NGAP (N2)
     let n2_req = &create_resp.n2_sm_info;
@@ -309,7 +317,9 @@ fn test_end_to_end_5g_nas_smf_pfcp_ngap_pipeline() {
         an_tunnel_ip: gnb_dl_ip,
         an_tunnel_teid: gnb_dl_teid,
     };
-    let update_resp = smf.handle_update_sm_context(&update_req).expect("Update SM Context failed");
+    let update_resp = smf
+        .handle_update_sm_context(&update_req)
+        .expect("Update SM Context failed");
     assert_eq!(update_resp.current_state, SmContextState::Active);
 
     // 6. AMF delivers N1 SM container (PduSessionEstablishmentAccept) to UE via DL NAS Transport
@@ -322,9 +332,11 @@ fn test_end_to_end_5g_nas_smf_pfcp_ngap_pipeline() {
     }
 
     // 7. Verify UPF PFCP session has both UL and DL forwarding paths ready
-    let ctx = smf.active_sessions.get(&create_resp.sm_context_ref).unwrap();
+    let ctx = smf
+        .active_sessions
+        .get(&create_resp.sm_context_ref)
+        .unwrap();
     let upf_sess = smf.pfcp_node.sessions.get(&ctx.pfcp_session_seid).unwrap();
     assert_eq!(upf_sess.pdrs.len(), 2);
     assert_eq!(upf_sess.fars.len(), 2);
 }
-

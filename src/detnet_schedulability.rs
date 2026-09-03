@@ -70,8 +70,8 @@ pub enum DetNetAdmissionDecision {
 pub struct DetNetSchedulabilityEngine {
     pub nodes: HashMap<u32, DetNetNodeCapacity>,
     pub active_reservations: HashMap<u32, (DetNetFlowSpec, Vec<u32>)>, // flow_id -> (spec, path_node_ids)
-    pub node_reserved_bandwidth: HashMap<u32, u64>,                   // node_id -> sum(bps)
-    pub node_burst_backlog: HashMap<u32, u64>,                       // node_id -> sum(burst_bytes)
+    pub node_reserved_bandwidth: HashMap<u32, u64>,                    // node_id -> sum(bps)
+    pub node_burst_backlog: HashMap<u32, u64>, // node_id -> sum(burst_bytes)
 }
 
 impl DetNetSchedulabilityEngine {
@@ -93,11 +93,7 @@ impl DetNetSchedulabilityEngine {
     }
 
     /// Analyze end-to-end path schedulability for a prospective or existing flow
-    pub fn evaluate_path(
-        &self,
-        flow: &DetNetFlowSpec,
-        path: &[u32],
-    ) -> SchedulabilityReport {
+    pub fn evaluate_path(&self, flow: &DetNetFlowSpec, path: &[u32]) -> SchedulabilityReport {
         if path.is_empty() {
             return SchedulabilityReport {
                 schedulable: false,
@@ -171,7 +167,9 @@ impl DetNetSchedulabilityEngine {
 
             // Over-provisioning factor calculation (RFC 9024 §4.2):
             // Alpha = 1.0 + (Burst_cumulative + Max_SDU) / (C * T_cycle)
-            let cycle_bits = (node.link_speed_bps as f64 * (node.cycle_time_ns as f64 / 1_000_000_000.0)).max(1.0);
+            let cycle_bits = (node.link_speed_bps as f64
+                * (node.cycle_time_ns as f64 / 1_000_000_000.0))
+                .max(1.0);
             let burst_bits = (prospective_burst + flow.max_payload_bytes as u64) as f64 * 8.0;
             let alpha = 1.0 + (burst_bits / cycle_bits);
             if alpha > max_over_provisioning {
@@ -184,11 +182,16 @@ impl DetNetSchedulabilityEngine {
 
             // Per-hop deterministic latency components:
             // 1. Serialization delay for max packet = (L_max * 8 * 1e9) / C
-            let serialization_ns = (flow.max_payload_bytes as u64 * 8 * 1_000_000_000) / node.link_speed_bps;
+            let serialization_ns =
+                (flow.max_payload_bytes as u64 * 8 * 1_000_000_000) / node.link_speed_bps;
             // 2. Queuing delay bound = 2 * cycle_time (for CQF) + burst drain time
-            let queuing_ns = (2 * node.cycle_time_ns) + ((prospective_burst * 8 * 1_000_000_000) / node.link_speed_bps);
+            let queuing_ns = (2 * node.cycle_time_ns)
+                + ((prospective_burst * 8 * 1_000_000_000) / node.link_speed_bps);
             // 3. Propagation and processing delay
-            let hop_delay = serialization_ns + queuing_ns + node.propagation_delay_ns + node.processing_delay_ns;
+            let hop_delay = serialization_ns
+                + queuing_ns
+                + node.propagation_delay_ns
+                + node.processing_delay_ns;
 
             total_latency_ns += hop_delay;
             // Jitter bounded by queuing variation within cycle
@@ -312,11 +315,11 @@ mod tests {
         for id in 1..=3 {
             engine.add_node(DetNetNodeCapacity {
                 node_id: id,
-                link_speed_bps: 10_000_000_000, // 10 Gbps
-                cycle_time_ns: 125_000,         // 125 µs
+                link_speed_bps: 10_000_000_000,   // 10 Gbps
+                cycle_time_ns: 125_000,           // 125 µs
                 max_reservable_utilization: 0.80, // 80%
-                propagation_delay_ns: 5_000,    // 5 µs
-                processing_delay_ns: 2_000,     // 2 µs
+                propagation_delay_ns: 5_000,      // 5 µs
+                processing_delay_ns: 2_000,       // 2 µs
             });
         }
 
@@ -361,7 +364,11 @@ mod tests {
 
         let decision2 = engine.request_admission(flow_huge, vec![1, 2, 3]);
         match decision2 {
-            DetNetAdmissionDecision::Rejected { flow_id, bottleneck_node_id, cause } => {
+            DetNetAdmissionDecision::Rejected {
+                flow_id,
+                bottleneck_node_id,
+                cause,
+            } => {
                 assert_eq!(flow_id, 102);
                 assert_eq!(bottleneck_node_id, 1);
                 assert!(cause.contains("exceeds max limit"));

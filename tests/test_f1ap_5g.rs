@@ -40,7 +40,9 @@ fn test_f1_setup_procedure_happy_path() {
     assert_eq!(req.served_cells.len(), 2);
 
     // 2. CU handles F1 Setup Request
-    let resp = cu.handle_f1_setup_request(&req).expect("CU failed to handle F1SetupRequest");
+    let resp = cu
+        .handle_f1_setup_request(&req)
+        .expect("CU failed to handle F1SetupRequest");
     assert_eq!(cu.state, F1apState::Active);
     assert_eq!(resp.cells_to_activate.len(), 2);
     assert_eq!(resp.cells_to_activate[0], 0x001001_00000001);
@@ -83,25 +85,35 @@ fn test_ue_context_setup_and_f1u_drb_tunnel_binding() {
     };
 
     // 1. CU builds UeContextSetupRequest
-    let ue_req = cu.build_ue_context_setup_request(
-        cu_ue_id,
-        None,
-        cell.nr_cgi,
-        vec![drb1],
-        Some(vec![0x01, 0x02, 0x03]),
-    ).unwrap();
+    let ue_req = cu
+        .build_ue_context_setup_request(
+            cu_ue_id,
+            None,
+            cell.nr_cgi,
+            vec![drb1],
+            Some(vec![0x01, 0x02, 0x03]),
+        )
+        .unwrap();
 
     // 2. DU handles UeContextSetupRequest and assigns F1-U Uplink TEID
     let du_transport_ip = Ipv4Address::new(10, 0, 1, 20);
-    let ue_resp = du.handle_ue_context_setup_request(&ue_req, du_transport_ip, 0x20001).unwrap();
+    let ue_resp = du
+        .handle_ue_context_setup_request(&ue_req, du_transport_ip, 0x20001)
+        .unwrap();
     assert_eq!(ue_resp.gnb_cu_ue_f1ap_id, 5001);
     let du_ue_id = ue_resp.gnb_du_ue_f1ap_id;
     assert_eq!(ue_resp.drb_setup_list.len(), 1);
-    assert_eq!(ue_resp.drb_setup_list[0].du_up_transport_ip, du_transport_ip);
+    assert_eq!(
+        ue_resp.drb_setup_list[0].du_up_transport_ip,
+        du_transport_ip
+    );
     assert_eq!(ue_resp.drb_setup_list[0].du_up_gtp_teid, 0x20001);
 
     // 3. CU handles UeContextSetupResponse
-    assert!(cu.handle_ue_context_setup_response(&ue_resp, cell.nr_cgi).is_ok());
+    assert!(
+        cu.handle_ue_context_setup_response(&ue_resp, cell.nr_cgi)
+            .is_ok()
+    );
 
     // 4. Verify bidirectional lookups on both CU and DU!
     let cu_ctx = cu.lookup_by_cu_ue_id(cu_ue_id).unwrap();

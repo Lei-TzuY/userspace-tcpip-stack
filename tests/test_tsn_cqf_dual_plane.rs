@@ -32,7 +32,11 @@ fn test_tsn_cqf_dual_plane_integration() {
     // Next dispatch triggers automatic failover to Plane B
     let v_failover = engine.dispatch_frame(10, 1000, 500_000);
     match v_failover {
-        DualPlaneDispatchVerdict::FailoverTriggeredAndForwarded { from_plane, to_plane, .. } => {
+        DualPlaneDispatchVerdict::FailoverTriggeredAndForwarded {
+            from_plane,
+            to_plane,
+            ..
+        } => {
             assert_eq!(from_plane, TsnPlane::PlaneA);
             assert_eq!(to_plane, TsnPlane::PlaneB);
         }

@@ -128,10 +128,24 @@ fn test_dccf_unsubscribe_and_collector_cleanup() {
     };
 
     let sub1 = dccf
-        .subscribe("c1", "AMF", filter.clone(), DataDeliveryTarget::DirectConsumer { callback_uri: "uri1".to_string() })
+        .subscribe(
+            "c1",
+            "AMF",
+            filter.clone(),
+            DataDeliveryTarget::DirectConsumer {
+                callback_uri: "uri1".to_string(),
+            },
+        )
         .unwrap();
     let sub2 = dccf
-        .subscribe("c2", "AMF", filter, DataDeliveryTarget::DirectConsumer { callback_uri: "uri2".to_string() })
+        .subscribe(
+            "c2",
+            "AMF",
+            filter,
+            DataDeliveryTarget::DirectConsumer {
+                callback_uri: "uri2".to_string(),
+            },
+        )
         .unwrap();
 
     assert_eq!(dccf.active_source_collectors_count(), 1);
@@ -165,7 +179,9 @@ fn test_dccf_wildcard_target_matching() {
         "nwdaf-mobility-all",
         "AMF",
         filter,
-        DataDeliveryTarget::DirectConsumer { callback_uri: "uri-mob".to_string() },
+        DataDeliveryTarget::DirectConsumer {
+            callback_uri: "uri-mob".to_string(),
+        },
     )
     .unwrap();
 
@@ -180,7 +196,10 @@ fn test_dccf_wildcard_target_matching() {
 
     assert_eq!(events.len(), 1);
     assert_eq!(events[0].consumer_id, "nwdaf-mobility-all");
-    assert_eq!(events[0].target_id, Some("imsi-208950000000001".to_string()));
+    assert_eq!(
+        events[0].target_id,
+        Some("imsi-208950000000001".to_string())
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -198,8 +217,18 @@ fn test_dccf_invalid_filter_and_not_found() {
         max_threshold: None,
     };
 
-    let err1 = dccf.subscribe("c1", "AMF", bad_filter, DataDeliveryTarget::DirectConsumer { callback_uri: "uri".to_string() });
-    assert_eq!(err1, Err(DccfError::InvalidFilterSpec("Data domain cannot be empty")));
+    let err1 = dccf.subscribe(
+        "c1",
+        "AMF",
+        bad_filter,
+        DataDeliveryTarget::DirectConsumer {
+            callback_uri: "uri".to_string(),
+        },
+    );
+    assert_eq!(
+        err1,
+        Err(DccfError::InvalidFilterSpec("Data domain cannot be empty"))
+    );
 
     let err2 = dccf.unsubscribe("non-existent-sub");
     assert_eq!(err2, Err(DccfError::SubscriptionNotFound));

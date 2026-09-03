@@ -1,8 +1,8 @@
 //! Integration tests for Deterministic IP DetNet-to-TSN Sub-Network Mapping (RFC 9024 / RFC 9025).
 
 use toy_tcpip::detnet_tsn::{
-    DetNetIpFlowKey, DetNetRTagHeader, DetNetTsnForwardResult, DetNetTsnGateway, TsnStreamId,
-    TsnStreamProfile, ETHERTYPE_DETNET_8021Q, ETHERTYPE_DETNET_RTAG,
+    DetNetIpFlowKey, DetNetRTagHeader, DetNetTsnForwardResult, DetNetTsnGateway,
+    ETHERTYPE_DETNET_8021Q, ETHERTYPE_DETNET_RTAG, TsnStreamId, TsnStreamProfile,
 };
 use toy_tcpip::ethernet::MacAddress;
 use toy_tcpip::ipv4::Ipv4Address;
@@ -29,10 +29,10 @@ fn test_detnet_tsn_end_to_end_gateway_pipeline() {
     let flow_industrial = DetNetIpFlowKey {
         src_ip: Ipv4Address::new(192, 168, 100, 10),
         dst_ip: Ipv4Address::new(192, 168, 200, 20),
-        src_port: 4840,  // OPC UA
+        src_port: 4840, // OPC UA
         dst_port: 4840,
-        protocol: 6,     // TCP
-        dscp: 46,        // EF
+        protocol: 6, // TCP
+        dscp: 46,    // EF
     };
 
     let stream_id = TsnStreamId::new(MacAddress([0x00, 0x01, 0x02, 0x03, 0x04, 0x05]), 42);
@@ -59,7 +59,13 @@ fn test_detnet_tsn_end_to_end_gateway_pipeline() {
     // 1. Ingress DetNet IP -> TSN Ethernet Frame
     let encap = gw.encapsulate_ip_to_tsn(&ip_pkt);
     let tsn_frame = match encap {
-        DetNetTsnForwardResult::EncapsulatedTsnFrame { vlan_id, pcp, queue_id, frame, .. } => {
+        DetNetTsnForwardResult::EncapsulatedTsnFrame {
+            vlan_id,
+            pcp,
+            queue_id,
+            frame,
+            ..
+        } => {
             assert_eq!(vlan_id, 300);
             assert_eq!(pcp, 7);
             assert_eq!(queue_id, 7);

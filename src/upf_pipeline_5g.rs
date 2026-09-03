@@ -52,7 +52,8 @@ impl TokenBucketPolicer {
         self.last_update_ms = Some(now_ms);
 
         let added = elapsed_sec * (self.rate_bytes_per_sec as f64);
-        self.available_tokens = (self.available_tokens + added).min(self.burst_capacity_bytes as f64);
+        self.available_tokens =
+            (self.available_tokens + added).min(self.burst_capacity_bytes as f64);
 
         let required = bytes as f64;
         if self.available_tokens >= required {
@@ -333,12 +334,20 @@ impl UpfPipeline {
 
         let seid = match seid {
             Some(s) => s,
-            None => return PacketProcessingResult::Dropped { reason: "No matching session found" },
+            None => {
+                return PacketProcessingResult::Dropped {
+                    reason: "No matching session found",
+                };
+            }
         };
 
         let session = match self.sessions.get_mut(&seid) {
             Some(s) => s,
-            None => return PacketProcessingResult::Dropped { reason: "Session not active" },
+            None => {
+                return PacketProcessingResult::Dropped {
+                    reason: "Session not active",
+                };
+            }
         };
 
         // 2. PDR Matching by Precedence (lowest number first)
@@ -366,7 +375,11 @@ impl UpfPipeline {
         matching_pdrs.sort_by_key(|pdr| pdr.precedence);
         let pdr = match matching_pdrs.first() {
             Some(p) => (*p).clone(),
-            None => return PacketProcessingResult::Dropped { reason: "No matching PDR" },
+            None => {
+                return PacketProcessingResult::Dropped {
+                    reason: "No matching PDR",
+                };
+            }
         };
 
         // 3. QER Evaluation
@@ -377,10 +390,14 @@ impl UpfPipeline {
 
                 // Check Gate
                 if is_uplink && qer.gate_status_ul == GateStatus::Closed {
-                    return PacketProcessingResult::Dropped { reason: "QER UL gate is closed" };
+                    return PacketProcessingResult::Dropped {
+                        reason: "QER UL gate is closed",
+                    };
                 }
                 if !is_uplink && qer.gate_status_dl == GateStatus::Closed {
-                    return PacketProcessingResult::Dropped { reason: "QER DL gate is closed" };
+                    return PacketProcessingResult::Dropped {
+                        reason: "QER DL gate is closed",
+                    };
                 }
 
                 // Check Policer
@@ -392,7 +409,9 @@ impl UpfPipeline {
 
                 if let Some(p) = policer {
                     if !p.consume(payload.len() as u64, now_ms) {
-                        return PacketProcessingResult::Dropped { reason: "MBR policer rate exceeded" };
+                        return PacketProcessingResult::Dropped {
+                            reason: "MBR policer rate exceeded",
+                        };
                     }
                 }
             }
@@ -408,21 +427,32 @@ impl UpfPipeline {
         // 5. FAR Evaluation
         let far = match session.fars.get(&pdr.far_id) {
             Some(f) => f.clone(),
-            None => return PacketProcessingResult::Dropped { reason: "FAR not found" },
+            None => {
+                return PacketProcessingResult::Dropped {
+                    reason: "FAR not found",
+                };
+            }
         };
 
         if (far.apply_action & PFCP_APPLY_ACTION_DROP) != 0 {
-            return PacketProcessingResult::Dropped { reason: "FAR action is DROP" };
+            return PacketProcessingResult::Dropped {
+                reason: "FAR action is DROP",
+            };
         }
 
         if (far.apply_action & PFCP_APPLY_ACTION_BUFF) != 0 {
             if let Some(bar_id) = far.bar_id {
                 if let Some(bar) = session.bars.get_mut(&bar_id) {
                     let ddn = bar.buffer_packet(payload.to_vec());
-                    return PacketProcessingResult::Buffered { bar_id, ddn_triggered: ddn };
+                    return PacketProcessingResult::Buffered {
+                        bar_id,
+                        ddn_triggered: ddn,
+                    };
                 }
             }
-            return PacketProcessingResult::Dropped { reason: "BAR not configured for BUFF" };
+            return PacketProcessingResult::Dropped {
+                reason: "BAR not configured for BUFF",
+            };
         }
 
         if (far.apply_action & PFCP_APPLY_ACTION_FORWARD) != 0 {
@@ -445,12 +475,18 @@ impl UpfPipeline {
                 }
             }
         } else {
-            PacketProcessingResult::Dropped { reason: "Unsupported FAR action" }
+            PacketProcessingResult::Dropped {
+                reason: "Unsupported FAR action",
+            }
         }
     }
 
     /// Flushes buffered packets when UE transitions from CM-IDLE to CM-CONNECTED.
-    pub fn flush_buffered_packets(&mut self, seid: u64, bar_id: u16) -> Vec<PacketProcessingResult> {
+    pub fn flush_buffered_packets(
+        &mut self,
+        seid: u64,
+        bar_id: u16,
+    ) -> Vec<PacketProcessingResult> {
         let mut results = Vec::new();
         if let Some(session) = self.sessions.get_mut(&seid) {
             let packets = if let Some(bar) = session.bars.get_mut(&bar_id) {
@@ -460,9 +496,14 @@ impl UpfPipeline {
             };
 
             // Find DL forwarding FAR
-            let dl_far = session.fars.values().find(|f| {
-                (f.apply_action & PFCP_APPLY_ACTION_FORWARD) != 0 && f.outer_header_creation.is_some()
-            }).cloned();
+            let dl_far = session
+                .fars
+                .values()
+                .find(|f| {
+                    (f.apply_action & PFCP_APPLY_ACTION_FORWARD) != 0
+                        && f.outer_header_creation.is_some()
+                })
+                .cloned();
 
             if let Some(far) = dl_far {
                 let (teid, target_ip) = far.outer_header_creation.unwrap();

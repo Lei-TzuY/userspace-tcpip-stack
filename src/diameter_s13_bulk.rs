@@ -179,7 +179,10 @@ mod tests {
 
     #[test]
     fn test_diameter_s13_bulk_lifecycle() {
-        let mut engine = S13BulkEngine::new("mme01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+        let mut engine = S13BulkEngine::new(
+            "mme01.epc.mnc001.mcc208.3gppnetwork.org",
+            "epc.mnc001.mcc208.3gppnetwork.org",
+        );
 
         // 1. Initial Batch Add (Version 100)
         let imeis_add = vec!["860000000000001", "860000000000002", "860000000000003"];

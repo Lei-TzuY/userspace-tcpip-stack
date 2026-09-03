@@ -49,13 +49,9 @@ pub struct UnderlaySsmMapping {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UnderlayEncapsulationPlan {
     /// Send unicast copies to each receiver VTEP.
-    UnicastReplication {
-        destination_vteps: Vec<Ipv4Address>,
-    },
+    UnicastReplication { destination_vteps: Vec<Ipv4Address> },
     /// Send single encapsulated packet to underlay core multicast group.
-    CoreMulticast {
-        underlay_group: Ipv4Address,
-    },
+    CoreMulticast { underlay_group: Ipv4Address },
     /// No receivers; drop packet.
     DropNoReceivers,
 }
@@ -113,7 +109,9 @@ impl EvpnUnderlayPmsiEngine {
                 entry.receiver_vteps.push(remote_vtep);
             }
 
-            if entry.receiver_vteps.len() >= threshold && entry.tunnel_type == UnderlayTunnelType::IngressReplication {
+            if entry.receiver_vteps.len() >= threshold
+                && entry.tunnel_type == UnderlayTunnelType::IngressReplication
+            {
                 // Promote to S-PMSI
                 let grp = if let Some(g) = entry.underlay_mcast_group {
                     g
@@ -174,7 +172,9 @@ impl EvpnUnderlayPmsiEngine {
 
             if entry.receiver_vteps.is_empty() {
                 self.mappings.remove(pos);
-            } else if entry.receiver_vteps.len() < threshold && entry.tunnel_type == UnderlayTunnelType::SelectivePTree {
+            } else if entry.receiver_vteps.len() < threshold
+                && entry.tunnel_type == UnderlayTunnelType::SelectivePTree
+            {
                 // Demote back to Ingress Replication
                 entry.tunnel_type = UnderlayTunnelType::IngressReplication;
                 entry.underlay_mcast_group = None;
@@ -206,8 +206,12 @@ impl EvpnUnderlayPmsiEngine {
                 }
                 UnderlayTunnelType::SelectivePTree => {
                     self.total_ptree_packets += 1;
-                    let grp = entry.underlay_mcast_group.unwrap_or(Ipv4Address::new(239, 255, 0, 1));
-                    UnderlayEncapsulationPlan::CoreMulticast { underlay_group: grp }
+                    let grp = entry
+                        .underlay_mcast_group
+                        .unwrap_or(Ipv4Address::new(239, 255, 0, 1));
+                    UnderlayEncapsulationPlan::CoreMulticast {
+                        underlay_group: grp,
+                    }
                 }
             }
         } else {
@@ -240,7 +244,10 @@ mod tests {
         assert_eq!(
             plan_ir,
             UnderlayEncapsulationPlan::UnicastReplication {
-                destination_vteps: vec![Ipv4Address::new(10, 0, 0, 2), Ipv4Address::new(10, 0, 0, 3)],
+                destination_vteps: vec![
+                    Ipv4Address::new(10, 0, 0, 2),
+                    Ipv4Address::new(10, 0, 0, 3)
+                ],
             }
         );
 
@@ -260,7 +267,10 @@ mod tests {
 
         // 4. Remove 2 receivers -> Drops below threshold 3 -> Demoted to Ingress Replication
         engine.remove_receiver_vtep(100, group, src, Ipv4Address::new(10, 0, 0, 4));
-        assert_eq!(engine.mappings[0].tunnel_type, UnderlayTunnelType::IngressReplication);
+        assert_eq!(
+            engine.mappings[0].tunnel_type,
+            UnderlayTunnelType::IngressReplication
+        );
         assert_eq!(engine.total_ptree_demotions, 1);
     }
 }

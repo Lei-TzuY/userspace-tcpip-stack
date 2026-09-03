@@ -37,8 +37,14 @@ impl OruOperationalState {
         match (*self, next) {
             (OruOperationalState::PowerOn, OruOperationalState::DhcpDiscovered) => true,
             (OruOperationalState::DhcpDiscovered, OruOperationalState::NetconfConnected) => true,
-            (OruOperationalState::NetconfConnected, OruOperationalState::SoftwareInventoryVerified) => true,
-            (OruOperationalState::SoftwareInventoryVerified, OruOperationalState::CarrierConfigured) => true,
+            (
+                OruOperationalState::NetconfConnected,
+                OruOperationalState::SoftwareInventoryVerified,
+            ) => true,
+            (
+                OruOperationalState::SoftwareInventoryVerified,
+                OruOperationalState::CarrierConfigured,
+            ) => true,
             (OruOperationalState::CarrierConfigured, OruOperationalState::Synchronized) => true,
             (OruOperationalState::Synchronized, OruOperationalState::Operational) => true,
             (OruOperationalState::Operational, OruOperationalState::Degraded) => true,
@@ -325,7 +331,8 @@ impl PerformanceManagementCollector {
         self.current_bin.total_cplane_packets += stats.total_cplane_packets;
         self.current_bin.total_decompressed_samples += stats.total_decompressed_samples;
 
-        let total_drops = self.current_bin.late_dropped_packets + self.current_bin.early_dropped_packets;
+        let total_drops =
+            self.current_bin.late_dropped_packets + self.current_bin.early_dropped_packets;
         if self.current_bin.total_uplane_packets > 0 {
             self.current_bin.drop_rate_ppm = ((total_drops as f64
                 / self.current_bin.total_uplane_packets as f64)
@@ -406,7 +413,12 @@ impl OranMplaneEngine {
 
         // Additional guard conditions
         if next == OruOperationalState::Operational {
-            if self.fault_mgr.get_active_alarms().iter().any(|a| a.severity == AlarmSeverity::Critical) {
+            if self
+                .fault_mgr
+                .get_active_alarms()
+                .iter()
+                .any(|a| a.severity == AlarmSeverity::Critical)
+            {
                 return Err("Cannot enter Operational state with active Critical alarms");
             }
         }
@@ -421,7 +433,10 @@ impl OranMplaneEngine {
         self.next_msg_id += 1;
 
         match rpc {
-            OranMplaneRpc::GetConfig { source, filter_prefix } => {
+            OranMplaneRpc::GetConfig {
+                source,
+                filter_prefix,
+            } => {
                 let ds = match source {
                     DatastoreTarget::Running => &self.running_ds,
                     DatastoreTarget::Candidate => &self.candidate_ds,
@@ -429,11 +444,23 @@ impl OranMplaneEngine {
                 };
                 let entries = match filter_prefix {
                     Some(prefix) => ds.filter_by_prefix(&prefix),
-                    None => ds.entries.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                    None => ds
+                        .entries
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect(),
                 };
-                OranMplaneRpcReply::Data { message_id, entries }
+                OranMplaneRpcReply::Data {
+                    message_id,
+                    entries,
+                }
             }
-            OranMplaneRpc::EditConfig { target, operation, path, value } => {
+            OranMplaneRpc::EditConfig {
+                target,
+                operation,
+                path,
+                value,
+            } => {
                 let ds = match target {
                     DatastoreTarget::Candidate => &mut self.candidate_ds,
                     DatastoreTarget::Running => &mut self.running_ds,
@@ -503,7 +530,11 @@ impl OranMplaneEngine {
             }
             OranMplaneRpc::Commit => {
                 // Two-phase commit: validate candidate, then copy candidate to running
-                if self.candidate_ds.get("/o-ran-sync:sync/sync-status/state").is_none() {
+                if self
+                    .candidate_ds
+                    .get("/o-ran-sync:sync/sync-status/state")
+                    .is_none()
+                {
                     return OranMplaneRpcReply::Error {
                         message_id,
                         error_tag: "validation-failed",

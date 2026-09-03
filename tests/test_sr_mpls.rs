@@ -14,7 +14,7 @@ fn test_sr_mpls_srgb_mapping_and_node_sid_forwarding() {
     let pe2 = Ipv4Address([10, 0, 0, 3]);
 
     engine.register_node_sid(pe1, 1); // 16001
-    engine.register_node_sid(p1, 2);  // 16002
+    engine.register_node_sid(p1, 2); // 16002
     engine.register_node_sid(pe2, 3); // 16003
 
     assert_eq!(engine.resolve_node_sid(pe2), Some(16003));

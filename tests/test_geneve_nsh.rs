@@ -1,8 +1,8 @@
 //! Integration tests for Geneve Network Service Header (NSH) SFC Option Co-existence (RFC 8926 / RFC 8300).
 
 use toy_tcpip::geneve_nsh::{
-    NshMd1Header, NshMdType1Context, NshNextProto, SffEngine, SffForwardAction, SffHopTarget,
-    GENEVE_OPT_CLASS_NSH, GENEVE_OPT_TYPE_NSH_MD1,
+    GENEVE_OPT_CLASS_NSH, GENEVE_OPT_TYPE_NSH_MD1, NshMd1Header, NshMdType1Context, NshNextProto,
+    SffEngine, SffForwardAction, SffHopTarget,
 };
 
 #[test]
@@ -34,13 +34,25 @@ fn test_geneve_nsh_multi_sff_service_chain_steering() {
 
     // SFF 1 (Ingress Forwarder):
     // Hop 10 -> Local Firewall
-    sff1.add_hop(spi, 10, SffHopTarget::LocalSf { sf_name: "Firewall_VNF".to_string() });
+    sff1.add_hop(
+        spi,
+        10,
+        SffHopTarget::LocalSf {
+            sf_name: "Firewall_VNF".to_string(),
+        },
+    );
     // Hop 9 -> Next SFF across Geneve VNI 9000
     sff1.add_hop(spi, 9, SffHopTarget::NextSff { next_vni: 9000 });
 
     // SFF 2 (Egress Forwarder):
     // Hop 8 -> Local Load Balancer
-    sff2.add_hop(spi, 8, SffHopTarget::LocalSf { sf_name: "LB_VNF".to_string() });
+    sff2.add_hop(
+        spi,
+        8,
+        SffHopTarget::LocalSf {
+            sf_name: "LB_VNF".to_string(),
+        },
+    );
     // Hop 7 -> Egress to destination
     sff2.add_hop(spi, 7, SffHopTarget::Egress);
 
@@ -50,7 +62,11 @@ fn test_geneve_nsh_multi_sff_service_chain_steering() {
     // 1. SFF 1 receives packet with SI=10
     let act1 = sff1.process_nsh(nsh.clone());
     match act1 {
-        SffForwardAction::ForwardToSf { sf_instance, updated_nsh, .. } => {
+        SffForwardAction::ForwardToSf {
+            sf_instance,
+            updated_nsh,
+            ..
+        } => {
             assert_eq!(sf_instance, "Firewall_VNF");
             assert_eq!(updated_nsh.si, 9);
             nsh = updated_nsh;
@@ -61,7 +77,11 @@ fn test_geneve_nsh_multi_sff_service_chain_steering() {
     // 2. Firewall returns packet with SI=9 to SFF 1 -> tunnels to SFF 2
     let act2 = sff1.process_nsh(nsh.clone());
     match act2 {
-        SffForwardAction::ForwardNextSff { next_sff_tunnel, updated_nsh, .. } => {
+        SffForwardAction::ForwardNextSff {
+            next_sff_tunnel,
+            updated_nsh,
+            ..
+        } => {
             assert_eq!(next_sff_tunnel, 9000);
             assert_eq!(updated_nsh.si, 8);
             nsh = updated_nsh;
@@ -72,7 +92,11 @@ fn test_geneve_nsh_multi_sff_service_chain_steering() {
     // 3. SFF 2 receives tunnel packet with SI=8 -> local LB
     let act3 = sff2.process_nsh(nsh.clone());
     match act3 {
-        SffForwardAction::ForwardToSf { sf_instance, updated_nsh, .. } => {
+        SffForwardAction::ForwardToSf {
+            sf_instance,
+            updated_nsh,
+            ..
+        } => {
             assert_eq!(sf_instance, "LB_VNF");
             assert_eq!(updated_nsh.si, 7);
             nsh = updated_nsh;

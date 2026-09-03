@@ -1,7 +1,5 @@
 use toy_tcpip::S13EquipmentStatus;
-use toy_tcpip::diameter_s13_imei_range::{
-    DiameterS13ImeiRangeEngine, ImeiRangeVerdict,
-};
+use toy_tcpip::diameter_s13_imei_range::{DiameterS13ImeiRangeEngine, ImeiRangeVerdict};
 
 #[test]
 fn test_diameter_s13_imei_range_integration() {

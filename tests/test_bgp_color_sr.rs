@@ -1,8 +1,8 @@
 //! Integration tests for BGP Color-Aware SR-TE Steering (RFC 9012 / RFC 9256).
 
 use toy_tcpip::bgp_color_sr::{
-    BgpColorCommunity, CoBitsMode, ColorAwareSrEngine, ColorSrPolicy, ColorSrSegmentList,
-    SrSteeringVerdict, BGP_EXT_COMM_SUBTYPE_COLOR, BGP_EXT_COMM_TYPE_OPAQUE,
+    BGP_EXT_COMM_SUBTYPE_COLOR, BGP_EXT_COMM_TYPE_OPAQUE, BgpColorCommunity, CoBitsMode,
+    ColorAwareSrEngine, ColorSrPolicy, ColorSrSegmentList, SrSteeringVerdict,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::Ipv6Address;

@@ -29,7 +29,10 @@ fn test_diameter_s13_cache_lifecycle() {
     );
 
     // 2. Check cache miss
-    assert_eq!(cache.query("999999999999999", 5050), EirCacheLookupResult::Miss);
+    assert_eq!(
+        cache.query("999999999999999", 5050),
+        EirCacheLookupResult::Miss
+    );
 
     // 3. Check expiration at t=5150 (> 5000 + 100)
     assert_eq!(

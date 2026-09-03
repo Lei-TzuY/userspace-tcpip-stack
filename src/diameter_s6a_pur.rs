@@ -44,7 +44,7 @@ pub enum S6aPurAvp {
     SessionId(String),
     OriginHost(String),
     OriginRealm(String),
-    UserName(String),          // IMSI
+    UserName(String), // IMSI
     PuaFlags(u32),
     ResultCode(u32),
 }
@@ -241,11 +241,8 @@ mod tests {
         engine.add_subscriber("262011234567890");
         engine.advance_clock(1_000_000);
 
-        let pur = S6aPurMessage::new_pur(
-            "session-pur-001",
-            "262011234567890",
-            PUA_FLAG_FREEZE_M_TMSI,
-        );
+        let pur =
+            S6aPurMessage::new_pur("session-pur-001", "262011234567890", PUA_FLAG_FREEZE_M_TMSI);
         let pua = engine.process_pur(&pur);
         assert!(!pua.is_request);
         assert_eq!(pua.result_code(), Some(RESULT_CODE_SUCCESS));

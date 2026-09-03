@@ -161,7 +161,7 @@ mod tests {
 
         // Local ports in VNI 100
         engine.add_local_port(1, 100, false); // Active forwarding
-        engine.add_local_port(2, 100, true);  // Pruned port
+        engine.add_local_port(2, 100, true); // Pruned port
         engine.add_local_port(3, 100, false); // Active forwarding
         engine.add_local_port(4, 200, false); // Different VNI
 
@@ -174,12 +174,17 @@ mod tests {
         let mcast_mac = MacAddress([0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB]); // mDNS
 
         // 1. Ingress on local port 1 in VNI 100
-        let plan_local = engine.compute_replication_plan(100, IngressDomain::LocalPort(1), mcast_mac);
+        let plan_local =
+            engine.compute_replication_plan(100, IngressDomain::LocalPort(1), mcast_mac);
         assert_eq!(plan_local.local_egress_ports, vec![3]); // Port 1 excluded (ingress), Port 2 excluded (pruned)
         assert_eq!(plan_local.remote_vteps, vec![remote_leaf2]); // Only leaf2 is in VNI 100
 
         // 2. Ingress from overlay VTEP leaf2
-        let plan_overlay = engine.compute_replication_plan(100, IngressDomain::OverlayVtep(remote_leaf2), mcast_mac);
+        let plan_overlay = engine.compute_replication_plan(
+            100,
+            IngressDomain::OverlayVtep(remote_leaf2),
+            mcast_mac,
+        );
         assert_eq!(plan_overlay.local_egress_ports, vec![1, 3]); // Delivered to local access ports
         assert!(plan_overlay.remote_vteps.is_empty()); // Split-horizon: 0 overlay replications
     }

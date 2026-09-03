@@ -26,7 +26,8 @@ fn test_nef_topology_hiding_and_event_exposure() {
         max_reports: None,
         reports_delivered: 0,
     };
-    nef.create_event_subscription(sub).expect("Subscription failed");
+    nef.create_event_subscription(sub)
+        .expect("Subscription failed");
 
     // Core network ingests internal location event for SUPI
     let loc_info = LocationInfo {
@@ -101,7 +102,10 @@ fn test_nef_reachability_and_loss_of_connectivity() {
     );
 
     assert_eq!(nef.notification_history.len(), 2);
-    assert_eq!(nef.notification_history[0].event, NefEvent::LossOfConnectivity);
+    assert_eq!(
+        nef.notification_history[0].event,
+        NefEvent::LossOfConnectivity
+    );
     assert_eq!(nef.notification_history[1].event, NefEvent::UeReachability);
 }
 
@@ -194,7 +198,9 @@ fn test_nef_device_triggering_iot_wakeup() {
         submission_time_s: 1700000000,
     };
 
-    let status = nef.submit_device_trigger(&req).expect("Trigger submit failed");
+    let status = nef
+        .submit_device_trigger(&req)
+        .expect("Trigger submit failed");
     assert_eq!(status, DeviceTriggerStatus::Submitted);
 
     // Verify record in NEF

@@ -1,8 +1,6 @@
 // tests/test_evpn_ssm_dr_election.rs
 
-use toy_tcpip::evpn_ssm_dr_election::{
-    DrElectionVerdict, EvpnSsmDrElectionEngine,
-};
+use toy_tcpip::evpn_ssm_dr_election::{DrElectionVerdict, EvpnSsmDrElectionEngine};
 use toy_tcpip::ipv4::Ipv4Address;
 
 #[test]

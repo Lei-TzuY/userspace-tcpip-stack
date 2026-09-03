@@ -99,7 +99,11 @@ impl EvpnSsmEngine {
     ) -> Option<SmetRouteAction> {
         let mut first_subscriber = false;
 
-        if let Some(chan) = self.channels.iter_mut().find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip) {
+        if let Some(chan) = self
+            .channels
+            .iter_mut()
+            .find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip)
+        {
             if !chan.subscribed_ports.contains(&port_id) {
                 chan.subscribed_ports.push(port_id);
             }
@@ -138,7 +142,11 @@ impl EvpnSsmEngine {
     ) -> Option<SmetRouteAction> {
         let mut should_withdraw = false;
 
-        if let Some(pos) = self.channels.iter().position(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip) {
+        if let Some(pos) = self
+            .channels
+            .iter()
+            .position(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip)
+        {
             let chan = &mut self.channels[pos];
             if let Some(p_idx) = chan.subscribed_ports.iter().position(|p| *p == port_id) {
                 chan.subscribed_ports.remove(p_idx);
@@ -165,8 +173,18 @@ impl EvpnSsmEngine {
     }
 
     /// Ingest remote EVPN Type-6 SMET route advertisement from a remote PE VTEP.
-    pub fn handle_remote_smet_add(&mut self, vni: u32, remote_vtep: Ipv4Address, group_ip: Ipv4Address, source_ip: Ipv4Address) {
-        if let Some(chan) = self.channels.iter_mut().find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip) {
+    pub fn handle_remote_smet_add(
+        &mut self,
+        vni: u32,
+        remote_vtep: Ipv4Address,
+        group_ip: Ipv4Address,
+        source_ip: Ipv4Address,
+    ) {
+        if let Some(chan) = self
+            .channels
+            .iter_mut()
+            .find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip)
+        {
             if !chan.remote_vteps.contains(&remote_vtep) {
                 chan.remote_vteps.push(remote_vtep);
             }
@@ -183,10 +201,19 @@ impl EvpnSsmEngine {
     }
 
     /// Evaluate forwarding plan for an ingress $(S, G)$ multicast packet.
-    pub fn evaluate_forwarding(&mut self, vni: u32, source_ip: Ipv4Address, group_ip: Ipv4Address) -> SsmForwardingDecision {
+    pub fn evaluate_forwarding(
+        &mut self,
+        vni: u32,
+        source_ip: Ipv4Address,
+        group_ip: Ipv4Address,
+    ) -> SsmForwardingDecision {
         self.total_packets_forwarded += 1;
 
-        if let Some(chan) = self.channels.iter().find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip) {
+        if let Some(chan) = self
+            .channels
+            .iter()
+            .find(|c| c.vni == vni && c.group_ip == group_ip && c.source_ip == source_ip)
+        {
             SsmForwardingDecision {
                 local_ports: chan.subscribed_ports.clone(),
                 remote_vteps: chan.remote_vteps.clone(),

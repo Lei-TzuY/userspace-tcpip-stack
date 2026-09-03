@@ -49,7 +49,7 @@ pub enum S6aNorAvp {
     OriginRealm(String),
     DestinationHost(String),
     DestinationRealm(String),
-    UserName(String),            // IMSI
+    UserName(String), // IMSI
     NorFlags(u32),
     TerminalImei(String),
     ResultCode(u32),
@@ -204,7 +204,12 @@ impl S6aNorEngine {
             Some(i) => i,
             None => {
                 self.total_nor_rejected += 1;
-                return S6aNorMessage::new_noa(&nor.session_id, &self.hss_id, &self.realm, RESULT_CODE_USER_UNKNOWN);
+                return S6aNorMessage::new_noa(
+                    &nor.session_id,
+                    &self.hss_id,
+                    &self.realm,
+                    RESULT_CODE_USER_UNKNOWN,
+                );
             }
         };
 
@@ -218,10 +223,20 @@ impl S6aNorEngine {
                 sub.current_imei = Some(im.to_string());
             }
             self.total_nor_accepted += 1;
-            S6aNorMessage::new_noa(&nor.session_id, &self.hss_id, &self.realm, RESULT_CODE_SUCCESS)
+            S6aNorMessage::new_noa(
+                &nor.session_id,
+                &self.hss_id,
+                &self.realm,
+                RESULT_CODE_SUCCESS,
+            )
         } else {
             self.total_nor_rejected += 1;
-            S6aNorMessage::new_noa(&nor.session_id, &self.hss_id, &self.realm, RESULT_CODE_USER_UNKNOWN)
+            S6aNorMessage::new_noa(
+                &nor.session_id,
+                &self.hss_id,
+                &self.realm,
+                RESULT_CODE_USER_UNKNOWN,
+            )
         }
     }
 }
@@ -232,7 +247,10 @@ mod tests {
 
     #[test]
     fn test_notify_nor_noa_lifecycle() {
-        let mut hss = S6aNorEngine::new("hss01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+        let mut hss = S6aNorEngine::new(
+            "hss01.epc.mnc001.mcc208.3gppnetwork.org",
+            "epc.mnc001.mcc208.3gppnetwork.org",
+        );
         let imsi = "208950123456789";
         hss.register_subscriber(imsi);
 

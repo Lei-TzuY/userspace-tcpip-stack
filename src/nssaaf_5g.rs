@@ -134,12 +134,7 @@ impl NssaafEngine {
     }
 
     /// Register enterprise credentials for a subscriber.
-    pub fn add_enterprise_credential(
-        &mut self,
-        aaa_s_fqdn: &str,
-        supi: &str,
-        secret: Vec<u8>,
-    ) {
+    pub fn add_enterprise_credential(&mut self, aaa_s_fqdn: &str, supi: &str, secret: Vec<u8>) {
         self.enterprise_credentials
             .insert((aaa_s_fqdn.to_string(), supi.to_string()), secret);
     }

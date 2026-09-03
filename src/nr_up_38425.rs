@@ -41,13 +41,21 @@ impl fmt::Display for NrUpError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NrUpError::HeaderTooShort { need, got } => {
-                write!(f, "NR-UP header too short: need {} bytes, got {}", need, got)
+                write!(
+                    f,
+                    "NR-UP header too short: need {} bytes, got {}",
+                    need, got
+                )
             }
             NrUpError::UnsupportedPduType(t) => {
                 write!(f, "Unsupported 3GPP TS 38.425 PDU Type: {}", t)
             }
             NrUpError::BufferOverflow { in_flight, credit } => {
-                write!(f, "DU buffer credit exceeded: in-flight {} bytes > credit {} bytes", in_flight, credit)
+                write!(
+                    f,
+                    "DU buffer credit exceeded: in-flight {} bytes > credit {} bytes",
+                    in_flight, credit
+                )
             }
             NrUpError::SequenceNumberOverflow(sn) => {
                 write!(f, "NR-U sequence number {} exceeds 24-bit limit", sn)
@@ -145,7 +153,10 @@ impl NrUpDlUserData {
     /// Parses DL USER DATA from wire format.
     pub fn parse(data: &[u8]) -> Result<Self, NrUpError> {
         if data.len() < 5 {
-            return Err(NrUpError::HeaderTooShort { need: 5, got: data.len() });
+            return Err(NrUpError::HeaderTooShort {
+                need: 5,
+                got: data.len(),
+            });
         }
 
         let pdu_type = NrUpPduType::from_u8(data[0])?;
@@ -166,7 +177,10 @@ impl NrUpDlUserData {
         let mut discarded_blocks = Vec::new();
         if has_discard {
             if data.len() < offset + 1 {
-                return Err(NrUpError::HeaderTooShort { need: offset + 1, got: data.len() });
+                return Err(NrUpError::HeaderTooShort {
+                    need: offset + 1,
+                    got: data.len(),
+                });
             }
             let num_blocks = data[offset] as usize;
             offset += 1;
@@ -325,7 +339,10 @@ impl NrUpDlDataDeliveryStatus {
     /// Parses DDDS from wire format.
     pub fn parse(data: &[u8]) -> Result<Self, NrUpError> {
         if data.len() < 7 {
-            return Err(NrUpError::HeaderTooShort { need: 7, got: data.len() });
+            return Err(NrUpError::HeaderTooShort {
+                need: 7,
+                got: data.len(),
+            });
         }
 
         let pdu_type = NrUpPduType::from_u8(data[0])?;
@@ -346,7 +363,10 @@ impl NrUpDlDataDeliveryStatus {
 
         let highest_delivered_nr_u_sn = if highest_deliv_present {
             if data.len() < offset + 3 {
-                return Err(NrUpError::HeaderTooShort { need: offset + 3, got: data.len() });
+                return Err(NrUpError::HeaderTooShort {
+                    need: offset + 3,
+                    got: data.len(),
+                });
             }
             let sn = ((data[offset] as u32) << 16)
                 | ((data[offset + 1] as u32) << 8)
@@ -359,7 +379,10 @@ impl NrUpDlDataDeliveryStatus {
 
         let cause = if cause_present {
             if data.len() < offset + 1 {
-                return Err(NrUpError::HeaderTooShort { need: offset + 1, got: data.len() });
+                return Err(NrUpError::HeaderTooShort {
+                    need: offset + 1,
+                    got: data.len(),
+                });
             }
             let c = DddsCause::from_u8(data[offset]);
             offset += 1;

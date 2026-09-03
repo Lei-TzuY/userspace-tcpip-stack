@@ -260,11 +260,8 @@ mod tests {
         let adj_sid = 15002;
         let dest_sid = 16009;
 
-        let repair_stack = TiLfaEngine::compute_repair_stack(
-            Some(p_node_sid),
-            Some(adj_sid),
-            dest_sid,
-        );
+        let repair_stack =
+            TiLfaEngine::compute_repair_stack(Some(p_node_sid), Some(adj_sid), dest_sid);
         assert_eq!(repair_stack, vec![16005, 15002, 16009]);
     }
 }

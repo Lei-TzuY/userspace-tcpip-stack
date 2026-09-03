@@ -113,7 +113,11 @@ impl EcsEngine {
         let mut matched = Vec::new();
 
         for ees in self.registered_ees.values() {
-            if ees.service_area.iter().any(|area| area == &req.ue_location_tai) {
+            if ees
+                .service_area
+                .iter()
+                .any(|area| area == &req.ue_location_tai)
+            {
                 matched.push(ees.ees_endpoint_uri.clone());
             }
         }
@@ -161,7 +165,10 @@ impl EesEngine {
 
     /// Update dynamic load of an active EAS.
     pub fn update_eas_load(&mut self, eas_id: &str, load_pct: u8) -> Result<(), EdgeAppError> {
-        let eas = self.registered_eas.get_mut(eas_id).ok_or(EdgeAppError::EasNotFound)?;
+        let eas = self
+            .registered_eas
+            .get_mut(eas_id)
+            .ok_or(EdgeAppError::EasNotFound)?;
         eas.active_load_pct = load_pct.min(100);
         Ok(())
     }
@@ -188,7 +195,11 @@ impl EesEngine {
             }
 
             // 2. Service area coverage match
-            if !eas.service_area.iter().any(|area| area == &req.ue_location_tai) {
+            if !eas
+                .service_area
+                .iter()
+                .any(|area| area == &req.ue_location_tai)
+            {
                 continue;
             }
 

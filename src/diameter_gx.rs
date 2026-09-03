@@ -487,10 +487,22 @@ impl GxReAuthRequest {
 
     pub fn from_diameter_message(msg: &DiameterMessage) -> Option<Self> {
         let session_id = msg.get_avp(263).and_then(|a| a.as_string())?;
-        let origin_host = msg.get_avp(264).and_then(|a| a.as_string()).unwrap_or_default();
-        let origin_realm = msg.get_avp(296).and_then(|a| a.as_string()).unwrap_or_default();
-        let destination_host = msg.get_avp(293).and_then(|a| a.as_string()).unwrap_or_default();
-        let destination_realm = msg.get_avp(283).and_then(|a| a.as_string()).unwrap_or_default();
+        let origin_host = msg
+            .get_avp(264)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
+        let origin_realm = msg
+            .get_avp(296)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
+        let destination_host = msg
+            .get_avp(293)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
+        let destination_realm = msg
+            .get_avp(283)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
 
         let mut rules_to_install = Vec::new();
         let mut rules_to_remove = Vec::new();
@@ -559,9 +571,18 @@ impl GxReAuthAnswer {
 
     pub fn from_diameter_message(msg: &DiameterMessage) -> Option<Self> {
         let session_id = msg.get_avp(263).and_then(|a| a.as_string())?;
-        let result_code = msg.get_avp(268).and_then(|a| a.as_u32()).unwrap_or(DIAMETER_SUCCESS);
-        let origin_host = msg.get_avp(264).and_then(|a| a.as_string()).unwrap_or_default();
-        let origin_realm = msg.get_avp(296).and_then(|a| a.as_string()).unwrap_or_default();
+        let result_code = msg
+            .get_avp(268)
+            .and_then(|a| a.as_u32())
+            .unwrap_or(DIAMETER_SUCCESS);
+        let origin_host = msg
+            .get_avp(264)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
+        let origin_realm = msg
+            .get_avp(296)
+            .and_then(|a| a.as_string())
+            .unwrap_or_default();
 
         Some(GxReAuthAnswer {
             session_id,
@@ -629,7 +650,10 @@ impl PcrfGxEngine {
         let mut cca = DiameterMessage::new_answer(DIAMETER_CMD_CC, DIAMETER_APPLICATION_GX, 1, 1);
         cca.add_avp(DiameterAvp::new_utf8(263, &ccr.session_id));
         cca.add_avp(DiameterAvp::new_u32(268, DIAMETER_SUCCESS));
-        cca.add_avp(DiameterAvp::new_u32(416, CcRequestType::InitialRequest as u32));
+        cca.add_avp(DiameterAvp::new_u32(
+            416,
+            CcRequestType::InitialRequest as u32,
+        ));
         cca.add_avp(DiameterAvp::new_u32(415, ccr.cc_request_number));
 
         for rule in &default_rules {
@@ -661,7 +685,9 @@ impl PcrfGxEngine {
             session.active_rules.retain(|r| &r.rule_name != r_name);
         }
         for rule in &install {
-            session.active_rules.retain(|r| r.rule_name != rule.rule_name);
+            session
+                .active_rules
+                .retain(|r| r.rule_name != rule.rule_name);
             session.active_rules.push(rule.clone());
         }
 

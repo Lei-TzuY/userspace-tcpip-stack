@@ -8,7 +8,7 @@ use toy_tcpip::tsn_8021cm_fronthaul::{
 fn test_8021cm_profile_a_strict_latency_and_jitter_pass() {
     let mut engine = Ieee8021CmEngine::new(Ieee8021CmProfile::ProfileA);
     assert_eq!(engine.profile.max_owtd_ns(), 100_000); // 100 µs
-    assert_eq!(engine.profile.max_pdv_ns(), 10_000);   // 10 µs
+    assert_eq!(engine.profile.max_pdv_ns(), 10_000); // 10 µs
 
     // 3-hop bridged fronthaul path with IEEE 802.1Qbu frame preemption enabled
     // Hop 1: Cell Site Gateway (CSG) -> 2 km fiber
@@ -41,7 +41,13 @@ fn test_8021cm_profile_a_violation_and_fallback_to_profile_b() {
 
     // Long-distance rural fronthaul: 20 km optical fiber
     // Cable propagation delay alone = 20,000m * 5 ns/m = 100,000 ns
-    engine_a.add_bridge_hop(FronthaulBridgeHop::new("CSG-Rural", 3000, 2000, 20_000.0, true));
+    engine_a.add_bridge_hop(FronthaulBridgeHop::new(
+        "CSG-Rural",
+        3000,
+        2000,
+        20_000.0,
+        true,
+    ));
 
     let eval_a = engine_a.evaluate_fronthaul_path(EcpriTrafficClass::UserPlaneHigh);
 
@@ -52,7 +58,13 @@ fn test_8021cm_profile_a_violation_and_fallback_to_profile_b() {
 
     // Fallback to Profile B (allows up to 1,000,000 ns / 1 ms OWTD and 200 µs PDV)
     let mut engine_b = Ieee8021CmEngine::new(Ieee8021CmProfile::ProfileB);
-    engine_b.add_bridge_hop(FronthaulBridgeHop::new("CSG-Rural", 3000, 2000, 20_000.0, true));
+    engine_b.add_bridge_hop(FronthaulBridgeHop::new(
+        "CSG-Rural",
+        3000,
+        2000,
+        20_000.0,
+        true,
+    ));
 
     let eval_b = engine_b.evaluate_fronthaul_path(EcpriTrafficClass::UserPlaneHigh);
     assert!(eval_b.owtd_compliant);
@@ -75,8 +87,10 @@ fn test_8021cm_frame_preemption_jitter_reduction() {
     }
 
     // Evaluate Synchronization stream (Express traffic)
-    let eval_no_preempt = engine_no_preempt.evaluate_fronthaul_path(EcpriTrafficClass::Synchronization);
-    let eval_with_preempt = engine_with_preempt.evaluate_fronthaul_path(EcpriTrafficClass::Synchronization);
+    let eval_no_preempt =
+        engine_no_preempt.evaluate_fronthaul_path(EcpriTrafficClass::Synchronization);
+    let eval_with_preempt =
+        engine_with_preempt.evaluate_fronthaul_path(EcpriTrafficClass::Synchronization);
 
     // Without preemption: PDV = 4 * 4000 = 16,000 ns > 10,000 ns Profile A limit -> VIOLATION
     assert_eq!(eval_no_preempt.total_pdv_ns, 16_000);

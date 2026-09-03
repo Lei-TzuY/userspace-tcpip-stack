@@ -121,7 +121,11 @@ impl EvpnType5V6Rib {
         self.routes.len() < initial_len
     }
 
-    pub fn lookup(&self, rd: &RouteDistinguisher, target: &Ipv6Address) -> Option<&EvpnType5V6Route> {
+    pub fn lookup(
+        &self,
+        rd: &RouteDistinguisher,
+        target: &Ipv6Address,
+    ) -> Option<&EvpnType5V6Route> {
         let mut best_match: Option<&EvpnType5V6Route> = None;
         let mut max_prefix_len: u8 = 0;
 
@@ -151,9 +155,7 @@ mod tests {
         let prefix = Ipv6Address([
             0x20, 0x01, 0x0d, 0xb8, 0x11, 0x22, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         ]);
-        let gw = Ipv6Address([
-            0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-        ]);
+        let gw = Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
         let route = EvpnType5V6Route::new(rd.clone(), prefix, 64, gw, 10001);
 
         let raw = route.serialize();
@@ -194,7 +196,9 @@ mod tests {
         rib.add_route(subnet_route);
 
         // Specific lookup inside 2001:db8::/64 -> matches subnet
-        let target1 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x55]);
+        let target1 = Ipv6Address([
+            0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x55,
+        ]);
         let hit1 = rib.lookup(&rd, &target1).unwrap();
         assert_eq!(hit1.prefix_len, 64);
         assert_eq!(hit1.label_or_vni, 60000);

@@ -7,9 +7,9 @@
 //! - RFC 8986: Segment Routing over IPv6 (SRv6) Network Programming (Section 4.13)
 //! - RFC 8754: IPv6 Segment Routing Header (SRH)
 
+use crate::ethernet::{EthernetFrame, MacAddress};
 use std::collections::HashMap;
 use std::net::Ipv6Addr;
-use crate::ethernet::{EthernetFrame, MacAddress};
 
 /// Policy for handling unknown unicast destination MAC addresses on End.DT2U decapsulation
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,7 +158,9 @@ impl Srv6EndDt2uEngine {
             }
         } else {
             match vrf.unknown_unicast_policy {
-                UnknownUnicastPolicy::Drop => EndDt2uResult::DroppedUnknownMac { table_id, dst_mac },
+                UnknownUnicastPolicy::Drop => {
+                    EndDt2uResult::DroppedUnknownMac { table_id, dst_mac }
+                }
                 UnknownUnicastPolicy::FloodToAccessCircuits => {
                     let ac_ids: Vec<u32> = vrf.access_circuits.keys().copied().collect();
                     // If source MAC learning is enabled from overlay, optionally record it
@@ -217,7 +219,12 @@ mod tests {
 
         let result = engine.process_end_dt2u(&sid, &inner_frame, false);
         match result {
-            EndDt2uResult::ForwardedToAc { table_id, ac_id, dst_mac, .. } => {
+            EndDt2uResult::ForwardedToAc {
+                table_id,
+                ac_id,
+                dst_mac,
+                ..
+            } => {
                 assert_eq!(table_id, 100);
                 assert_eq!(ac_id, 1);
                 assert_eq!(dst_mac, host_a_mac);

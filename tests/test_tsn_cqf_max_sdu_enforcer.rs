@@ -9,7 +9,12 @@ fn test_tsn_cqf_max_sdu_enforcer_integration() {
     // Add multiple rules
     enforcer.add_rule(10, 256, MaxSduAction::DropOversized, "Voice Frame Limit");
     enforcer.add_rule(20, 1024, MaxSduAction::TruncateToMax, "Bulk Stream Clamp");
-    enforcer.add_rule(30, 512, MaxSduAction::PassWithAlert, "Sensor Telemetry Warning");
+    enforcer.add_rule(
+        30,
+        512,
+        MaxSduAction::PassWithAlert,
+        "Sensor Telemetry Warning",
+    );
 
     // Conforming voice frame
     let (verdict, forwarded) = enforcer.enforce_frame(10, 1, 200, 50_000);
@@ -85,6 +90,9 @@ fn test_tsn_cqf_max_sdu_enforcer_integration() {
     assert_eq!(enforcer.total_dropped_frames, 2);
     assert_eq!(enforcer.total_truncated_frames, 1);
     assert_eq!(enforcer.total_alert_frames, 1);
-    assert_eq!(enforcer.total_bytes_inspected, 200 + 300 + 1500 + 700 + 2000);
+    assert_eq!(
+        enforcer.total_bytes_inspected,
+        200 + 300 + 1500 + 700 + 2000
+    );
     assert_eq!(enforcer.total_bytes_forwarded, 200 + 1024 + 700);
 }

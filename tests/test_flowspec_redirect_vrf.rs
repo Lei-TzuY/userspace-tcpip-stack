@@ -49,7 +49,7 @@ fn test_flowspec_redirect_to_vrf_and_dscp_remarking() {
 fn test_flowspec_advanced_port_range_and_tcp_flags_syn_flood() {
     use toy_tcpip::flowspec_redirect_vrf::{
         FlowspecVrfAction, FlowspecVrfAdvancedRule, FlowspecVrfScrubbingEngine, PacketLengthMatch,
-        PortRangeMatch, TcpFlagsMatch, TCP_FLAG_ACK, TCP_FLAG_SYN,
+        PortRangeMatch, TCP_FLAG_ACK, TCP_FLAG_SYN, TcpFlagsMatch,
     };
 
     let mut engine = FlowspecVrfScrubbingEngine::new();
@@ -67,22 +67,18 @@ fn test_flowspec_advanced_port_range_and_tcp_flags_syn_flood() {
     syn_rule.match_protocol = Some(6); // TCP
     syn_rule.match_dst_port = Some(PortRangeMatch::Range(8000, 8080));
     // Match SYN=1, ACK=0
-    syn_rule.match_tcp_flags = Some(TcpFlagsMatch::new(TCP_FLAG_SYN | TCP_FLAG_ACK, TCP_FLAG_SYN));
+    syn_rule.match_tcp_flags = Some(TcpFlagsMatch::new(
+        TCP_FLAG_SYN | TCP_FLAG_ACK,
+        TCP_FLAG_SYN,
+    ));
     syn_rule.match_packet_len = Some(PacketLengthMatch::new(40, 100));
 
     engine.add_advanced_rule(syn_rule);
 
     // Packet 1: True SYN packet to port 8005, len 60 -> matches SYN proxy redirection
     let attacker_ip = Ipv4Address::new(198, 51, 100, 99);
-    let act1 = engine.evaluate_packet_advanced(
-        attacker_ip,
-        victim_ip,
-        6,
-        45678,
-        8005,
-        TCP_FLAG_SYN,
-        60,
-    );
+    let act1 =
+        engine.evaluate_packet_advanced(attacker_ip, victim_ip, 6, 45678, 8005, TCP_FLAG_SYN, 60);
     assert_eq!(
         act1,
         FlowspecVrfAction::RedirectAndRemark {
@@ -95,27 +91,13 @@ fn test_flowspec_advanced_port_range_and_tcp_flags_syn_flood() {
     assert_eq!(engine.total_bytes_diverted, 60);
 
     // Packet 2: Established ACK packet to port 8005 -> flags don't match, passes through
-    let act2 = engine.evaluate_packet_advanced(
-        attacker_ip,
-        victim_ip,
-        6,
-        45678,
-        8005,
-        TCP_FLAG_ACK,
-        60,
-    );
+    let act2 =
+        engine.evaluate_packet_advanced(attacker_ip, victim_ip, 6, 45678, 8005, TCP_FLAG_ACK, 60);
     assert_eq!(act2, FlowspecVrfAction::Pass);
 
     // Packet 3: SYN packet to port 9000 -> outside port range, passes through
-    let act3 = engine.evaluate_packet_advanced(
-        attacker_ip,
-        victim_ip,
-        6,
-        45678,
-        9000,
-        TCP_FLAG_SYN,
-        60,
-    );
+    let act3 =
+        engine.evaluate_packet_advanced(attacker_ip, victim_ip, 6, 45678, 9000, TCP_FLAG_SYN, 60);
     assert_eq!(act3, FlowspecVrfAction::Pass);
 }
 
@@ -144,28 +126,13 @@ fn test_flowspec_rate_limiting_and_packet_length_scrubbing() {
     let ntp_reflector = Ipv4Address::new(198, 51, 100, 123);
 
     // Amplified response packet: 1200 bytes
-    let act = engine.evaluate_packet_advanced(
-        ntp_reflector,
-        victim_ip,
-        17,
-        123,
-        54321,
-        0,
-        1200,
-    );
+    let act = engine.evaluate_packet_advanced(ntp_reflector, victim_ip, 17, 123, 54321, 0, 1200);
     assert_eq!(act, FlowspecVrfAction::RateLimitBytesPerSec(10_000_000));
     assert_eq!(engine.rate_limited_packets_count, 1);
 
     // Small NTP response: 48 bytes -> passes through normally
-    let small_act = engine.evaluate_packet_advanced(
-        ntp_reflector,
-        victim_ip,
-        17,
-        123,
-        54321,
-        0,
-        48,
-    );
+    let small_act =
+        engine.evaluate_packet_advanced(ntp_reflector, victim_ip, 17, 123, 54321, 0, 48);
     assert_eq!(small_act, FlowspecVrfAction::Pass);
 }
 
@@ -232,7 +199,17 @@ fn test_flowspec_icmp_echo_flood_mitigation() {
 
     // Ping request (Type 8, Code 0) -> redirected
     let act1 = engine.evaluate_packet_full(
-        sender, victim_ip, 1, 0, 0, 0, 64, false, 0, false, Some((8, 0)),
+        sender,
+        victim_ip,
+        1,
+        0,
+        0,
+        0,
+        64,
+        false,
+        0,
+        false,
+        Some((8, 0)),
     );
     assert_eq!(
         act1,
@@ -241,7 +218,17 @@ fn test_flowspec_icmp_echo_flood_mitigation() {
 
     // ICMP Destination Unreachable (Type 3, Code 1) -> passes through
     let act2 = engine.evaluate_packet_full(
-        sender, victim_ip, 1, 0, 0, 0, 56, false, 0, false, Some((3, 1)),
+        sender,
+        victim_ip,
+        1,
+        0,
+        0,
+        0,
+        56,
+        false,
+        0,
+        false,
+        Some((3, 1)),
     );
     assert_eq!(act2, FlowspecVrfAction::Pass);
 }

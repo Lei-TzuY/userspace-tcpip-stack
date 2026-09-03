@@ -1,5 +1,5 @@
 use toy_tcpip::detnet_ip_mpls_map::{
-    DetNetFLabelPath, DetNetIpFlowKey, DetNetIpMplsEngine, DetNetIpMplsEgressResult,
+    DetNetFLabelPath, DetNetIpFlowKey, DetNetIpMplsEgressResult, DetNetIpMplsEngine,
     DetNetIpMplsFlowProfile, DetNetIpMplsIngressResult,
 };
 use toy_tcpip::ipv4::Ipv4Address;
@@ -49,14 +49,18 @@ fn test_detnet_ip_to_mpls_mapping_full_pipeline() {
     ];
     ip_pkt.extend_from_slice(&9001u16.to_be_bytes()); // Src Port
     ip_pkt.extend_from_slice(&9002u16.to_be_bytes()); // Dst Port
-    ip_pkt.extend_from_slice(&14u16.to_be_bytes());   // UDP Len (8 + 6 payload)
-    ip_pkt.extend_from_slice(&[0x00, 0x00]);         // UDP Checksum
+    ip_pkt.extend_from_slice(&14u16.to_be_bytes()); // UDP Len (8 + 6 payload)
+    ip_pkt.extend_from_slice(&[0x00, 0x00]); // UDP Checksum
     ip_pkt.extend_from_slice(b"DETNET");
 
     // Packet 1 Ingress
     let res1 = engine.ingress_encap(&ip_pkt);
     let frames1 = match res1 {
-        DetNetIpMplsIngressResult::Replicated { flow_id, seq, mpls_packets } => {
+        DetNetIpMplsIngressResult::Replicated {
+            flow_id,
+            seq,
+            mpls_packets,
+        } => {
             assert_eq!(flow_id, 1001);
             assert_eq!(seq, 0);
             assert_eq!(mpls_packets.len(), 2);
@@ -68,7 +72,11 @@ fn test_detnet_ip_to_mpls_mapping_full_pipeline() {
     // Egress delivery: Path 1 arrives first
     let egress1_path1 = engine.egress_decap(&frames1[0].1);
     match egress1_path1 {
-        DetNetIpMplsEgressResult::AcceptedUnique { s_label, seq, ip_packet } => {
+        DetNetIpMplsEgressResult::AcceptedUnique {
+            s_label,
+            seq,
+            ip_packet,
+        } => {
             assert_eq!(s_label, 8888);
             assert_eq!(seq, 0);
             assert_eq!(ip_packet, ip_pkt);
@@ -89,7 +97,11 @@ fn test_detnet_ip_to_mpls_mapping_full_pipeline() {
     // Packet 2 Ingress (Sequence increments)
     let res2 = engine.ingress_encap(&ip_pkt);
     let frames2 = match res2 {
-        DetNetIpMplsIngressResult::Replicated { flow_id, seq, mpls_packets } => {
+        DetNetIpMplsIngressResult::Replicated {
+            flow_id,
+            seq,
+            mpls_packets,
+        } => {
             assert_eq!(flow_id, 1001);
             assert_eq!(seq, 1);
             mpls_packets
@@ -100,7 +112,11 @@ fn test_detnet_ip_to_mpls_mapping_full_pipeline() {
     // Packet 2 Egress delivery
     let egress2_path1 = engine.egress_decap(&frames2[0].1);
     match egress2_path1 {
-        DetNetIpMplsEgressResult::AcceptedUnique { s_label, seq, ip_packet } => {
+        DetNetIpMplsEgressResult::AcceptedUnique {
+            s_label,
+            seq,
+            ip_packet,
+        } => {
             assert_eq!(s_label, 8888);
             assert_eq!(seq, 1);
             assert_eq!(ip_packet, ip_pkt);

@@ -28,5 +28,9 @@ fn test_gtpu_flow_label_entropy_integration() {
 
     // Verify entropy spreads across multiple ECMP buckets
     let non_empty_buckets = engine.bucket_counts.iter().filter(|&&c| c > 0).count();
-    assert!(non_empty_buckets >= 8, "Expected good distribution across ECMP buckets, got {}", non_empty_buckets);
+    assert!(
+        non_empty_buckets >= 8,
+        "Expected good distribution across ECMP buckets, got {}",
+        non_empty_buckets
+    );
 }

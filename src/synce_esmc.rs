@@ -329,7 +329,10 @@ impl SyncEEsmcPacket {
         while offset + 3 <= data.len() {
             let next_type = data[offset];
             let next_len = u16::from_be_bytes([data[offset + 1], data[offset + 2]]) as usize;
-            if next_type == TLV_TYPE_EXTENDED_QL && next_len >= 15 && offset + next_len <= data.len() {
+            if next_type == TLV_TYPE_EXTENDED_QL
+                && next_len >= 15
+                && offset + next_len <= data.len()
+            {
                 extended_ql = ExtendedQlTlv::parse(&data[offset..offset + next_len]);
                 break;
             } else if next_len == 0 || offset + next_len > data.len() {
@@ -491,7 +494,10 @@ impl SyncEEsmcEngine {
             }
             // Skip ports currently in Wait-To-Restore or Failed state
             if let Some(state) = self.port_states.get(&port) {
-                if matches!(state, PortSyncState::WaitToRestore { .. } | PortSyncState::Failed) {
+                if matches!(
+                    state,
+                    PortSyncState::WaitToRestore { .. } | PortSyncState::Failed
+                ) {
                     continue;
                 }
             }

@@ -247,7 +247,7 @@ pub fn serialize_flowspec_v6_nlri(m: &FlowspecV6Match) -> Vec<u8> {
     if let Some((dst_ip, mask)) = m.dst_prefix {
         buf.push(FLOWSPEC_V6_TYPE_DST_PREFIX);
         buf.push(mask); // prefix-length
-        buf.push(0);    // offset = 0
+        buf.push(0); // offset = 0
         let bytes_needed = ((mask + 7) / 8) as usize;
         if bytes_needed > 0 {
             buf.extend_from_slice(&dst_ip.0[..bytes_needed.min(16)]);
@@ -258,7 +258,7 @@ pub fn serialize_flowspec_v6_nlri(m: &FlowspecV6Match) -> Vec<u8> {
     if let Some((src_ip, mask)) = m.src_prefix {
         buf.push(FLOWSPEC_V6_TYPE_SRC_PREFIX);
         buf.push(mask); // prefix-length
-        buf.push(0);    // offset = 0
+        buf.push(0); // offset = 0
         let bytes_needed = ((mask + 7) / 8) as usize;
         if bytes_needed > 0 {
             buf.extend_from_slice(&src_ip.0[..bytes_needed.min(16)]);
@@ -321,7 +321,8 @@ pub fn parse_flowspec_v6_nlri(data: &[u8]) -> Result<FlowspecV6Match, &'static s
                 }
 
                 let mut ip_bytes = [0u8; 16];
-                ip_bytes[..bytes_len.min(16)].copy_from_slice(&data[offset..offset + bytes_len.min(16)]);
+                ip_bytes[..bytes_len.min(16)]
+                    .copy_from_slice(&data[offset..offset + bytes_len.min(16)]);
                 offset += bytes_len;
 
                 match_fields.dst_prefix = Some((Ipv6Address(ip_bytes), mask));
@@ -340,7 +341,8 @@ pub fn parse_flowspec_v6_nlri(data: &[u8]) -> Result<FlowspecV6Match, &'static s
                 }
 
                 let mut ip_bytes = [0u8; 16];
-                ip_bytes[..bytes_len.min(16)].copy_from_slice(&data[offset..offset + bytes_len.min(16)]);
+                ip_bytes[..bytes_len.min(16)]
+                    .copy_from_slice(&data[offset..offset + bytes_len.min(16)]);
                 offset += bytes_len;
 
                 match_fields.src_prefix = Some((Ipv6Address(ip_bytes), mask));
@@ -414,7 +416,9 @@ mod tests {
     fn test_flowspec_v6_engine_evaluation() {
         let mut engine = FlowspecV6Engine::new();
 
-        let attack_target = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10]);
+        let attack_target = Ipv6Address([
+            0x20, 0x01, 0x0d, 0xb8, 0x00, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 10,
+        ]);
         let mitigator_rule = FlowspecV6Rule {
             id: 1,
             priority: 100,
@@ -465,11 +469,15 @@ mod tests {
     fn test_flowspec_v6_nlri_codec_roundtrip() {
         let match_rule = FlowspecV6Match {
             dst_prefix: Some((
-                Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                Ipv6Address([
+                    0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ]),
                 48,
             )),
             src_prefix: Some((
-                Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0xba, 0xbe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+                Ipv6Address([
+                    0x20, 0x01, 0x0d, 0xb8, 0xba, 0xbe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ]),
                 48,
             )),
             next_header: Some(6),

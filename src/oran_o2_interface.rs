@@ -12,8 +12,8 @@ use std::collections::HashMap;
 /// Types of hardware accelerators available in O-Cloud.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AcceleratorType {
-    FpgaLdpc,     // 5G NR High-PHY LDPC encoder/decoder offload
-    GpuHighPhy,   // GPU-accelerated baseband compute
+    FpgaLdpc,      // 5G NR High-PHY LDPC encoder/decoder offload
+    GpuHighPhy,    // GPU-accelerated baseband compute
     SmartNicSriov, // High-throughput DPDK/SR-IOV packet offload
 }
 
@@ -78,7 +78,11 @@ pub struct ResourcePool {
 }
 
 impl ResourcePool {
-    pub fn new(pool_id: impl Into<String>, name: impl Into<String>, location: impl Into<String>) -> Self {
+    pub fn new(
+        pool_id: impl Into<String>,
+        name: impl Into<String>,
+        location: impl Into<String>,
+    ) -> Self {
         Self {
             pool_id: pool_id.into(),
             name: name.into(),
@@ -178,7 +182,9 @@ impl O2InterfaceEngine {
         instance_id: &str,
         descriptor: NfDeploymentDescriptor,
     ) -> Result<NfDeploymentInstance, &'static str> {
-        let pool = self.resource_pools.get_mut(pool_id)
+        let pool = self
+            .resource_pools
+            .get_mut(pool_id)
             .ok_or("Resource pool not found")?;
 
         // Find eligible compute node satisfying all constraints
@@ -208,7 +214,9 @@ impl O2InterfaceEngine {
 
             // 3. Check Isolated Cores requirement
             if descriptor.requires_isolated_cores {
-                let available_isolated: Vec<u32> = node.isolated_cores.iter()
+                let available_isolated: Vec<u32> = node
+                    .isolated_cores
+                    .iter()
                     .filter(|c| !node.allocated_isolated_cores.contains(c))
                     .copied()
                     .collect();
@@ -232,7 +240,8 @@ impl O2InterfaceEngine {
                 }
             }
 
-            node.allocated_isolated_cores.extend_from_slice(&allocated_cores);
+            node.allocated_isolated_cores
+                .extend_from_slice(&allocated_cores);
             node.allocated_hugepages += descriptor.required_hugepages_1gb;
 
             candidate_node_id = Some(node.node_id.clone());
@@ -240,7 +249,8 @@ impl O2InterfaceEngine {
             break;
         }
 
-        let node_id = candidate_node_id.ok_or("No eligible compute node meeting deployment constraints")?;
+        let node_id =
+            candidate_node_id.ok_or("No eligible compute node meeting deployment constraints")?;
 
         let instance = NfDeploymentInstance {
             instance_id: instance_id.to_string(),
@@ -251,13 +261,16 @@ impl O2InterfaceEngine {
             state: NfDeploymentState::Running,
         };
 
-        self.deployment_instances.insert(instance_id.to_string(), instance.clone());
+        self.deployment_instances
+            .insert(instance_id.to_string(), instance.clone());
         Ok(instance)
     }
 
     /// O2-DMS: Terminates an NF deployment and reclaims hardware resources.
     pub fn terminate_nf(&mut self, instance_id: &str) -> Result<(), &'static str> {
-        let instance = self.deployment_instances.get_mut(instance_id)
+        let instance = self
+            .deployment_instances
+            .get_mut(instance_id)
             .ok_or("NF deployment instance not found")?;
 
         instance.state = NfDeploymentState::Terminated;
@@ -269,8 +282,10 @@ impl O2InterfaceEngine {
         // Reclaim in resource pool
         for pool in self.resource_pools.values_mut() {
             if let Some(node) = pool.nodes.get_mut(&node_id) {
-                node.allocated_isolated_cores.retain(|c| !cores_to_free.contains(c));
-                node.allocated_hugepages = node.allocated_hugepages.saturating_sub(hugepages_to_free);
+                node.allocated_isolated_cores
+                    .retain(|c| !cores_to_free.contains(c));
+                node.allocated_hugepages =
+                    node.allocated_hugepages.saturating_sub(hugepages_to_free);
 
                 if let Some(ref target_acc) = acc_to_free {
                     for acc in &mut node.accelerators {

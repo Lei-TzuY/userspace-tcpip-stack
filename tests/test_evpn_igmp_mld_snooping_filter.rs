@@ -36,13 +36,37 @@ fn test_evpn_igmp_mld_snooping_filter_integration() {
     let g4 = Ipv4Address::new(232, 1, 1, 4);
 
     let v1 = engine.evaluate_join(100, 1, g1);
-    assert_eq!(v1, McastFilterVerdict::JoinPermitted { vni: 100, port_id: 1, group_ip: g1, current_active_channels: 1 });
+    assert_eq!(
+        v1,
+        McastFilterVerdict::JoinPermitted {
+            vni: 100,
+            port_id: 1,
+            group_ip: g1,
+            current_active_channels: 1
+        }
+    );
 
     let v2 = engine.evaluate_join(100, 1, g2);
-    assert_eq!(v2, McastFilterVerdict::JoinPermitted { vni: 100, port_id: 1, group_ip: g2, current_active_channels: 2 });
+    assert_eq!(
+        v2,
+        McastFilterVerdict::JoinPermitted {
+            vni: 100,
+            port_id: 1,
+            group_ip: g2,
+            current_active_channels: 2
+        }
+    );
 
     let v3 = engine.evaluate_join(100, 1, g3);
-    assert_eq!(v3, McastFilterVerdict::JoinPermitted { vni: 100, port_id: 1, group_ip: g3, current_active_channels: 3 });
+    assert_eq!(
+        v3,
+        McastFilterVerdict::JoinPermitted {
+            vni: 100,
+            port_id: 1,
+            group_ip: g3,
+            current_active_channels: 3
+        }
+    );
 
     // 3. Fourth channel exceeds CAC quota -> Denied
     let v4 = engine.evaluate_join(100, 1, g4);
@@ -70,5 +94,13 @@ fn test_evpn_igmp_mld_snooping_filter_integration() {
 
     // 5. Now fourth channel is admitted
     let v4_retry = engine.evaluate_join(100, 1, g4);
-    assert_eq!(v4_retry, McastFilterVerdict::JoinPermitted { vni: 100, port_id: 1, group_ip: g4, current_active_channels: 3 });
+    assert_eq!(
+        v4_retry,
+        McastFilterVerdict::JoinPermitted {
+            vni: 100,
+            port_id: 1,
+            group_ip: g4,
+            current_active_channels: 3
+        }
+    );
 }

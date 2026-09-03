@@ -802,7 +802,12 @@ impl DnsCache {
     }
 
     /// Looks up active records in cache, returning None if expired or not found.
-    pub fn lookup(&self, name: &str, qtype: u16, now_secs: u64) -> Option<Result<Vec<DnsAnswer>, ()>> {
+    pub fn lookup(
+        &self,
+        name: &str,
+        qtype: u16,
+        now_secs: u64,
+    ) -> Option<Result<Vec<DnsAnswer>, ()>> {
         let key = (name.to_lowercase(), qtype);
         if let Some(entry) = self.entries.get(&key) {
             let elapsed = now_secs.saturating_sub(entry.inserted_at_secs);
@@ -995,7 +1000,9 @@ mod tests {
     #[test]
     fn test_dns_aaaa_and_ptr_records() {
         let hostname = "ipv6.toy-tcpip.org";
-        let resolved_ip6 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01]);
+        let resolved_ip6 = Ipv6Address([
+            0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01,
+        ]);
         let id = 0x1234;
 
         // AAAA Query & Response
@@ -1015,9 +1022,13 @@ mod tests {
         assert_eq!(parsed_ptr_q.questions[0].name, "4.4.8.8.in-addr.arpa");
         assert_eq!(parsed_ptr_q.questions[0].qtype, DNS_TYPE_PTR);
 
-        let ptr_resp = DnsMessage::build_ptr_response(0x5678, "4.4.8.8.in-addr.arpa", "dns.google.com", 3600);
+        let ptr_resp =
+            DnsMessage::build_ptr_response(0x5678, "4.4.8.8.in-addr.arpa", "dns.google.com", 3600);
         let parsed_ptr_r = DnsMessage::parse(&ptr_resp).unwrap();
-        assert_eq!(parsed_ptr_r.answers[0].data, DnsRecordData::Ptr("dns.google.com".to_string()));
+        assert_eq!(
+            parsed_ptr_r.answers[0].data,
+            DnsRecordData::Ptr("dns.google.com".to_string())
+        );
     }
 
     #[test]
@@ -1026,7 +1037,10 @@ mod tests {
         // CNAME
         let cname_resp = DnsMessage::build_cname_response(id, "alias.com", "target.com", 120);
         let parsed_cname = DnsMessage::parse(&cname_resp).unwrap();
-        assert_eq!(parsed_cname.answers[0].data, DnsRecordData::Cname("target.com".to_string()));
+        assert_eq!(
+            parsed_cname.answers[0].data,
+            DnsRecordData::Cname("target.com".to_string())
+        );
 
         // MX
         let mx_resp = DnsMessage::build_mx_response(id, "domain.com", 10, "mail.domain.com", 300);
@@ -1040,7 +1054,12 @@ mod tests {
         );
 
         // TXT
-        let txt_resp = DnsMessage::build_txt_response(id, "domain.com", &["v=spf1 include:_spf.google.com ~all"], 300);
+        let txt_resp = DnsMessage::build_txt_response(
+            id,
+            "domain.com",
+            &["v=spf1 include:_spf.google.com ~all"],
+            300,
+        );
         let parsed_txt = DnsMessage::parse(&txt_resp).unwrap();
         assert_eq!(
             parsed_txt.answers[0].data,
@@ -1048,7 +1067,15 @@ mod tests {
         );
 
         // SRV
-        let srv_resp = DnsMessage::build_srv_response(id, "_sip._tcp.example.com", 10, 60, 5060, "sipserver.example.com", 3600);
+        let srv_resp = DnsMessage::build_srv_response(
+            id,
+            "_sip._tcp.example.com",
+            10,
+            60,
+            5060,
+            "sipserver.example.com",
+            3600,
+        );
         let parsed_srv = DnsMessage::parse(&srv_resp).unwrap();
         assert_eq!(
             parsed_srv.answers[0].data,
@@ -1084,7 +1111,10 @@ mod tests {
 
         // Negative caching
         cache.insert_negative("nonexistent.org", DNS_TYPE_A, 30, 1000);
-        assert_eq!(cache.lookup("nonexistent.org", DNS_TYPE_A, 1010), Some(Err(())));
+        assert_eq!(
+            cache.lookup("nonexistent.org", DNS_TYPE_A, 1010),
+            Some(Err(()))
+        );
         assert_eq!(cache.lookup("nonexistent.org", DNS_TYPE_A, 1040), None);
     }
 }

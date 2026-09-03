@@ -1,11 +1,14 @@
 use toy_tcpip::diameter_s6a_clr::{
-    CancellationType, S6aClrEngine, S6aClrMessage, DIAMETER_CMD_CANCEL_LOCATION,
-    RESULT_CODE_SUCCESS, RESULT_CODE_USER_UNKNOWN,
+    CancellationType, DIAMETER_CMD_CANCEL_LOCATION, RESULT_CODE_SUCCESS, RESULT_CODE_USER_UNKNOWN,
+    S6aClrEngine, S6aClrMessage,
 };
 
 #[test]
 fn test_diameter_s6a_clr_lifecycle() {
-    let mut mme = S6aClrEngine::new("mme01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+    let mut mme = S6aClrEngine::new(
+        "mme01.epc.mnc001.mcc208.3gppnetwork.org",
+        "epc.mnc001.mcc208.3gppnetwork.org",
+    );
 
     let imsi = "208950987654321";
     mme.attach_subscriber(imsi);
@@ -30,7 +33,10 @@ fn test_diameter_s6a_clr_lifecycle() {
     let cla = mme.process_clr(&clr);
     assert_eq!(cla.result_code(), Some(RESULT_CODE_SUCCESS));
     assert!(!mme.active_subscribers[0].is_active);
-    assert_eq!(mme.active_subscribers[0].cancellation_reason, Some(CancellationType::MmeUpdateProcedure));
+    assert_eq!(
+        mme.active_subscribers[0].cancellation_reason,
+        Some(CancellationType::MmeUpdateProcedure)
+    );
 
     // 2. Second CLR for unregistered subscriber
     let clr_unreg = S6aClrMessage::new_clr(

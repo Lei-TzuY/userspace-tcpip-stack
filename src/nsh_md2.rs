@@ -184,7 +184,8 @@ impl NshMd2Header {
                 return;
             }
         }
-        self.tlvs.push(NshContextTlv::new_inband_path_trace(&[node_id]));
+        self.tlvs
+            .push(NshContextTlv::new_inband_path_trace(&[node_id]));
     }
 
     /// Total header length in 4-byte (32-bit) words.
@@ -322,7 +323,7 @@ pub enum SffForwardingAction {
 #[derive(Debug, Clone)]
 pub struct NshMd2SffEngine {
     pub service_paths: std::collections::HashMap<(u32, u8), u32>, // (SPI, SI) -> Next Node ID
-    pub supported_tlvs: std::collections::HashSet<(u16, u8)>,      // (Class, TLV Type)
+    pub supported_tlvs: std::collections::HashSet<(u16, u8)>,     // (Class, TLV Type)
     pub security_group_acls: std::collections::HashMap<(u32, u32), bool>, // (Tenant, SecGroup) -> Allowed
     pub local_node_id: u32,
 }
@@ -362,8 +363,14 @@ impl NshMd2SffEngine {
         self.supported_tlvs.insert((class, tlv_type));
     }
 
-    pub fn set_security_group_allowed(&mut self, tenant_id: u32, security_group: u32, allowed: bool) {
-        self.security_group_acls.insert((tenant_id, security_group), allowed);
+    pub fn set_security_group_allowed(
+        &mut self,
+        tenant_id: u32,
+        security_group: u32,
+        allowed: bool,
+    ) {
+        self.security_group_acls
+            .insert((tenant_id, security_group), allowed);
     }
 
     pub fn add_path_hop(&mut self, spi: u32, si: u8, next_node_id: u32) {
@@ -417,7 +424,8 @@ impl NshMd2SffEngine {
         // In-band Path Trace recording if enabled on this SFF
         if self.local_node_id != 0 {
             for tlv in &pkt.header.tlvs {
-                if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_INBAND_PATH_TRACE {
+                if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_INBAND_PATH_TRACE
+                {
                     pkt.header.append_path_trace_node(self.local_node_id);
                     break;
                 }
@@ -446,8 +454,16 @@ pub struct NshMetadataExtractor;
 impl NshMetadataExtractor {
     pub fn extract_tenant_id(hdr: &NshMd2Header) -> Option<u32> {
         for tlv in &hdr.tlvs {
-            if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_TENANT_ID && tlv.data.len() >= 4 {
-                return Some(u32::from_be_bytes([tlv.data[0], tlv.data[1], tlv.data[2], tlv.data[3]]));
+            if tlv.class == NSH_TLV_CLASS_IETF
+                && tlv.tlv_type == NSH_TLV_TYPE_TENANT_ID
+                && tlv.data.len() >= 4
+            {
+                return Some(u32::from_be_bytes([
+                    tlv.data[0],
+                    tlv.data[1],
+                    tlv.data[2],
+                    tlv.data[3],
+                ]));
             }
         }
         None
@@ -455,8 +471,16 @@ impl NshMetadataExtractor {
 
     pub fn extract_source_interface(hdr: &NshMd2Header) -> Option<u32> {
         for tlv in &hdr.tlvs {
-            if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_SOURCE_INTERFACE && tlv.data.len() >= 4 {
-                return Some(u32::from_be_bytes([tlv.data[0], tlv.data[1], tlv.data[2], tlv.data[3]]));
+            if tlv.class == NSH_TLV_CLASS_IETF
+                && tlv.tlv_type == NSH_TLV_TYPE_SOURCE_INTERFACE
+                && tlv.data.len() >= 4
+            {
+                return Some(u32::from_be_bytes([
+                    tlv.data[0],
+                    tlv.data[1],
+                    tlv.data[2],
+                    tlv.data[3],
+                ]));
             }
         }
         None
@@ -464,8 +488,16 @@ impl NshMetadataExtractor {
 
     pub fn extract_flow_hash(hdr: &NshMd2Header) -> Option<u32> {
         for tlv in &hdr.tlvs {
-            if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_FLOW_HASH && tlv.data.len() >= 4 {
-                return Some(u32::from_be_bytes([tlv.data[0], tlv.data[1], tlv.data[2], tlv.data[3]]));
+            if tlv.class == NSH_TLV_CLASS_IETF
+                && tlv.tlv_type == NSH_TLV_TYPE_FLOW_HASH
+                && tlv.data.len() >= 4
+            {
+                return Some(u32::from_be_bytes([
+                    tlv.data[0],
+                    tlv.data[1],
+                    tlv.data[2],
+                    tlv.data[3],
+                ]));
             }
         }
         None
@@ -473,8 +505,16 @@ impl NshMetadataExtractor {
 
     pub fn extract_security_group_tag(hdr: &NshMd2Header) -> Option<u32> {
         for tlv in &hdr.tlvs {
-            if tlv.class == NSH_TLV_CLASS_IETF && tlv.tlv_type == NSH_TLV_TYPE_SECURITY_GROUP_TAG && tlv.data.len() >= 4 {
-                return Some(u32::from_be_bytes([tlv.data[0], tlv.data[1], tlv.data[2], tlv.data[3]]));
+            if tlv.class == NSH_TLV_CLASS_IETF
+                && tlv.tlv_type == NSH_TLV_TYPE_SECURITY_GROUP_TAG
+                && tlv.data.len() >= 4
+            {
+                return Some(u32::from_be_bytes([
+                    tlv.data[0],
+                    tlv.data[1],
+                    tlv.data[2],
+                    tlv.data[3],
+                ]));
             }
         }
         None
@@ -534,13 +574,26 @@ impl NshClassifierEngine {
         if ipv4_packet.len() < 20 {
             return None;
         }
-        let src_ip = [ipv4_packet[12], ipv4_packet[13], ipv4_packet[14], ipv4_packet[15]];
-        let dst_ip = [ipv4_packet[16], ipv4_packet[17], ipv4_packet[18], ipv4_packet[19]];
+        let src_ip = [
+            ipv4_packet[12],
+            ipv4_packet[13],
+            ipv4_packet[14],
+            ipv4_packet[15],
+        ];
+        let dst_ip = [
+            ipv4_packet[16],
+            ipv4_packet[17],
+            ipv4_packet[18],
+            ipv4_packet[19],
+        ];
         let proto = ipv4_packet[9];
         let dst_port = if (proto == 6 || proto == 17) && ipv4_packet.len() >= 24 {
             let ihl = ((ipv4_packet[0] & 0x0F) as usize) * 4;
             if ipv4_packet.len() >= ihl + 4 {
-                Some(u16::from_be_bytes([ipv4_packet[ihl + 2], ipv4_packet[ihl + 3]]))
+                Some(u16::from_be_bytes([
+                    ipv4_packet[ihl + 2],
+                    ipv4_packet[ihl + 3],
+                ]))
             } else {
                 None
             }

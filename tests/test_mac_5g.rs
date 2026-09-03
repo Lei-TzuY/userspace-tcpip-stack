@@ -138,10 +138,7 @@ fn test_mac_ce_timing_advance_command() {
     // The TA CE should appear in received_ces
     assert_eq!(mac.received_ces.len(), 1);
     match &mac.received_ces[0] {
-        MacPduElement::TimingAdvanceCommand {
-            tag_id,
-            ta_command,
-        } => {
+        MacPduElement::TimingAdvanceCommand { tag_id, ta_command } => {
             assert_eq!(*tag_id, 1);
             assert_eq!(*ta_command, 42);
         }
@@ -233,8 +230,8 @@ fn test_mac_lcp_ul_pdu_assembly() {
     });
 
     // Enqueue data on both channels
-    mac.enqueue_data(1, 50);   // SRB1: 50 bytes
-    mac.enqueue_data(4, 150);  // DRB: 150 bytes
+    mac.enqueue_data(1, 50); // SRB1: 50 bytes
+    mac.enqueue_data(4, 150); // DRB: 150 bytes
 
     // Assemble UL PDU with 300-byte grant
     let (harq_id, pdu) = mac.assemble_ul_pdu(300).unwrap();
@@ -267,10 +264,7 @@ fn test_mac_lcp_ul_pdu_assembly() {
     assert!(has_padding, "Should have padding");
 
     // Verify HARQ process is now WaitingForFeedback
-    assert_eq!(
-        mac.harq_processes[0].state,
-        HarqState::WaitingForFeedback
-    );
+    assert_eq!(mac.harq_processes[0].state, HarqState::WaitingForFeedback);
 }
 
 // ---------------------------------------------------------------------------

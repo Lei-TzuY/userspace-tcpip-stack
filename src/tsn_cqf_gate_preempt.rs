@@ -38,9 +38,7 @@ pub enum TsnTrafficClass {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CqfPreemptVerdict {
     /// Express frame transmitted immediately without preemption overhead.
-    PassExpress {
-        frame_bytes: usize,
-    },
+    PassExpress { frame_bytes: usize },
     /// Preemptible frame fits fully within remaining cycle window.
     TransmitFullPreemptible {
         frame_bytes: usize,
@@ -107,7 +105,9 @@ impl TsnCqfGatePreemptEngine {
         current_time_in_cycle_ns: u64,
         cycle_index: u64,
     ) -> CqfPreemptVerdict {
-        let remaining_cycle_ns = self.cycle_duration_ns.saturating_sub(current_time_in_cycle_ns);
+        let remaining_cycle_ns = self
+            .cycle_duration_ns
+            .saturating_sub(current_time_in_cycle_ns);
 
         match class {
             TsnTrafficClass::Express => {
@@ -128,7 +128,9 @@ impl TsnCqfGatePreemptEngine {
                     // Calculate available byte capacity before cycle boundary
                     let available_bytes = self.ns_to_bytes(remaining_cycle_ns);
 
-                    if available_bytes >= self.min_frag_bytes && (frame_bytes - available_bytes) >= self.min_frag_bytes {
+                    if available_bytes >= self.min_frag_bytes
+                        && (frame_bytes - available_bytes) >= self.min_frag_bytes
+                    {
                         // Clean preemption: transmit available portion as mPacket
                         let first_fragment = available_bytes;
                         let remaining = frame_bytes - first_fragment;

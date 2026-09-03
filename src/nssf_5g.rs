@@ -135,12 +135,14 @@ impl NssfEngine {
 
     /// Provision Network Slice Instance (NSI) identifier for an S-NSSAI.
     pub fn set_slice_nsi(&mut self, plmn: PlmnId, snssai: Snssai, nsi_id: &str) {
-        self.slice_nsi_map.insert((plmn, snssai), nsi_id.to_string());
+        self.slice_nsi_map
+            .insert((plmn, snssai), nsi_id.to_string());
     }
 
     /// Nnssf_NSSAIAvailability_Update: AMF registers supported slices in a Tracking Area.
     pub fn handle_availability_update(&mut self, update: NssaiAvailabilityUpdate) {
-        self.amf_registry.insert(update.amf_instance_id.clone(), update);
+        self.amf_registry
+            .insert(update.amf_instance_id.clone(), update);
     }
 
     /// Nnssf_NSSelection_Get: Evaluate requested slices against subscriptions and availability.
@@ -187,12 +189,18 @@ impl NssfEngine {
 
             // 3. Check if available in current Tracking Area
             if !ta_supported.is_empty() && !ta_supported.contains(snssai) {
-                rejected.push((snssai.clone(), SnssaiRejectionCause::NotAvailableInCurrentTa));
+                rejected.push((
+                    snssai.clone(),
+                    SnssaiRejectionCause::NotAvailableInCurrentTa,
+                ));
                 continue;
             }
 
             // Slice admitted
-            let nsi_id = self.slice_nsi_map.get(&(req.plmn_id, snssai.clone())).cloned();
+            let nsi_id = self
+                .slice_nsi_map
+                .get(&(req.plmn_id, snssai.clone()))
+                .cloned();
             allowed.push(AllowedSnssai {
                 snssai: snssai.clone(),
                 mapped_home_snssai: None,
@@ -207,7 +215,9 @@ impl NssfEngine {
         for amf in self.amf_registry.values() {
             if amf.plmn_id == req.plmn_id && amf.tai == req.tai {
                 // Check if this AMF supports at least one allowed slice
-                let supports_allowed = allowed.iter().any(|a| amf.supported_snssais.contains(&a.snssai));
+                let supports_allowed = allowed
+                    .iter()
+                    .any(|a| amf.supported_snssais.contains(&a.snssai));
                 if supports_allowed {
                     candidate_amfs.push(CandidateAmf {
                         amf_instance_id: amf.amf_instance_id.clone(),

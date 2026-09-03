@@ -208,7 +208,9 @@ impl OranSplaneSyncEngine {
 
     /// Check if RF transmission is legally permitted under 3GPP TS 38.104 TDD sync rules.
     pub fn is_rf_tx_permitted(&self) -> bool {
-        self.rf_tx_enabled && (self.state == SplaneSyncState::Locked || self.state == SplaneSyncState::HoldoverInSpec)
+        self.rf_tx_enabled
+            && (self.state == SplaneSyncState::Locked
+                || self.state == SplaneSyncState::HoldoverInSpec)
     }
 
     /// Get current Time Error metrics.

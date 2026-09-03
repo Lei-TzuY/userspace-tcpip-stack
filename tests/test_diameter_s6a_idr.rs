@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s6a_idr::{
-    DynamicSubscriberProfile, S6aIdrEngine, S6aIdrMessage, DIAMETER_APPLICATION_S6A,
-    DIAMETER_CMD_INSERT_SUBSCRIBER_DATA,
+    DIAMETER_APPLICATION_S6A, DIAMETER_CMD_INSERT_SUBSCRIBER_DATA, DynamicSubscriberProfile,
+    S6aIdrEngine, S6aIdrMessage,
 };
 
 #[test]

@@ -239,7 +239,10 @@ impl G8275_2SlaveEngine {
             a.clock_class
                 .cmp(&b.clock_class)
                 .then(a.clock_accuracy.cmp(&b.clock_accuracy))
-                .then(a.offset_scaled_log_variance.cmp(&b.offset_scaled_log_variance))
+                .then(
+                    a.offset_scaled_log_variance
+                        .cmp(&b.offset_scaled_log_variance),
+                )
                 .then(a.priority2.cmp(&b.priority2))
                 .then(a.local_priority.cmp(&b.local_priority))
                 .then(a.steps_removed.cmp(&b.steps_removed))
@@ -260,7 +263,11 @@ impl G8275_2SlaveEngine {
     /// Apply static path delay asymmetry correction for the selected master.
     ///
     /// Corrected Offset = Measured Offset - Asymmetry / 2
-    pub fn apply_asymmetry_correction(&self, measured_offset_ns: i64, master_ip: Ipv4Address) -> i64 {
+    pub fn apply_asymmetry_correction(
+        &self,
+        measured_offset_ns: i64,
+        master_ip: Ipv4Address,
+    ) -> i64 {
         if let Some(candidate) = self.candidates.get(&master_ip) {
             measured_offset_ns - (candidate.static_asymmetry_ns / 2)
         } else {

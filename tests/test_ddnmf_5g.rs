@@ -66,7 +66,9 @@ fn test_ddnmf_unauthorized_monitor_rejection() {
     let rogue_monitor = "imsi-snoop-02";
 
     ddnmf.grant_permission(announcer, app_id);
-    let pac = ddnmf.authorize_announce(announcer, app_id, 3600, 1000).unwrap();
+    let pac = ddnmf
+        .authorize_announce(announcer, app_id, 3600, 1000)
+        .unwrap();
     let pac_hex = pac.to_hex_string();
 
     // Rogue monitor did not receive monitor authorization
@@ -89,8 +91,12 @@ fn test_ddnmf_expired_code_rejection() {
     ddnmf.grant_permission(monitor, app_id);
 
     // Code valid for only 300s (expires at t = 1300)
-    let pac = ddnmf.authorize_announce(announcer, app_id, 300, 1000).unwrap();
-    ddnmf.authorize_monitor(monitor, app_id, 3600, 1000).unwrap();
+    let pac = ddnmf
+        .authorize_announce(announcer, app_id, 300, 1000)
+        .unwrap();
+    ddnmf
+        .authorize_monitor(monitor, app_id, 3600, 1000)
+        .unwrap();
 
     // Query at t = 1350s (expired)
     let err = ddnmf.match_report(monitor, &pac.to_hex_string(), 1350);
@@ -111,12 +117,18 @@ fn test_ddnmf_revocation_lifecycle() {
     ddnmf.grant_permission(announcer, app_id);
     ddnmf.grant_permission(monitor, app_id);
 
-    let pac = ddnmf.authorize_announce(announcer, app_id, 3600, 1000).unwrap();
+    let pac = ddnmf
+        .authorize_announce(announcer, app_id, 3600, 1000)
+        .unwrap();
     let pac_hex = pac.to_hex_string();
-    ddnmf.authorize_monitor(monitor, app_id, 3600, 1000).unwrap();
+    ddnmf
+        .authorize_monitor(monitor, app_id, 3600, 1000)
+        .unwrap();
 
     // Immediately revoke
-    ddnmf.revoke_announcement(&pac_hex).expect("Revocation failed");
+    ddnmf
+        .revoke_announcement(&pac_hex)
+        .expect("Revocation failed");
 
     // Subsequent match report must fail
     let err = ddnmf.match_report(monitor, &pac_hex, 1050);

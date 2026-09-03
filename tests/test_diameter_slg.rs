@@ -1,15 +1,18 @@
 //! Integration tests for 3GPP Diameter SLg Interface (3GPP TS 29.172 - Location Services).
 
 use toy_tcpip::diameter_slg::{
-    AccuracyFulfilmentIndicator, DeferredLocationType, GmlcSlgEngine, LcsQos, LcsResponseTime,
+    AccuracyFulfilmentIndicator, DIAMETER_APPLICATION_SLG, DIAMETER_CMD_LOCATION_REPORT,
+    DIAMETER_CMD_PROVIDE_LOCATION, DeferredLocationType, GmlcSlgEngine, LcsQos, LcsResponseTime,
     LocationEstimate, LocationEvent, LocationReportRequest, LocationSessionState,
-    ProvideLocationAnswer, SlgLocationType, DIAMETER_APPLICATION_SLG, DIAMETER_CMD_PROVIDE_LOCATION,
-    DIAMETER_CMD_LOCATION_REPORT,
+    ProvideLocationAnswer, SlgLocationType,
 };
 
 #[test]
 fn test_slg_immediate_location_plr_pla_lifecycle() {
-    let mut gmlc = GmlcSlgEngine::new("gmlc.epc.mnc001.mcc310.3gppnetwork.org", "epc.mnc001.mcc310.3gppnetwork.org");
+    let mut gmlc = GmlcSlgEngine::new(
+        "gmlc.epc.mnc001.mcc310.3gppnetwork.org",
+        "epc.mnc001.mcc310.3gppnetwork.org",
+    );
 
     // 1. GMLC initiates immediate location request for subscriber
     let plr = gmlc.request_immediate_location(
@@ -29,12 +32,18 @@ fn test_slg_immediate_location_plr_pla_lifecycle() {
 
     // Verify the session is in PendingLocationResponse state
     let state = gmlc.get_session_state(&plr.session_id).unwrap();
-    assert!(matches!(state, LocationSessionState::PendingLocationResponse));
+    assert!(matches!(
+        state,
+        LocationSessionState::PendingLocationResponse
+    ));
 
     // 2. Encode to Diameter wire format
     let diameter_msg = plr.to_diameter_message();
     assert_eq!(diameter_msg.header.application_id, DIAMETER_APPLICATION_SLG);
-    assert_eq!(diameter_msg.header.command_code, DIAMETER_CMD_PROVIDE_LOCATION);
+    assert_eq!(
+        diameter_msg.header.command_code,
+        DIAMETER_CMD_PROVIDE_LOCATION
+    );
     assert!(!diameter_msg.avps.is_empty());
 
     // 3. MME responds with PLA (success) carrying a location estimate
@@ -71,7 +80,7 @@ fn test_slg_periodic_deferred_location_with_lrr() {
     let plr = gmlc.request_periodic_location(
         "310010987654321",
         "epc.operator.com",
-        3, // reporting_amount
+        3,  // reporting_amount
         60, // reporting_interval_sec
     );
 
@@ -80,11 +89,19 @@ fn test_slg_periodic_deferred_location_with_lrr() {
     let deferred = plr.deferred_location_type.unwrap();
     assert!(deferred.has_flag(DeferredLocationType::PERIODIC_LDR));
     assert_eq!(plr.periodic_ldr.as_ref().unwrap().reporting_amount, 3);
-    assert_eq!(plr.periodic_ldr.as_ref().unwrap().reporting_interval_sec, 60);
+    assert_eq!(
+        plr.periodic_ldr.as_ref().unwrap().reporting_interval_sec,
+        60
+    );
 
     // Initial state should be DeferredActive with 3 reports remaining
     let state = gmlc.get_session_state(&plr.session_id).unwrap();
-    assert!(matches!(state, LocationSessionState::DeferredActive { reports_remaining: Some(3) }));
+    assert!(matches!(
+        state,
+        LocationSessionState::DeferredActive {
+            reports_remaining: Some(3)
+        }
+    ));
 
     // 2. PLA acknowledges the deferred request
     let pla = ProvideLocationAnswer {
@@ -164,7 +181,10 @@ fn test_slg_location_estimate_gad_encoding() {
     let msg = gm_answer.to_diameter_message();
     // Should have Session-ID, Result-Code, Origin-Host, Origin-Realm, Location-Estimate, Accuracy, Age
     assert!(msg.avps.len() >= 5);
-    assert_eq!(gm_answer.accuracy_fulfilment, Some(AccuracyFulfilmentIndicator::RequestedAccuracyFulfilled));
+    assert_eq!(
+        gm_answer.accuracy_fulfilment,
+        Some(AccuracyFulfilmentIndicator::RequestedAccuracyFulfilled)
+    );
 }
 
 #[test]
@@ -174,11 +194,17 @@ fn test_slg_emergency_location_retrieval() {
     let mut gmlc = GmlcSlgEngine::new("gmlc.emergency.org", "emergency.org");
     let em_plr = gmlc.request_emergency_location("310010911911911", "epc.carrier.com");
 
-    assert_eq!(em_plr.location_type, SlgLocationType::CurrentOrLastKnownLocation);
+    assert_eq!(
+        em_plr.location_type,
+        SlgLocationType::CurrentOrLastKnownLocation
+    );
     assert_eq!(em_plr.lcs_priority, LcsPriority::HighestPriority);
 
     let state = gmlc.get_session_state(&em_plr.session_id).unwrap();
-    assert!(matches!(state, LocationSessionState::PendingLocationResponse));
+    assert!(matches!(
+        state,
+        LocationSessionState::PendingLocationResponse
+    ));
 
     // MME returns immediate fix for 911 caller
     let fix = LocationEstimate::EllipsoidPointUncertaintyCircle {
@@ -195,7 +221,10 @@ fn test_slg_emergency_location_retrieval() {
     assert!(gmlc.process_pla(&pla));
 
     let final_state = gmlc.get_session_state(&em_plr.session_id).unwrap();
-    assert!(matches!(final_state, LocationSessionState::LocationReceived));
+    assert!(matches!(
+        final_state,
+        LocationSessionState::LocationReceived
+    ));
     assert_eq!(*gmlc.get_last_location(&em_plr.session_id).unwrap(), fix);
 }
 
@@ -214,7 +243,10 @@ fn test_slg_cancel_deferred_location() {
         .cancel_deferred_location(&plr.session_id, "epc.operator.com")
         .expect("Cancel PLR generated");
 
-    assert_eq!(cancel_plr.location_type, SlgLocationType::CancelDeferredLocation);
+    assert_eq!(
+        cancel_plr.location_type,
+        SlgLocationType::CancelDeferredLocation
+    );
     assert_eq!(cancel_plr.imsi, "310010444555666");
 
     // Session is now completed and active deferred count drops to 0
@@ -223,5 +255,8 @@ fn test_slg_cancel_deferred_location() {
     assert_eq!(gmlc.active_deferred_session_count(), 0);
 
     // Trying to cancel again returns None
-    assert!(gmlc.cancel_deferred_location(&plr.session_id, "epc.operator.com").is_none());
+    assert!(
+        gmlc.cancel_deferred_location(&plr.session_id, "epc.operator.com")
+            .is_none()
+    );
 }

@@ -74,13 +74,7 @@ pub struct MplsLossMeasurementPdu {
 }
 
 impl MplsLossMeasurementPdu {
-    pub fn new(
-        session_id: u32,
-        tx_fwd: u64,
-        rx_fwd: u64,
-        tx_bwd: u64,
-        rx_bwd: u64,
-    ) -> Self {
+    pub fn new(session_id: u32, tx_fwd: u64, rx_fwd: u64, tx_bwd: u64, rx_bwd: u64) -> Self {
         MplsLossMeasurementPdu {
             session_id,
             tx_forward_frames: tx_fwd,
@@ -263,7 +257,10 @@ impl MplsTpOamEngine {
         )
     }
 
-    pub fn create_lm_reply(&self, query: &MplsLossMeasurementPdu) -> (GachHeader, MplsLossMeasurementPdu) {
+    pub fn create_lm_reply(
+        &self,
+        query: &MplsLossMeasurementPdu,
+    ) -> (GachHeader, MplsLossMeasurementPdu) {
         (
             GachHeader::new(GACH_CHANNEL_LM),
             MplsLossMeasurementPdu::new(
@@ -276,7 +273,11 @@ impl MplsTpOamEngine {
         )
     }
 
-    pub fn create_dm_query(&self, t1_sec: u32, t1_nsec: u32) -> (GachHeader, MplsDelayMeasurementPdu) {
+    pub fn create_dm_query(
+        &self,
+        t1_sec: u32,
+        t1_nsec: u32,
+    ) -> (GachHeader, MplsDelayMeasurementPdu) {
         (
             GachHeader::new(GACH_CHANNEL_DM),
             MplsDelayMeasurementPdu::new(

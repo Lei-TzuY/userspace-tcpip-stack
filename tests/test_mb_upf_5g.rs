@@ -22,9 +22,15 @@ fn test_mb_upf_multicast_replication_fanout_happy_path() {
     mb_upf.create_mbs_session(sess_id, tmgi, MbsSessionType::Multicast, flow, shared_teid);
 
     // Register 3 gNodeB cell tower branches in the stadium
-    mb_upf.add_gnb_branch(sess_id, "gnb-stadium-north", [10, 1, 1, 1], 0x1001).unwrap();
-    mb_upf.add_gnb_branch(sess_id, "gnb-stadium-south", [10, 1, 1, 2], 0x1002).unwrap();
-    mb_upf.add_gnb_branch(sess_id, "gnb-stadium-east", [10, 1, 1, 3], 0x1003).unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-stadium-north", [10, 1, 1, 1], 0x1001)
+        .unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-stadium-south", [10, 1, 1, 2], 0x1002)
+        .unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-stadium-east", [10, 1, 1, 3], 0x1003)
+        .unwrap();
 
     // Ingest multicast video chunk from N6mb
     let video_frame = b"4K HDR 60fps Live Video Slice Payload";
@@ -80,10 +86,20 @@ fn test_mb_upf_dynamic_branch_addition_and_removal() {
         port: 8080,
     };
 
-    mb_upf.create_mbs_session(sess_id, "tmgi-ota-01", MbsSessionType::Multicast, flow, 0x9999);
+    mb_upf.create_mbs_session(
+        sess_id,
+        "tmgi-ota-01",
+        MbsSessionType::Multicast,
+        flow,
+        0x9999,
+    );
 
-    mb_upf.add_gnb_branch(sess_id, "gnb-cell-1", [10, 2, 1, 1], 0x2001).unwrap();
-    mb_upf.add_gnb_branch(sess_id, "gnb-cell-2", [10, 2, 1, 2], 0x2002).unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-cell-1", [10, 2, 1, 1], 0x2001)
+        .unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-cell-2", [10, 2, 1, 2], 0x2002)
+        .unwrap();
 
     // Duplicate branch must fail
     let err1 = mb_upf.add_gnb_branch(sess_id, "gnb-cell-1", [10, 2, 1, 1], 0x2001);
@@ -97,7 +113,9 @@ fn test_mb_upf_dynamic_branch_addition_and_removal() {
     assert_eq!(err2, Err(MbUpfError::BranchNotFound));
 
     // Next replication goes to gnb-cell-1 only
-    let res = mb_upf.ingest_and_replicate(sess_id, b"firmware-block-1").unwrap();
+    let res = mb_upf
+        .ingest_and_replicate(sess_id, b"firmware-block-1")
+        .unwrap();
     assert_eq!(res.len(), 1);
     assert_eq!(res[0].gnb_id, "gnb-cell-1");
 }
@@ -136,12 +154,20 @@ fn test_mb_upf_session_termination() {
         group_ip: [232, 5, 5, 5],
         port: 5555,
     };
-    mb_upf.create_mbs_session(sess_id, "tmgi-04", MbsSessionType::Multicast, flow.clone(), 0x4444);
+    mb_upf.create_mbs_session(
+        sess_id,
+        "tmgi-04",
+        MbsSessionType::Multicast,
+        flow.clone(),
+        0x4444,
+    );
 
     assert!(mb_upf.sessions.contains_key(sess_id));
     assert!(mb_upf.flow_to_session.contains_key(&flow));
 
-    mb_upf.terminate_mbs_session(sess_id).expect("Termination failed");
+    mb_upf
+        .terminate_mbs_session(sess_id)
+        .expect("Termination failed");
     assert!(!mb_upf.sessions.contains_key(sess_id));
     assert!(!mb_upf.flow_to_session.contains_key(&flow));
 
@@ -163,10 +189,20 @@ fn test_mb_upf_broadcast_session_multi_tower_delivery() {
         group_ip: [232, 9, 9, 9], // Public warning broadcast
         port: 9999,
     };
-    mb_upf.create_mbs_session(sess_id, "tmgi-emergency", MbsSessionType::Broadcast, flow, 0x8888);
+    mb_upf.create_mbs_session(
+        sess_id,
+        "tmgi-emergency",
+        MbsSessionType::Broadcast,
+        flow,
+        0x8888,
+    );
 
-    mb_upf.add_gnb_branch(sess_id, "tower-a", [172, 16, 0, 1], 0x8001).unwrap();
-    mb_upf.add_gnb_branch(sess_id, "tower-b", [172, 16, 0, 2], 0x8002).unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "tower-a", [172, 16, 0, 1], 0x8001)
+        .unwrap();
+    mb_upf
+        .add_gnb_branch(sess_id, "tower-b", [172, 16, 0, 2], 0x8002)
+        .unwrap();
 
     let alert_msg = b"EARTHQUAKE EARLY WARNING: Prepare for strong shaking!";
     let replicated = mb_upf.ingest_and_replicate(sess_id, alert_msg).unwrap();

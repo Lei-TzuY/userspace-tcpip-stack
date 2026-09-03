@@ -274,8 +274,10 @@ impl NwdafEngine {
 
         predictor.update(load_percent as f32);
         self.slice_latest_load.insert(snssai.clone(), load_percent);
-        self.slice_active_sessions.insert(snssai.clone(), active_sessions);
-        self.slice_throughput.insert(snssai.clone(), throughput_mbps);
+        self.slice_active_sessions
+            .insert(snssai.clone(), active_sessions);
+        self.slice_throughput
+            .insert(snssai.clone(), throughput_mbps);
 
         // Check active subscriptions
         self.evaluate_slice_subscriptions(&snssai, load_percent, timestamp_epoch_s);
@@ -289,7 +291,8 @@ impl NwdafEngine {
         prb_usage_percent: u8,
         timestamp_epoch_s: u64,
     ) {
-        self.tai_congestion.insert(tai, (congestion_level, prb_usage_percent));
+        self.tai_congestion
+            .insert(tai, (congestion_level, prb_usage_percent));
         self.evaluate_congestion_subscriptions(tai, congestion_level, timestamp_epoch_s);
     }
 
@@ -359,11 +362,7 @@ impl NwdafEngine {
             }
             AnalyticsId::UserPlaneCongestion => {
                 let tai = req.target_tai.ok_or("Missing target_tai")?;
-                let (level, prb) = self
-                    .tai_congestion
-                    .get(&tai)
-                    .copied()
-                    .unwrap_or((0, 0));
+                let (level, prb) = self.tai_congestion.get(&tai).copied().unwrap_or((0, 0));
 
                 Ok(AnalyticsInfoResponse {
                     analytics_id: AnalyticsId::UserPlaneCongestion,
@@ -403,7 +402,10 @@ impl NwdafEngine {
                 })
             }
             AnalyticsId::ServiceExperience => {
-                let dnn = req.target_dnn.clone().unwrap_or_else(|| "internet".to_string());
+                let dnn = req
+                    .target_dnn
+                    .clone()
+                    .unwrap_or_else(|| "internet".to_string());
                 Ok(AnalyticsInfoResponse {
                     analytics_id: AnalyticsId::ServiceExperience,
                     confidence_percent: 88,

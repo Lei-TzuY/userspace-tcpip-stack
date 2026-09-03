@@ -1,8 +1,6 @@
 //! Integration tests for 3GPP TS 38.463 E1AP Control Plane Engine.
 
-use toy_tcpip::e1ap_5g::{
-    E1apDrbSetupItem, E1apEngine, E1apPduSessionItem, E1apRole, E1apState,
-};
+use toy_tcpip::e1ap_5g::{E1apDrbSetupItem, E1apEngine, E1apPduSessionItem, E1apRole, E1apState};
 use toy_tcpip::f1ap_5g::RlcMode;
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ngap_5g::{PlmnId, Snssai};
@@ -31,7 +29,9 @@ fn test_e1_setup_procedure_happy_path() {
     assert!(req.cn_support);
 
     // 2. CU-CP handles E1 Setup Request
-    let resp = cu_cp.handle_e1_setup_request(&req).expect("CU-CP failed to handle E1SetupRequest");
+    let resp = cu_cp
+        .handle_e1_setup_request(&req)
+        .expect("CU-CP failed to handle E1SetupRequest");
     assert_eq!(cu_cp.state, E1apState::Active);
     assert_eq!(resp.gnb_cu_cp_name, Some("gNB-CU-CP-Main".to_string()));
 
@@ -78,11 +78,15 @@ fn test_bearer_context_setup_and_dual_tunnel_allocation() {
     };
 
     // 1. CU-CP builds BearerContextSetupRequest
-    let setup_req = cu_cp.build_bearer_context_setup_request(cp_ue_id, vec![pdu_session1]).unwrap();
+    let setup_req = cu_cp
+        .build_bearer_context_setup_request(cp_ue_id, vec![pdu_session1])
+        .unwrap();
 
     // 2. CU-UP handles BearerContextSetupRequest and allocates both F1-U and N3 TEIDs
     let cu_up_ip = Ipv4Address::new(10, 0, 2, 30);
-    let setup_resp = cu_up.handle_bearer_context_setup_request(&setup_req, cu_up_ip, 0x30001).unwrap();
+    let setup_resp = cu_up
+        .handle_bearer_context_setup_request(&setup_req, cu_up_ip, 0x30001)
+        .unwrap();
 
     assert_eq!(setup_resp.gnb_cu_cp_ue_e1ap_id, 10001);
     let up_ue_id = setup_resp.gnb_cu_up_ue_e1ap_id;
@@ -96,18 +100,34 @@ fn test_bearer_context_setup_and_dual_tunnel_allocation() {
     assert_eq!(drb_resp.cu_up_ngu_ul_gtp_teid, 0x30002); // N3 UL tunnel
 
     // 3. CU-CP handles BearerContextSetupResponse
-    assert!(cu_cp.handle_bearer_context_setup_response(&setup_resp).is_ok());
+    assert!(
+        cu_cp
+            .handle_bearer_context_setup_response(&setup_resp)
+            .is_ok()
+    );
 
     // 4. Verify bidirectional lookups on both CU-CP and CU-UP!
     let cp_ctx = cu_cp.lookup_by_cp_ue_id(cp_ue_id).unwrap();
     assert_eq!(cp_ctx.gnb_cu_up_ue_e1ap_id, up_ue_id);
-    assert_eq!(cp_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_f1u_dl_gtp_teid, 0x30001);
-    assert_eq!(cp_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_ngu_ul_gtp_teid, 0x30002);
+    assert_eq!(
+        cp_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_f1u_dl_gtp_teid,
+        0x30001
+    );
+    assert_eq!(
+        cp_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_ngu_ul_gtp_teid,
+        0x30002
+    );
 
     let up_ctx = cu_up.lookup_by_up_ue_id(up_ue_id).unwrap();
     assert_eq!(up_ctx.gnb_cu_cp_ue_e1ap_id, cp_ue_id);
-    assert_eq!(up_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_f1u_dl_gtp_teid, 0x30001);
-    assert_eq!(up_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_ngu_ul_gtp_teid, 0x30002);
+    assert_eq!(
+        up_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_f1u_dl_gtp_teid,
+        0x30001
+    );
+    assert_eq!(
+        up_ctx.pdu_sessions[0].drb_setup_list[0].cu_up_ngu_ul_gtp_teid,
+        0x30002
+    );
 
     // 5. Test Bearer Context Release
     assert!(cu_cp.release_bearer_context(cp_ue_id));

@@ -1,6 +1,4 @@
-use toy_tcpip::tsn_cqf_cycle_scale::{
-    CycleScaleResult, TsnCqfCycleScaleEngine, MIN_CYCLE_NS,
-};
+use toy_tcpip::tsn_cqf_cycle_scale::{CycleScaleResult, MIN_CYCLE_NS, TsnCqfCycleScaleEngine};
 
 #[test]
 fn test_tsn_cqf_cycle_scale_hitless_transition() {
@@ -38,14 +36,20 @@ fn test_tsn_cqf_cycle_scale_hitless_transition() {
 
     // ── Step 3: Reject invalid requests ──────────────────────────────────
     // Non-aligned period.
-    assert_eq!(engine.request_scale(300_000), CycleScaleResult::InvalidAlignment);
+    assert_eq!(
+        engine.request_scale(300_000),
+        CycleScaleResult::InvalidAlignment
+    );
     // Out of range.
     assert_eq!(engine.request_scale(50_000), CycleScaleResult::OutOfRange);
 
     // ── Step 4: Scale back up to 1 ms ────────────────────────────────────
     assert_eq!(engine.request_scale(1_000_000), CycleScaleResult::Accepted);
     // Second request while pending → rejected.
-    assert_eq!(engine.request_scale(500_000), CycleScaleResult::TransitionPending);
+    assert_eq!(
+        engine.request_scale(500_000),
+        CycleScaleResult::TransitionPending
+    );
     // Advance to swap.
     engine.advance_cycle();
     assert_eq!(engine.oper_period_ns(), 1_000_000);

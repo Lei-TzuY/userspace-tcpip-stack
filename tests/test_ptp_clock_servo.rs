@@ -46,7 +46,10 @@ fn test_ptp_clock_servo_pi_frequency_discipline_and_lock() {
     for &off in &offsets {
         let action = servo.sample(off, 0.1);
         match action {
-            PtpServoAction::AdjustFreq { freq_ppb, phase_adjust_ns } => {
+            PtpServoAction::AdjustFreq {
+                freq_ppb,
+                phase_adjust_ns,
+            } => {
                 assert_eq!(phase_adjust_ns, off);
                 // Frequency adjustment should be negative feedback to drive offset down
                 assert!(freq_ppb <= 0.0);

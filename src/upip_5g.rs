@@ -59,8 +59,14 @@ pub struct UpSecurityContext {
 pub enum UpipError {
     SessionNotFound,
     PacketTooShortForMaci,
-    ReplayDetected { received_count: u32, window_bottom: u32 },
-    IntegrityVerificationFailed { expected_maci: u32, observed_maci: u32 },
+    ReplayDetected {
+        received_count: u32,
+        window_bottom: u32,
+    },
+    IntegrityVerificationFailed {
+        expected_maci: u32,
+        observed_maci: u32,
+    },
     DataRateLimitExceeded,
 }
 
@@ -162,10 +168,15 @@ impl UpipEngine {
         session_id: &str,
         user_pdu: &[u8],
     ) -> Result<Vec<u8>, UpipError> {
-        let ctx = self.contexts.get_mut(session_id).ok_or(UpipError::SessionNotFound)?;
+        let ctx = self
+            .contexts
+            .get_mut(session_id)
+            .ok_or(UpipError::SessionNotFound)?;
 
         // If policy is NotNeeded or Algorithm is Nia0Null, return packet unchanged
-        if ctx.policy == UpIntegrityPolicy::NotNeeded || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null {
+        if ctx.policy == UpIntegrityPolicy::NotNeeded
+            || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null
+        {
             return Ok(user_pdu.to_vec());
         }
 
@@ -188,9 +199,14 @@ impl UpipEngine {
         session_id: &str,
         received_pdu: &[u8],
     ) -> Result<Vec<u8>, UpipError> {
-        let ctx = self.contexts.get_mut(session_id).ok_or(UpipError::SessionNotFound)?;
+        let ctx = self
+            .contexts
+            .get_mut(session_id)
+            .ok_or(UpipError::SessionNotFound)?;
 
-        if ctx.policy == UpIntegrityPolicy::NotNeeded || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null {
+        if ctx.policy == UpIntegrityPolicy::NotNeeded
+            || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null
+        {
             return Ok(received_pdu.to_vec());
         }
 
@@ -241,7 +257,9 @@ impl UpipEngine {
 
     /// Terminate security context.
     pub fn remove_security_context(&mut self, session_id: &str) -> Result<(), UpipError> {
-        self.contexts.remove(session_id).ok_or(UpipError::SessionNotFound)?;
+        self.contexts
+            .remove(session_id)
+            .ok_or(UpipError::SessionNotFound)?;
         Ok(())
     }
 }

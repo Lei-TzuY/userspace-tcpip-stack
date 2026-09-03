@@ -21,7 +21,10 @@ fn test_telecom_node_healthy_hybrid_locked_startup() {
         let t2 = t1 + 10_000;
         let t3 = t2 + 5_000;
         let t4 = t3 + 10_000;
-        node.ingest_ptp_sample(PtpPlaneId::PlaneA, PtpTimestampSample::new(seq, t1, t2, t3, t4));
+        node.ingest_ptp_sample(
+            PtpPlaneId::PlaneA,
+            PtpTimestampSample::new(seq, t1, t2, t3, t4),
+        );
     }
     node.update_plane_announce(PtpPlaneId::PlaneA, 6, 0x20, 0);
 
@@ -31,7 +34,10 @@ fn test_telecom_node_healthy_hybrid_locked_startup() {
         let t2 = t1 + 10_000 + 25;
         let t3 = t2 + 5_000;
         let t4 = t3 + 10_000 - 25;
-        node.ingest_ptp_sample(PtpPlaneId::PlaneB, PtpTimestampSample::new(seq, t1, t2, t3, t4));
+        node.ingest_ptp_sample(
+            PtpPlaneId::PlaneB,
+            PtpTimestampSample::new(seq, t1, t2, t3, t4),
+        );
     }
     node.update_plane_announce(PtpPlaneId::PlaneB, 6, 0x20, 0);
 
@@ -120,9 +126,7 @@ fn test_telecom_node_synce_loss_fallback() {
 
     let result = node.process_sync_cycle(0.1);
     assert_eq!(result.hybrid_mode, HybridSyncMode::PtpOnly);
-    assert!(result
-        .alarms_triggered
-        .contains(&TelecomAlarm::SyncELost));
+    assert!(result.alarms_triggered.contains(&TelecomAlarm::SyncELost));
 }
 
 #[test]
@@ -136,10 +140,14 @@ fn test_telecom_node_mimo_tae_alarm() {
 
     let result = node.process_sync_cycle(0.1);
 
-    assert!(result.alarms_triggered.contains(&TelecomAlarm::MimoTaeExceeded {
-        measured_tae_ns: 80,
-        limit_ns: 65,
-    }));
+    assert!(
+        result
+            .alarms_triggered
+            .contains(&TelecomAlarm::MimoTaeExceeded {
+                measured_tae_ns: 80,
+                limit_ns: 65,
+            })
+    );
 
     let status = node.get_status_report();
     assert!(!status.mimo_tae_compliant);

@@ -80,8 +80,16 @@ pub struct EvpnMacFreezeEngine {
 impl EvpnMacFreezeEngine {
     pub fn new(max_moves: u32, window_secs: u64, freeze_duration_secs: u64) -> Self {
         Self {
-            max_moves: if max_moves == 0 { DEFAULT_MAX_MOVES } else { max_moves },
-            window_secs: if window_secs == 0 { DEFAULT_MOVE_WINDOW_SECS } else { window_secs },
+            max_moves: if max_moves == 0 {
+                DEFAULT_MAX_MOVES
+            } else {
+                max_moves
+            },
+            window_secs: if window_secs == 0 {
+                DEFAULT_MOVE_WINDOW_SECS
+            } else {
+                window_secs
+            },
             freeze_duration_secs: if freeze_duration_secs == 0 {
                 DEFAULT_FREEZE_DURATION_SECS
             } else {
@@ -94,14 +102,12 @@ impl EvpnMacFreezeEngine {
     }
 
     /// Register or learn an initial MAC location.
-    pub fn learn_initial(
-        &mut self,
-        vni: u32,
-        mac: MacAddress,
-        vtep: Ipv4Address,
-        now_secs: u64,
-    ) {
-        if !self.tracked_macs.iter().any(|e| e.vni == vni && e.mac == mac) {
+    pub fn learn_initial(&mut self, vni: u32, mac: MacAddress, vtep: Ipv4Address, now_secs: u64) {
+        if !self
+            .tracked_macs
+            .iter()
+            .any(|e| e.vni == vni && e.mac == mac)
+        {
             self.tracked_macs.push(TrackedMacEntry {
                 vni,
                 mac,
@@ -129,7 +135,11 @@ impl EvpnMacFreezeEngine {
         let freeze_dur = self.freeze_duration_secs;
         let max_m = self.max_moves;
 
-        let entry = match self.tracked_macs.iter_mut().find(|e| e.vni == vni && e.mac == mac) {
+        let entry = match self
+            .tracked_macs
+            .iter_mut()
+            .find(|e| e.vni == vni && e.mac == mac)
+        {
             Some(e) => e,
             None => {
                 // First time seeing this MAC
@@ -155,7 +165,9 @@ impl EvpnMacFreezeEngine {
         }
 
         // Retain only moves within the sliding window
-        entry.move_timestamps.retain(|&t| now_secs.saturating_sub(t) <= window);
+        entry
+            .move_timestamps
+            .retain(|&t| now_secs.saturating_sub(t) <= window);
         entry.move_timestamps.push(now_secs);
         entry.total_moves += 1;
         entry.current_vtep = new_vtep;
@@ -192,7 +204,11 @@ impl EvpnMacFreezeEngine {
 
     /// Manually unfreeze a specific MAC address.
     pub fn unfreeze_mac(&mut self, vni: u32, mac: MacAddress) -> bool {
-        if let Some(entry) = self.tracked_macs.iter_mut().find(|e| e.vni == vni && e.mac == mac) {
+        if let Some(entry) = self
+            .tracked_macs
+            .iter_mut()
+            .find(|e| e.vni == vni && e.mac == mac)
+        {
             if let MacMobilityState::Frozen { .. } = entry.state {
                 entry.state = MacMobilityState::Normal;
                 entry.move_timestamps.clear();
@@ -205,7 +221,9 @@ impl EvpnMacFreezeEngine {
 
     /// Retrieve entry state for diagnostics.
     pub fn get_entry(&self, vni: u32, mac: MacAddress) -> Option<&TrackedMacEntry> {
-        self.tracked_macs.iter().find(|e| e.vni == vni && e.mac == mac)
+        self.tracked_macs
+            .iter()
+            .find(|e| e.vni == vni && e.mac == mac)
     }
 }
 

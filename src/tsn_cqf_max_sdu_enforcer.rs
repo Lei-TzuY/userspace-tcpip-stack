@@ -80,7 +80,13 @@ impl TsnCqfMaxSduEnforcerEngine {
     }
 
     /// Registers a custom Max-SDU rule for a stream.
-    pub fn add_rule(&mut self, stream_id: u32, max_sdu_bytes: usize, action: MaxSduAction, description: &str) {
+    pub fn add_rule(
+        &mut self,
+        stream_id: u32,
+        max_sdu_bytes: usize,
+        action: MaxSduAction,
+        description: &str,
+    ) {
         self.rules.retain(|r| r.stream_id != stream_id);
         self.rules.push(StreamMaxSduRule {
             stream_id,
@@ -92,7 +98,13 @@ impl TsnCqfMaxSduEnforcerEngine {
 
     /// Enforces Max-SDU constraints on an incoming frame.
     /// Returns the verdict and the resulting forwarded byte count (0 if dropped).
-    pub fn enforce_frame(&mut self, stream_id: u32, frame_id: u32, frame_bytes: usize, ingress_time_ns: u64) -> (MaxSduVerdict, usize) {
+    pub fn enforce_frame(
+        &mut self,
+        stream_id: u32,
+        frame_id: u32,
+        frame_bytes: usize,
+        ingress_time_ns: u64,
+    ) -> (MaxSduVerdict, usize) {
         self.total_frames_inspected += 1;
         self.total_bytes_inspected += frame_bytes;
 
@@ -184,8 +196,18 @@ mod tests {
         let mut enforcer = TsnCqfMaxSduEnforcerEngine::new(125_000, 1500);
 
         // Register rules: Stream 1 drop oversized (> 500B), Stream 2 truncate (> 1000B), Stream 3 pass with alert (> 800B)
-        enforcer.add_rule(1, 500, MaxSduAction::DropOversized, "Critical Low-Latency Stream");
-        enforcer.add_rule(2, 1000, MaxSduAction::TruncateToMax, "Telemetry Best-Effort Stream");
+        enforcer.add_rule(
+            1,
+            500,
+            MaxSduAction::DropOversized,
+            "Critical Low-Latency Stream",
+        );
+        enforcer.add_rule(
+            2,
+            1000,
+            MaxSduAction::TruncateToMax,
+            "Telemetry Best-Effort Stream",
+        );
         enforcer.add_rule(3, 800, MaxSduAction::PassWithAlert, "Diagnostics Stream");
 
         // 1. Stream 1 conforming frame (300B)

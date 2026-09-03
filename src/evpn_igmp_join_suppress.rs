@@ -224,9 +224,13 @@ impl EvpnIgmpJoinSuppressEngine {
         source_ip: Ipv4Address,
         group_ip: Ipv4Address,
     ) -> bool {
-        self.channels
-            .iter()
-            .any(|c| c.vni == vni && c.port_id == port_id && c.source_ip == source_ip && c.group_ip == group_ip && c.is_proxy_advertised)
+        self.channels.iter().any(|c| {
+            c.vni == vni
+                && c.port_id == port_id
+                && c.source_ip == source_ip
+                && c.group_ip == group_ip
+                && c.is_proxy_advertised
+        })
     }
 
     /// Clears all channels.

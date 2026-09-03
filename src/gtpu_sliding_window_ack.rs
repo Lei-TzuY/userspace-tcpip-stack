@@ -79,7 +79,11 @@ impl GtpuSlidingWindowAckEngine {
         if seq == self.cumulative_ack + 1 {
             self.cumulative_ack = seq;
             // Advance cumulative ack if consecutive packets were already in received_ooo_seqs
-            while let Some(pos) = self.received_ooo_seqs.iter().position(|&s| s == self.cumulative_ack + 1) {
+            while let Some(pos) = self
+                .received_ooo_seqs
+                .iter()
+                .position(|&s| s == self.cumulative_ack + 1)
+            {
                 self.cumulative_ack += 1;
                 self.received_ooo_seqs.remove(pos);
             }
@@ -128,12 +132,18 @@ impl GtpuSlidingWindowAckEngine {
             if s == end + 1 {
                 end = s;
             } else {
-                blocks.push(SackBlock { start_seq: start, end_seq: end });
+                blocks.push(SackBlock {
+                    start_seq: start,
+                    end_seq: end,
+                });
                 start = s;
                 end = s;
             }
         }
-        blocks.push(SackBlock { start_seq: start, end_seq: end });
+        blocks.push(SackBlock {
+            start_seq: start,
+            end_seq: end,
+        });
         blocks
     }
 
@@ -165,18 +175,42 @@ mod tests {
     #[test]
     fn test_sliding_window_in_order_and_sack() {
         let mut engine = GtpuSlidingWindowAckEngine::new(0x1234, 64);
-        
+
         let v1 = engine.ingest_packet(1);
-        assert!(matches!(v1, SlidingWindowAckVerdict::PacketAckedInOrder { cumulative_ack: 1, .. }));
+        assert!(matches!(
+            v1,
+            SlidingWindowAckVerdict::PacketAckedInOrder {
+                cumulative_ack: 1,
+                ..
+            }
+        ));
 
         let v2 = engine.ingest_packet(3);
-        assert!(matches!(v2, SlidingWindowAckVerdict::OutOfOrderSackGenerated { cumulative_ack: 1, .. }));
+        assert!(matches!(
+            v2,
+            SlidingWindowAckVerdict::OutOfOrderSackGenerated {
+                cumulative_ack: 1,
+                ..
+            }
+        ));
 
         let v3 = engine.ingest_packet(4);
-        assert!(matches!(v3, SlidingWindowAckVerdict::OutOfOrderSackGenerated { cumulative_ack: 1, .. }));
+        assert!(matches!(
+            v3,
+            SlidingWindowAckVerdict::OutOfOrderSackGenerated {
+                cumulative_ack: 1,
+                ..
+            }
+        ));
 
         let v4 = engine.ingest_packet(2);
-        assert!(matches!(v4, SlidingWindowAckVerdict::PacketAckedInOrder { cumulative_ack: 4, .. }));
+        assert!(matches!(
+            v4,
+            SlidingWindowAckVerdict::PacketAckedInOrder {
+                cumulative_ack: 4,
+                ..
+            }
+        ));
         assert!(engine.received_ooo_seqs.is_empty());
     }
 }

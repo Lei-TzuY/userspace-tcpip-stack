@@ -173,8 +173,10 @@ impl ScpEngine {
     ) {
         let id = instance.instance_id.clone();
         self.backends.insert(id.clone(), instance);
-        self.circuit_breakers
-            .insert(id, InstanceCircuitBreaker::new(failure_threshold, recovery_timeout_s));
+        self.circuit_breakers.insert(
+            id,
+            InstanceCircuitBreaker::new(failure_threshold, recovery_timeout_s),
+        );
     }
 
     /// Add a canary routing rule for A/B testing.
@@ -212,7 +214,11 @@ impl ScpEngine {
             target_id.clone()
         } else if let Some(nf_type) = req.target_nf_type {
             // Check for canary rule
-            if let Some(canary) = self.canary_rules.values().find(|r| r.target_nf_type == nf_type) {
+            if let Some(canary) = self
+                .canary_rules
+                .values()
+                .find(|r| r.target_nf_type == nf_type)
+            {
                 let mod_val = (self.request_counter % 100) as u8;
                 if mod_val < canary.canary_percentage {
                     canary.canary_instance_id.clone()
@@ -224,7 +230,9 @@ impl ScpEngine {
                 self.select_healthy_instance(nf_type, now_s)?
             }
         } else {
-            return Err(ScpError::RoutingError("No target instance or NF type specified"));
+            return Err(ScpError::RoutingError(
+                "No target instance or NF type specified",
+            ));
         };
 
         // 3. Circuit Breaker Evaluation

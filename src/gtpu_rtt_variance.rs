@@ -139,7 +139,11 @@ impl GtpuRttVarianceEngine {
     pub fn new(granularity_us: u64, asymmetry_threshold_us: u64) -> Self {
         Self {
             paths: Vec::new(),
-            granularity_us: if granularity_us == 0 { DEFAULT_GRANULARITY_US } else { granularity_us },
+            granularity_us: if granularity_us == 0 {
+                DEFAULT_GRANULARITY_US
+            } else {
+                granularity_us
+            },
             asymmetry_threshold_us,
         }
     }
@@ -236,11 +240,7 @@ impl GtpuRttVarianceEngine {
     ///
     /// `forward_owd_us` and `reverse_owd_us` are estimated OWD values
     /// (e.g. from PTP or NTP-assisted timestamping).
-    pub fn check_asymmetry(
-        &self,
-        forward_owd_us: u64,
-        reverse_owd_us: u64,
-    ) -> AsymmetryVerdict {
+    pub fn check_asymmetry(&self, forward_owd_us: u64, reverse_owd_us: u64) -> AsymmetryVerdict {
         let diff = if forward_owd_us >= reverse_owd_us {
             forward_owd_us - reverse_owd_us
         } else {
@@ -304,11 +304,17 @@ mod tests {
     #[test]
     fn test_asymmetry_detection() {
         let engine = GtpuRttVarianceEngine::new(DEFAULT_GRANULARITY_US, 5000);
-        assert_eq!(engine.check_asymmetry(8000, 8000), AsymmetryVerdict::Symmetric);
-        assert_eq!(engine.check_asymmetry(3000, 9000), AsymmetryVerdict::Asymmetric {
-            forward_us: 3000,
-            reverse_us: 9000,
-        });
+        assert_eq!(
+            engine.check_asymmetry(8000, 8000),
+            AsymmetryVerdict::Symmetric
+        );
+        assert_eq!(
+            engine.check_asymmetry(3000, 9000),
+            AsymmetryVerdict::Asymmetric {
+                forward_us: 3000,
+                reverse_us: 9000,
+            }
+        );
     }
 
     #[test]

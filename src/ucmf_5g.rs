@@ -120,7 +120,9 @@ impl UcmfEngine {
         current_epoch_s: u64,
     ) -> Result<RacId, UcmfError> {
         if capability_bytes.is_empty() {
-            return Err(UcmfError::InvalidCapabilityPayload("Capability bytes cannot be empty"));
+            return Err(UcmfError::InvalidCapabilityPayload(
+                "Capability bytes cannot be empty",
+            ));
         }
 
         let fingerprint = compute_cap_fingerprint(&capability_bytes);

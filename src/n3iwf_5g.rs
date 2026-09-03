@@ -264,7 +264,8 @@ impl N3iwfEngine {
         };
 
         ctx.pdu_sessions.insert(pdu_session_id, pdu_session.clone());
-        self.dl_teid_to_ue.insert(n3_dl_teid, (ue_untrusted_ip, pdu_session_id));
+        self.dl_teid_to_ue
+            .insert(n3_dl_teid, (ue_untrusted_ip, pdu_session_id));
 
         Ok(pdu_session)
     }
@@ -291,7 +292,12 @@ impl N3iwfEngine {
             .ok_or(N3iwfError::SecurityAssociationNotFound)?;
 
         // Verify ICV
-        let expected_icv = compute_icv(&child_sa.k_int, esp.spi, esp.seq_num, &esp.encrypted_payload);
+        let expected_icv = compute_icv(
+            &child_sa.k_int,
+            esp.spi,
+            esp.seq_num,
+            &esp.encrypted_payload,
+        );
         if !constant_time_eq_16(&expected_icv, &esp.icv) {
             return Err(N3iwfError::IntegrityCheckFailed);
         }

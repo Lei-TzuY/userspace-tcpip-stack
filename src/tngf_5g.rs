@@ -133,7 +133,10 @@ impl TngfEngine {
         session_id: &str,
         amf_ue_ngap_id: u64,
     ) -> Result<(), TngfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(TngfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(TngfError::SessionNotFound)?;
         sess.amf_ue_ngap_id = Some(amf_ue_ngap_id);
         sess.state = TngfSessionState::AuthenticatedNasRegistered;
         Ok(())
@@ -146,7 +149,10 @@ impl TngfEngine {
         upf_teid: u32,
         qfi: u8,
     ) -> Result<u32, TngfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(TngfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(TngfError::SessionNotFound)?;
         if sess.state != TngfSessionState::AuthenticatedNasRegistered {
             return Err(TngfError::InvalidSessionState(
                 "Session must be AuthenticatedNasRegistered before PDU session setup",
@@ -166,7 +172,10 @@ impl TngfEngine {
         session_id: &str,
         user_payload: &[u8],
     ) -> Result<Vec<u8>, TngfError> {
-        let sess = self.sessions.get(session_id).ok_or(TngfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get(session_id)
+            .ok_or(TngfError::SessionNotFound)?;
         if sess.state != TngfSessionState::GreSessionActive {
             return Err(TngfError::InvalidSessionState("GRE session is not active"));
         }
@@ -203,9 +212,14 @@ impl TngfEngine {
             .get(&gre_key)
             .ok_or(TngfError::SessionNotFound)?;
 
-        let sess = self.sessions.get(session_id).ok_or(TngfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get(session_id)
+            .ok_or(TngfError::SessionNotFound)?;
         if sess.state != TngfSessionState::GreSessionActive {
-            return Err(TngfError::InvalidSessionState("Session is not in GreSessionActive state"));
+            return Err(TngfError::InvalidSessionState(
+                "Session is not in GreSessionActive state",
+            ));
         }
 
         let upf_teid = sess.upf_teid.unwrap_or(0);
@@ -224,7 +238,10 @@ impl TngfEngine {
 
     /// Terminate a Trusted Non-3GPP subscriber session.
     pub fn terminate_session(&mut self, session_id: &str) -> Result<(), TngfError> {
-        let sess = self.sessions.remove(session_id).ok_or(TngfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .remove(session_id)
+            .ok_or(TngfError::SessionNotFound)?;
         self.gre_key_to_session.remove(&sess.gre_key);
         Ok(())
     }

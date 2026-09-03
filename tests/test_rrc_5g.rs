@@ -59,14 +59,20 @@ fn test_rrc_connection_setup_procedure() {
     // 1. UE in RRC_IDLE initiates RrcSetupRequest
     let setup_req = ue.ue_initiate_setup_request(ue_s_tmsi, RrcEstablishmentCause::MoSignalling);
     assert_eq!(setup_req.ue_identity, ue_s_tmsi);
-    assert_eq!(setup_req.establishment_cause, RrcEstablishmentCause::MoSignalling);
+    assert_eq!(
+        setup_req.establishment_cause,
+        RrcEstablishmentCause::MoSignalling
+    );
 
     // 2. gNB handles RrcSetupRequest and returns RrcSetup
     let (gnb_crnti, setup_msg) = gnb.gnb_handle_setup_request(&setup_req);
     assert_eq!(gnb_crnti, 0x4001);
     assert_eq!(setup_msg.master_cell_group_allocated_crnti, 0x4001);
     assert_eq!(setup_msg.radio_bearer_config.srb_to_add_mod_list.len(), 1);
-    assert_eq!(setup_msg.radio_bearer_config.srb_to_add_mod_list[0].srb_id, SRB1_ID);
+    assert_eq!(
+        setup_msg.radio_bearer_config.srb_to_add_mod_list[0].srb_id,
+        SRB1_ID
+    );
 
     // 3. UE applies RrcSetup, transitions to RRC_CONNECTED, and builds RrcSetupComplete with NAS
     let setup_comp = ue
@@ -75,7 +81,10 @@ fn test_rrc_connection_setup_procedure() {
     assert_eq!(setup_comp.dedicated_nas_message, registration_request_nas);
 
     // Verify UE state
-    let ue_ctx = ue.contexts.get(&0x4001).expect("UE context not found with C-RNTI 0x4001");
+    let ue_ctx = ue
+        .contexts
+        .get(&0x4001)
+        .expect("UE context not found with C-RNTI 0x4001");
     assert_eq!(ue_ctx.state, RrcState::RrcConnected);
     assert!(ue_ctx.srbs.contains_key(&SRB0_ID));
     assert!(ue_ctx.srbs.contains_key(&SRB1_ID));
@@ -84,7 +93,10 @@ fn test_rrc_connection_setup_procedure() {
     assert!(gnb.gnb_handle_setup_complete(gnb_crnti, &setup_comp));
     let gnb_ctx = gnb.contexts.get(&gnb_crnti).expect("gNB context missing");
     assert_eq!(gnb_ctx.state, RrcState::RrcConnected);
-    assert_eq!(gnb_ctx.last_nas_pdu.as_ref(), Some(&registration_request_nas));
+    assert_eq!(
+        gnb_ctx.last_nas_pdu.as_ref(),
+        Some(&registration_request_nas)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -151,7 +163,9 @@ fn test_rrc_release_to_inactive_with_suspend_config() {
     gnb.gnb_handle_setup_complete(crnti, &comp);
 
     // gNB sends RrcRelease with suspend = true (to RRC_INACTIVE)
-    let release_msg = gnb.gnb_build_release(crnti, true).expect("build release failed");
+    let release_msg = gnb
+        .gnb_build_release(crnti, true)
+        .expect("build release failed");
     assert_eq!(release_msg.release_cause, RrcReleaseCause::RrcSuspend);
     assert!(release_msg.suspend_config.is_some());
 
@@ -160,8 +174,14 @@ fn test_rrc_release_to_inactive_with_suspend_config() {
 
     // UE handles RrcRelease
     assert!(ue.ue_handle_release(crnti, &release_msg));
-    assert_eq!(ue.contexts.get(&crnti).unwrap().state, RrcState::RrcInactive);
-    assert_eq!(gnb.contexts.get(&crnti).unwrap().state, RrcState::RrcInactive);
+    assert_eq!(
+        ue.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcInactive
+    );
+    assert_eq!(
+        gnb.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcInactive
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -181,8 +201,14 @@ fn test_rrc_resume_procedure_from_inactive() {
     let release = gnb.gnb_build_release(crnti, true).unwrap();
     ue.ue_handle_release(crnti, &release);
 
-    assert_eq!(ue.contexts.get(&crnti).unwrap().state, RrcState::RrcInactive);
-    assert_eq!(gnb.contexts.get(&crnti).unwrap().state, RrcState::RrcInactive);
+    assert_eq!(
+        ue.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcInactive
+    );
+    assert_eq!(
+        gnb.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcInactive
+    );
 
     // 1. UE initiates RrcResumeRequest
     let resume_req = ue
@@ -200,11 +226,17 @@ fn test_rrc_resume_procedure_from_inactive() {
     let resume_comp = ue
         .ue_handle_resume(crnti, &resume_msg)
         .expect("UE resume handle failed");
-    assert_eq!(ue.contexts.get(&crnti).unwrap().state, RrcState::RrcConnected);
+    assert_eq!(
+        ue.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcConnected
+    );
 
     // 4. gNB finishes resume procedure
     assert!(gnb.gnb_handle_resume_complete(restored_crnti, &resume_comp));
-    assert_eq!(gnb.contexts.get(&crnti).unwrap().state, RrcState::RrcConnected);
+    assert_eq!(
+        gnb.contexts.get(&crnti).unwrap().state,
+        RrcState::RrcConnected
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -219,9 +251,15 @@ fn test_rrc_paging_generation() {
     let paging = gnb.gnb_build_paging(&target_ues);
 
     assert_eq!(paging.paging_records.len(), 2);
-    assert_eq!(paging.paging_records[0].ue_identity_5g_s_tmsi, 0x1122334455667788);
+    assert_eq!(
+        paging.paging_records[0].ue_identity_5g_s_tmsi,
+        0x1122334455667788
+    );
     assert!(!paging.paging_records[0].access_type_non_3gpp);
-    assert_eq!(paging.paging_records[1].ue_identity_5g_s_tmsi, 0x8877665544332211);
+    assert_eq!(
+        paging.paging_records[1].ue_identity_5g_s_tmsi,
+        0x8877665544332211
+    );
 }
 
 // ---------------------------------------------------------------------------

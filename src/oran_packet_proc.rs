@@ -7,16 +7,14 @@
 use std::collections::HashMap;
 
 use crate::ecpri::{
-    EcpriCommonHeader, ECPRI_COMMON_HEADER_LEN, ECPRI_CONCATENATION_ALIGNMENT, ECPRI_ETHERTYPE,
-    ECPRI_MSG_IQ_DATA, ECPRI_MSG_RT_CONTROL,
+    ECPRI_COMMON_HEADER_LEN, ECPRI_CONCATENATION_ALIGNMENT, ECPRI_ETHERTYPE, ECPRI_MSG_IQ_DATA,
+    ECPRI_MSG_RT_CONTROL, EcpriCommonHeader,
 };
 use crate::oran_cplane_ext::{
-    CPlaneSectionType3, OranCPlaneExtEngine, SectionExtension1, SectionExtension2,
-    ORAN_EXT_BEAMFORMING_WEIGHTS, ORAN_EXT_BEAM_ATTRIBUTES, ORAN_SECTION_TYPE_3,
+    CPlaneSectionType3, ORAN_EXT_BEAM_ATTRIBUTES, ORAN_EXT_BEAMFORMING_WEIGHTS,
+    ORAN_SECTION_TYPE_3, OranCPlaneExtEngine, SectionExtension1, SectionExtension2,
 };
-use crate::oran_fh_cus::{
-    EaxcIdFormat, OranRadioHeader,
-};
+use crate::oran_fh_cus::{EaxcIdFormat, OranRadioHeader};
 use crate::oran_fh_delay_mgmt::{
     FronthaulWindowKind, OranDelayManager, OruReceptionWindow, WindowVerdict,
 };
@@ -40,11 +38,8 @@ impl OranStreamConfig {
         t2a_min_ns: i64,
         t2a_max_ns: i64,
     ) -> Result<Self, crate::oran_fh_delay_mgmt::DelayMgmtError> {
-        let window = OruReceptionWindow::new(
-            FronthaulWindowKind::UPlaneDownlink,
-            t2a_min_ns,
-            t2a_max_ns,
-        )?;
+        let window =
+            OruReceptionWindow::new(FronthaulWindowKind::UPlaneDownlink, t2a_min_ns, t2a_max_ns)?;
         Ok(Self {
             eaxc_id,
             format,
@@ -149,18 +144,23 @@ impl OranFronthaulProcessor {
 
         // Loop through concatenated eCPRI messages
         while offset + ECPRI_COMMON_HEADER_LEN <= packet.len() {
-            let header = match EcpriCommonHeader::parse(&packet[offset..offset + ECPRI_COMMON_HEADER_LEN]) {
-                Ok(h) => h,
-                Err(_) => {
-                    events.push(OranDemuxEvent::PacketDropped { reason: "Malformed eCPRI Common Header" });
-                    break;
-                }
-            };
+            let header =
+                match EcpriCommonHeader::parse(&packet[offset..offset + ECPRI_COMMON_HEADER_LEN]) {
+                    Ok(h) => h,
+                    Err(_) => {
+                        events.push(OranDemuxEvent::PacketDropped {
+                            reason: "Malformed eCPRI Common Header",
+                        });
+                        break;
+                    }
+                };
 
             let payload_len = header.payload_size as usize;
             let msg_end = offset + ECPRI_COMMON_HEADER_LEN + payload_len;
             if msg_end > packet.len() {
-                events.push(OranDemuxEvent::PacketDropped { reason: "Truncated eCPRI Message Payload" });
+                events.push(OranDemuxEvent::PacketDropped {
+                    reason: "Truncated eCPRI Message Payload",
+                });
                 break;
             }
 
@@ -174,7 +174,8 @@ impl OranFronthaulProcessor {
             }
 
             // Next message alignment (4-byte boundary)
-            let padded_len = (msg_end + ECPRI_CONCATENATION_ALIGNMENT - 1) & !(ECPRI_CONCATENATION_ALIGNMENT - 1);
+            let padded_len = (msg_end + ECPRI_CONCATENATION_ALIGNMENT - 1)
+                & !(ECPRI_CONCATENATION_ALIGNMENT - 1);
             if !header.concatenated {
                 break;
             }
@@ -192,7 +193,9 @@ impl OranFronthaulProcessor {
     ) {
         // Minimum U-Plane: 2 bytes PC_ID (eAxC ID) + 2 bytes seq_id + 4 bytes radio header = 8 bytes
         if payload.len() < 8 {
-            events.push(OranDemuxEvent::PacketDropped { reason: "U-Plane payload too short" });
+            events.push(OranDemuxEvent::PacketDropped {
+                reason: "U-Plane payload too short",
+            });
             return;
         }
 
@@ -200,7 +203,9 @@ impl OranFronthaulProcessor {
         let radio_header = match OranRadioHeader::parse(&payload[4..8]) {
             Ok(h) => h,
             Err(_) => {
-                events.push(OranDemuxEvent::PacketDropped { reason: "Malformed Radio Application Header" });
+                events.push(OranDemuxEvent::PacketDropped {
+                    reason: "Malformed Radio Application Header",
+                });
                 return;
             }
         };
@@ -286,7 +291,9 @@ impl OranFronthaulProcessor {
 
     fn process_cplane_message(&mut self, payload: &[u8], events: &mut Vec<OranDemuxEvent>) {
         if payload.len() < 8 {
-            events.push(OranDemuxEvent::PacketDropped { reason: "C-Plane payload too short" });
+            events.push(OranDemuxEvent::PacketDropped {
+                reason: "C-Plane payload too short",
+            });
             return;
         }
 
@@ -294,7 +301,9 @@ impl OranFronthaulProcessor {
         let _radio_header = match OranRadioHeader::parse(&payload[4..8]) {
             Ok(h) => h,
             Err(_) => {
-                events.push(OranDemuxEvent::PacketDropped { reason: "Malformed C-Plane Radio Header" });
+                events.push(OranDemuxEvent::PacketDropped {
+                    reason: "Malformed C-Plane Radio Header",
+                });
                 return;
             }
         };
@@ -329,9 +338,12 @@ impl OranFronthaulProcessor {
             // Section Type 1
             let section_body = &payload[12..];
             if section_body.len() >= 8 {
-                let section_id = (((section_body[0] as u16) << 4) | (((section_body[1] >> 4) & 0x0F) as u16)) & 0x0FFF;
+                let section_id = (((section_body[0] as u16) << 4)
+                    | (((section_body[1] >> 4) & 0x0F) as u16))
+                    & 0x0FFF;
                 let ef = (section_body[1] & 0x08) != 0;
-                let start_prbc = (((section_body[1] & 0x03) as u16) << 8) | (section_body[2] as u16);
+                let start_prbc =
+                    (((section_body[1] & 0x03) as u16) << 8) | (section_body[2] as u16);
                 let num_prbc = section_body[3];
 
                 let mut beam_id = None;

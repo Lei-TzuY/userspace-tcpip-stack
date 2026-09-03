@@ -19,9 +19,27 @@ fn test_adrf_data_storage_and_time_window_query() {
     let mut metrics3 = HashMap::new();
     metrics3.insert("load_percent".to_string(), 92.0);
 
-    adrf.store_analytics_data(AnalyticsDomain::SliceLoadLevel, Some(slice_id), metrics1, 1000).unwrap();
-    adrf.store_analytics_data(AnalyticsDomain::SliceLoadLevel, Some(slice_id), metrics2, 1050).unwrap();
-    adrf.store_analytics_data(AnalyticsDomain::SliceLoadLevel, Some(slice_id), metrics3, 1100).unwrap();
+    adrf.store_analytics_data(
+        AnalyticsDomain::SliceLoadLevel,
+        Some(slice_id),
+        metrics1,
+        1000,
+    )
+    .unwrap();
+    adrf.store_analytics_data(
+        AnalyticsDomain::SliceLoadLevel,
+        Some(slice_id),
+        metrics2,
+        1050,
+    )
+    .unwrap();
+    adrf.store_analytics_data(
+        AnalyticsDomain::SliceLoadLevel,
+        Some(slice_id),
+        metrics3,
+        1100,
+    )
+    .unwrap();
 
     // Query sub-window [1020..1080]
     let res_sub = adrf
@@ -49,9 +67,12 @@ fn test_adrf_storage_capacity_limit_and_pruning() {
     let mut m = HashMap::new();
     m.insert("latency_ms".to_string(), 15.2);
 
-    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 100).unwrap();
-    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 200).unwrap();
-    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 300).unwrap();
+    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 100)
+        .unwrap();
+    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 200)
+        .unwrap();
+    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 300)
+        .unwrap();
 
     // 4th insert exceeds quota
     let err = adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m.clone(), 400);
@@ -63,7 +84,8 @@ fn test_adrf_storage_capacity_limit_and_pruning() {
     assert_eq!(adrf.data_records.len(), 1);
 
     // Now insert succeeds
-    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m, 400).unwrap();
+    adrf.store_analytics_data(AnalyticsDomain::QosSustainability, None, m, 400)
+        .unwrap();
     assert_eq!(adrf.data_records.len(), 2);
 }
 
@@ -90,7 +112,13 @@ fn test_adrf_ml_model_versioning_and_retrieval() {
     let weights_v2 = vec![0x04, 0x05, 0x06, 0x07];
 
     adrf.store_ml_model(AnalyticsDomain::UeMobility, 1, weights_v1, 0.88, 1000);
-    adrf.store_ml_model(AnalyticsDomain::UeMobility, 2, weights_v2.clone(), 0.96, 2000);
+    adrf.store_ml_model(
+        AnalyticsDomain::UeMobility,
+        2,
+        weights_v2.clone(),
+        0.96,
+        2000,
+    );
 
     // Retrieve latest model (must be v2)
     let latest = adrf

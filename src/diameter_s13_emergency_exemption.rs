@@ -59,9 +59,7 @@ pub enum EmergencyExemptionVerdict {
         reason: &'static str,
     },
     /// Input IMEI string is invalid (must be 14-16 numeric digits).
-    MalformedImeiRejected {
-        input: String,
-    },
+    MalformedImeiRejected { input: String },
 }
 
 /// Engine managing Diameter S13 Emergency Call Exemption and Regulatory Audit.
@@ -187,7 +185,11 @@ impl DiameterS13EmergencyExemptionEngine {
 
     /// Terminates an active emergency exemption session.
     pub fn terminate_session(&mut self, session_id: u32) -> bool {
-        if let Some(session) = self.sessions.iter_mut().find(|s| s.session_id == session_id) {
+        if let Some(session) = self
+            .sessions
+            .iter_mut()
+            .find(|s| s.session_id == session_id)
+        {
             session.is_active = false;
             true
         } else {

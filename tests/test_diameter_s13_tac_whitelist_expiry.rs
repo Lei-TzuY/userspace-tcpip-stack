@@ -1,7 +1,7 @@
+use toy_tcpip::S13EquipmentStatus;
 use toy_tcpip::diameter_s13_tac_whitelist_expiry::{
     DiameterS13TacWhitelistExpiryEngine, LeaseVerdict,
 };
-use toy_tcpip::S13EquipmentStatus;
 
 #[test]
 fn test_diameter_s13_tac_whitelist_expiry_integration() {

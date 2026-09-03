@@ -1,6 +1,4 @@
-use toy_tcpip::diameter_s13_bulk::{
-    BulkBlacklistAction, S13BulkEngine, S13BulkMessage,
-};
+use toy_tcpip::diameter_s13_bulk::{BulkBlacklistAction, S13BulkEngine, S13BulkMessage};
 
 #[test]
 fn test_diameter_s13_bulk_lifecycle() {

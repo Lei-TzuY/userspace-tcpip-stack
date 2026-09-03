@@ -27,13 +27,7 @@ fn test_easdf_report_and_forward_rule_happy_path() {
         ecs_client_subnet: None,
     };
 
-    let ctx_id = easdf.create_dns_context(
-        "imsi-208950000000001",
-        1,
-        ue_ip,
-        "internet",
-        vec![rule],
-    );
+    let ctx_id = easdf.create_dns_context("imsi-208950000000001", 1, ue_ip, "internet", vec![rule]);
     assert!(!ctx_id.is_empty());
 
     // UE issues DNS lookup

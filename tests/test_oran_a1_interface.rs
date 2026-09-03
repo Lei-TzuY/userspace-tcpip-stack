@@ -1,8 +1,8 @@
 //! Integration tests for O-RAN WG2 A1 Interface Engine.
 
 use toy_tcpip::e2ap_oran::{
-    E2NodeType, E2apEngine, E2apRole, GlobalE2NodeId, RanFunctionDefinition, RicRequestId,
-    RAN_FUNCTION_ID_RC,
+    E2NodeType, E2apEngine, E2apRole, GlobalE2NodeId, RAN_FUNCTION_ID_RC, RanFunctionDefinition,
+    RicRequestId,
 };
 use toy_tcpip::oran_a1_interface::{
     A1EiJob, A1EiType, A1EnforcementState, A1InterfaceEngine, A1PolicyInstance, A1PolicyType,
@@ -47,7 +47,10 @@ fn test_a1_policy_type_registration_and_instance_crud() {
     // 3. Read Policy Status -> 200 OK, Enforcing
     let status_resp = a1.get_policy_status(101, "policy-embb-01");
     assert_eq!(status_resp.status_code, A1StatusCode::Ok200);
-    assert_eq!(status_resp.body.unwrap(), format!("{:?}", A1EnforcementState::Enforcing));
+    assert_eq!(
+        status_resp.body.unwrap(),
+        format!("{:?}", A1EnforcementState::Enforcing)
+    );
 
     // 4. Update Policy Instance -> 200 OK
     let mut updated_instance = instance;
@@ -121,7 +124,9 @@ fn test_a1_policy_translation_to_e2_control() {
         ric_requestor_id: 301,
         ric_instance_id: 1,
     };
-    let e2_ctrl = a1.translate_to_e2_control(103, "policy-urllc-01", ric_req_id).unwrap();
+    let e2_ctrl = a1
+        .translate_to_e2_control(103, "policy-urllc-01", ric_req_id)
+        .unwrap();
 
     assert_eq!(e2_ctrl.ran_function_id, RAN_FUNCTION_ID_RC);
     assert_eq!(e2_ctrl.target_slice_sst, 2);

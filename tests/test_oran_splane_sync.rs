@@ -18,8 +18,8 @@ fn test_oran_splane_initial_freerun_to_locked_happy_path() {
 
     // Ingest PTP sample with 45 ns offset (<= 130 ns lock threshold)
     let ptp_qual = PtpClockQuality {
-        clock_class: 6,      // PRTC locked
-        clock_accuracy: 0x21,// <= 100 ns
+        clock_class: 6,       // PRTC locked
+        clock_accuracy: 0x21, // <= 100 ns
         offset_scaled_log_variance: 0x4800,
         steps_removed: 1,
     };

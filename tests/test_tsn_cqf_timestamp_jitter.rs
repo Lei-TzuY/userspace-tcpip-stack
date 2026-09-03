@@ -7,12 +7,7 @@ fn test_tsn_cqf_timestamp_jitter_lifecycle() {
     let mut engine = TsnCqfTimestampJitterEngine::new(50);
 
     // Stream 1: Telemetry Stream (Max Latency 80 µs, Max Jitter 8 µs)
-    engine.register_stream(StreamJitterStats::new(
-        1,
-        "Lidar-Sensors",
-        80_000,
-        8_000,
-    ));
+    engine.register_stream(StreamJitterStats::new(1, "Lidar-Sensors", 80_000, 8_000));
 
     // 1. First packet: Latency = 40 µs, Jitter = 0 µs
     let v1 = engine.record_frame(1, 1, 10_000, 50_000);

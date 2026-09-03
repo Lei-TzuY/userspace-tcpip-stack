@@ -1,6 +1,6 @@
 use toy_tcpip::geneve_security::{
-    GenevePolicyEngine, MicrosegAction, MicrosegDecision, MicrosegRule, SecurityGroupTag,
-    GENEVE_OPT_CLASS_GBP, GENEVE_OPT_TYPE_GBP,
+    GENEVE_OPT_CLASS_GBP, GENEVE_OPT_TYPE_GBP, GenevePolicyEngine, MicrosegAction,
+    MicrosegDecision, MicrosegRule, SecurityGroupTag,
 };
 
 #[test]

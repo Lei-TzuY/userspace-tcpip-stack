@@ -12,7 +12,8 @@ use toy_tcpip::ipv4::Ipv4Address;
 fn test_evpn_l3_esi_mass_withdrawal_end_to_end() {
     let mut engine = EvpnL3EsiFastWithdrawEngine::new();
 
-    let esi_site_a = EthernetSegmentId([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]);
+    let esi_site_a =
+        EthernetSegmentId([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A]);
     let pe_alpha = Ipv4Address::new(172, 16, 0, 1);
     let pe_beta = Ipv4Address::new(172, 16, 0, 2);
 

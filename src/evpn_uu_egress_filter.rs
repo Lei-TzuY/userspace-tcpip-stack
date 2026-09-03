@@ -208,7 +208,7 @@ mod tests {
         let results = engine.evaluate(10, &[0; 10], 100);
         assert_eq!(results.len(), 2);
         assert_eq!(results[0].verdict, EgressVerdict::PrunedHorizon); // port 1, same horizon
-        assert_eq!(results[1].verdict, EgressVerdict::Forward);        // port 2, different horizon
+        assert_eq!(results[1].verdict, EgressVerdict::Forward); // port 2, different horizon
     }
 
     #[test]
@@ -258,10 +258,16 @@ mod tests {
     fn test_stats_accumulation() {
         let mut engine = EvpnUuEgressFilterEngine::new();
         engine.configure_port(EgressPortConfig {
-            port_id: 1, horizon: 5, esi: [0; 10], active_vnis: vec![100],
+            port_id: 1,
+            horizon: 5,
+            esi: [0; 10],
+            active_vnis: vec![100],
         });
         engine.configure_port(EgressPortConfig {
-            port_id: 2, horizon: 0, esi: [0; 10], active_vnis: vec![100],
+            port_id: 2,
+            horizon: 0,
+            esi: [0; 10],
+            active_vnis: vec![100],
         });
 
         engine.evaluate(5, &[0; 10], 100);

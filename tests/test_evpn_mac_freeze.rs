@@ -1,7 +1,5 @@
 use toy_tcpip::ethernet::MacAddress;
-use toy_tcpip::evpn_mac_freeze::{
-    EvpnMacFreezeEngine, MacMobilityState, MacMoveVerdict,
-};
+use toy_tcpip::evpn_mac_freeze::{EvpnMacFreezeEngine, MacMobilityState, MacMoveVerdict};
 use toy_tcpip::ipv4::Ipv4Address;
 
 #[test]

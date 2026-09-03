@@ -60,7 +60,8 @@ impl EvpnETreeFilterEngine {
 
     /// Registers a local attachment circuit port as Root or Leaf.
     pub fn add_access_port(&mut self, vni: u32, if_name: &str, vlan_id: u16, role: ETreeRole) {
-        self.access_ports.insert((vni, if_name.to_string(), vlan_id), role);
+        self.access_ports
+            .insert((vni, if_name.to_string(), vlan_id), role);
     }
 
     /// Learn or statically program a local or remote MAC address with its E-Tree role.
@@ -82,7 +83,10 @@ impl EvpnETreeFilterEngine {
         src_mac: MacAddress,
         dst_mac: MacAddress,
     ) -> ETreeForwardVerdict {
-        let ingress_role = match self.access_ports.get(&(vni, ingress_port.to_string(), vlan_id)) {
+        let ingress_role = match self
+            .access_ports
+            .get(&(vni, ingress_port.to_string(), vlan_id))
+        {
             Some(r) => *r,
             None => self
                 .mac_table
@@ -117,7 +121,10 @@ impl EvpnETreeFilterEngine {
         ingress_port: &str,
         vlan_id: u16,
     ) -> ETreeForwardVerdict {
-        let ingress_role = match self.access_ports.get(&(vni, ingress_port.to_string(), vlan_id)) {
+        let ingress_role = match self
+            .access_ports
+            .get(&(vni, ingress_port.to_string(), vlan_id))
+        {
             Some(r) => *r,
             None => ETreeRole::Root,
         };
@@ -191,23 +198,32 @@ mod tests {
         engine.add_access_port(vni, "eth2", 100, ETreeRole::Leaf);
 
         // Remote VTEPs
-        engine.add_remote_vtep(vni, EvpnETreeRemoteVtep {
-            vtep_ip: Ipv4Address::new(192, 168, 1, 1),
+        engine.add_remote_vtep(
             vni,
-            is_leaf_only: false, // Has Root ACs
-            leaf_label: None,
-        });
-        engine.add_remote_vtep(vni, EvpnETreeRemoteVtep {
-            vtep_ip: Ipv4Address::new(192, 168, 1, 2),
+            EvpnETreeRemoteVtep {
+                vtep_ip: Ipv4Address::new(192, 168, 1, 1),
+                vni,
+                is_leaf_only: false, // Has Root ACs
+                leaf_label: None,
+            },
+        );
+        engine.add_remote_vtep(
             vni,
-            is_leaf_only: true, // Only has Leaf ACs
-            leaf_label: Some(5000),
-        });
+            EvpnETreeRemoteVtep {
+                vtep_ip: Ipv4Address::new(192, 168, 1, 2),
+                vni,
+                is_leaf_only: true, // Only has Leaf ACs
+                leaf_label: Some(5000),
+            },
+        );
 
         // 1. BUM from Root port eth0 floods to all local Leaf/Root ports & all remote VTEPs
         let bum_root = engine.evaluate_bum_flooding(vni, "eth0", 100);
         match bum_root {
-            ETreeForwardVerdict::Forward { local_egress_ports, remote_vteps } => {
+            ETreeForwardVerdict::Forward {
+                local_egress_ports,
+                remote_vteps,
+            } => {
                 assert!(local_egress_ports.contains(&"eth1".to_string()));
                 assert!(local_egress_ports.contains(&"eth2".to_string()));
                 assert_eq!(remote_vteps.len(), 2);
@@ -218,7 +234,10 @@ mod tests {
         // 2. BUM from Leaf port eth1 only floods to local Root eth0 & remote Root PE (192.168.1.1)
         let bum_leaf = engine.evaluate_bum_flooding(vni, "eth1", 100);
         match bum_leaf {
-            ETreeForwardVerdict::Forward { local_egress_ports, remote_vteps } => {
+            ETreeForwardVerdict::Forward {
+                local_egress_ports,
+                remote_vteps,
+            } => {
                 assert_eq!(local_egress_ports, vec!["eth0".to_string()]);
                 assert_eq!(remote_vteps, vec![Ipv4Address::new(192, 168, 1, 1)]);
             }

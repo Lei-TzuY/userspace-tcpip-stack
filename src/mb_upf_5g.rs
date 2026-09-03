@@ -109,7 +109,8 @@ impl MbUpfEngine {
             bytes_forwarded: 0,
         };
 
-        self.flow_to_session.insert(flow_spec, session_id.to_string());
+        self.flow_to_session
+            .insert(flow_spec, session_id.to_string());
         self.sessions.insert(session_id.to_string(), ctx);
     }
 
@@ -121,7 +122,10 @@ impl MbUpfEngine {
         n3mb_downlink_ip: [u8; 4],
         n3mb_downlink_teid: u32,
     ) -> Result<(), MbUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(MbUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbUpfError::SessionNotFound)?;
         if sess.branches.contains_key(gnb_id) {
             return Err(MbUpfError::BranchAlreadyExists);
         }
@@ -138,8 +142,13 @@ impl MbUpfEngine {
 
     /// Remove a gNodeB branch when no active UEs remain in that cell.
     pub fn remove_gnb_branch(&mut self, session_id: &str, gnb_id: &str) -> Result<(), MbUpfError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(MbUpfError::SessionNotFound)?;
-        sess.branches.remove(gnb_id).ok_or(MbUpfError::BranchNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbUpfError::SessionNotFound)?;
+        sess.branches
+            .remove(gnb_id)
+            .ok_or(MbUpfError::BranchNotFound)?;
         Ok(())
     }
 
@@ -153,7 +162,10 @@ impl MbUpfEngine {
             return Err(MbUpfError::EmptyPayload);
         }
 
-        let sess = self.sessions.get_mut(session_id).ok_or(MbUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbUpfError::SessionNotFound)?;
         let mut replicated = Vec::with_capacity(sess.branches.len());
 
         for (gnb_id, branch) in &sess.branches {
@@ -181,7 +193,10 @@ impl MbUpfEngine {
 
     /// Terminate an MBS session and clean up state.
     pub fn terminate_mbs_session(&mut self, session_id: &str) -> Result<(), MbUpfError> {
-        let sess = self.sessions.remove(session_id).ok_or(MbUpfError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .remove(session_id)
+            .ok_or(MbUpfError::SessionNotFound)?;
         self.flow_to_session.remove(&sess.flow_spec);
         Ok(())
     }

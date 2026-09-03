@@ -133,7 +133,8 @@ impl GmlcEngine {
 
     /// Update UDM serving AMF address for a subscriber.
     pub fn update_serving_amf(&mut self, gpsi: &str, amf_id: &str) {
-        self.amf_routing_cache.insert(gpsi.to_string(), amf_id.to_string());
+        self.amf_routing_cache
+            .insert(gpsi.to_string(), amf_id.to_string());
     }
 
     /// Ngmlc_Location_ProvideLocation operation (TS 29.515 Section 5.2.2.2).

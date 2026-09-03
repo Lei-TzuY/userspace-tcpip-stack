@@ -164,7 +164,7 @@ impl S13ImeiTamperEngine {
             None => {
                 return ImeiValidationVerdict::InvalidCharacters {
                     input: imei.to_string(),
-                }
+                };
             }
         };
 
@@ -200,7 +200,7 @@ impl S13ImeiTamperEngine {
             Err(_) => {
                 return ImeiValidationVerdict::InvalidCharacters {
                     input: imei_sv.to_string(),
-                }
+                };
             }
         };
 
@@ -274,7 +274,11 @@ mod tests {
 
         let verdict = engine.validate_equipment_id(&tampered_imei);
         match verdict {
-            ImeiValidationVerdict::LuhnChecksumFailed { expected_cd, actual_cd, .. } => {
+            ImeiValidationVerdict::LuhnChecksumFailed {
+                expected_cd,
+                actual_cd,
+                ..
+            } => {
                 assert_eq!(expected_cd, cd);
                 assert_eq!(actual_cd, tampered_cd);
             }

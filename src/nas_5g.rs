@@ -182,8 +182,8 @@ pub enum MobileIdentity5Gs {
     Guti5Gs {
         plmn: PlmnId,
         amf_region_id: u8,
-        amf_set_id: u16,  // 10 bits
-        amf_pointer: u8,  // 6 bits
+        amf_set_id: u16, // 10 bits
+        amf_pointer: u8, // 6 bits
         tmsi_5g: u32,
     },
 }
@@ -219,16 +219,32 @@ impl Default for UeSecurityCapabilities {
 impl UeSecurityCapabilities {
     pub fn encode(&self) -> [u8; 2] {
         let mut b0 = 0u8;
-        if self.nea0 { b0 |= 0x80; }
-        if self.nea1 { b0 |= 0x40; }
-        if self.nea2 { b0 |= 0x20; }
-        if self.nea3 { b0 |= 0x10; }
+        if self.nea0 {
+            b0 |= 0x80;
+        }
+        if self.nea1 {
+            b0 |= 0x40;
+        }
+        if self.nea2 {
+            b0 |= 0x20;
+        }
+        if self.nea3 {
+            b0 |= 0x10;
+        }
 
         let mut b1 = 0u8;
-        if self.nia0 { b1 |= 0x80; }
-        if self.nia1 { b1 |= 0x40; }
-        if self.nia2 { b1 |= 0x20; }
-        if self.nia3 { b1 |= 0x10; }
+        if self.nia0 {
+            b1 |= 0x80;
+        }
+        if self.nia1 {
+            b1 |= 0x40;
+        }
+        if self.nia2 {
+            b1 |= 0x20;
+        }
+        if self.nia3 {
+            b1 |= 0x10;
+        }
 
         [b0, b1]
     }
@@ -352,10 +368,10 @@ pub struct SecurityModeComplete {
 pub struct UlNasTransport {
     pub payload_container_type: u8, // 1 = N1 SM information
     pub pdu_session_id: u8,
-    pub request_type: u8,          // 1 = Initial request
-    pub dnn: Option<String>,       // e.g. "internet"
+    pub request_type: u8,    // 1 = Initial request
+    pub dnn: Option<String>, // e.g. "internet"
     pub s_nssai: Option<Snssai>,
-    pub sm_payload: Vec<u8>,       // Encapsulated 5GSM message
+    pub sm_payload: Vec<u8>, // Encapsulated 5GSM message
 }
 
 /// 5GMM Downlink NAS Transport (transports 5GSM PDU Session responses).
@@ -363,7 +379,7 @@ pub struct UlNasTransport {
 pub struct DlNasTransport {
     pub payload_container_type: u8, // 1 = N1 SM information
     pub pdu_session_id: u8,
-    pub sm_payload: Vec<u8>,       // Encapsulated 5GSM message
+    pub sm_payload: Vec<u8>, // Encapsulated 5GSM message
 }
 
 /// 5GMM De-registration Request (UE-originating).
@@ -777,11 +793,9 @@ fn decode_gmm_message(data: &[u8]) -> Option<Nas5GmmMessage> {
             rand.copy_from_slice(&data[4..20]);
             let mut autn = [0u8; 16];
             autn.copy_from_slice(&data[20..36]);
-            Some(Nas5GmmMessage::AuthenticationRequest(AuthenticationRequest {
-                ng_ksi,
-                rand,
-                autn,
-            }))
+            Some(Nas5GmmMessage::AuthenticationRequest(
+                AuthenticationRequest { ng_ksi, rand, autn },
+            ))
         }
         NAS_5GMM_AUTHENTICATION_RESPONSE => {
             if data.len() < 19 {
@@ -823,9 +837,9 @@ fn decode_gmm_message(data: &[u8]) -> Option<Nas5GmmMessage> {
             } else {
                 None
             };
-            Some(Nas5GmmMessage::SecurityModeComplete(
-                SecurityModeComplete { imeisv },
-            ))
+            Some(Nas5GmmMessage::SecurityModeComplete(SecurityModeComplete {
+                imeisv,
+            }))
         }
         NAS_5GMM_UL_NAS_TRANSPORT => {
             if data.len() < 8 {
@@ -876,15 +890,15 @@ fn decode_gmm_message(data: &[u8]) -> Option<Nas5GmmMessage> {
             let switch_off = (data[3] & 0x01) != 0;
             let ng_ksi = (data[3] >> 4) & 0x07;
             let (mobile_id, _) = decode_mobile_identity(&data[4..])?;
-            Some(Nas5GmmMessage::DeregistrationRequest(DeregistrationRequest {
-                switch_off,
-                ng_ksi,
-                mobile_identity: mobile_id,
-            }))
+            Some(Nas5GmmMessage::DeregistrationRequest(
+                DeregistrationRequest {
+                    switch_off,
+                    ng_ksi,
+                    mobile_identity: mobile_id,
+                },
+            ))
         }
-        NAS_5GMM_DEREGISTRATION_ACCEPT_UE_ORIGINATING => {
-            Some(Nas5GmmMessage::DeregistrationAccept)
-        }
+        NAS_5GMM_DEREGISTRATION_ACCEPT_UE_ORIGINATING => Some(Nas5GmmMessage::DeregistrationAccept),
         _ => None,
     }
 }
@@ -902,7 +916,10 @@ fn encode_gsm_message(msg: &Nas5GsmMessage, buf: &mut Vec<u8>) {
             buf.push(acc.pdu_session_id);
             buf.push(acc.pti);
             buf.push(NAS_5GSM_PDU_SESSION_ESTABLISHMENT_ACCEPT);
-            buf.push((acc.selected_pdu_session_type as u8 & 0x07) | ((acc.selected_ssc_mode as u8 & 0x07) << 4));
+            buf.push(
+                (acc.selected_pdu_session_type as u8 & 0x07)
+                    | ((acc.selected_ssc_mode as u8 & 0x07) << 4),
+            );
             if let Some(ip) = acc.allocated_ipv4 {
                 buf.push(1);
                 buf.extend_from_slice(&ip.0);
@@ -1172,11 +1189,7 @@ fn decode_mobile_identity(data: &[u8]) -> Option<(MobileIdentity5Gs, usize)> {
 
 /// Pure standard Rust 5G-AKA vector validation helper.
 /// Computes expected RES* from RAND, AUTN, and pre-shared key (K).
-pub fn verify_5g_aka_challenge(
-    rand: &[u8; 16],
-    _autn: &[u8; 16],
-    k_secret: &[u8; 16],
-) -> [u8; 16] {
+pub fn verify_5g_aka_challenge(rand: &[u8; 16], _autn: &[u8; 16], k_secret: &[u8; 16]) -> [u8; 16] {
     // Standard XOR-based PRF for testing / mock authentication vectors
     let mut res_star = [0u8; 16];
     for i in 0..16 {
@@ -1267,10 +1280,7 @@ impl NasEngine {
     }
 
     /// (UE) Handle 5G-AKA Authentication Request and produce Authentication Response.
-    pub fn ue_handle_authentication_request(
-        &mut self,
-        req: &AuthenticationRequest,
-    ) -> NasPdu {
+    pub fn ue_handle_authentication_request(&mut self, req: &AuthenticationRequest) -> NasPdu {
         self.ng_ksi = req.ng_ksi;
         let res_star = verify_5g_aka_challenge(&req.rand, &req.autn, &self.shared_secret_k);
         let resp = AuthenticationResponse { res_star };
@@ -1278,10 +1288,7 @@ impl NasEngine {
     }
 
     /// (UE) Handle Security Mode Command and produce Security Mode Complete.
-    pub fn ue_handle_security_mode_command(
-        &mut self,
-        cmd: &SecurityModeCommand,
-    ) -> NasPdu {
+    pub fn ue_handle_security_mode_command(&mut self, cmd: &SecurityModeCommand) -> NasPdu {
         self.security_active = true;
         self.ng_ksi = cmd.ng_ksi;
         self.nas_sqn = self.nas_sqn.wrapping_add(1);
@@ -1294,10 +1301,7 @@ impl NasEngine {
     }
 
     /// (UE) Handle Registration Accept and produce Registration Complete.
-    pub fn ue_handle_registration_accept(
-        &mut self,
-        acc: &RegistrationAccept,
-    ) -> NasPdu {
+    pub fn ue_handle_registration_accept(&mut self, acc: &RegistrationAccept) -> NasPdu {
         self.gmm_state = GmmState::Registered;
         if let Some(ref guti) = acc.allocated_guti {
             self.allocated_guti = Some(guti.clone());
@@ -1338,7 +1342,7 @@ impl NasEngine {
         let ul_transport = UlNasTransport {
             payload_container_type: 1, // N1 SM information
             pdu_session_id: session_id,
-            request_type: 1,           // Initial request
+            request_type: 1, // Initial request
             dnn: Some("internet".to_string()),
             s_nssai: None,
             sm_payload: gsm_bytes,
@@ -1401,11 +1405,7 @@ impl NasEngine {
     // -----------------------------------------------------------------------
 
     /// (Network) Generate 5G-AKA Authentication Challenge.
-    pub fn net_build_authentication_request(
-        &mut self,
-        rand: [u8; 16],
-        autn: [u8; 16],
-    ) -> NasPdu {
+    pub fn net_build_authentication_request(&mut self, rand: [u8; 16], autn: [u8; 16]) -> NasPdu {
         let req = AuthenticationRequest {
             ng_ksi: 1,
             rand,
@@ -1460,8 +1460,8 @@ impl NasEngine {
         assigned_ip: Ipv4Address,
         assigned_qfi: u8,
     ) -> Result<NasPdu, &'static str> {
-        let inner_pdu = NasPdu::from_bytes(&transport.sm_payload)
-            .ok_or("Failed to decode inner 5GSM PDU")?;
+        let inner_pdu =
+            NasPdu::from_bytes(&transport.sm_payload).ok_or("Failed to decode inner 5GSM PDU")?;
 
         let req = match inner_pdu.gsm_message {
             Some(Nas5GsmMessage::EstablishmentRequest(r)) => r,

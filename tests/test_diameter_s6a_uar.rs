@@ -1,12 +1,15 @@
 use toy_tcpip::diameter_s6a_uar::{
-    S6aUarEngine, S6aUarMessage, SubscriberAuthRule, DIAMETER_CMD_USER_AUTHORIZATION,
-    RESULT_CODE_ROAMING_NOT_ALLOWED, RESULT_CODE_SUCCESS, RESULT_CODE_USER_UNKNOWN,
+    DIAMETER_CMD_USER_AUTHORIZATION, RESULT_CODE_ROAMING_NOT_ALLOWED, RESULT_CODE_SUCCESS,
+    RESULT_CODE_USER_UNKNOWN, S6aUarEngine, S6aUarMessage, SubscriberAuthRule,
     UAR_FLAG_EMERGENCY_ATTACH,
 };
 
 #[test]
 fn test_diameter_s6a_uar_lifecycle() {
-    let mut hss_engine = S6aUarEngine::new("hss01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+    let mut hss_engine = S6aUarEngine::new(
+        "hss01.epc.mnc001.mcc208.3gppnetwork.org",
+        "epc.mnc001.mcc208.3gppnetwork.org",
+    );
 
     let home_plmn = [0x02, 0xF8, 0x59]; // MCC 208 MNC 95
     let roaming_partner_plmn = [0x02, 0xF8, 0x10]; // MCC 208 MNC 01
@@ -59,7 +62,10 @@ fn test_diameter_s6a_uar_lifecycle() {
         0,
     );
     let uaa_unauth = hss_engine.process_uar(&uar_unauth);
-    assert_eq!(uaa_unauth.result_code(), Some(RESULT_CODE_ROAMING_NOT_ALLOWED));
+    assert_eq!(
+        uaa_unauth.result_code(),
+        Some(RESULT_CODE_ROAMING_NOT_ALLOWED)
+    );
 
     // 4. Emergency Attach in unauthorized foreign PLMN -> Allowed
     let uar_emg = S6aUarMessage::new_uar(

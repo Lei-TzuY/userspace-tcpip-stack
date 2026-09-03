@@ -1,8 +1,8 @@
 //! Integration tests for 3GPP TS 38.425 F1-U / Xn-U NR User Plane Protocol and Flow Control Engine.
 
 use toy_tcpip::nr_up_38425::{
-    DddsCause, DiscardedSnBlock, LostSnRange, NrUpDlDataDeliveryStatus, NrUpDlUserData, NrUpError,
-    NrUpFlowController, NR_U_MAX_SN,
+    DddsCause, DiscardedSnBlock, LostSnRange, NR_U_MAX_SN, NrUpDlDataDeliveryStatus,
+    NrUpDlUserData, NrUpError, NrUpFlowController,
 };
 
 #[test]
@@ -75,7 +75,13 @@ fn test_f1u_flow_control_credit_throttling() {
     // Attempt packet 2 (800 bytes) -> 1600 + 800 = 2400 > 2000 -> Throttled!
     assert!(!flow_ctrl.can_send(800));
     let err = flow_ctrl.send_packet(vec![0xCC; 800], false).unwrap_err();
-    assert!(matches!(err, NrUpError::BufferOverflow { in_flight: 2400, credit: 2000 }));
+    assert!(matches!(
+        err,
+        NrUpError::BufferOverflow {
+            in_flight: 2400,
+            credit: 2000
+        }
+    ));
 
     // DU delivers packet 0 and sends DDDS acknowledging SN 0
     let mut ddds = NrUpDlDataDeliveryStatus::new(2000);
@@ -110,7 +116,10 @@ fn test_f1u_fast_retransmission_on_lost_ranges() {
     // DU sends DDDS with highest_delivered = 1 and lost_sn_ranges = [2..2]
     let mut ddds = NrUpDlDataDeliveryStatus::new(10_000);
     ddds.highest_delivered_nr_u_sn = Some(1);
-    ddds.lost_sn_ranges.push(LostSnRange { start_sn: 2, end_sn: 2 });
+    ddds.lost_sn_ranges.push(LostSnRange {
+        start_sn: 2,
+        end_sn: 2,
+    });
 
     let retransmitted = flow_ctrl.process_delivery_status(&ddds);
 

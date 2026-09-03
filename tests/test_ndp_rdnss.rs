@@ -41,7 +41,9 @@ fn test_ndp_rdnss_dnssl_mtu_ra_codec() {
     );
 
     let parsed_icmp = Icmpv6Packet::parse(src, dst, &packet_raw, true).unwrap();
-    let ra = parsed_icmp.validated_router_advertisement(src, 255).unwrap();
+    let ra = parsed_icmp
+        .validated_router_advertisement(src, 255)
+        .unwrap();
 
     assert_eq!(ra.current_hop_limit, 64);
     assert_eq!(ra.router_lifetime, 1800);

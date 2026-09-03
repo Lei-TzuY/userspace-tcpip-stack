@@ -1,6 +1,6 @@
 use toy_tcpip::synce_esmc::{
-    EnhancedQualityLevel, ExtendedQlTlv, QualityLevel, QualityLevelOption2, SyncEEsmcEngine,
-    SyncEEsmcPacket, EXTENDED_QL_TLV_LEN, TLV_TYPE_EXTENDED_QL,
+    EXTENDED_QL_TLV_LEN, EnhancedQualityLevel, ExtendedQlTlv, QualityLevel, QualityLevelOption2,
+    SyncEEsmcEngine, SyncEEsmcPacket, TLV_TYPE_EXTENDED_QL,
 };
 
 #[test]
@@ -13,7 +13,10 @@ fn test_synce_extended_ql_tlv_serialization_and_parsing() {
 
     let wire_tlv = ext_tlv.serialize();
     assert_eq!(wire_tlv[0], TLV_TYPE_EXTENDED_QL);
-    assert_eq!(u16::from_be_bytes([wire_tlv[1], wire_tlv[2]]), EXTENDED_QL_TLV_LEN);
+    assert_eq!(
+        u16::from_be_bytes([wire_tlv[1], wire_tlv[2]]),
+        EXTENDED_QL_TLV_LEN
+    );
     assert_eq!(wire_tlv[3], EnhancedQualityLevel::QlEeec as u8);
     assert_eq!(&wire_tlv[4..12], &clock_id);
     assert_eq!(wire_tlv[12] & 0x01, 1);

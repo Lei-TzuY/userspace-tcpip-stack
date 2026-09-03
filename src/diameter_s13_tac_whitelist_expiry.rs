@@ -226,7 +226,8 @@ impl DiameterS13TacWhitelistExpiryEngine {
             .iter()
             .filter(|l| {
                 l.is_revoked
-                    || current_time_s.saturating_sub(l.granted_at_s) >= (l.duration_s + l.grace_period_s)
+                    || current_time_s.saturating_sub(l.granted_at_s)
+                        >= (l.duration_s + l.grace_period_s)
             })
             .map(|l| l.lease_id)
             .collect()

@@ -22,7 +22,10 @@ fn make_profile(
         heartbeat_timer_s: 30,
         fqdn: format!("{}.5gc.mnc095.mcc208.3gppnetwork.org", id),
         ipv4_addresses: vec![Ipv4Address::new(10, 45, 0, 10)],
-        plmn_list: vec![PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] }],
+        plmn_list: vec![PlmnId {
+            mcc: [2, 0, 8],
+            mnc: [9, 5, 0],
+        }],
         s_nssais: snssais,
         dnns: dnns.into_iter().map(|s| s.to_string()).collect(),
         tai_list: vec![100],
@@ -47,11 +50,21 @@ fn make_profile(
 #[test]
 fn test_nrf_register_and_discover_by_nf_type() {
     let mut nrf = NrfEngine::new("nrf-core-001");
-    let smf = make_profile("smf-01", NfType::Smf, vec![], vec!["internet"], 10, 20, None);
+    let smf = make_profile(
+        "smf-01",
+        NfType::Smf,
+        vec![],
+        vec!["internet"],
+        10,
+        20,
+        None,
+    );
     let amf = make_profile("amf-01", NfType::Amf, vec![], vec![], 10, 30, None);
 
-    nrf.register_nf(smf, 1700000000).expect("SMF register failed");
-    nrf.register_nf(amf, 1700000000).expect("AMF register failed");
+    nrf.register_nf(smf, 1700000000)
+        .expect("SMF register failed");
+    nrf.register_nf(amf, 1700000000)
+        .expect("AMF register failed");
 
     let query = DiscoveryQuery {
         target_nf_type: NfType::Smf,
@@ -75,10 +88,29 @@ fn test_nrf_register_and_discover_by_nf_type() {
 fn test_nrf_discover_by_snssai_and_dnn() {
     let mut nrf = NrfEngine::new("nrf-core-002");
     let embb = Snssai { sst: 1, sd: None };
-    let urllc = Snssai { sst: 2, sd: Some([1, 2, 3]) };
+    let urllc = Snssai {
+        sst: 2,
+        sd: Some([1, 2, 3]),
+    };
 
-    let smf_embb = make_profile("smf-embb", NfType::Smf, vec![embb.clone()], vec!["internet"], 10, 20, None);
-    let smf_urllc = make_profile("smf-urllc", NfType::Smf, vec![urllc.clone()], vec!["factory-iot"], 10, 20, None);
+    let smf_embb = make_profile(
+        "smf-embb",
+        NfType::Smf,
+        vec![embb.clone()],
+        vec!["internet"],
+        10,
+        20,
+        None,
+    );
+    let smf_urllc = make_profile(
+        "smf-urllc",
+        NfType::Smf,
+        vec![urllc.clone()],
+        vec!["factory-iot"],
+        10,
+        20,
+        None,
+    );
 
     nrf.register_nf(smf_embb, 1700000000).unwrap();
     nrf.register_nf(smf_urllc, 1700000000).unwrap();
@@ -138,8 +170,24 @@ fn test_nrf_load_balancing_and_priority_ranking() {
 fn test_nrf_locality_proximity_preference() {
     let mut nrf = NrfEngine::new("nrf-core-004");
 
-    let smf_central = make_profile("smf-central", NfType::Smf, vec![], vec![], 10, 10, Some("central-dc"));
-    let smf_edge = make_profile("smf-edge", NfType::Smf, vec![], vec![], 10, 10, Some("edge-zone-east"));
+    let smf_central = make_profile(
+        "smf-central",
+        NfType::Smf,
+        vec![],
+        vec![],
+        10,
+        10,
+        Some("central-dc"),
+    );
+    let smf_edge = make_profile(
+        "smf-edge",
+        NfType::Smf,
+        vec![],
+        vec![],
+        10,
+        10,
+        Some("edge-zone-east"),
+    );
 
     nrf.register_nf(smf_central, 1700000000).unwrap();
     nrf.register_nf(smf_edge, 1700000000).unwrap();
@@ -190,7 +238,8 @@ fn test_nrf_heartbeat_lease_expiration_and_recovery() {
     assert_eq!(nrf.discover_nf(&query).candidate_profiles.len(), 0);
 
     // 3. UPF sends heartbeat keepalive at t = 1075s -> Recovers to Registered!
-    nrf.update_heartbeat("upf-01", Some(25), 1075).expect("Heartbeat update failed");
+    nrf.update_heartbeat("upf-01", Some(25), 1075)
+        .expect("Heartbeat update failed");
     assert_eq!(nrf.discover_nf(&query).candidate_profiles.len(), 1);
 }
 

@@ -18,7 +18,9 @@ fn test_ptp_time_error_metrics_calculation() {
         filter.push_sample(PtpTimestampSample::new(i as u16, t1, t2, t3, t4));
     }
 
-    let te = filter.compute_time_error_metrics().expect("Time error metrics");
+    let te = filter
+        .compute_time_error_metrics()
+        .expect("Time error metrics");
     assert_eq!(te.cte_ns, 250.0);
     assert_eq!(te.dte_peak_to_peak_ns, 0);
     assert_eq!(te.max_abs_te_ns, 250);
@@ -29,9 +31,8 @@ fn test_ptp_time_error_metrics_calculation() {
 fn test_ptp_iqr_outlier_filtering() {
     // Standard queuing delays between 10,000 and 12,000 ns, with two massive buffer exhaustion spikes (1,000,000 ns)
     let delays = vec![
-        10_000, 10_200, 10_150, 10_300, 10_500, 10_450, 10_600, 10_550,
-        11_000, 11_200, 11_100, 11_300, 11_500, 11_400, 11_600, 11_550,
-        1_000_000, 1_500_000, // Severe outliers
+        10_000, 10_200, 10_150, 10_300, 10_500, 10_450, 10_600, 10_550, 11_000, 11_200, 11_100,
+        11_300, 11_500, 11_400, 11_600, 11_550, 1_000_000, 1_500_000, // Severe outliers
     ];
 
     let filtered = PtpPdvFloorFilter::filter_iqr_outliers(&delays);
@@ -54,8 +55,16 @@ fn test_ptp_subwindow_lucky_packet_selection() {
     // Remaining packets experience random bursty queuing delay.
     for i in 0..40 {
         let is_lucky = (i % 10) == 0;
-        let q_fwd = if is_lucky { 0 } else { ((i as i64 * 31) % 100) * 1_000 };
-        let q_rev = if is_lucky { 0 } else { ((i as i64 * 47) % 120) * 1_000 };
+        let q_fwd = if is_lucky {
+            0
+        } else {
+            ((i as i64 * 31) % 100) * 1_000
+        };
+        let q_rev = if is_lucky {
+            0
+        } else {
+            ((i as i64 * 47) % 120) * 1_000
+        };
 
         let t1 = (i as i64) * 10_000_000;
         let t2 = t1 + 15_000 + q_fwd;
@@ -134,4 +143,3 @@ fn test_ptp_pdv_correlation_and_stability_score() {
     assert!(report.path_stability_score > 0.0);
     assert!(report.forward_pdv_variance_ns2 > 0.0);
 }
-

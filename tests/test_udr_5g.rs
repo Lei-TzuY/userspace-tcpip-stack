@@ -16,8 +16,14 @@ fn test_udr_subscription_auth_and_am_crud() {
     let auth = AuthenticationData {
         supi: supi.to_string(),
         auth_method: AuthMethod::FiveGAka,
-        k: [0x46, 0x5b, 0x5c, 0xe8, 0xb1, 0x99, 0xb4, 0x9f, 0xaa, 0x5f, 0x0a, 0x2e, 0xe2, 0x38, 0xa6, 0xbc],
-        opc: [0xcd, 0xc2, 0x02, 0xd5, 0x12, 0x3e, 0x20, 0xf6, 0x2b, 0x6d, 0x67, 0x6a, 0xc7, 0x2c, 0xb3, 0x18],
+        k: [
+            0x46, 0x5b, 0x5c, 0xe8, 0xb1, 0x99, 0xb4, 0x9f, 0xaa, 0x5f, 0x0a, 0x2e, 0xe2, 0x38,
+            0xa6, 0xbc,
+        ],
+        opc: [
+            0xcd, 0xc2, 0x02, 0xd5, 0x12, 0x3e, 0x20, 0xf6, 0x2b, 0x6d, 0x67, 0x6a, 0xc7, 0x2c,
+            0xb3, 0x18,
+        ],
         sqn: 0x000000000021,
     };
     udr.set_auth_data(auth.clone(), 1700000000);
@@ -60,7 +66,9 @@ fn test_udr_session_management_and_policy_data() {
     };
     udr.set_sm_data(sm.clone(), 1700000000);
 
-    let retrieved_sm = udr.get_sm_data(supi, "internet", &embb).expect("SM data not found");
+    let retrieved_sm = udr
+        .get_sm_data(supi, "internet", &embb)
+        .expect("SM data not found");
     assert_eq!(retrieved_sm, &sm);
 
     // Set PCF Policy Data
@@ -74,7 +82,9 @@ fn test_udr_session_management_and_policy_data() {
     };
     udr.set_policy_data(policy.clone(), 1700000000);
 
-    let retrieved_policy = udr.get_policy_data(supi, "internet", &embb).expect("Policy data not found");
+    let retrieved_policy = udr
+        .get_policy_data(supi, "internet", &embb)
+        .expect("Policy data not found");
     assert_eq!(retrieved_policy, &policy);
 }
 
@@ -85,7 +95,10 @@ fn test_udr_session_management_and_policy_data() {
 #[test]
 fn test_udr_exposure_traffic_influence() {
     let mut udr = UdrEngine::new("udr-core-003");
-    let urllc = Snssai { sst: 2, sd: Some([1, 2, 3]) };
+    let urllc = Snssai {
+        sst: 2,
+        sd: Some([1, 2, 3]),
+    };
     let edge_ip = Ipv4Address::new(192, 168, 100, 1);
 
     let inf = TrafficInfluenceData {
@@ -121,7 +134,10 @@ fn test_udr_pfd_layer7_domain_matching() {
     let pfd_game = PacketFlowDescription {
         app_id: "cloud-gaming".to_string(),
         flow_descriptions: vec!["ip:any:udp:27015".to_string()],
-        domain_names: vec!["*.geforcenow.com".to_string(), "cloudgame.carrier.net".to_string()],
+        domain_names: vec![
+            "*.geforcenow.com".to_string(),
+            "cloudgame.carrier.net".to_string(),
+        ],
     };
 
     udr.set_pfd(pfd_video, 1700000000);
@@ -133,7 +149,8 @@ fn test_udr_pfd_layer7_domain_matching() {
         Some("video-streaming")
     );
     assert_eq!(
-        udr.match_app_by_domain("rr1---sn-4g5edn7s.googlevideo.com").as_deref(),
+        udr.match_app_by_domain("rr1---sn-4g5edn7s.googlevideo.com")
+            .as_deref(),
         Some("video-streaming")
     );
     assert_eq!(
@@ -144,10 +161,7 @@ fn test_udr_pfd_layer7_domain_matching() {
         udr.match_app_by_domain("cloudgame.carrier.net").as_deref(),
         Some("cloud-gaming")
     );
-    assert_eq!(
-        udr.match_app_by_domain("unknown-site.org"),
-        None
-    );
+    assert_eq!(udr.match_app_by_domain("unknown-site.org"), None);
 }
 
 // ---------------------------------------------------------------------------

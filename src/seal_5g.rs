@@ -66,9 +66,19 @@ pub struct ValGroup {
 /// SEAL Alert Events emitted by Location Management.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SealAlertEvent {
-    GeofenceEntry { val_user_id: String, zone_id: String },
-    GeofenceExit { val_user_id: String, zone_id: String },
-    ProximityDetected { val_user_id_a: String, val_user_id_b: String, distance_meters: u32 },
+    GeofenceEntry {
+        val_user_id: String,
+        zone_id: String,
+    },
+    GeofenceExit {
+        val_user_id: String,
+        zone_id: String,
+    },
+    ProximityDetected {
+        val_user_id_a: String,
+        val_user_id_b: String,
+        distance_meters: u32,
+    },
 }
 
 /// Network Resource Reservation (TS 29.538 Section 5.4).
@@ -145,7 +155,10 @@ impl SealServerEngine {
 
     /// Add a member to a VAL Group.
     pub fn add_group_member(&mut self, group_id: &str, val_user_id: &str) -> Result<(), SealError> {
-        let group = self.groups.get_mut(group_id).ok_or(SealError::GroupNotFound)?;
+        let group = self
+            .groups
+            .get_mut(group_id)
+            .ok_or(SealError::GroupNotFound)?;
         if group.members.len() >= group.max_members as usize {
             return Err(SealError::GroupCapacityExceeded);
         }
@@ -157,8 +170,15 @@ impl SealServerEngine {
     }
 
     /// Remove a member from a VAL Group.
-    pub fn remove_group_member(&mut self, group_id: &str, val_user_id: &str) -> Result<(), SealError> {
-        let group = self.groups.get_mut(group_id).ok_or(SealError::GroupNotFound)?;
+    pub fn remove_group_member(
+        &mut self,
+        group_id: &str,
+        val_user_id: &str,
+    ) -> Result<(), SealError> {
+        let group = self
+            .groups
+            .get_mut(group_id)
+            .ok_or(SealError::GroupNotFound)?;
         let pos = group
             .members
             .iter()
@@ -188,14 +208,19 @@ impl SealServerEngine {
         val_user_id: &str,
         new_position: GeoPoint,
     ) -> Vec<SealAlertEvent> {
-        self.device_locations.insert(val_user_id.to_string(), new_position);
+        self.device_locations
+            .insert(val_user_id.to_string(), new_position);
         let mut alerts = Vec::new();
 
         for (zone_id, zone) in &self.geofences {
             let dist = new_position.approximate_distance_meters(&zone.center);
             let currently_inside = dist <= zone.radius_meters;
             let status_key = (val_user_id.to_string(), zone_id.clone());
-            let previously_inside = self.device_geofence_status.get(&status_key).copied().unwrap_or(false);
+            let previously_inside = self
+                .device_geofence_status
+                .get(&status_key)
+                .copied()
+                .unwrap_or(false);
 
             if currently_inside && !previously_inside {
                 self.device_geofence_status.insert(status_key, true);

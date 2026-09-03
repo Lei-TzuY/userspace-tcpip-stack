@@ -30,10 +30,7 @@ pub struct FrameTimestampRecord {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum JitterAnalyzerVerdict {
     /// Transit latency and jitter within SLA limits.
-    Compliant {
-        latency_ns: u64,
-        jitter_ns: u64,
-    },
+    Compliant { latency_ns: u64, jitter_ns: u64 },
     /// Jitter exceeded stream SLA tolerance.
     JitterBreached {
         jitter_ns: u64,
@@ -120,7 +117,11 @@ impl TsnCqfTimestampJitterEngine {
 
     /// Register a monitored stream.
     pub fn register_stream(&mut self, stats: StreamJitterStats) {
-        if let Some(pos) = self.streams.iter().position(|s| s.stream_id == stats.stream_id) {
+        if let Some(pos) = self
+            .streams
+            .iter()
+            .position(|s| s.stream_id == stats.stream_id)
+        {
             self.streams[pos] = stats;
         } else {
             self.streams.push(stats);
@@ -212,12 +213,7 @@ mod tests {
         let mut engine = TsnCqfTimestampJitterEngine::new(100);
 
         // Stream 1: Max Latency 100 µs, Max Jitter 10 µs
-        engine.register_stream(StreamJitterStats::new(
-            1,
-            "Motion-Sensors",
-            100_000,
-            10_000,
-        ));
+        engine.register_stream(StreamJitterStats::new(1, "Motion-Sensors", 100_000, 10_000));
 
         // Frame 1: Ingress 1000, Egress 51000 (Latency 50 µs)
         let v1 = engine.record_frame(1, 1, 1_000, 51_000);

@@ -1,6 +1,6 @@
 use toy_tcpip::diameter_s13_imeidb::{
-    GsmaDeviceStatus, S13ImeiDbEngine, S13ImeiDbMessage, DIAMETER_APPLICATION_S13,
-    DIAMETER_CMD_IMEI_DB_QUERY, DIAMETER_ERROR_EQUIPMENT_BLOCKED,
+    DIAMETER_APPLICATION_S13, DIAMETER_CMD_IMEI_DB_QUERY, DIAMETER_ERROR_EQUIPMENT_BLOCKED,
+    GsmaDeviceStatus, S13ImeiDbEngine, S13ImeiDbMessage,
 };
 
 #[test]
@@ -37,7 +37,10 @@ fn test_diameter_s13_imeidb_lifecycle() {
     let ans1 = engine.process_idr(&req1);
     assert_eq!(ans1.result_code, DIAMETER_ERROR_EQUIPMENT_BLOCKED);
     assert_eq!(ans1.status, Some(GsmaDeviceStatus::Stolen));
-    assert_eq!(ans1.model_info, Some("Samsung Galaxy S24 Ultra".to_string()));
+    assert_eq!(
+        ans1.model_info,
+        Some("Samsung Galaxy S24 Ultra".to_string())
+    );
 
     // 2. Query Clean device
     let req2 = S13ImeiDbMessage::new_request(

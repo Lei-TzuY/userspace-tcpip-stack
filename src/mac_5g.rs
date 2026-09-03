@@ -105,16 +105,8 @@ impl MacSubheader {
         let lcid = first & 0x3F;
 
         // Check if this is a fixed-size subheader (padding, certain CEs)
-        if lcid == MAC_LCID_PADDING
-            || lcid == MAC_LCID_DRX_CMD
-        {
-            return Some((
-                MacSubheader {
-                    lcid,
-                    length: None,
-                },
-                1,
-            ));
+        if lcid == MAC_LCID_PADDING || lcid == MAC_LCID_DRX_CMD {
+            return Some((MacSubheader { lcid, length: None }, 1));
         }
 
         if f_bit {
@@ -122,8 +114,7 @@ impl MacSubheader {
             if offset + 3 > data.len() {
                 return None;
             }
-            let len =
-                ((data[offset + 1] as u16) << 8) | (data[offset + 2] as u16);
+            let len = ((data[offset + 1] as u16) << 8) | (data[offset + 2] as u16);
             Some((
                 MacSubheader {
                     lcid,
@@ -157,38 +148,20 @@ impl MacSubheader {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MacPduElement {
     /// MAC SDU: payload from RLC on a given logical channel.
-    Sdu {
-        lcid: u8,
-        payload: Vec<u8>,
-    },
+    Sdu { lcid: u8, payload: Vec<u8> },
     /// Short BSR (Buffer Status Report): 1 byte = LCG ID (2 bits) + Buffer Size (6 bits).
-    ShortBsr {
-        lcg_id: u8,
-        buffer_size_index: u8,
-    },
+    ShortBsr { lcg_id: u8, buffer_size_index: u8 },
     /// Long BSR: reports buffer status for all 8 Logical Channel Groups.
     /// Each entry is a 6-bit buffer size index (0..63).
-    LongBsr {
-        buffer_sizes: [u8; 8],
-    },
+    LongBsr { buffer_sizes: [u8; 8] },
     /// C-RNTI MAC CE: carries the UE's C-RNTI (2 bytes).
-    CRnti {
-        c_rnti: u16,
-    },
+    CRnti { c_rnti: u16 },
     /// Timing Advance Command MAC CE (DL): TAG ID (2 bits) + TA Command (6 bits).
-    TimingAdvanceCommand {
-        tag_id: u8,
-        ta_command: u8,
-    },
+    TimingAdvanceCommand { tag_id: u8, ta_command: u8 },
     /// Single Entry PHR (Power Headroom Report): PH (6 bits) + PCmax,f,c (6 bits).
-    SingleEntryPhr {
-        power_headroom: u8,
-        pcmax: u8,
-    },
+    SingleEntryPhr { power_headroom: u8, pcmax: u8 },
     /// Padding bytes.
-    Padding {
-        length: usize,
-    },
+    Padding { length: usize },
 }
 
 impl MacPduElement {
@@ -229,10 +202,7 @@ impl MacPduElement {
             MacPduElement::CRnti { c_rnti } => {
                 vec![(*c_rnti >> 8) as u8, (*c_rnti & 0xFF) as u8]
             }
-            MacPduElement::TimingAdvanceCommand {
-                tag_id,
-                ta_command,
-            } => {
+            MacPduElement::TimingAdvanceCommand { tag_id, ta_command } => {
                 // 1 byte: TAG ID (bits 7-6) | TA Command (bits 5-0)
                 vec![((tag_id & 0x03) << 6) | (ta_command & 0x3F)]
             }
@@ -357,10 +327,7 @@ impl MacPdu {
                 }
                 lcid if lcid <= 32 => {
                     // Logical channel SDU (LCID 0..32)
-                    MacPduElement::Sdu {
-                        lcid,
-                        payload,
-                    }
+                    MacPduElement::Sdu { lcid, payload }
                 }
                 _ => {
                     // Unknown LCID — treat as SDU for forward compatibility
@@ -396,11 +363,7 @@ pub fn bytes_to_bsr_index(bytes: u32) -> u8 {
     // Real table has 64 entries; we use a logarithmic approximation
     let log_val = (bytes as f64).log2();
     let index = ((log_val / 20.0) * 63.0) as u8;
-    if index > 63 {
-        63
-    } else {
-        index
-    }
+    if index > 63 { 63 } else { index }
 }
 
 // ---------------------------------------------------------------------------
@@ -444,8 +407,7 @@ impl LogicalChannelState {
 
     /// Replenish the token bucket by one TTI's worth of PBR.
     pub fn replenish(&mut self) {
-        let max_bucket =
-            (self.config.pbr_bytes_per_tti * self.config.bucket_size_duration) as i64;
+        let max_bucket = (self.config.pbr_bytes_per_tti * self.config.bucket_size_duration) as i64;
         self.bucket_bytes += self.config.pbr_bytes_per_tti as i64;
         if self.bucket_bytes > max_bucket {
             self.bucket_bytes = max_bucket;
@@ -708,10 +670,7 @@ impl MacEntity {
                     continue;
                 }
                 let payload = vec![0xBB; serve as usize];
-                let elem = MacPduElement::Sdu {
-                    lcid,
-                    payload,
-                };
+                let elem = MacPduElement::Sdu { lcid, payload };
                 let actual_subhdr_len = if serve <= 255 { 2 } else { 3 };
                 remaining -= actual_subhdr_len + serve as usize;
                 lc.pending_data -= serve;

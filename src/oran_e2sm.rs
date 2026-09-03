@@ -397,9 +397,9 @@ pub struct SlaPolicyRule {
 impl Default for SlaPolicyRule {
     fn default() -> Self {
         SlaPolicyRule {
-            max_prb_threshold_ppm: 850_000, // 85%
-            max_packet_loss_ppm: 1_000,     // 0.1%
-            max_packet_delay_us: 5_000,     // 5 ms
+            max_prb_threshold_ppm: 850_000,     // 85%
+            max_packet_loss_ppm: 1_000,         // 0.1%
+            max_packet_delay_us: 5_000,         // 5 ms
             target_prb_adjustment_ppm: 100_000, // +10%
         }
     }
@@ -426,7 +426,10 @@ impl SliceSlaAssuranceXApp {
 
     /// Ingest an incoming E2SM-KPM telemetry report from an E2 Node,
     /// evaluate SLA violations, and trigger closed-loop E2SM-RC control actions.
-    pub fn process_kpm_indication(&mut self, kpm: &KpmIndicationMessage) -> Option<(RcControlHeader, RcControlMessage)> {
+    pub fn process_kpm_indication(
+        &mut self,
+        kpm: &KpmIndicationMessage,
+    ) -> Option<(RcControlHeader, RcControlMessage)> {
         if !self.managed_cells.contains(&kpm.cell_id) {
             return None;
         }
@@ -456,7 +459,8 @@ impl SliceSlaAssuranceXApp {
                                 },
                             ],
                         };
-                        self.generated_control_actions.push((header.clone(), message.clone()));
+                        self.generated_control_actions
+                            .push((header.clone(), message.clone()));
                         return Some((header, message));
                     }
                 }
@@ -490,7 +494,8 @@ impl SliceSlaAssuranceXApp {
                         },
                     ],
                 };
-                self.generated_control_actions.push((header.clone(), message.clone()));
+                self.generated_control_actions
+                    .push((header.clone(), message.clone()));
                 return Some((header, message));
             }
         }
@@ -524,7 +529,8 @@ impl SliceSlaAssuranceXApp {
             ],
         };
 
-        self.generated_control_actions.push((header.clone(), message.clone()));
+        self.generated_control_actions
+            .push((header.clone(), message.clone()));
         (header, message)
     }
 }
@@ -668,4 +674,3 @@ impl Default for E2smEngine {
         Self::new()
     }
 }
-

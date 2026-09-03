@@ -13,7 +13,10 @@ fn test_plmn() -> PlmnId {
 }
 
 fn test_k_secret() -> [u8; 16] {
-    [0x46, 0x5B, 0x5C, 0xE8, 0xB1, 0x99, 0xB4, 0x9F, 0xAA, 0x5F, 0x0A, 0x2E, 0xE2, 0x38, 0xA6, 0xBC]
+    [
+        0x46, 0x5B, 0x5C, 0xE8, 0xB1, 0x99, 0xB4, 0x9F, 0xAA, 0x5F, 0x0A, 0x2E, 0xE2, 0x38, 0xA6,
+        0xBC,
+    ]
 }
 
 // ---------------------------------------------------------------------------
@@ -41,7 +44,8 @@ fn test_nas_registration_procedure_happy_path() {
 
     // Test wire serialization of Registration Request
     let reg_req_bytes = reg_req_pdu.to_bytes();
-    let parsed_req_pdu = NasPdu::from_bytes(&reg_req_bytes).expect("Failed to parse Registration Request");
+    let parsed_req_pdu =
+        NasPdu::from_bytes(&reg_req_bytes).expect("Failed to parse Registration Request");
     assert_eq!(parsed_req_pdu.security_header_type, SHT_PLAIN_NAS);
 
     // 2. Network generates 5G-AKA Authentication Challenge (RAND & AUTN)
@@ -119,12 +123,12 @@ fn test_nas_pdu_session_establishment_procedure() {
     ue_nas.gmm_state = GmmState::Registered;
 
     // 1. UE requests PDU Session Establishment (session_id=1, IPv4, SSC1)
-    let ul_transport_pdu = ue_nas.ue_build_pdu_session_establishment_request(
-        1,
-        PduSessionType::Ipv4,
-        SscMode::Ssc1,
+    let ul_transport_pdu =
+        ue_nas.ue_build_pdu_session_establishment_request(1, PduSessionType::Ipv4, SscMode::Ssc1);
+    assert_eq!(
+        ul_transport_pdu.security_header_type,
+        SHT_INTEGRITY_PROTECTED
     );
-    assert_eq!(ul_transport_pdu.security_header_type, SHT_INTEGRITY_PROTECTED);
     assert_eq!(
         ue_nas.pdu_sessions.get(&1).unwrap().state,
         GsmState::ActivePending
@@ -187,7 +191,10 @@ fn test_nas_security_headers_and_integrity() {
     assert_eq!(parsed.security_header_type, SHT_INTEGRITY_PROTECTED);
     assert_eq!(parsed.message_authentication_code, 0x1234_5678);
     assert_eq!(parsed.sequence_number, 5);
-    assert_eq!(parsed.gmm_message, Some(Nas5GmmMessage::RegistrationComplete));
+    assert_eq!(
+        parsed.gmm_message,
+        Some(Nas5GmmMessage::RegistrationComplete)
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +213,9 @@ fn test_nas_deregistration_procedure() {
         tmsi_5g: 0x9999,
     });
 
-    let dereg_req_pdu = ue_nas.ue_build_deregistration_request().expect("Build deregistration failed");
+    let dereg_req_pdu = ue_nas
+        .ue_build_deregistration_request()
+        .expect("Build deregistration failed");
     assert_eq!(ue_nas.gmm_state, GmmState::DeregisteredInitiated);
 
     let wire = dereg_req_pdu.to_bytes();
@@ -278,7 +287,10 @@ fn test_nas_rrc_setup_complete_container_integration() {
     let nas_bytes = nas_pdu.to_bytes();
 
     // 2. UE RRC initiates Setup Request and receives RrcSetup
-    let _req = ue_rrc.ue_initiate_setup_request(0x11223344, toy_tcpip::rrc_5g::RrcEstablishmentCause::MoSignalling);
+    let _req = ue_rrc.ue_initiate_setup_request(
+        0x11223344,
+        toy_tcpip::rrc_5g::RrcEstablishmentCause::MoSignalling,
+    );
     let rrc_setup = RrcSetup {
         rrc_transaction_identifier: 1,
         radio_bearer_config: toy_tcpip::rrc_5g::RadioBearerConfig::new(),
@@ -286,7 +298,9 @@ fn test_nas_rrc_setup_complete_container_integration() {
     };
 
     // 3. UE RRC puts NAS PDU inside RrcSetupComplete!
-    let rrc_comp = ue_rrc.ue_handle_setup(&rrc_setup, test_plmn(), nas_bytes.clone()).unwrap();
+    let rrc_comp = ue_rrc
+        .ue_handle_setup(&rrc_setup, test_plmn(), nas_bytes.clone())
+        .unwrap();
     assert_eq!(rrc_comp.dedicated_nas_message, nas_bytes);
 
     // 4. Verify the extracted NAS PDU inside RRC matches the original NAS message

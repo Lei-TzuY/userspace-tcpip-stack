@@ -165,7 +165,11 @@ impl EvpnDhcpSnoopingEngine {
                         lease_expiry_secs: expiry,
                     };
 
-                    if let Some(pos) = self.bindings.iter().position(|b| b.vni == vni && b.mac == pkt.client_mac) {
+                    if let Some(pos) = self
+                        .bindings
+                        .iter()
+                        .position(|b| b.vni == vni && b.mac == pkt.client_mac)
+                    {
                         self.bindings[pos] = binding;
                     } else {
                         self.bindings.push(binding);

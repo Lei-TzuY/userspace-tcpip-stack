@@ -33,18 +33,11 @@ pub enum GapAction {
     /// In-order packet; sequence contiguous.
     Contiguous,
     /// New sequence hole detected; buffered.
-    NewHoleDetected {
-        missing_seq: u32,
-    },
+    NewHoleDetected { missing_seq: u32 },
     /// Fast Retransmit NACK threshold reached; trigger retransmission.
-    TriggerFastRetransmit {
-        missing_seq: u32,
-        ooo_count: u32,
-    },
+    TriggerFastRetransmit { missing_seq: u32, ooo_count: u32 },
     /// Ingress packet repaired a previous sequence hole.
-    HoleRepaired {
-        repaired_seq: u32,
-    },
+    HoleRepaired { repaired_seq: u32 },
 }
 
 /// 5G GTP-U Gap Detection & Fast Retransmit Engine.
@@ -77,7 +70,9 @@ impl GtpuGapRetransmitEngine {
         if let Some(pos) = self.holes.iter().position(|h| h.missing_seq == seq_num) {
             self.holes.remove(pos);
             self.total_holes_healed += 1;
-            return GapAction::HoleRepaired { repaired_seq: seq_num };
+            return GapAction::HoleRepaired {
+                repaired_seq: seq_num,
+            };
         }
 
         let mut is_new_hole = false;
@@ -107,7 +102,9 @@ impl GtpuGapRetransmitEngine {
             for hole in &mut self.holes {
                 if seq_num > hole.missing_seq {
                     hole.ooo_packets_seen_after += 1;
-                    if hole.ooo_packets_seen_after >= self.fast_retransmit_ooo_threshold && !hole.nack_sent {
+                    if hole.ooo_packets_seen_after >= self.fast_retransmit_ooo_threshold
+                        && !hole.nack_sent
+                    {
                         hole.nack_sent = true;
                         self.total_nacks_triggered += 1;
                         if triggered_nack.is_none() {
@@ -119,7 +116,10 @@ impl GtpuGapRetransmitEngine {
         }
 
         if let Some((missing_seq, ooo_count)) = triggered_nack {
-            GapAction::TriggerFastRetransmit { missing_seq, ooo_count }
+            GapAction::TriggerFastRetransmit {
+                missing_seq,
+                ooo_count,
+            }
         } else if is_new_hole {
             GapAction::NewHoleDetected {
                 missing_seq: self.expected_next_seq.saturating_sub(2),

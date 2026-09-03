@@ -83,7 +83,11 @@ impl TsnCqfGateCoordEngine {
     /// and all priority gates open (0xFF).
     pub fn new(cycle_time_ns: u64) -> Self {
         Self {
-            cycle_time_ns: if cycle_time_ns == 0 { 100_000 } else { cycle_time_ns },
+            cycle_time_ns: if cycle_time_ns == 0 {
+                100_000
+            } else {
+                cycle_time_ns
+            },
             gate_mask_cycle_0_tx: 0xFF,
             gate_mask_cycle_1_tx: 0xFF,
             cycle_index: 0,

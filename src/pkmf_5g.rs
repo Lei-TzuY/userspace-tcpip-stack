@@ -88,7 +88,8 @@ impl PkmfEngine {
         for supi in authorized_supis {
             members.insert(supi.to_string());
         }
-        self.group_memberships.insert(prose_group_id.to_string(), members);
+        self.group_memberships
+            .insert(prose_group_id.to_string(), members);
 
         // Generate initial PGK
         self.rotate_group_key(prose_group_id, initial_epoch_s);
@@ -194,16 +195,11 @@ impl PkmfEngine {
 
         // Pure Rust KDF mixing PGK, Nonce, and distinct FC (Function Code) separators
         for i in 0..16 {
-            let mixed_pek = (pgk[i] as u32)
-                .wrapping_mul(0x9E37)
-                ^ (group_nonce[i] as u32)
-                ^ 0x01; // FC 0x01 for Encryption
+            let mixed_pek = (pgk[i] as u32).wrapping_mul(0x9E37) ^ (group_nonce[i] as u32) ^ 0x01; // FC 0x01 for Encryption
             pek[i] = (mixed_pek & 0xFF) as u8;
 
-            let mixed_pik = (pgk[i + 16] as u32)
-                .wrapping_mul(0x7F4A)
-                ^ (group_nonce[i] as u32)
-                ^ 0x02; // FC 0x02 for Integrity
+            let mixed_pik =
+                (pgk[i + 16] as u32).wrapping_mul(0x7F4A) ^ (group_nonce[i] as u32) ^ 0x02; // FC 0x02 for Integrity
             pik[i] = (mixed_pik & 0xFF) as u8;
         }
 

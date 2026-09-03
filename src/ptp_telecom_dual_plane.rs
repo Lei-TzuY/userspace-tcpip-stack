@@ -109,9 +109,9 @@ impl Default for DualPlaneConfig {
     fn default() -> Self {
         Self {
             switch_mode: ProtectionSwitchMode::Revertive,
-            wtr_period_secs: 60,                     // 60-second standard WTR
-            max_inter_plane_phase_diff_ns: 100,       // 100 ns telecom divergence alarm
-            max_switchover_slew_ns_per_sec: 50,      // 50 ns/s hitless slew limit
+            wtr_period_secs: 60,                // 60-second standard WTR
+            max_inter_plane_phase_diff_ns: 100, // 100 ns telecom divergence alarm
+            max_switchover_slew_ns_per_sec: 50, // 50 ns/s hitless slew limit
             min_floor_rate_percent: 10.0,
             floor_width_ns: 100,
         }
@@ -375,8 +375,14 @@ impl DualPlaneEngine {
     /// Returns current state for a specific redundancy plane.
     pub fn plane_state(&self, plane: PtpPlaneId) -> PtpPlaneState {
         let (is_active, healthy) = match plane {
-            PtpPlaneId::PlaneA => (self.active_plane == PtpPlaneId::PlaneA, self.plane_a.healthy),
-            PtpPlaneId::PlaneB => (self.active_plane == PtpPlaneId::PlaneB, self.plane_b.healthy),
+            PtpPlaneId::PlaneA => (
+                self.active_plane == PtpPlaneId::PlaneA,
+                self.plane_a.healthy,
+            ),
+            PtpPlaneId::PlaneB => (
+                self.active_plane == PtpPlaneId::PlaneB,
+                self.plane_b.healthy,
+            ),
         };
 
         if !healthy {

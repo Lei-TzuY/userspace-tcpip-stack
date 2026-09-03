@@ -2,8 +2,8 @@
 
 use toy_tcpip::e2ap_oran::{
     E2NodeType, E2apEngine, E2apRole, E2apState, GlobalE2NodeId, KpmMetricsPayload,
-    RanFunctionDefinition, RicActionItem, RicActionType, RicControlRequest, RicIndicationType,
-    RicRequestId, RicSubscriptionRequest, RAN_FUNCTION_ID_KPM, RAN_FUNCTION_ID_RC,
+    RAN_FUNCTION_ID_KPM, RAN_FUNCTION_ID_RC, RanFunctionDefinition, RicActionItem, RicActionType,
+    RicControlRequest, RicIndicationType, RicRequestId, RicSubscriptionRequest,
 };
 
 fn make_test_e2_node_id(node_type: E2NodeType, node_id: u64) -> GlobalE2NodeId {
@@ -45,7 +45,9 @@ fn test_e2_setup_procedure_happy_path() {
     assert_eq!(req.ran_functions_added.len(), 2);
 
     // 2. Near-RT RIC processes E2SetupRequest
-    let resp = ric.handle_e2_setup_request(&req).expect("RIC failed to process E2SetupRequest");
+    let resp = ric
+        .handle_e2_setup_request(&req)
+        .expect("RIC failed to process E2SetupRequest");
     assert_eq!(ric.state, E2apState::Active);
     assert_eq!(resp.ran_functions_accepted.len(), 2);
     assert!(resp.ran_functions_rejected.is_empty());

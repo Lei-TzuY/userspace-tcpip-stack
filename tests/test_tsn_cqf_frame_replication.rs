@@ -1,8 +1,8 @@
 // tests/test_tsn_cqf_frame_replication.rs
 
 use toy_tcpip::tsn_cqf_frame_replication::{
-    FrerEliminationVerdict, RTagHeader, ReplicationPath, TsnCqfFrameReplicationEngine,
-    ETHERTYPE_R_TAG, R_TAG_HEADER_LEN,
+    ETHERTYPE_R_TAG, FrerEliminationVerdict, R_TAG_HEADER_LEN, RTagHeader, ReplicationPath,
+    TsnCqfFrameReplicationEngine,
 };
 
 #[test]

@@ -166,7 +166,12 @@ impl EvpnPrefDfEngine {
 
     /// Starts DF election wait timer for an ESI (RFC 8584 Section 3.2).
     pub fn start_election_timer(&mut self, esi: EthernetSegmentId, wait_ms: u32) {
-        self.timer_state.insert(esi, DfTimerState::Waiting { remaining_ms: wait_ms });
+        self.timer_state.insert(
+            esi,
+            DfTimerState::Waiting {
+                remaining_ms: wait_ms,
+            },
+        );
     }
 
     /// Ticks election timers by `elapsed_ms`. If a timer reaches 0, runs election.
@@ -298,9 +303,7 @@ impl EvpnPrefDfEngine {
             let winner = match algo {
                 DfElectionAlgorithm::HighestRandomWeight => self.elect_df_hrw(esi, vlan),
                 DfElectionAlgorithm::DefaultModulo => self.elect_df_modulo(esi, vlan),
-                DfElectionAlgorithm::PreferenceBased => {
-                    self.elected_df.get(&esi).copied()
-                }
+                DfElectionAlgorithm::PreferenceBased => self.elected_df.get(&esi).copied(),
             };
             if let Some(pe) = winner {
                 map.insert(vlan, pe);

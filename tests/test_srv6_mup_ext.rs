@@ -4,9 +4,9 @@ use toy_tcpip::evpn::RouteDistinguisher;
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::Ipv6Address;
 use toy_tcpip::srv6_mup_routing::{
-    MupRib, MupType1InterworkRoute, MupType2DirectRoute, MupType3DownlinkRoute,
-    MupType4SessionRoute, BGP_SAFI_MUP, MUP_ROUTE_TYPE_DIRECT, MUP_ROUTE_TYPE_DOWNLINK,
-    MUP_ROUTE_TYPE_INTERWORK, MUP_ROUTE_TYPE_SESSION,
+    BGP_SAFI_MUP, MUP_ROUTE_TYPE_DIRECT, MUP_ROUTE_TYPE_DOWNLINK, MUP_ROUTE_TYPE_INTERWORK,
+    MUP_ROUTE_TYPE_SESSION, MupRib, MupType1InterworkRoute, MupType2DirectRoute,
+    MupType3DownlinkRoute, MupType4SessionRoute,
 };
 
 #[test]
@@ -69,7 +69,14 @@ fn test_mup_rib_full_lifecycle_and_handover() {
     ));
 
     // Assert resolutions
-    assert_eq!(*rib.resolve_ue_sid(&rd, &Ipv4Address::new(10, 100, 1, 55)).unwrap(), sid_gnodeb);
+    assert_eq!(
+        *rib.resolve_ue_sid(&rd, &Ipv4Address::new(10, 100, 1, 55))
+            .unwrap(),
+        sid_gnodeb
+    );
     assert_eq!(*rib.resolve_downlink_sid(&rd, 0x50001).unwrap(), sid_upf_dl);
-    assert_eq!(*rib.resolve_session_sid(&rd, 9999).unwrap(), sid_pdu_session);
+    assert_eq!(
+        *rib.resolve_session_sid(&rd, 9999).unwrap(),
+        sid_pdu_session
+    );
 }

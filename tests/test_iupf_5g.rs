@@ -9,7 +9,7 @@ fn make_mock_ipv4_packet(dest_ip: [u8; 4], payload: &[u8]) -> Vec<u8> {
     let total_len = (20 + payload.len()) as u16;
     ip[2..4].copy_from_slice(&total_len.to_be_bytes());
     ip[12..16].copy_from_slice(&[192, 168, 1, 10]); // Source IP
-    ip[16..20].copy_from_slice(&dest_ip);           // Dest IP
+    ip[16..20].copy_from_slice(&dest_ip); // Dest IP
     ip[20..].copy_from_slice(payload);
     ip
 }
@@ -42,7 +42,13 @@ fn test_iupf_ulcl_local_edge_steering_happy_path() {
         central_upf_ip: [10, 0, 0, 1],
     };
 
-    iupf.create_session(sess_id, [192, 168, 1, 10], n3_teid, gnb_dl_teid, central_target);
+    iupf.create_session(
+        sess_id,
+        [192, 168, 1, 10],
+        n3_teid,
+        gnb_dl_teid,
+        central_target,
+    );
 
     // Add ULCL rule: Subnet 10.200.0.0/16 steers to Local Edge PSA
     let edge_target = RoutingTarget::LocalEdgePsa {
@@ -103,7 +109,10 @@ fn test_iupf_handover_buffering_and_flush() {
         [192, 168, 1, 20],
         n3_teid,
         old_gnb_teid,
-        RoutingTarget::CentralInternetPsa { n9_teid: 0x9999, central_upf_ip: [10, 0, 0, 1] },
+        RoutingTarget::CentralInternetPsa {
+            n9_teid: 0x9999,
+            central_upf_ip: [10, 0, 0, 1],
+        },
     );
 
     // Normal downlink forwarding before handover
@@ -120,9 +129,13 @@ fn test_iupf_handover_buffering_and_flush() {
     // Step 1: Initiate Handover -> Downlink packets must be buffered!
     iupf.initiate_handover(sess_id).unwrap();
 
-    let dl1 = iupf.process_downlink_packet(sess_id, b"In-Flight Packet 1").unwrap();
+    let dl1 = iupf
+        .process_downlink_packet(sess_id, b"In-Flight Packet 1")
+        .unwrap();
     assert!(dl1.is_none());
-    let dl2 = iupf.process_downlink_packet(sess_id, b"In-Flight Packet 2").unwrap();
+    let dl2 = iupf
+        .process_downlink_packet(sess_id, b"In-Flight Packet 2")
+        .unwrap();
     assert!(dl2.is_none());
 
     // Step 2: Handover Complete to Target gNodeB (TEID 0x3333)
@@ -150,19 +163,32 @@ fn test_iupf_corrupt_gtp_and_ip_payload_rejections() {
         [192, 168, 1, 30],
         n3_teid,
         0x6666,
-        RoutingTarget::CentralInternetPsa { n9_teid: 0x7777, central_upf_ip: [1, 2, 3, 4] },
+        RoutingTarget::CentralInternetPsa {
+            n9_teid: 0x7777,
+            central_upf_ip: [1, 2, 3, 4],
+        },
     );
 
     // Truncated GTP packet (< 8 bytes)
     let err1 = iupf.process_uplink_n3_packet(&[0x30, 0xFF, 0x00]);
-    assert_eq!(err1, Err(IUpfError::InvalidGtpPacket("GTP-U packet shorter than 8 bytes")));
+    assert_eq!(
+        err1,
+        Err(IUpfError::InvalidGtpPacket(
+            "GTP-U packet shorter than 8 bytes"
+        ))
+    );
 
     // GTP valid header but IP payload < 20 bytes
     let mut bad_ip = vec![0x30, 0xFF, 0x00, 0x05];
     bad_ip.extend_from_slice(&n3_teid.to_be_bytes());
     bad_ip.extend_from_slice(&[0x45, 0x00, 0x01, 0x02, 0x03]); // only 5 bytes IP
     let err2 = iupf.process_uplink_n3_packet(&bad_ip);
-    assert_eq!(err2, Err(IUpfError::InvalidGtpPacket("IP payload too short for IPv4 header")));
+    assert_eq!(
+        err2,
+        Err(IUpfError::InvalidGtpPacket(
+            "IP payload too short for IPv4 header"
+        ))
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -195,7 +221,10 @@ fn test_iupf_session_removal_lifecycle() {
         [192, 168, 1, 50],
         n3_teid,
         0x9999,
-        RoutingTarget::CentralInternetPsa { n9_teid: 0xAAAA, central_upf_ip: [1, 1, 1, 1] },
+        RoutingTarget::CentralInternetPsa {
+            n9_teid: 0xAAAA,
+            central_upf_ip: [1, 1, 1, 1],
+        },
     );
 
     assert!(iupf.sessions.contains_key(sess_id));

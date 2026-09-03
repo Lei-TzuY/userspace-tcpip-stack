@@ -18,7 +18,7 @@ pub enum FiberType {
     /// Custom fiber specification
     Custom {
         refractive_index: f64,
-        tcd_ps_per_km_c: f64, // Thermal coefficient of delay (ps / (km * °C))
+        tcd_ps_per_km_c: f64,  // Thermal coefficient of delay (ps / (km * °C))
         dispersion_slope: f64, // ps / (nm^2 * km)
         zero_dispersion_wavelength_nm: f64,
     },
@@ -30,7 +30,9 @@ impl FiberType {
         match self {
             FiberType::G652 => 1.4682,
             FiberType::G655 => 1.4695,
-            FiberType::Custom { refractive_index, .. } => *refractive_index,
+            FiberType::Custom {
+                refractive_index, ..
+            } => *refractive_index,
         }
     }
 
@@ -39,7 +41,9 @@ impl FiberType {
         match self {
             FiberType::G652 => 37.0, // ~37 ps/(km*°C)
             FiberType::G655 => 35.0,
-            FiberType::Custom { tcd_ps_per_km_c, .. } => *tcd_ps_per_km_c,
+            FiberType::Custom {
+                tcd_ps_per_km_c, ..
+            } => *tcd_ps_per_km_c,
         }
     }
 
@@ -48,7 +52,10 @@ impl FiberType {
         match self {
             FiberType::G652 => 1312.0,
             FiberType::G655 => 1450.0,
-            FiberType::Custom { zero_dispersion_wavelength_nm, .. } => *zero_dispersion_wavelength_nm,
+            FiberType::Custom {
+                zero_dispersion_wavelength_nm,
+                ..
+            } => *zero_dispersion_wavelength_nm,
         }
     }
 
@@ -57,7 +64,9 @@ impl FiberType {
         match self {
             FiberType::G652 => 0.092,
             FiberType::G655 => 0.075,
-            FiberType::Custom { dispersion_slope, .. } => *dispersion_slope,
+            FiberType::Custom {
+                dispersion_slope, ..
+            } => *dispersion_slope,
         }
     }
 
@@ -122,7 +131,9 @@ impl FiberThermalDispersionModel {
 
         // Nominal one-way delay: T_nom = L * n / c (seconds -> picoseconds)
         let nominal_delay_sec = (length_m * n) / SPEED_OF_LIGHT_VACUUM;
-        let nominal_delay_ps = (nominal_delay_sec * (HighPrecisionTimestamp::PICOSECONDS_PER_SECOND as f64)).round() as i64;
+        let nominal_delay_ps = (nominal_delay_sec
+            * (HighPrecisionTimestamp::PICOSECONDS_PER_SECOND as f64))
+            .round() as i64;
 
         // Thermal drift: Delta_T_temp = L_km * TCD * (T_curr - T_ref)
         let temp_delta = current_temp_c - self.link.reference_temp_c;
@@ -137,8 +148,14 @@ impl FiberThermalDispersionModel {
                 forward_wavelength_nm,
                 reverse_wavelength_nm,
             } => {
-                let d_fwd = self.link.fiber_type.chromatic_dispersion(forward_wavelength_nm);
-                let d_rev = self.link.fiber_type.chromatic_dispersion(reverse_wavelength_nm);
+                let d_fwd = self
+                    .link
+                    .fiber_type
+                    .chromatic_dispersion(forward_wavelength_nm);
+                let d_rev = self
+                    .link
+                    .fiber_type
+                    .chromatic_dispersion(reverse_wavelength_nm);
                 let delta_lambda = forward_wavelength_nm - reverse_wavelength_nm;
                 let avg_d = (d_fwd + d_rev) / 2.0;
                 let asym_ps = avg_d * delta_lambda * self.link.length_km;

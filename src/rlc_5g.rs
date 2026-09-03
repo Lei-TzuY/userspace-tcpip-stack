@@ -74,7 +74,10 @@ pub struct RlcAmDataPdu {
 impl RlcAmDataPdu {
     /// Serializes AM Data PDU to wire bytes.
     pub fn serialize(&self) -> Vec<u8> {
-        let has_so = matches!(self.si, RlcSegmentationInfo::LastSegment | RlcSegmentationInfo::MiddleSegment);
+        let has_so = matches!(
+            self.si,
+            RlcSegmentationInfo::LastSegment | RlcSegmentationInfo::MiddleSegment
+        );
         let so_len = if has_so { 2 } else { 0 };
 
         match self.sn_size {
@@ -138,14 +141,16 @@ impl RlcAmDataPdu {
                 (sn, 3)
             }
             RlcAmSnSize::Am18Bits => {
-                let sn = (((data[0] & 0x03) as u32) << 16)
-                    | ((data[1] as u32) << 8)
-                    | (data[2] as u32);
+                let sn =
+                    (((data[0] & 0x03) as u32) << 16) | ((data[1] as u32) << 8) | (data[2] as u32);
                 (sn, 3)
             }
         };
 
-        let has_so = matches!(si, RlcSegmentationInfo::LastSegment | RlcSegmentationInfo::MiddleSegment);
+        let has_so = matches!(
+            si,
+            RlcSegmentationInfo::LastSegment | RlcSegmentationInfo::MiddleSegment
+        );
         let (so, payload_offset) = if has_so {
             if data.len() < header_len + 2 {
                 return Err("RLC AM PDU too short for Segment Offset (SO)");
@@ -328,7 +333,12 @@ impl RlcEntity {
     }
 
     /// Segments an SDU according to grant_size and produces RLC AM Data PDUs.
-    pub fn segment_and_send(&mut self, sdu: &[u8], grant_size: usize, poll: bool) -> Vec<RlcAmDataPdu> {
+    pub fn segment_and_send(
+        &mut self,
+        sdu: &[u8],
+        grant_size: usize,
+        poll: bool,
+    ) -> Vec<RlcAmDataPdu> {
         let sn_size = match self.mode {
             RlcEntityMode::Am { sn_size } => sn_size,
             _ => RlcAmSnSize::Am18Bits,

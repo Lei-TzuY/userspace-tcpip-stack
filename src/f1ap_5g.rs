@@ -347,7 +347,8 @@ impl F1apEngine {
         };
 
         self.ue_contexts.insert(resp.gnb_cu_ue_f1ap_id, ctx);
-        self.du_to_cu_id_map.insert(resp.gnb_du_ue_f1ap_id, resp.gnb_cu_ue_f1ap_id);
+        self.du_to_cu_id_map
+            .insert(resp.gnb_du_ue_f1ap_id, resp.gnb_cu_ue_f1ap_id);
         Ok(())
     }
 
@@ -358,7 +359,9 @@ impl F1apEngine {
 
     /// Finds a UE context by DU UE F1AP ID.
     pub fn lookup_by_du_ue_id(&self, du_ue_id: u32) -> Option<&F1apUeContext> {
-        self.du_to_cu_id_map.get(&du_ue_id).and_then(|cu_id| self.ue_contexts.get(cu_id))
+        self.du_to_cu_id_map
+            .get(&du_ue_id)
+            .and_then(|cu_id| self.ue_contexts.get(cu_id))
     }
 
     /// Releases a UE context from both indexes.

@@ -9,7 +9,9 @@
 //! degrades, the engine automatically transitions through a multi-mode failover matrix
 //! with hitless phase slew-rate limiting (ITU-T G.8273.2).
 
-use crate::ptp_pdv_filter::{PtpClockServo, PtpClockServoConfig, PtpClockServoState, PtpServoAction};
+use crate::ptp_pdv_filter::{
+    PtpClockServo, PtpClockServoConfig, PtpClockServoState, PtpServoAction,
+};
 use crate::synce_esmc::QualityLevel;
 
 /// Hybrid Synchronization Operating Mode.
@@ -134,7 +136,8 @@ impl HybridSyncEngine {
     /// Re-evaluates hybrid operating mode based on SyncE and PTP status.
     fn evaluate_mode(&mut self) {
         let synce_ok = self.is_synce_acceptable();
-        let ptp_ok = self.ptp_servo.is_locked() || self.ptp_servo.state() == PtpClockServoState::Aligning;
+        let ptp_ok =
+            self.ptp_servo.is_locked() || self.ptp_servo.state() == PtpClockServoState::Aligning;
 
         let prev_mode = self.mode;
         self.mode = match (synce_ok, ptp_ok) {
@@ -193,8 +196,12 @@ impl HybridSyncEngine {
                             mode: self.mode,
                         }
                     }
-                    PtpServoAction::AdjustFreq { freq_ppb, phase_adjust_ns } => {
-                        let max_slew = ((self.config.max_phase_slew_ns_per_sec as f64) * dt).ceil() as i64;
+                    PtpServoAction::AdjustFreq {
+                        freq_ppb,
+                        phase_adjust_ns,
+                    } => {
+                        let max_slew =
+                            ((self.config.max_phase_slew_ns_per_sec as f64) * dt).ceil() as i64;
                         let max_slew = max_slew.max(1);
                         let phase_slew = phase_adjust_ns.clamp(-max_slew, max_slew);
                         self.accumulated_phase_correction_ns += phase_slew;

@@ -68,7 +68,7 @@ pub enum S6aClrAvp {
     OriginRealm(String),
     DestinationHost(String),
     DestinationRealm(String),
-    UserName(String),        // IMSI
+    UserName(String), // IMSI
     CancellationType(u32),
     ClrFlags(u32),
     ResultCode(u32),
@@ -221,7 +221,9 @@ impl S6aClrEngine {
             }
         };
 
-        let cancel_type = clr.cancellation_type().unwrap_or(CancellationType::MmeUpdateProcedure);
+        let cancel_type = clr
+            .cancellation_type()
+            .unwrap_or(CancellationType::MmeUpdateProcedure);
 
         if let Some(sub) = self.active_subscribers.iter_mut().find(|s| s.imsi == imsi) {
             sub.is_active = false;
@@ -251,7 +253,10 @@ mod tests {
 
     #[test]
     fn test_cancel_location_lifecycle() {
-        let mut mme_engine = S6aClrEngine::new("mme01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+        let mut mme_engine = S6aClrEngine::new(
+            "mme01.epc.mnc001.mcc208.3gppnetwork.org",
+            "epc.mnc001.mcc208.3gppnetwork.org",
+        );
 
         let imsi = "208950000000001";
         mme_engine.attach_subscriber(imsi);

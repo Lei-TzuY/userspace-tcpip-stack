@@ -105,7 +105,8 @@ impl Ipv6Option {
                     Ipv6Option::RouterAlert(val)
                 }
                 IPV6_OPT_JUMBO_PAYLOAD if opt_data.len() == 4 => {
-                    let val = u32::from_be_bytes([opt_data[0], opt_data[1], opt_data[2], opt_data[3]]);
+                    let val =
+                        u32::from_be_bytes([opt_data[0], opt_data[1], opt_data[2], opt_data[3]]);
                     Ipv6Option::JumboPayload(val)
                 }
                 _ => Ipv6Option::Generic {
@@ -197,7 +198,9 @@ impl Ipv6ExtensionHeader {
             Ipv6ExtensionHeader::Fragment { .. } => IPV6_EXT_FRAGMENT,
             Ipv6ExtensionHeader::DestinationOptions { .. } => IPV6_EXT_DEST_OPTIONS,
             Ipv6ExtensionHeader::AuthenticationHeader { .. } => IPV6_EXT_AH,
-            Ipv6ExtensionHeader::Unknown { next_header_type, .. } => *next_header_type,
+            Ipv6ExtensionHeader::Unknown {
+                next_header_type, ..
+            } => *next_header_type,
         }
     }
 
@@ -299,10 +302,7 @@ impl Ipv6ExtensionChain {
     }
 
     /// Parses an extension chain from raw payload given initial next_header from IPv6 fixed header.
-    pub fn parse(
-        initial_next_header: u8,
-        data: &[u8],
-    ) -> Result<(Self, usize), Ipv6ExtError> {
+    pub fn parse(initial_next_header: u8, data: &[u8]) -> Result<(Self, usize), Ipv6ExtError> {
         let mut headers = Vec::new();
         let mut curr_nh = initial_next_header;
         let mut offset = 0;
@@ -519,11 +519,7 @@ pub fn compute_flow_label(
 
     // 20-bit non-zero label (1..0xFFFFF)
     let label = (hash ^ (hash >> 12)) & 0x000F_FFFF;
-    if label == 0 {
-        1
-    } else {
-        label
-    }
+    if label == 0 { 1 } else { label }
 }
 
 #[cfg(test)]

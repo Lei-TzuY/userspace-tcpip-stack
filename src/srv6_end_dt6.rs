@@ -51,10 +51,7 @@ pub enum EndDt6ForwardVerdict {
         packet: Vec<u8>,
     },
     /// Route lookup in the VRF failed (no matching route)
-    NoRoute {
-        vrf_id: u32,
-        dst_ip: Ipv6Address,
-    },
+    NoRoute { vrf_id: u32, dst_ip: Ipv6Address },
     /// Inner packet is not IPv6
     NonIpv6PayloadDropped,
     /// Packet dropped due to malformed header or invalid SID
@@ -107,11 +104,15 @@ impl Srv6EndDt6Router {
             Srv6ExecutionResult::DecapIpv6 { vrf_id, payload } => {
                 let vrf = match vrf_id {
                     Some(v) => v,
-                    None => return EndDt6ForwardVerdict::Drop("Missing VRF ID for End.DT6".to_string()),
+                    None => {
+                        return EndDt6ForwardVerdict::Drop("Missing VRF ID for End.DT6".to_string());
+                    }
                 };
 
                 if payload.len() < 40 {
-                    return EndDt6ForwardVerdict::Drop("Inner IPv6 packet too short (<40 bytes)".to_string());
+                    return EndDt6ForwardVerdict::Drop(
+                        "Inner IPv6 packet too short (<40 bytes)".to_string(),
+                    );
                 }
 
                 // Extract Destination IPv6 from inner header (bytes 24..40)
@@ -134,7 +135,10 @@ impl Srv6EndDt6Router {
                     }
                 }
 
-                EndDt6ForwardVerdict::NoRoute { vrf_id: vrf, dst_ip }
+                EndDt6ForwardVerdict::NoRoute {
+                    vrf_id: vrf,
+                    dst_ip,
+                }
             }
             Srv6ExecutionResult::Drop(msg) => {
                 if msg.contains("Non-IPv6") {
@@ -207,7 +211,9 @@ mod tests {
         router.register_end_dt6_sid(sid, 200);
 
         // IPv4 packet payload (version 4 -> 0x45)
-        let inner_ipv4 = vec![0x45, 0x00, 0x00, 0x14, 0, 0, 0, 0, 64, 1, 0, 0, 10, 0, 0, 1, 10, 0, 0, 2];
+        let inner_ipv4 = vec![
+            0x45, 0x00, 0x00, 0x14, 0, 0, 0, 0, 64, 1, 0, 0, 10, 0, 0, 1, 10, 0, 0, 2,
+        ];
         let srh = crate::srv6::Srv6Header::build(4, &[sid]);
 
         let verdict = router.process_end_dt6_packet(sid, srh, &inner_ipv4);

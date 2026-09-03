@@ -29,8 +29,8 @@ pub enum McxServiceType {
 /// MCX User Profile (TS 29.549 Section 6.1).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McxUserProfile {
-    pub mcx_id: String,           // e.g. "sip:chief.connor@police.gov"
-    pub priority_level: u8,       // 1 (highest) to 15 (lowest)
+    pub mcx_id: String,     // e.g. "sip:chief.connor@police.gov"
+    pub priority_level: u8, // 1 (highest) to 15 (lowest)
     pub allowed_services: Vec<McxServiceType>,
     pub emergency_call_capable: bool,
     pub ambient_listening_allowed: bool,
@@ -40,7 +40,11 @@ pub struct McxUserProfile {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FloorState {
     Idle,
-    Granted { holder_mcx_id: String, priority: u8, is_emergency: bool },
+    Granted {
+        holder_mcx_id: String,
+        priority: u8,
+        is_emergency: bool,
+    },
 }
 
 /// Result of a Floor Request.
@@ -54,10 +58,10 @@ pub enum FloorRequestResult {
 /// Mission Critical Group Configuration (TS 29.549 Section 6.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct McxGroupConfig {
-    pub group_id: String,        // e.g. "sip:police-tactical-swat-01@police.gov"
-    pub group_priority: u8,      // 1..15
-    pub qos_5qi: u8,             // e.g. 5QI 65
-    pub members: Vec<String>,    // Member mcx_ids
+    pub group_id: String,     // e.g. "sip:police-tactical-swat-01@police.gov"
+    pub group_priority: u8,   // 1..15
+    pub qos_5qi: u8,          // e.g. 5QI 65
+    pub members: Vec<String>, // Member mcx_ids
     pub floor_state: FloorState,
 }
 
@@ -173,7 +177,11 @@ impl McxServerEngine {
                 };
                 Ok(FloorRequestResult::Granted)
             }
-            FloorState::Granted { holder_mcx_id, priority, is_emergency: current_is_emergency } => {
+            FloorState::Granted {
+                holder_mcx_id,
+                priority,
+                is_emergency: current_is_emergency,
+            } => {
                 let current_holder = holder_mcx_id.clone();
                 let current_prio = *priority;
                 let current_em = *current_is_emergency;
@@ -199,9 +207,7 @@ impl McxServerEngine {
                         previous_holder: current_holder,
                     })
                 } else {
-                    Ok(FloorRequestResult::DeniedBusy {
-                        current_holder,
-                    })
+                    Ok(FloorRequestResult::DeniedBusy { current_holder })
                 }
             }
         }

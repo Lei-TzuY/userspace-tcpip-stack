@@ -51,10 +51,19 @@ pub struct LocationInfo {
 #[derive(Debug, Clone, PartialEq)]
 pub enum InternalEventPayload {
     Location(LocationInfo),
-    LossOfConnectivity { cause: String },
-    UeReachability { is_reachable: bool },
-    Roaming { vplmn_mcc: [u8; 3], vplmn_mnc: [u8; 3] },
-    CommunicationFailure { failure_code: u16 },
+    LossOfConnectivity {
+        cause: String,
+    },
+    UeReachability {
+        is_reachable: bool,
+    },
+    Roaming {
+        vplmn_mcc: [u8; 3],
+        vplmn_mnc: [u8; 3],
+    },
+    CommunicationFailure {
+        failure_code: u16,
+    },
 }
 
 /// External notification dispatched by NEF to AF (TS 29.522 Section 6.1.6.2.3).
@@ -163,7 +172,8 @@ impl NefEngine {
 
     /// Authorize an external Application Function (AF) for specific exposure events.
     pub fn authorize_af(&mut self, af_id: &str, allowed_events: Vec<NefEvent>) {
-        self.authorized_afs.insert(af_id.to_string(), allowed_events);
+        self.authorized_afs
+            .insert(af_id.to_string(), allowed_events);
     }
 
     // -----------------------------------------------------------------------

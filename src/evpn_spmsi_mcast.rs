@@ -424,12 +424,18 @@ impl EvpnSpmsiEngine {
             source_ip,
             group_ip,
         };
-        self.trees.get(&key).map(|t| t.mode == MulticastDeliveryMode::Selective).unwrap_or(false)
+        self.trees
+            .get(&key)
+            .map(|t| t.mode == MulticastDeliveryMode::Selective)
+            .unwrap_or(false)
     }
 
     /// Returns the number of flows currently using Selective (S-PMSI) trees.
     pub fn active_spmsi_count(&self) -> usize {
-        self.trees.values().filter(|t| t.mode == MulticastDeliveryMode::Selective).count()
+        self.trees
+            .values()
+            .filter(|t| t.mode == MulticastDeliveryMode::Selective)
+            .count()
     }
 
     /// Explicitly demotes an S-PMSI tree back to Inclusive mode (e.g. traffic stopped or pruned).
@@ -472,14 +478,17 @@ impl EvpnSpmsiEngine {
     pub fn check_demotions(&mut self, low_threshold_bps: u64) -> Vec<EvpnSpmsiRoute> {
         let mut to_demote = Vec::new();
         for (&key, tree) in &self.trees {
-            if tree.mode == MulticastDeliveryMode::Selective && tree.last_rate_bps < low_threshold_bps {
+            if tree.mode == MulticastDeliveryMode::Selective
+                && tree.last_rate_bps < low_threshold_bps
+            {
                 to_demote.push(key);
             }
         }
 
         let mut withdrawals = Vec::new();
         for key in to_demote {
-            if let Some(route) = self.demote_or_teardown_spmsi(key.vni, key.source_ip, key.group_ip) {
+            if let Some(route) = self.demote_or_teardown_spmsi(key.vni, key.source_ip, key.group_ip)
+            {
                 withdrawals.push(route);
             }
         }
@@ -577,22 +586,10 @@ mod tests {
         assert_eq!(targets_spmsi.len(), 0);
 
         // Leaf 2 and Leaf 3 send Leaf A-D routes
-        let leaf2_ad = EvpnLeafAdRoute::new(
-            [0; 8],
-            2000,
-            src,
-            grp,
-            Ipv4Addr::new(10, 0, 0, 1),
-            leaf2,
-        );
-        let leaf3_ad = EvpnLeafAdRoute::new(
-            [0; 8],
-            2000,
-            src,
-            grp,
-            Ipv4Addr::new(10, 0, 0, 1),
-            leaf3,
-        );
+        let leaf2_ad =
+            EvpnLeafAdRoute::new([0; 8], 2000, src, grp, Ipv4Addr::new(10, 0, 0, 1), leaf2);
+        let leaf3_ad =
+            EvpnLeafAdRoute::new([0; 8], 2000, src, grp, Ipv4Addr::new(10, 0, 0, 1), leaf3);
         assert!(engine.process_leaf_join(&leaf2_ad));
         assert!(engine.process_leaf_join(&leaf3_ad));
 

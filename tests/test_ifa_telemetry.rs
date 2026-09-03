@@ -109,16 +109,13 @@ fn test_ifa_anomaly_detector_sla_and_drop_alerts() {
     let mut detector = IfaAnomalyDetector::new(500, 32768, 80);
 
     // Normal hop
-    let rec_ok = IfaExtendedHopRecord::new(
-        0x01, 1, 2, 1000, 1200, 4096, 20, IfaDropReason::None,
-    );
+    let rec_ok = IfaExtendedHopRecord::new(0x01, 1, 2, 1000, 1200, 4096, 20, IfaDropReason::None);
     let alerts = detector.inspect_record(&rec_ok);
     assert!(alerts.is_empty());
 
     // Latency spike hop (700 ns latency > 500 ns threshold)
-    let rec_latency = IfaExtendedHopRecord::new(
-        0x02, 2, 3, 1000, 1700, 8192, 40, IfaDropReason::None,
-    );
+    let rec_latency =
+        IfaExtendedHopRecord::new(0x02, 2, 3, 1000, 1700, 8192, 40, IfaDropReason::None);
     let alerts = detector.inspect_record(&rec_latency);
     assert_eq!(alerts.len(), 1);
     assert_eq!(alerts[0].alert_type, IfaAlertType::LatencySlaViolation);
@@ -126,7 +123,14 @@ fn test_ifa_anomaly_detector_sla_and_drop_alerts() {
 
     // Buffer spike + packet drop hop
     let rec_drop = IfaExtendedHopRecord::new(
-        0x03, 3, 4, 1000, 1300, 65536, 95, IfaDropReason::BufferOverflow,
+        0x03,
+        3,
+        4,
+        1000,
+        1300,
+        65536,
+        95,
+        IfaDropReason::BufferOverflow,
     );
     let alerts = detector.inspect_record(&rec_drop);
     assert_eq!(alerts.len(), 2);
@@ -142,7 +146,14 @@ fn test_ifa_ipfix_export_formatting() {
 
     let mut exporter = IfaIpfixExporter::new(256, 300);
     let rec = IfaExtendedHopRecord::new(
-        0x10000001, 1, 2, 2_000_000, 2_000_450, 8192, 30, IfaDropReason::None,
+        0x10000001,
+        1,
+        2,
+        2_000_000,
+        2_000_450,
+        8192,
+        30,
+        IfaDropReason::None,
     );
 
     let ipfix_msg = exporter.export_record(&rec, 1725345600);
@@ -173,15 +184,18 @@ fn test_ifa_packet_anomaly_inspection_and_excessive_hops() {
 
     let mut detector = IfaAnomalyDetector::new(500, 32768, 80).with_max_hop_count(2);
 
-    let rec1 = IfaExtendedHopRecord::new(
-        0x01, 1, 2, 1000, 1200, 4096, 20, IfaDropReason::None,
-    );
+    let rec1 = IfaExtendedHopRecord::new(0x01, 1, 2, 1000, 1200, 4096, 20, IfaDropReason::None);
     let rec2 = IfaExtendedHopRecord::new(
-        0x02, 2, 3, 1000, 1800, 8192, 40, IfaDropReason::None, // Latency 800 > 500
+        0x02,
+        2,
+        3,
+        1000,
+        1800,
+        8192,
+        40,
+        IfaDropReason::None, // Latency 800 > 500
     );
-    let rec3 = IfaExtendedHopRecord::new(
-        0x03, 3, 4, 1000, 1200, 4096, 20, IfaDropReason::None,
-    );
+    let rec3 = IfaExtendedHopRecord::new(0x03, 3, 4, 1000, 1200, 4096, 20, IfaDropReason::None);
 
     let mut pkt = IfaExtendedPacket::new(IfaHeader::new(8, 0x3F), b"test-payload".to_vec());
     pkt.records.push(rec1);
@@ -207,12 +221,8 @@ fn test_ifa_ipfix_batch_packet_export() {
 
     let mut exporter = IfaIpfixExporter::new(500, 301);
 
-    let rec1 = IfaExtendedHopRecord::new(
-        0x10, 1, 2, 1000, 1300, 4096, 20, IfaDropReason::None,
-    );
-    let rec2 = IfaExtendedHopRecord::new(
-        0x20, 2, 3, 2000, 2450, 8192, 30, IfaDropReason::None,
-    );
+    let rec1 = IfaExtendedHopRecord::new(0x10, 1, 2, 1000, 1300, 4096, 20, IfaDropReason::None);
+    let rec2 = IfaExtendedHopRecord::new(0x20, 2, 3, 2000, 2450, 8192, 30, IfaDropReason::None);
 
     let mut pkt = IfaExtendedPacket::new(IfaHeader::new(5, 0x1F), b"batch".to_vec());
     pkt.records.push(rec1);

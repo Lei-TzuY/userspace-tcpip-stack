@@ -1,7 +1,7 @@
 // tests/test_diameter_s13_geo_fence.rs
 
 use toy_tcpip::diameter_s13_geo_fence::{
-    GeoVerdict, S13GeoFenceEngine, DIAMETER_AUTHORIZATION_REJECTED, DIAMETER_SUCCESS,
+    DIAMETER_AUTHORIZATION_REJECTED, DIAMETER_SUCCESS, GeoVerdict, S13GeoFenceEngine,
 };
 
 #[test]

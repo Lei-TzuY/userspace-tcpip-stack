@@ -17,7 +17,7 @@ fn test_chf_initial_request_and_quota_grant() {
         supi: supi.to_string(),
         pdu_session_id: 1,
         s_nssai: Snssai { sst: 1, sd: None },
-        rating_group: 100, // Web: 5 cents/MB
+        rating_group: 100,                  // Web: 5 cents/MB
         requested_volume_bytes: 50_000_000, // 50 MB
         timestamp_epoch_s: 1700000000,
     };
@@ -122,7 +122,12 @@ fn test_chf_out_of_credit_final_unit_indication() {
     assert_eq!(update_resp.remaining_balance_cents, 0);
 
     let fui = update_resp.final_unit_indication.expect("FUI missing");
-    assert_eq!(fui.action, FinalUnitAction::RestrictAccess { max_bitrate_kbps: 64 });
+    assert_eq!(
+        fui.action,
+        FinalUnitAction::RestrictAccess {
+            max_bitrate_kbps: 64
+        }
+    );
 }
 
 // ---------------------------------------------------------------------------

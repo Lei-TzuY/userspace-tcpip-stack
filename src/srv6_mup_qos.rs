@@ -64,7 +64,7 @@ impl Srv6MupQosEngine {
             default_priority_level: 20,
             packet_delay_budget_ms: 100,
             packet_error_rate_exp: -2,
-            default_dscp: 46, // EF
+            default_dscp: 46,      // EF
             srv6_slice_color: 200, // Voice Slice
         });
 
@@ -108,7 +108,7 @@ impl Srv6MupQosEngine {
             default_priority_level: 19,
             packet_delay_budget_ms: 10,
             packet_error_rate_exp: -4,
-            default_dscp: 56, // CS7
+            default_dscp: 56,      // CS7
             srv6_slice_color: 100, // URLLC Low-Latency Slice
         });
 
@@ -119,7 +119,7 @@ impl Srv6MupQosEngine {
             default_priority_level: 21,
             packet_delay_budget_ms: 5,
             packet_error_rate_exp: -5,
-            default_dscp: 56, // CS7
+            default_dscp: 56,      // CS7
             srv6_slice_color: 100, // URLLC Low-Latency Slice
         });
     }
@@ -129,11 +129,7 @@ impl Srv6MupQosEngine {
     }
 
     /// Classifies a 5G QoS Flow into DSCP, IPv6 Traffic Class, and SRv6 color attribute.
-    pub fn classify_qos_flow(
-        &self,
-        five_qi: u8,
-        ecn: u8,
-    ) -> Result<Srv6QosClassification, String> {
+    pub fn classify_qos_flow(&self, five_qi: u8, ecn: u8) -> Result<Srv6QosClassification, String> {
         let profile = match self.profiles.get(&five_qi) {
             Some(p) => p,
             None => return Err(format!("Unrecognized 5QI identifier {}", five_qi)),

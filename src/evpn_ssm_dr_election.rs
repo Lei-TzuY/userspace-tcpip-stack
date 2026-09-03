@@ -130,7 +130,11 @@ impl EvpnSsmDrElectionEngine {
     ) {
         self.register_segment(esi, vni, timestamp_secs);
 
-        if let Some(seg) = self.segments.iter_mut().find(|s| s.esi == esi && s.vni == vni) {
+        if let Some(seg) = self
+            .segments
+            .iter_mut()
+            .find(|s| s.esi == esi && s.vni == vni)
+        {
             if let Some(cand) = seg.candidates.iter_mut().find(|c| c.pe_ip == remote_pe_ip) {
                 cand.priority = priority;
                 cand.last_seen_secs = timestamp_secs;
@@ -148,11 +152,15 @@ impl EvpnSsmDrElectionEngine {
 
     /// Executes the DR election algorithm for a given (ESI, VNI).
     pub fn run_election(&mut self, esi: [u8; 10], vni: u32) -> Option<DrElectionVerdict> {
-        let seg = self.segments.iter_mut().find(|s| s.esi == esi && s.vni == vni)?;
+        let seg = self
+            .segments
+            .iter_mut()
+            .find(|s| s.esi == esi && s.vni == vni)?;
         self.total_elections += 1;
 
         // Filter active candidates
-        let mut active_cands: Vec<&CandidatePe> = seg.candidates.iter().filter(|c| c.is_active).collect();
+        let mut active_cands: Vec<&CandidatePe> =
+            seg.candidates.iter().filter(|c| c.is_active).collect();
         if active_cands.is_empty() {
             seg.current_dr_ip = None;
             seg.current_dr_priority = 0;
@@ -198,7 +206,11 @@ impl EvpnSsmDrElectionEngine {
         sender_ip: Ipv4Address,
         timestamp_secs: u64,
     ) {
-        if let Some(seg) = self.segments.iter_mut().find(|s| s.esi == esi && s.vni == vni) {
+        if let Some(seg) = self
+            .segments
+            .iter_mut()
+            .find(|s| s.esi == esi && s.vni == vni)
+        {
             if let Some(cand) = seg.candidates.iter_mut().find(|c| c.pe_ip == sender_ip) {
                 cand.last_seen_secs = timestamp_secs;
                 cand.is_active = true;
@@ -217,7 +229,8 @@ impl EvpnSsmDrElectionEngine {
             // Mark timed-out candidates as inactive
             for cand in &mut seg.candidates {
                 if cand.pe_ip != self.local_pe_ip
-                    && current_time_secs.saturating_sub(cand.last_seen_secs) > self.querier_timeout_secs
+                    && current_time_secs.saturating_sub(cand.last_seen_secs)
+                        > self.querier_timeout_secs
                 {
                     cand.is_active = false;
                 }

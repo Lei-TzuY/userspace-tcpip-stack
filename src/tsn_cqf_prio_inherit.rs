@@ -22,9 +22,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PriorityInheritVerdict {
     /// Frame transits at its base priority (no inheritance needed).
-    BasePriority {
-        pcp: u8,
-    },
+    BasePriority { pcp: u8 },
     /// Frame dynamically elevated to inherited priority to prevent inversion.
     Inherited {
         base_pcp: u8,
@@ -60,7 +58,11 @@ impl TsnCqfPrioInheritEngine {
 
     /// Acquire or register a shared resource lock for a stream.
     pub fn acquire_resource(&mut self, resource_id: u32, stream_id: u32, base_pcp: u8) {
-        if let Some(res) = self.resources.iter_mut().find(|r| r.resource_id == resource_id) {
+        if let Some(res) = self
+            .resources
+            .iter_mut()
+            .find(|r| r.resource_id == resource_id)
+        {
             res.holder_stream_id = stream_id;
             res.holder_base_pcp = base_pcp;
             res.effective_pcp = base_pcp;
@@ -78,9 +80,22 @@ impl TsnCqfPrioInheritEngine {
     }
 
     /// Higher-priority stream requests the resource, triggering priority inheritance if needed.
-    pub fn request_resource(&mut self, resource_id: u32, waiter_stream_id: u32, waiter_pcp: u8) -> PriorityInheritVerdict {
-        if let Some(res) = self.resources.iter_mut().find(|r| r.resource_id == resource_id) {
-            if !res.waiting_streams.iter().any(|(s, _)| *s == waiter_stream_id) {
+    pub fn request_resource(
+        &mut self,
+        resource_id: u32,
+        waiter_stream_id: u32,
+        waiter_pcp: u8,
+    ) -> PriorityInheritVerdict {
+        if let Some(res) = self
+            .resources
+            .iter_mut()
+            .find(|r| r.resource_id == resource_id)
+        {
+            if !res
+                .waiting_streams
+                .iter()
+                .any(|(s, _)| *s == waiter_stream_id)
+            {
                 res.waiting_streams.push((waiter_stream_id, waiter_pcp));
             }
 
@@ -105,14 +120,23 @@ impl TsnCqfPrioInheritEngine {
 
     /// Release resource and reset effective priority.
     pub fn release_resource(&mut self, resource_id: u32) -> Option<u32> {
-        if let Some(res) = self.resources.iter_mut().find(|r| r.resource_id == resource_id) {
+        if let Some(res) = self
+            .resources
+            .iter_mut()
+            .find(|r| r.resource_id == resource_id)
+        {
             let old_holder = res.holder_stream_id;
             if let Some((next_stream, next_pcp)) = res.waiting_streams.pop() {
                 res.holder_stream_id = next_stream;
                 res.holder_base_pcp = next_pcp;
                 res.effective_pcp = next_pcp;
                 // Recompute effective PCP from remaining waiters
-                let max_waiting = res.waiting_streams.iter().map(|(_, p)| *p).max().unwrap_or(next_pcp);
+                let max_waiting = res
+                    .waiting_streams
+                    .iter()
+                    .map(|(_, p)| *p)
+                    .max()
+                    .unwrap_or(next_pcp);
                 res.effective_pcp = next_pcp.max(max_waiting);
             } else {
                 res.effective_pcp = res.holder_base_pcp;

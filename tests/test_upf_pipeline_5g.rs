@@ -2,8 +2,8 @@
 
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::pfcp_5g::{
-    PFCP_APPLY_ACTION_BUFF, PFCP_APPLY_ACTION_FORWARD,
-    PFCP_SRC_INTERFACE_ACCESS, PFCP_SRC_INTERFACE_CORE,
+    PFCP_APPLY_ACTION_BUFF, PFCP_APPLY_ACTION_FORWARD, PFCP_SRC_INTERFACE_ACCESS,
+    PFCP_SRC_INTERFACE_CORE,
 };
 use toy_tcpip::upf_pipeline_5g::{
     GateStatus, PacketProcessingResult, UpfBar, UpfFar, UpfPdr, UpfPipeline, UpfQer, UpfSession,
@@ -61,7 +61,12 @@ fn test_upf_pipeline_uplink_forwarding_and_urr_accounting() {
     );
 
     match res1 {
-        PacketProcessingResult::Forwarded { dst_ip, outer_header_teid, qfi, payload } => {
+        PacketProcessingResult::Forwarded {
+            dst_ip,
+            outer_header_teid,
+            qfi,
+            payload,
+        } => {
             assert_eq!(dst_ip, Ipv4Address::new(10, 45, 0, 1));
             assert_eq!(outer_header_teid, None);
             assert_eq!(qfi, 9);
@@ -179,7 +184,12 @@ fn test_upf_pipeline_downlink_buffering_and_ddn_notification() {
     let flushed = pipeline.flush_buffered_packets(0x1002, 10);
     assert_eq!(flushed.len(), 2);
     match &flushed[0] {
-        PacketProcessingResult::Forwarded { dst_ip, outer_header_teid, payload, .. } => {
+        PacketProcessingResult::Forwarded {
+            dst_ip,
+            outer_header_teid,
+            payload,
+            ..
+        } => {
             assert_eq!(*dst_ip, Ipv4Address::new(192, 168, 1, 10));
             assert_eq!(*outer_header_teid, Some(0x60001));
             assert_eq!(payload, &[1, 2, 3, 4]);
@@ -232,7 +242,12 @@ fn test_upf_pipeline_qer_gate_closed() {
         3000,
     );
 
-    assert_eq!(res, PacketProcessingResult::Dropped { reason: "QER UL gate is closed" });
+    assert_eq!(
+        res,
+        PacketProcessingResult::Dropped {
+            reason: "QER UL gate is closed"
+        }
+    );
 }
 
 #[test]
@@ -290,7 +305,12 @@ fn test_upf_pipeline_token_bucket_policer_rate_limiting() {
         &[0xBB; 1500],
         0,
     );
-    assert_eq!(res2, PacketProcessingResult::Dropped { reason: "MBR policer rate exceeded" });
+    assert_eq!(
+        res2,
+        PacketProcessingResult::Dropped {
+            reason: "MBR policer rate exceeded"
+        }
+    );
 
     // 3. Advance time to t=20ms (refills 20ms * 100,000 B/s = 2,000 tokens) -> Pass!
     let res3 = pipeline.process_ingress_packet(

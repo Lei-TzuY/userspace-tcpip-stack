@@ -91,9 +91,12 @@ fn test_mfaf_flush_pending_batches() {
         .unwrap();
 
     // Ingest 3 events (less than batch size 10)
-    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 100).unwrap();
-    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 101).unwrap();
-    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 102).unwrap();
+    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 100)
+        .unwrap();
+    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 101)
+        .unwrap();
+    mfaf.ingest_event(&map_id, "AMF", "Registration", None, 1.0, 102)
+        .unwrap();
 
     // Manually flush buffer
     let flushed = mfaf
@@ -125,8 +128,10 @@ fn test_mfaf_buffer_overflow_protection() {
         )
         .unwrap();
 
-    mfaf.ingest_event(&map_id, "N1", "E1", None, 1.0, 10).unwrap();
-    mfaf.ingest_event(&map_id, "N1", "E2", None, 2.0, 20).unwrap();
+    mfaf.ingest_event(&map_id, "N1", "E1", None, 1.0, 10)
+        .unwrap();
+    mfaf.ingest_event(&map_id, "N1", "E2", None, 2.0, 20)
+        .unwrap();
 
     // 3rd event exceeds max buffer limit 2
     let err = mfaf.ingest_event(&map_id, "N1", "E3", None, 3.0, 30);
@@ -142,15 +147,12 @@ fn test_mfaf_invalid_configuration_and_deletion() {
     let mut mfaf = MfafEngine::new("mfaf-core-05", 100);
 
     // Empty topic rejected
-    let err1 = mfaf.configure_mapping(
-        MessagingProtocol::Kafka,
-        "",
-        SerializationFormat::Json,
-        5,
-    );
+    let err1 = mfaf.configure_mapping(MessagingProtocol::Kafka, "", SerializationFormat::Json, 5);
     assert_eq!(
         err1,
-        Err(MfafError::InvalidConfiguration("Destination topic cannot be empty"))
+        Err(MfafError::InvalidConfiguration(
+            "Destination topic cannot be empty"
+        ))
     );
 
     // Batch size 0 rejected
@@ -162,12 +164,19 @@ fn test_mfaf_invalid_configuration_and_deletion() {
     );
     assert_eq!(
         err2,
-        Err(MfafError::InvalidConfiguration("Batch size limit must be greater than zero"))
+        Err(MfafError::InvalidConfiguration(
+            "Batch size limit must be greater than zero"
+        ))
     );
 
     // Valid creation followed by deletion
     let map_id = mfaf
-        .configure_mapping(MessagingProtocol::Mqtt, "valid.topic", SerializationFormat::Json, 1)
+        .configure_mapping(
+            MessagingProtocol::Mqtt,
+            "valid.topic",
+            SerializationFormat::Json,
+            1,
+        )
         .unwrap();
 
     mfaf.delete_mapping(&map_id).expect("Delete failed");

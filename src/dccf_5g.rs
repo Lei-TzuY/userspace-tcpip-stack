@@ -141,7 +141,8 @@ impl DccfEngine {
         }
 
         // Retain only non-empty collectors
-        self.source_to_subscribers.retain(|_, subs| !subs.is_empty());
+        self.source_to_subscribers
+            .retain(|_, subs| !subs.is_empty());
 
         let _ = sub;
         Ok(())
@@ -163,7 +164,11 @@ impl DccfEngine {
 
         // Check specific target subscription or wildcard target
         let candidates = [
-            (source_nf_type.to_uppercase(), data_domain.to_string(), target_string.clone()),
+            (
+                source_nf_type.to_uppercase(),
+                data_domain.to_string(),
+                target_string.clone(),
+            ),
             (source_nf_type.to_uppercase(), data_domain.to_string(), None),
         ];
 

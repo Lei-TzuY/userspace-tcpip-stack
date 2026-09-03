@@ -1,8 +1,6 @@
 // tests/test_diameter_s13_roam_mismatch.rs
 
-use toy_tcpip::diameter_s13_roam_mismatch::{
-    RoamingValidationVerdict, S13RoamingMismatchEngine,
-};
+use toy_tcpip::diameter_s13_roam_mismatch::{RoamingValidationVerdict, S13RoamingMismatchEngine};
 
 #[test]
 fn test_diameter_s13_roam_mismatch_integration() {

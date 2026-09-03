@@ -20,9 +20,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeficitMeterVerdict {
     /// Frame is within allocated burst credit and admitted into the current cycle.
-    Admitted {
-        remaining_credit_bytes: usize,
-    },
+    Admitted { remaining_credit_bytes: usize },
     /// Frame exceeds available credit for this cycle; rejected to protect buffer.
     DeficitExceeded {
         required_bytes: usize,
@@ -49,7 +47,12 @@ pub struct DeficitStreamProfile {
 }
 
 impl DeficitStreamProfile {
-    pub fn new(stream_id: u32, name: &str, cycle_quantum_bytes: usize, max_credit_bytes: usize) -> Self {
+    pub fn new(
+        stream_id: u32,
+        name: &str,
+        cycle_quantum_bytes: usize,
+        max_credit_bytes: usize,
+    ) -> Self {
         Self {
             stream_id,
             name: name.to_string(),
@@ -82,7 +85,11 @@ impl TsnCqfDeficitMeterEngine {
 
     /// Register or update a stream's deficit meter configuration.
     pub fn register_stream(&mut self, stream: DeficitStreamProfile) {
-        if let Some(pos) = self.streams.iter().position(|s| s.stream_id == stream.stream_id) {
+        if let Some(pos) = self
+            .streams
+            .iter()
+            .position(|s| s.stream_id == stream.stream_id)
+        {
             self.streams[pos] = stream;
         } else {
             self.streams.push(stream);

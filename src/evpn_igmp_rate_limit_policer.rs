@@ -87,7 +87,11 @@ impl EvpnIgmpRateLimitPolicerEngine {
         penalty_box_threshold: u32,
         penalty_box_duration_us: u64,
     ) {
-        if let Some(b) = self.buckets.iter_mut().find(|b| b.vni == vni && b.port_id == port_id) {
+        if let Some(b) = self
+            .buckets
+            .iter_mut()
+            .find(|b| b.vni == vni && b.port_id == port_id)
+        {
             b.committed_rate_pps = rate_pps.max(1);
             b.burst_tolerance_pkts = burst_pkts.max(1);
             b.penalty_box_threshold = penalty_box_threshold;
@@ -122,7 +126,11 @@ impl EvpnIgmpRateLimitPolicerEngine {
         let def_rate = self.default_rate_pps;
         let def_burst = self.default_burst_pkts;
 
-        let bucket = match self.buckets.iter_mut().find(|b| b.vni == vni && b.port_id == port_id) {
+        let bucket = match self
+            .buckets
+            .iter_mut()
+            .find(|b| b.vni == vni && b.port_id == port_id)
+        {
             Some(b) => b,
             None => {
                 self.buckets.push(PolicerBucketState {
@@ -186,7 +194,9 @@ impl EvpnIgmpRateLimitPolicerEngine {
             bucket.consecutive_drops += 1;
             self.total_rate_limited_drops += 1;
 
-            if bucket.penalty_box_threshold > 0 && bucket.consecutive_drops >= bucket.penalty_box_threshold {
+            if bucket.penalty_box_threshold > 0
+                && bucket.consecutive_drops >= bucket.penalty_box_threshold
+            {
                 bucket.quarantined_until_us = Some(timestamp_us + bucket.penalty_box_duration_us);
                 self.total_penalty_box_triggers += 1;
                 IgmpPolicerVerdict::QuarantinedInPenaltyBox {
@@ -208,7 +218,11 @@ impl EvpnIgmpRateLimitPolicerEngine {
 
     /// Manually clears the penalty box quarantine for a port.
     pub fn release_penalty_box(&mut self, vni: u32, port_id: u32) -> bool {
-        if let Some(b) = self.buckets.iter_mut().find(|b| b.vni == vni && b.port_id == port_id) {
+        if let Some(b) = self
+            .buckets
+            .iter_mut()
+            .find(|b| b.vni == vni && b.port_id == port_id)
+        {
             b.quarantined_until_us = None;
             b.consecutive_drops = 0;
             b.tokens = b.burst_tolerance_pkts as f64;

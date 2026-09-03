@@ -198,10 +198,7 @@ impl Default for LcsQos {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LocationEstimate {
     /// Ellipsoid Point (latitude, longitude in units of 1/2^23 degrees).
-    EllipsoidPoint {
-        latitude: i32,
-        longitude: i32,
-    },
+    EllipsoidPoint { latitude: i32, longitude: i32 },
     /// Ellipsoid Point with Uncertainty Circle.
     EllipsoidPointUncertaintyCircle {
         latitude: i32,
@@ -290,7 +287,7 @@ impl ProvideLocationRequest {
     pub fn to_diameter_message(&self) -> DiameterMessage {
         let header = DiameterHeader {
             version: 1,
-            length: 0, // Computed upon serialization
+            length: 0,   // Computed upon serialization
             flags: 0xC0, // R-bit + P-bit set (Request)
             command_code: DIAMETER_CMD_PROVIDE_LOCATION,
             application_id: DIAMETER_APPLICATION_SLG,
@@ -302,11 +299,20 @@ impl ProvideLocationRequest {
         avps.push(DiameterAvp::new_utf8(AVP_SESSION_ID, &self.session_id));
         avps.push(DiameterAvp::new_utf8(AVP_ORIGIN_HOST, &self.origin_host));
         avps.push(DiameterAvp::new_utf8(AVP_ORIGIN_REALM, &self.origin_realm));
-        avps.push(DiameterAvp::new_utf8(AVP_DESTINATION_REALM, &self.destination_realm));
+        avps.push(DiameterAvp::new_utf8(
+            AVP_DESTINATION_REALM,
+            &self.destination_realm,
+        ));
         avps.push(DiameterAvp::new_u32(AVP_AUTH_SESSION_STATE, 1)); // NO_STATE_MAINTAINED
         avps.push(DiameterAvp::new_utf8(AVP_USER_NAME, &self.imsi));
-        avps.push(DiameterAvp::new_u32(AVP_SLG_LOCATION_TYPE, self.location_type as u32));
-        avps.push(DiameterAvp::new_u32(AVP_LCS_PRIORITY, self.lcs_priority as u32));
+        avps.push(DiameterAvp::new_u32(
+            AVP_SLG_LOCATION_TYPE,
+            self.location_type as u32,
+        ));
+        avps.push(DiameterAvp::new_u32(
+            AVP_LCS_PRIORITY,
+            self.lcs_priority as u32,
+        ));
 
         if let Some(ref client_name) = self.lcs_eps_client_name {
             avps.push(DiameterAvp::new_utf8(AVP_LCS_EPS_CLIENT_NAME, client_name));
@@ -333,8 +339,14 @@ impl ProvideLocationRequest {
             avps.push(DiameterAvp::new_u32(AVP_LCS_REFERENCE_NUMBER, ref_num));
         }
         if let Some(ref periodic) = self.periodic_ldr {
-            avps.push(DiameterAvp::new_u32(AVP_REPORTING_AMOUNT, periodic.reporting_amount));
-            avps.push(DiameterAvp::new_u32(AVP_REPORTING_INTERVAL, periodic.reporting_interval_sec));
+            avps.push(DiameterAvp::new_u32(
+                AVP_REPORTING_AMOUNT,
+                periodic.reporting_amount,
+            ));
+            avps.push(DiameterAvp::new_u32(
+                AVP_REPORTING_INTERVAL,
+                periodic.reporting_interval_sec,
+            ));
         }
         if let Some(svc_id) = self.lcs_service_type_id {
             avps.push(DiameterAvp::new_u32(AVP_LCS_SERVICE_TYPE_ID, svc_id));
@@ -401,13 +413,20 @@ impl ProvideLocationAnswer {
 
         if let Some(ref loc) = self.location_estimate {
             let raw = match loc {
-                LocationEstimate::EllipsoidPoint { latitude, longitude } => {
+                LocationEstimate::EllipsoidPoint {
+                    latitude,
+                    longitude,
+                } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
                     v.extend_from_slice(&longitude.to_be_bytes());
                     v
                 }
-                LocationEstimate::EllipsoidPointUncertaintyCircle { latitude, longitude, uncertainty_radius_m } => {
+                LocationEstimate::EllipsoidPointUncertaintyCircle {
+                    latitude,
+                    longitude,
+                    uncertainty_radius_m,
+                } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
                     v.extend_from_slice(&longitude.to_be_bytes());
@@ -415,7 +434,10 @@ impl ProvideLocationAnswer {
                     v
                 }
                 LocationEstimate::EllipsoidPointAltitudeUncertainty {
-                    latitude, longitude, altitude_m, ..
+                    latitude,
+                    longitude,
+                    altitude_m,
+                    ..
                 } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
@@ -429,7 +451,10 @@ impl ProvideLocationAnswer {
         }
 
         if let Some(afi) = &self.accuracy_fulfilment {
-            avps.push(DiameterAvp::new_u32(AVP_ACCURACY_FULFILMENT_INDICATOR, *afi as u32));
+            avps.push(DiameterAvp::new_u32(
+                AVP_ACCURACY_FULFILMENT_INDICATOR,
+                *afi as u32,
+            ));
         }
         if let Some(age) = self.age_of_location_estimate_sec {
             avps.push(DiameterAvp::new_u32(AVP_AGE_OF_LOCATION_ESTIMATE, age));
@@ -509,21 +534,37 @@ impl LocationReportRequest {
         avps.push(DiameterAvp::new_utf8(AVP_SESSION_ID, &self.session_id));
         avps.push(DiameterAvp::new_utf8(AVP_ORIGIN_HOST, &self.origin_host));
         avps.push(DiameterAvp::new_utf8(AVP_ORIGIN_REALM, &self.origin_realm));
-        avps.push(DiameterAvp::new_utf8(AVP_DESTINATION_REALM, &self.destination_realm));
-        avps.push(DiameterAvp::new_utf8(AVP_DESTINATION_HOST, &self.destination_host));
+        avps.push(DiameterAvp::new_utf8(
+            AVP_DESTINATION_REALM,
+            &self.destination_realm,
+        ));
+        avps.push(DiameterAvp::new_utf8(
+            AVP_DESTINATION_HOST,
+            &self.destination_host,
+        ));
         avps.push(DiameterAvp::new_u32(AVP_AUTH_SESSION_STATE, 1));
         avps.push(DiameterAvp::new_utf8(AVP_USER_NAME, &self.imsi));
-        avps.push(DiameterAvp::new_u32(AVP_LOCATION_EVENT, self.location_event as u32));
+        avps.push(DiameterAvp::new_u32(
+            AVP_LOCATION_EVENT,
+            self.location_event as u32,
+        ));
 
         if let Some(ref loc) = self.location_estimate {
             let raw = match loc {
-                LocationEstimate::EllipsoidPoint { latitude, longitude } => {
+                LocationEstimate::EllipsoidPoint {
+                    latitude,
+                    longitude,
+                } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
                     v.extend_from_slice(&longitude.to_be_bytes());
                     v
                 }
-                LocationEstimate::EllipsoidPointUncertaintyCircle { latitude, longitude, uncertainty_radius_m } => {
+                LocationEstimate::EllipsoidPointUncertaintyCircle {
+                    latitude,
+                    longitude,
+                    uncertainty_radius_m,
+                } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
                     v.extend_from_slice(&longitude.to_be_bytes());
@@ -531,7 +572,10 @@ impl LocationReportRequest {
                     v
                 }
                 LocationEstimate::EllipsoidPointAltitudeUncertainty {
-                    latitude, longitude, altitude_m, ..
+                    latitude,
+                    longitude,
+                    altitude_m,
+                    ..
                 } => {
                     let mut v = Vec::new();
                     v.extend_from_slice(&latitude.to_be_bytes());
@@ -544,7 +588,10 @@ impl LocationReportRequest {
             avps.push(DiameterAvp::new(AVP_LOCATION_ESTIMATE, &raw));
         }
         if let Some(afi) = &self.accuracy_fulfilment {
-            avps.push(DiameterAvp::new_u32(AVP_ACCURACY_FULFILMENT_INDICATOR, *afi as u32));
+            avps.push(DiameterAvp::new_u32(
+                AVP_ACCURACY_FULFILMENT_INDICATOR,
+                *afi as u32,
+            ));
         }
         if let Some(age) = self.age_of_location_estimate_sec {
             avps.push(DiameterAvp::new_u32(AVP_AGE_OF_LOCATION_ESTIMATE, age));
@@ -612,9 +659,7 @@ pub enum LocationSessionState {
     /// PLA received with a valid location estimate.
     LocationReceived,
     /// Deferred/periodic session active, awaiting LRR events.
-    DeferredActive {
-        reports_remaining: Option<u32>,
-    },
+    DeferredActive { reports_remaining: Option<u32> },
     /// Session completed or cancelled.
     Completed,
 }
@@ -804,7 +849,9 @@ impl GmlcSlgEngine {
 
     /// Returns the complete list of location reports received for a session.
     pub fn get_location_history(&self, session_id: &str) -> Option<&[LocationReportRequest]> {
-        self.sessions.get(session_id).map(|s| s.location_reports.as_slice())
+        self.sessions
+            .get(session_id)
+            .map(|s| s.location_reports.as_slice())
     }
 
     /// Returns the current state of a location session.

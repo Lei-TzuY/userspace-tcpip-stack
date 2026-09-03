@@ -1,9 +1,9 @@
 //! Integration tests for BGP Flowspec IPv6 Action Extended Communities & Remarking Engine (RFC 8956 / RFC 8955).
 
 use toy_tcpip::flowspec_v6_actions::{
-    FlowspecV6ActionCommunity, FlowspecV6ActionEngine, FlowspecV6Verdict, TokenBucketLimiter,
     FS_ACTION_SUBTYPE_REDIRECT_RT, FS_ACTION_SUBTYPE_TRAFFIC_ACTION,
-    FS_ACTION_SUBTYPE_TRAFFIC_MARKING, FS_ACTION_SUBTYPE_TRAFFIC_RATE,
+    FS_ACTION_SUBTYPE_TRAFFIC_MARKING, FS_ACTION_SUBTYPE_TRAFFIC_RATE, FlowspecV6ActionCommunity,
+    FlowspecV6ActionEngine, FlowspecV6Verdict, TokenBucketLimiter,
 };
 
 #[test]
@@ -13,7 +13,10 @@ fn test_flowspec_v6_action_constants_and_encodings() {
     assert_eq!(FS_ACTION_SUBTYPE_REDIRECT_RT, 0x08);
     assert_eq!(FS_ACTION_SUBTYPE_TRAFFIC_MARKING, 0x09);
 
-    let action_terminal = FlowspecV6ActionCommunity::TrafficAction { terminal: true, sample: true };
+    let action_terminal = FlowspecV6ActionCommunity::TrafficAction {
+        terminal: true,
+        sample: true,
+    };
     let ser = action_terminal.serialize();
     assert_eq!(ser[0], 0x80);
     assert_eq!(ser[1], 0x07);
@@ -45,7 +48,9 @@ fn test_flowspec_v6_engine_mitigation_and_remarking() {
 
     // Rate = 0 discard action
     let mut engine_drop = FlowspecV6ActionEngine::new();
-    engine_drop.add_action(FlowspecV6ActionCommunity::TrafficRate { rate_bytes_sec: 0.0 });
+    engine_drop.add_action(FlowspecV6ActionCommunity::TrafficRate {
+        rate_bytes_sec: 0.0,
+    });
 
     let verdict2 = engine_drop.apply_actions(ipv6_pkt);
     match verdict2 {

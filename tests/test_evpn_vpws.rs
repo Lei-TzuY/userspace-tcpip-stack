@@ -1,6 +1,6 @@
 use toy_tcpip::evpn_vpws_fxc::{
-    AttachmentCircuit, EvpnL2AttributesExtCommunity, EvpnVpwsEngine, EvpnVpwsService,
-    EVPN_VPWS_FLAG_CONTROL_WORD, EVPN_VPWS_FLAG_PRIMARY,
+    AttachmentCircuit, EVPN_VPWS_FLAG_CONTROL_WORD, EVPN_VPWS_FLAG_PRIMARY,
+    EvpnL2AttributesExtCommunity, EvpnVpwsEngine, EvpnVpwsService,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 
@@ -33,7 +33,13 @@ fn test_evpn_vpws_cross_connect_and_mtu_checks() {
     assert_eq!(encap.control_word, Some(0));
 
     let (ac, delivered) = engine.decapsulate_vpws_packet(500, &encap).unwrap();
-    assert_eq!(ac, AttachmentCircuit { if_name: "xe-0/0/0".to_string(), vlan_id: 50 });
+    assert_eq!(
+        ac,
+        AttachmentCircuit {
+            if_name: "xe-0/0/0".to_string(),
+            vlan_id: 50
+        }
+    );
     assert_eq!(delivered, frame);
 
     // 2. MTU violation on ingress

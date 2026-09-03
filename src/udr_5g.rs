@@ -200,7 +200,8 @@ impl UdrEngine {
         dnn: &str,
         snssai: &Snssai,
     ) -> Option<&SessionManagementData> {
-        self.sm_data.get(&(supi.to_string(), dnn.to_string(), snssai.clone()))
+        self.sm_data
+            .get(&(supi.to_string(), dnn.to_string(), snssai.clone()))
     }
 
     // -----------------------------------------------------------------------
@@ -214,13 +215,9 @@ impl UdrEngine {
         self.notify_change(UdrDataType::PolicySm, Some(&supi), timestamp_s);
     }
 
-    pub fn get_policy_data(
-        &self,
-        supi: &str,
-        dnn: &str,
-        snssai: &Snssai,
-    ) -> Option<&SmPolicyData> {
-        self.policy_data.get(&(supi.to_string(), dnn.to_string(), snssai.clone()))
+    pub fn get_policy_data(&self, supi: &str, dnn: &str, snssai: &Snssai) -> Option<&SmPolicyData> {
+        self.policy_data
+            .get(&(supi.to_string(), dnn.to_string(), snssai.clone()))
     }
 
     // -----------------------------------------------------------------------
@@ -237,11 +234,7 @@ impl UdrEngine {
         self.exposure_data.get(af_trans_id)
     }
 
-    pub fn find_traffic_influence(
-        &self,
-        dnn: &str,
-        snssai: &Snssai,
-    ) -> Vec<&TrafficInfluenceData> {
+    pub fn find_traffic_influence(&self, dnn: &str, snssai: &Snssai) -> Vec<&TrafficInfluenceData> {
         self.exposure_data
             .values()
             .filter(|d| d.dnn == dnn && &d.s_nssai == snssai)

@@ -34,10 +34,7 @@ pub struct GtpuNackReport {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HoleNackVerdict {
     /// Packet arrived strictly in order or after all holes resolved.
-    InOrderPacket {
-        teid: u32,
-        seq_number: u32,
-    },
+    InOrderPacket { teid: u32, seq_number: u32 },
     /// Sequence gap detected; a new hole is recorded and NACK generated.
     HoleDetectedAndNackGenerated {
         teid: u32,
@@ -52,10 +49,7 @@ pub enum HoleNackVerdict {
         remaining_holes: usize,
     },
     /// Stale duplicate packet arrived.
-    StaleOrDuplicatePacket {
-        teid: u32,
-        seq_number: u32,
-    },
+    StaleOrDuplicatePacket { teid: u32, seq_number: u32 },
 }
 
 /// Engine managing GTP-U Sequence Hole Detection and Proactive NACK Generation.

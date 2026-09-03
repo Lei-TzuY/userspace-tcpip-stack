@@ -10,13 +10,19 @@ pub enum DetNetQueuingModel {
     /// Cyclic Queuing and Forwarding (IEEE 802.1Qch CQF): bounded to 1..2 cycle times
     Cqf { cycle_time_us: f64 },
     /// Asynchronous Traffic Shaping (IEEE 802.1Qcr ATS): bounded delay based on burst size & rate
-    Ats { max_burst_bytes: u32, committed_rate_mbps: f64 },
+    Ats {
+        max_burst_bytes: u32,
+        committed_rate_mbps: f64,
+    },
     /// Time-Aware Shaper (IEEE 802.1Qbv TAS): gate-aligned slot delay
     Tas { slot_duration_us: f64 },
     /// Credit-Based Shaper (IEEE 802.1Qav CBS): bounded interference delay
     Cbs { max_interference_us: f64 },
     /// Standard strict priority / FIFO
-    StrictPriority { max_queue_depth_bytes: u32, line_rate_mbps: f64 },
+    StrictPriority {
+        max_queue_depth_bytes: u32,
+        line_rate_mbps: f64,
+    },
 }
 
 impl DetNetQueuingModel {
@@ -24,13 +30,21 @@ impl DetNetQueuingModel {
     pub fn delay_bounds_us(&self) -> (f64, f64) {
         match self {
             DetNetQueuingModel::Cqf { cycle_time_us } => (*cycle_time_us, 2.0 * cycle_time_us),
-            DetNetQueuingModel::Ats { max_burst_bytes, committed_rate_mbps } => {
+            DetNetQueuingModel::Ats {
+                max_burst_bytes,
+                committed_rate_mbps,
+            } => {
                 let burst_delay_us = (*max_burst_bytes as f64 * 8.0) / *committed_rate_mbps;
                 (0.5, burst_delay_us + 1.0)
             }
             DetNetQueuingModel::Tas { slot_duration_us } => (0.2, *slot_duration_us),
-            DetNetQueuingModel::Cbs { max_interference_us } => (0.5, *max_interference_us),
-            DetNetQueuingModel::StrictPriority { max_queue_depth_bytes, line_rate_mbps } => {
+            DetNetQueuingModel::Cbs {
+                max_interference_us,
+            } => (0.5, *max_interference_us),
+            DetNetQueuingModel::StrictPriority {
+                max_queue_depth_bytes,
+                line_rate_mbps,
+            } => {
                 let queue_delay_us = (*max_queue_depth_bytes as f64 * 8.0) / *line_rate_mbps;
                 (0.1, queue_delay_us)
             }
@@ -184,8 +198,24 @@ mod tests {
         let engine = DetNetLatencyBudgetEngine::new();
 
         let path = vec![
-            DetNetHop::new("node-1", 10.0, 1.0, 2.0, DetNetQueuingModel::Cqf { cycle_time_us: 100.0 }), // prop 50us, q 100..200us
-            DetNetHop::new("node-2", 20.0, 1.5, 3.0, DetNetQueuingModel::Tas { slot_duration_us: 50.0 }), // prop 100us, q 0.2..50us
+            DetNetHop::new(
+                "node-1",
+                10.0,
+                1.0,
+                2.0,
+                DetNetQueuingModel::Cqf {
+                    cycle_time_us: 100.0,
+                },
+            ), // prop 50us, q 100..200us
+            DetNetHop::new(
+                "node-2",
+                20.0,
+                1.5,
+                3.0,
+                DetNetQueuingModel::Tas {
+                    slot_duration_us: 50.0,
+                },
+            ), // prop 100us, q 0.2..50us
         ];
 
         let budget = engine.evaluate_path(&path);

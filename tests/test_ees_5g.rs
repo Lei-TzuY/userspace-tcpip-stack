@@ -13,7 +13,10 @@ fn test_ecs_service_provisioning_happy_path() {
     let ees_tokyo = EesProfile {
         ees_id: "ees-tokyo-01".to_string(),
         ees_endpoint_uri: "https://ees.tokyo.5gedge.net".to_string(),
-        service_area: vec!["tai-tokyo-chiyoda".to_string(), "tai-tokyo-shinjuku".to_string()],
+        service_area: vec![
+            "tai-tokyo-chiyoda".to_string(),
+            "tai-tokyo-shinjuku".to_string(),
+        ],
         supported_dnais: vec!["dnai-tokyo-01".to_string()],
     };
 
@@ -34,7 +37,10 @@ fn test_ecs_service_provisioning_happy_path() {
     };
 
     let resp = ecs.provision_service(&req).expect("Provisioning failed");
-    assert_eq!(resp.matched_ees_list, vec!["https://ees.tokyo.5gedge.net".to_string()]);
+    assert_eq!(
+        resp.matched_ees_list,
+        vec!["https://ees.tokyo.5gedge.net".to_string()]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -194,5 +200,8 @@ fn test_ees_eas_lifecycle_deregistration() {
         required_gpu: false,
         max_acceptable_latency_ms: None,
     };
-    assert_eq!(ees.discover_eas(&query), Err(EdgeAppError::NoMatchingEasFound));
+    assert_eq!(
+        ees.discover_eas(&query),
+        Err(EdgeAppError::NoMatchingEasFound)
+    );
 }

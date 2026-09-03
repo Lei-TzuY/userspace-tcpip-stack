@@ -243,10 +243,10 @@ impl Default for RadioBearerConfig {
 /// MasterInformationBlock (MIB) broadcast over BCH.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MasterInformationBlock {
-    pub system_frame_number: u16, // 0..1023
+    pub system_frame_number: u16,   // 0..1023
     pub subcarrier_spacing_khz: u8, // 15 or 30 (FR1), 60 or 120 (FR2)
-    pub ssb_subcarrier_offset: u8, // 0..15 (k_SSB)
-    pub dmrs_type_a_position: u8,  // 2 or 3
+    pub ssb_subcarrier_offset: u8,  // 0..15 (k_SSB)
+    pub dmrs_type_a_position: u8,   // 2 or 3
     pub pdcch_config_sib1: u8,
     pub cell_barred: bool,
     pub intra_freq_reselection: bool,
@@ -257,9 +257,9 @@ pub struct MasterInformationBlock {
 pub struct SystemInformationBlockType1 {
     pub plmn: PlmnId,
     pub tac: u32,
-    pub cell_identity: u64, // 36-bit NR Cell Identity
+    pub cell_identity: u64,   // 36-bit NR Cell Identity
     pub q_rx_lev_min_dbm: i8, // e.g. -70
-    pub ranac: Option<u16>, // RAN Area Code for RRC_INACTIVE
+    pub ranac: Option<u16>,   // RAN Area Code for RRC_INACTIVE
     pub si_window_length_slots: u8,
 }
 
@@ -1117,7 +1117,11 @@ impl RrcEngine {
     }
 
     /// (UE) Handle RrcResume: restores active state and generates RrcResumeComplete.
-    pub fn ue_handle_resume(&mut self, crnti: u16, resume: &RrcResume) -> Option<RrcResumeComplete> {
+    pub fn ue_handle_resume(
+        &mut self,
+        crnti: u16,
+        resume: &RrcResume,
+    ) -> Option<RrcResumeComplete> {
         let ctx = self.contexts.get_mut(&crnti)?;
         if ctx.state != RrcState::RrcInactive {
             return None;
@@ -1137,10 +1141,7 @@ impl RrcEngine {
 
     /// (gNB) Handle RrcSetupRequest from UE: creates UE context, allocates C-RNTI,
     /// configures SRB1, and returns RrcSetup.
-    pub fn gnb_handle_setup_request(
-        &mut self,
-        req: &RrcSetupRequest,
-    ) -> (u16, RrcSetup) {
+    pub fn gnb_handle_setup_request(&mut self, req: &RrcSetupRequest) -> (u16, RrcSetup) {
         let crnti = self.next_crnti;
         self.next_crnti += 1;
 
@@ -1178,11 +1179,7 @@ impl RrcEngine {
     }
 
     /// (gNB) Handle RrcSetupComplete from UE: marks UE as RRC_CONNECTED and extracts NAS PDU.
-    pub fn gnb_handle_setup_complete(
-        &mut self,
-        crnti: u16,
-        comp: &RrcSetupComplete,
-    ) -> bool {
+    pub fn gnb_handle_setup_complete(&mut self, crnti: u16, comp: &RrcSetupComplete) -> bool {
         let ctx = match self.contexts.get_mut(&crnti) {
             Some(c) => c,
             None => return false,
@@ -1233,11 +1230,7 @@ impl RrcEngine {
     }
 
     /// (gNB) Build RrcRelease message, optionally with SuspendConfig to transition to RRC_INACTIVE.
-    pub fn gnb_build_release(
-        &mut self,
-        crnti: u16,
-        suspend: bool,
-    ) -> Option<RrcRelease> {
+    pub fn gnb_build_release(&mut self, crnti: u16, suspend: bool) -> Option<RrcRelease> {
         let ctx = self.contexts.get_mut(&crnti)?;
         let tid = self.next_tid;
         self.next_tid = self.next_tid.wrapping_add(1);
@@ -1278,12 +1271,15 @@ impl RrcEngine {
         &mut self,
         req: &RrcResumeRequest,
     ) -> Option<(u16, RrcResume)> {
-        let crnti = *self.suspended_contexts.get(&req.resume_identity_short_i_rnti)?;
+        let crnti = *self
+            .suspended_contexts
+            .get(&req.resume_identity_short_i_rnti)?;
         let ctx = self.contexts.get_mut(&crnti)?;
 
         ctx.state = RrcState::RrcConnected;
         ctx.suspend_config = None;
-        self.suspended_contexts.remove(&req.resume_identity_short_i_rnti);
+        self.suspended_contexts
+            .remove(&req.resume_identity_short_i_rnti);
 
         let tid = self.next_tid;
         self.next_tid = self.next_tid.wrapping_add(1);

@@ -13,7 +13,7 @@ fn test_bdt_negotiation_and_traffic_accounting_happy_path() {
     let req = BdtTransferRequest {
         af_id: "tesla-ota-fleet".to_string(),
         volume_per_ue_bytes: 50_000_000, // 50 MB per car
-        number_of_ues: 1_000,           // 1,000 cars (total 50 GB)
+        number_of_ues: 1_000,            // 1,000 cars (total 50 GB)
         desired_window: TimeWindow {
             start_time_epoch_s: 1700000000,
             end_time_epoch_s: 1700000000 + 86400, // next 24 hours
@@ -123,7 +123,10 @@ fn test_bdt_volume_quota_exceeded_rejection() {
     // Second chunk: 600 bytes (Total = 2,100 > 2,000 -> Exceeded!)
     let err = bdt.verify_and_account_traffic(&bdt_ref_id, valid_time, 600);
     match err {
-        Err(BdtError::TransferVolumeQuotaExceeded { transferred, max_allowed }) => {
+        Err(BdtError::TransferVolumeQuotaExceeded {
+            transferred,
+            max_allowed,
+        }) => {
             assert_eq!(transferred, 2100);
             assert_eq!(max_allowed, 2000);
         }

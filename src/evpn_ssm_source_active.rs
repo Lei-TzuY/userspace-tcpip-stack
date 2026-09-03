@@ -96,9 +96,11 @@ impl EvpnSourceActiveEngine {
         group_ip: Ipv4Address,
         current_time_secs: u64,
     ) -> SourceActiveVerdict {
-        if let Some(src) = self.active_sources.iter_mut().find(|s| {
-            s.vni == vni && s.source_ip == source_ip && s.group_ip == group_ip
-        }) {
+        if let Some(src) = self
+            .active_sources
+            .iter_mut()
+            .find(|s| s.vni == vni && s.source_ip == source_ip && s.group_ip == group_ip)
+        {
             src.last_seen_secs = current_time_secs;
             src.packet_count += 1;
             self.total_traffic_refreshes += 1;
@@ -138,11 +140,7 @@ impl EvpnSourceActiveEngine {
     }
 
     /// Ingest a remote PE's Source Active route announcement.
-    pub fn learn_remote_sa_route(
-        &mut self,
-        route: EvpnSourceActiveRoute,
-        current_time_secs: u64,
-    ) {
+    pub fn learn_remote_sa_route(&mut self, route: EvpnSourceActiveRoute, current_time_secs: u64) {
         if let Some(src) = self.active_sources.iter_mut().find(|s| {
             s.vni == route.vni
                 && s.source_ip == route.source_ip
@@ -208,9 +206,11 @@ impl EvpnSourceActiveEngine {
         group_ip: Ipv4Address,
         current_time_secs: u64,
     ) -> SourceActiveVerdict {
-        if let Some(src) = self.active_sources.iter().find(|s| {
-            s.vni == vni && s.source_ip == source_ip && s.group_ip == group_ip
-        }) {
+        if let Some(src) = self
+            .active_sources
+            .iter()
+            .find(|s| s.vni == vni && s.source_ip == source_ip && s.group_ip == group_ip)
+        {
             SourceActiveVerdict::ActiveSourceLocated {
                 originator_router_ip: src.originator_router_ip,
                 esi: src.esi,

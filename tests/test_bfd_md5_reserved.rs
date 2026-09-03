@@ -1,4 +1,4 @@
-use toy_tcpip::bfd::{BfdAuthHeader, BFD_AUTH_KEYED_MD5};
+use toy_tcpip::bfd::{BFD_AUTH_KEYED_MD5, BfdAuthHeader};
 
 #[test]
 fn keyed_md5_receiver_ignores_nonzero_reserved_octet() {
@@ -10,8 +10,7 @@ fn keyed_md5_receiver_ignores_nonzero_reserved_octet() {
     auth[4..8].copy_from_slice(&0x1122_3344u32.to_be_bytes());
     auth[8..24].fill(0x5a);
 
-    let parsed =
-        BfdAuthHeader::parse(&auth).expect("nonzero reserved octet must be ignored");
+    let parsed = BfdAuthHeader::parse(&auth).expect("nonzero reserved octet must be ignored");
     assert_eq!(
         parsed,
         BfdAuthHeader::KeyedMd5 {

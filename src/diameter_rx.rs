@@ -470,7 +470,9 @@ impl PcrfRxEngine {
         let session = self.sessions.get_mut(session_id)?;
         session.is_active = false;
         let released_bw = session.granted_bandwidth_ul_bps + session.granted_bandwidth_dl_bps;
-        self.allocated_bandwidth_bps = self.allocated_bandwidth_bps.saturating_sub(released_bw as u64);
+        self.allocated_bandwidth_bps = self
+            .allocated_bandwidth_bps
+            .saturating_sub(released_bw as u64);
 
         Some(AbortSessionRequest {
             session_id: session_id.to_string(),
@@ -487,7 +489,8 @@ impl PcrfRxEngine {
         if let Some(session) = self.sessions.remove(session_id) {
             if session.is_active {
                 let bw = session.granted_bandwidth_ul_bps + session.granted_bandwidth_dl_bps;
-                self.allocated_bandwidth_bps = self.allocated_bandwidth_bps.saturating_sub(bw as u64);
+                self.allocated_bandwidth_bps =
+                    self.allocated_bandwidth_bps.saturating_sub(bw as u64);
             }
             result_code == DIAMETER_SUCCESS
         } else {
@@ -518,11 +521,16 @@ impl ReAuthRequest {
         );
         msg.avps.push(DiameterAvp::new_utf8(263, &self.session_id));
         msg.avps.push(DiameterAvp::new_utf8(264, &self.origin_host));
-        msg.avps.push(DiameterAvp::new_utf8(296, &self.origin_realm));
-        msg.avps.push(DiameterAvp::new_utf8(293, &self.destination_host));
-        msg.avps.push(DiameterAvp::new_utf8(283, &self.destination_realm));
         msg.avps
-            .push(DiameterAvp::new_u32(AVP_SPECIFIC_ACTION, self.specific_action));
+            .push(DiameterAvp::new_utf8(296, &self.origin_realm));
+        msg.avps
+            .push(DiameterAvp::new_utf8(293, &self.destination_host));
+        msg.avps
+            .push(DiameterAvp::new_utf8(283, &self.destination_realm));
+        msg.avps.push(DiameterAvp::new_u32(
+            AVP_SPECIFIC_ACTION,
+            self.specific_action,
+        ));
         if let Some(cause) = self.abort_cause {
             msg.avps.push(DiameterAvp::new_u32(AVP_ABORT_CAUSE, cause));
         }
@@ -594,7 +602,8 @@ impl ReAuthAnswer {
         msg.avps.push(DiameterAvp::new_utf8(263, &self.session_id));
         msg.avps.push(DiameterAvp::new_u32(268, self.result_code));
         msg.avps.push(DiameterAvp::new_utf8(264, &self.origin_host));
-        msg.avps.push(DiameterAvp::new_utf8(296, &self.origin_realm));
+        msg.avps
+            .push(DiameterAvp::new_utf8(296, &self.origin_realm));
         msg
     }
 
@@ -643,10 +652,14 @@ impl AbortSessionRequest {
         );
         msg.avps.push(DiameterAvp::new_utf8(263, &self.session_id));
         msg.avps.push(DiameterAvp::new_utf8(264, &self.origin_host));
-        msg.avps.push(DiameterAvp::new_utf8(296, &self.origin_realm));
-        msg.avps.push(DiameterAvp::new_utf8(293, &self.destination_host));
-        msg.avps.push(DiameterAvp::new_utf8(283, &self.destination_realm));
-        msg.avps.push(DiameterAvp::new_u32(AVP_ABORT_CAUSE, self.abort_cause));
+        msg.avps
+            .push(DiameterAvp::new_utf8(296, &self.origin_realm));
+        msg.avps
+            .push(DiameterAvp::new_utf8(293, &self.destination_host));
+        msg.avps
+            .push(DiameterAvp::new_utf8(283, &self.destination_realm));
+        msg.avps
+            .push(DiameterAvp::new_u32(AVP_ABORT_CAUSE, self.abort_cause));
         msg
     }
 
@@ -713,7 +726,8 @@ impl AbortSessionAnswer {
         msg.avps.push(DiameterAvp::new_utf8(263, &self.session_id));
         msg.avps.push(DiameterAvp::new_u32(268, self.result_code));
         msg.avps.push(DiameterAvp::new_utf8(264, &self.origin_host));
-        msg.avps.push(DiameterAvp::new_utf8(296, &self.origin_realm));
+        msg.avps
+            .push(DiameterAvp::new_utf8(296, &self.origin_realm));
         msg
     }
 

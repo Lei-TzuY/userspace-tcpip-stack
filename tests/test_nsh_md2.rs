@@ -108,7 +108,10 @@ fn test_nsh_md2_critical_tlv_enforcement() {
     let mut pkt2 = NshMd2Packet::new(hdr2, b"Encapsulated Data".to_vec());
 
     let action2 = engine.process_packet(&mut pkt2);
-    assert!(matches!(action2, SffForwardingAction::ForwardNextHop { .. }));
+    assert!(matches!(
+        action2,
+        SffForwardingAction::ForwardNextHop { .. }
+    ));
 }
 
 #[test]
@@ -133,8 +136,14 @@ fn test_nsh_md2_security_group_acl_and_metadata_extraction() {
         .with_tlv(tlv_flow);
 
     assert_eq!(NshMetadataExtractor::extract_tenant_id(&hdr), Some(1000));
-    assert_eq!(NshMetadataExtractor::extract_security_group_tag(&hdr), Some(99));
-    assert_eq!(NshMetadataExtractor::extract_flow_hash(&hdr), Some(0x1234_5678));
+    assert_eq!(
+        NshMetadataExtractor::extract_security_group_tag(&hdr),
+        Some(99)
+    );
+    assert_eq!(
+        NshMetadataExtractor::extract_flow_hash(&hdr),
+        Some(0x1234_5678)
+    );
 
     let mut pkt = NshMd2Packet::new(hdr, b"Payload".to_vec());
 
@@ -156,7 +165,9 @@ fn test_nsh_md2_security_group_acl_and_metadata_extraction() {
 
 #[test]
 fn test_nsh_md2_inband_path_trace_telemetry() {
-    use toy_tcpip::nsh_md2::{NshContextTlv, NshMd2Header, NshMd2Packet, NshMd2SffEngine, NshMetadataExtractor};
+    use toy_tcpip::nsh_md2::{
+        NshContextTlv, NshMd2Header, NshMd2Packet, NshMd2SffEngine, NshMetadataExtractor,
+    };
 
     let spi = 0x005001;
     let mut sff1 = NshMd2SffEngine::new().with_local_node_id(101);
@@ -167,8 +178,7 @@ fn test_nsh_md2_inband_path_trace_telemetry() {
     sff2.add_path_hop(spi, 4, 103);
     sff3.add_path_hop(spi, 3, 104);
 
-    let hdr = NshMd2Header::new(spi, 5, 0x01)
-        .with_tlv(NshContextTlv::new_inband_path_trace(&[]));
+    let hdr = NshMd2Header::new(spi, 5, 0x01).with_tlv(NshContextTlv::new_inband_path_trace(&[]));
     let mut pkt = NshMd2Packet::new(hdr, b"Payload Data".to_vec());
 
     // Packet traverses SFF1 -> SFF2 -> SFF3
@@ -189,7 +199,7 @@ fn test_nsh_md2_inband_path_trace_telemetry() {
 #[test]
 fn test_nsh_md2_classifier_engine_encapsulation() {
     use toy_tcpip::nsh_md2::{
-        NshClassificationRule, NshClassifierEngine, NshMetadataExtractor, NSH_NP_IPV4,
+        NSH_NP_IPV4, NshClassificationRule, NshClassifierEngine, NshMetadataExtractor,
     };
 
     let mut classifier = NshClassifierEngine::new();
@@ -211,11 +221,11 @@ fn test_nsh_md2_classifier_engine_encapsulation() {
     // Header len = 20 bytes (IHL = 5), total len = 40 bytes
     let mut raw_ip = vec![0u8; 40];
     raw_ip[0] = 0x45; // IPv4, IHL = 5 (20 bytes)
-    raw_ip[9] = 6;    // TCP
+    raw_ip[9] = 6; // TCP
     raw_ip[12..16].copy_from_slice(&[10, 0, 0, 1]); // src IP
     raw_ip[16..20].copy_from_slice(&[10, 0, 0, 2]); // dst IP
     raw_ip[20..22].copy_from_slice(&12345u16.to_be_bytes()); // src port 12345
-    raw_ip[22..24].copy_from_slice(&80u16.to_be_bytes());    // dst port 80
+    raw_ip[22..24].copy_from_slice(&80u16.to_be_bytes()); // dst port 80
 
     let nsh_pkt = classifier
         .classify_and_encapsulate(&raw_ip)
@@ -224,9 +234,18 @@ fn test_nsh_md2_classifier_engine_encapsulation() {
     assert_eq!(nsh_pkt.header.service_path_id, 0x006001);
     assert_eq!(nsh_pkt.header.service_index, 10);
     assert_eq!(nsh_pkt.header.next_protocol, NSH_NP_IPV4);
-    assert_eq!(NshMetadataExtractor::extract_tenant_id(&nsh_pkt.header), Some(400));
-    assert_eq!(NshMetadataExtractor::extract_security_group_tag(&nsh_pkt.header), Some(15));
-    assert_eq!(NshMetadataExtractor::extract_inband_path_trace(&nsh_pkt.header), Some(vec![]));
+    assert_eq!(
+        NshMetadataExtractor::extract_tenant_id(&nsh_pkt.header),
+        Some(400)
+    );
+    assert_eq!(
+        NshMetadataExtractor::extract_security_group_tag(&nsh_pkt.header),
+        Some(15)
+    );
+    assert_eq!(
+        NshMetadataExtractor::extract_inband_path_trace(&nsh_pkt.header),
+        Some(vec![])
+    );
     assert_eq!(nsh_pkt.payload, raw_ip);
 
     // Mock non-matching packet (UDP port 53)

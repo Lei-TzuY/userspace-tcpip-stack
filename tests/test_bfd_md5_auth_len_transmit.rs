@@ -1,4 +1,4 @@
-use toy_tcpip::bfd::{BfdAuthHeader, BFD_AUTH_KEYED_MD5, BFD_AUTH_METICULOUS_KEYED_MD5};
+use toy_tcpip::bfd::{BFD_AUTH_KEYED_MD5, BFD_AUTH_METICULOUS_KEYED_MD5, BfdAuthHeader};
 
 #[test]
 fn keyed_md5_serialization_uses_exact_rfc_auth_len() {

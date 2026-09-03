@@ -1,8 +1,8 @@
 //! Integration tests for IGMPv3 & Source-Specific Multicast (SSM) Engine (RFC 3376, RFC 4607).
 
 use toy_tcpip::igmp_ssm::{
-    Igmpv3GroupRecord, Igmpv3HostState, Igmpv3Query, Igmpv3Report, IGMPV3_ALLOW_NEW_SOURCES,
-    IGMPV3_BLOCK_OLD_SOURCES, IGMPV3_MODE_IS_EXCLUDE, IGMPV3_MODE_IS_INCLUDE,
+    IGMPV3_ALLOW_NEW_SOURCES, IGMPV3_BLOCK_OLD_SOURCES, IGMPV3_MODE_IS_EXCLUDE,
+    IGMPV3_MODE_IS_INCLUDE, Igmpv3GroupRecord, Igmpv3HostState, Igmpv3Query, Igmpv3Report,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 
@@ -23,11 +23,8 @@ fn test_igmpv3_general_and_ssm_query_codec() {
     let ssm_group = Ipv4Address([232, 1, 2, 3]);
     let ssm_src1 = Ipv4Address([192, 0, 2, 10]);
     let ssm_src2 = Ipv4Address([192, 0, 2, 20]);
-    let ssm_query = Igmpv3Query::build_group_and_source_specific(
-        ssm_group,
-        vec![ssm_src1, ssm_src2],
-        50,
-    );
+    let ssm_query =
+        Igmpv3Query::build_group_and_source_specific(ssm_group, vec![ssm_src1, ssm_src2], 50);
     assert!(ssm_query.is_group_and_source_specific());
 
     let raw_ssm = ssm_query.serialize();

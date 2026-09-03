@@ -18,7 +18,9 @@ fn test_evpn_igmp_querier_election_integration() {
     let v_tick1 = engine.tick(115);
     assert_eq!(v_tick1.len(), 1);
     match &v_tick1[0] {
-        QuerierVerdict::QueryDispatched { vni, is_startup, .. } => {
+        QuerierVerdict::QueryDispatched {
+            vni, is_startup, ..
+        } => {
             assert_eq!(*vni, 5001);
             assert!(*is_startup);
         }
@@ -29,7 +31,11 @@ fn test_evpn_igmp_querier_election_integration() {
     let peer_ip = Ipv4Address::new(172, 16, 0, 5);
     let v_rx = engine.process_rx_query(5001, peer_ip, 120);
     match v_rx {
-        QuerierVerdict::ElectedNonQuerier { vni, active_querier_ip, .. } => {
+        QuerierVerdict::ElectedNonQuerier {
+            vni,
+            active_querier_ip,
+            ..
+        } => {
             assert_eq!(vni, 5001);
             assert_eq!(active_querier_ip, peer_ip);
         }

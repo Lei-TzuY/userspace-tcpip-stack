@@ -2,8 +2,8 @@
 
 use toy_tcpip::oran_o2_interface::{
     AcceleratorResource, AcceleratorType, ComputeNodeResource, NfDeploymentDescriptor,
-    NfDeploymentState, O2InterfaceEngine, O2imsAlarmEvent, O2imsAlarmSeverity,
-    OranNfType, ResourcePool,
+    NfDeploymentState, O2InterfaceEngine, O2imsAlarmEvent, O2imsAlarmSeverity, OranNfType,
+    ResourcePool,
 };
 
 fn setup_test_pool() -> ResourcePool {
@@ -83,14 +83,25 @@ fn test_o2_dms_vdu_instantiation_happy_path() {
     };
 
     // 1. Instantiate vDU
-    let instance = o2.instantiate_nf("edge-pool-01", "vdu-inst-01", vdu_desc).unwrap();
+    let instance = o2
+        .instantiate_nf("edge-pool-01", "vdu-inst-01", vdu_desc)
+        .unwrap();
     assert_eq!(instance.state, NfDeploymentState::Running);
     assert_eq!(instance.assigned_node_id, "node-edge-01");
     assert_eq!(instance.assigned_cores.len(), 8);
-    assert_eq!(instance.assigned_accelerator_id, Some("fpga-acc-01".to_string()));
+    assert_eq!(
+        instance.assigned_accelerator_id,
+        Some("fpga-acc-01".to_string())
+    );
 
     // Verify node resource consumption
-    let node1 = o2.resource_pools.get("edge-pool-01").unwrap().nodes.get("node-edge-01").unwrap();
+    let node1 = o2
+        .resource_pools
+        .get("edge-pool-01")
+        .unwrap()
+        .nodes
+        .get("node-edge-01")
+        .unwrap();
     assert_eq!(node1.allocated_isolated_cores.len(), 8);
     assert_eq!(node1.allocated_hugepages, 8);
     assert!(node1.accelerators[0].is_allocated);
@@ -101,7 +112,13 @@ fn test_o2_dms_vdu_instantiation_happy_path() {
     assert_eq!(terminated_instance.state, NfDeploymentState::Terminated);
 
     // Verify node resource reclamation
-    let node1_reclaimed = o2.resource_pools.get("edge-pool-01").unwrap().nodes.get("node-edge-01").unwrap();
+    let node1_reclaimed = o2
+        .resource_pools
+        .get("edge-pool-01")
+        .unwrap()
+        .nodes
+        .get("node-edge-01")
+        .unwrap();
     assert!(node1_reclaimed.allocated_isolated_cores.is_empty());
     assert_eq!(node1_reclaimed.allocated_hugepages, 0);
     assert!(!node1_reclaimed.accelerators[0].is_allocated);
@@ -134,8 +151,13 @@ fn test_o2_dms_deployment_rejection_insufficient_accelerator() {
         numa_aligned: true,
     };
 
-    let err = o2.instantiate_nf("plain-pool-01", "vdu-fail-01", vdu_desc).unwrap_err();
-    assert_eq!(err, "No eligible compute node meeting deployment constraints");
+    let err = o2
+        .instantiate_nf("plain-pool-01", "vdu-fail-01", vdu_desc)
+        .unwrap_err();
+    assert_eq!(
+        err,
+        "No eligible compute node meeting deployment constraints"
+    );
 }
 
 #[test]

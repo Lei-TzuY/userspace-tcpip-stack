@@ -19,12 +19,25 @@ pub const ORAN_SECTION_TYPE_3: u8 = 3;
 /// Errors raised during C-Plane extensions and Section Type 3 parsing/serialization.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OranCPlaneError {
-    Truncated { need: usize, got: usize },
-    InvalidExtensionLength { declared_words: u16, actual_len: usize },
+    Truncated {
+        need: usize,
+        got: usize,
+    },
+    InvalidExtensionLength {
+        declared_words: u16,
+        actual_len: usize,
+    },
     UnsupportedExtensionType(u8),
     UnsupportedSectionType(u8),
-    AntennaCountMismatch { expected: usize, got: usize },
-    FieldOverflow { field: &'static str, val: u32, max: u32 },
+    AntennaCountMismatch {
+        expected: usize,
+        got: usize,
+    },
+    FieldOverflow {
+        field: &'static str,
+        val: u32,
+        max: u32,
+    },
     InvalidCompressionWidth(u8),
 }
 
@@ -32,9 +45,16 @@ impl fmt::Display for OranCPlaneError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             OranCPlaneError::Truncated { need, got } => {
-                write!(f, "O-RAN C-Plane payload truncated: need {} bytes, got {}", need, got)
+                write!(
+                    f,
+                    "O-RAN C-Plane payload truncated: need {} bytes, got {}",
+                    need, got
+                )
             }
-            OranCPlaneError::InvalidExtensionLength { declared_words, actual_len } => {
+            OranCPlaneError::InvalidExtensionLength {
+                declared_words,
+                actual_len,
+            } => {
                 write!(
                     f,
                     "Invalid extension length: declared {} 32-bit words, buffer has {} bytes",
@@ -48,10 +68,18 @@ impl fmt::Display for OranCPlaneError {
                 write!(f, "Unsupported Section Type {}, expected Type 3", t)
             }
             OranCPlaneError::AntennaCountMismatch { expected, got } => {
-                write!(f, "Antenna count mismatch: expected {}, parsed {}", expected, got)
+                write!(
+                    f,
+                    "Antenna count mismatch: expected {}, parsed {}",
+                    expected, got
+                )
             }
             OranCPlaneError::FieldOverflow { field, val, max } => {
-                write!(f, "Field '{}' value {} exceeds maximum allowed {}", field, val, max)
+                write!(
+                    f,
+                    "Field '{}' value {} exceeds maximum allowed {}",
+                    field, val, max
+                )
             }
             OranCPlaneError::InvalidCompressionWidth(w) => {
                 write!(f, "Invalid BFW compression bit width {}", w)
@@ -140,7 +168,11 @@ impl SectionExtension1 {
         let mut body = Vec::new();
 
         // Byte 0: bfwCompMeth (upper 4 bits) | bfwIqWidth (lower 4 bits)
-        let width_nibble = if self.bfw_iq_width == 16 { 0 } else { self.bfw_iq_width & 0x0F };
+        let width_nibble = if self.bfw_iq_width == 16 {
+            0
+        } else {
+            self.bfw_iq_width & 0x0F
+        };
         body.push(((self.bfw_comp_meth.to_u8() & 0x0F) << 4) | width_nibble);
 
         // Append weights per bundle
@@ -185,7 +217,10 @@ impl SectionExtension1 {
     /// Parses Section Extension 1 from wire format.
     pub fn parse(data: &[u8], num_antennas: usize) -> Result<Self, OranCPlaneError> {
         if data.len() < 4 {
-            return Err(OranCPlaneError::Truncated { need: 4, got: data.len() });
+            return Err(OranCPlaneError::Truncated {
+                need: 4,
+                got: data.len(),
+            });
         }
         let ext_type = data[0];
         if ext_type != ORAN_EXT_BEAMFORMING_WEIGHTS {
@@ -295,7 +330,10 @@ impl SectionExtension2 {
 
     pub fn parse(data: &[u8]) -> Result<Self, OranCPlaneError> {
         if data.len() < 10 {
-            return Err(OranCPlaneError::Truncated { need: 10, got: data.len() });
+            return Err(OranCPlaneError::Truncated {
+                need: 10,
+                got: data.len(),
+            });
         }
         if data[0] != ORAN_EXT_BEAM_ATTRIBUTES {
             return Err(OranCPlaneError::UnsupportedExtensionType(data[0]));
@@ -320,7 +358,10 @@ pub struct SectionExtension4 {
 
 impl SectionExtension4 {
     pub fn new(csf: bool, mod_comp_scaler: u16) -> Self {
-        Self { csf, mod_comp_scaler }
+        Self {
+            csf,
+            mod_comp_scaler,
+        }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
@@ -337,14 +378,20 @@ impl SectionExtension4 {
 
     pub fn parse(data: &[u8]) -> Result<Self, OranCPlaneError> {
         if data.len() < 6 {
-            return Err(OranCPlaneError::Truncated { need: 6, got: data.len() });
+            return Err(OranCPlaneError::Truncated {
+                need: 6,
+                got: data.len(),
+            });
         }
         if data[0] != ORAN_EXT_MODULATION_COMPRESSION {
             return Err(OranCPlaneError::UnsupportedExtensionType(data[0]));
         }
         let csf = (data[4] & 0x80) != 0;
         let scaler = (((data[4] & 0x7F) as u16) << 8) | (data[5] as u16);
-        Ok(SectionExtension4 { csf, mod_comp_scaler: scaler })
+        Ok(SectionExtension4 {
+            csf,
+            mod_comp_scaler: scaler,
+        })
     }
 }
 
@@ -431,7 +478,10 @@ impl CPlaneSectionType3 {
     /// Parses Section Type 3 section body from wire format.
     pub fn parse(data: &[u8]) -> Result<Self, OranCPlaneError> {
         if data.len() < 14 {
-            return Err(OranCPlaneError::Truncated { need: 14, got: data.len() });
+            return Err(OranCPlaneError::Truncated {
+                need: 14,
+                got: data.len(),
+            });
         }
 
         let section_id = (((data[0] as u16) << 4) | (((data[1] >> 4) & 0x0F) as u16)) & 0x0FFF;

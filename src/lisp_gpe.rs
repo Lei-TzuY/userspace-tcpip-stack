@@ -229,7 +229,9 @@ mod tests {
         assert_eq!(data4, ipv4_pkt);
 
         // 2. Encapsulate Ethernet Frame (L2 overlay)
-        let eth_frame = vec![0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x08, 0x00];
+        let eth_frame = vec![
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff, 0x08, 0x00,
+        ];
         let enc_eth = engine.encapsulate(200, LispGpeNextProto::Ethernet, &eth_frame);
         let raw_eth = enc_eth.serialize();
         let parsed_eth = LispGpePacket::parse(&raw_eth).unwrap();

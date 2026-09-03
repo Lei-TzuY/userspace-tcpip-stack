@@ -89,7 +89,9 @@ fn test_ptp_telecom_holdover_degradation_and_downstream_announce() {
     assert_eq!(bc.current_output_clock_quality().clock_class, 6);
 
     // Generate downstream announce on Port 2
-    let ds_ann = bc.generate_downstream_announce(2).expect("generate announce");
+    let ds_ann = bc
+        .generate_downstream_announce(2)
+        .expect("generate announce");
     assert_eq!(ds_ann.steps_removed, 2); // 1 + 1
     assert_eq!(ds_ann.grandmaster_clock_quality.clock_class, 6);
     assert_eq!(ds_ann.time_source, 0x20); // PTP
@@ -101,7 +103,9 @@ fn test_ptp_telecom_holdover_degradation_and_downstream_announce() {
     assert_eq!(bc.current_output_clock_quality().clock_class, 7);
 
     // Downstream announce now reflects internal oscillator and Class 7
-    let ds_holdover = bc.generate_downstream_announce(2).expect("holdover announce");
+    let ds_holdover = bc
+        .generate_downstream_announce(2)
+        .expect("holdover announce");
     assert_eq!(ds_holdover.grandmaster_clock_quality.clock_class, 7);
     assert_eq!(ds_holdover.time_source, 0x90); // Internal Oscillator
 

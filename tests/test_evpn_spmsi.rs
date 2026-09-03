@@ -2,9 +2,8 @@
 
 use std::net::Ipv4Addr;
 use toy_tcpip::evpn_spmsi_mcast::{
-    EvpnLeafAdRoute, EvpnSpmsiEngine, EvpnSpmsiRoute, MulticastDeliveryMode, PTunnelAttribute,
-    EVPN_ROUTE_TYPE_LEAF_AD, EVPN_ROUTE_TYPE_SPMSI_AD,
-    PTA_TUNNEL_TYPE_INGRESS_REPL,
+    EVPN_ROUTE_TYPE_LEAF_AD, EVPN_ROUTE_TYPE_SPMSI_AD, EvpnLeafAdRoute, EvpnSpmsiEngine,
+    EvpnSpmsiRoute, MulticastDeliveryMode, PTA_TUNNEL_TYPE_INGRESS_REPL, PTunnelAttribute,
 };
 
 #[test]
@@ -35,7 +34,8 @@ fn test_spmsi_and_leaf_ad_full_lifecycle() {
     // 2. High burst -> 10 MB in 1s = 80 Mbps > 5 Mbps threshold -> S-PMSI trigger
     let (mode, spmsi_opt) = engine.record_traffic(vni, src, grp, 10_000_000, 1);
     assert_eq!(mode, MulticastDeliveryMode::Selective);
-    let spmsi_route = spmsi_opt.expect("Expected S-PMSI A-D route generation upon threshold crossing");
+    let spmsi_route =
+        spmsi_opt.expect("Expected S-PMSI A-D route generation upon threshold crossing");
     assert_eq!(spmsi_route.ethernet_tag_id, vni);
     assert_eq!(spmsi_route.source_ip, src);
     assert_eq!(spmsi_route.group_ip, grp);

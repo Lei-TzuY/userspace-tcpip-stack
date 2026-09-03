@@ -1,6 +1,6 @@
 //! Integration tests for PTP Hardware Clock (PHC) Emulation, Cross-Timestamping, and TX/RX Ring Buffer.
 
-use toy_tcpip::ptp::{PtpPacket, PtpTimestamp, PTP_MSG_SYNC};
+use toy_tcpip::ptp::{PTP_MSG_SYNC, PtpPacket, PtpTimestamp};
 use toy_tcpip::ptp_pdv_filter::{PtpClockServo, PtpClockServoConfig, PtpServoAction};
 use toy_tcpip::ptp_phc::{
     PhcPacketTagger, PhcTxTimestampRing, PtpCrossTimestamp, PtpHardwareClock,
@@ -102,7 +102,11 @@ fn test_phc_closed_loop_servo_discipline() {
     // Phase offset should be locked near 0 ns
     let final_phc_ns = phc.get_time().to_total_nanoseconds() as i64;
     let final_error = (master_time_ns - final_phc_ns).abs();
-    assert!(final_error < 200, "Final phase error {} ns exceeds 200 ns", final_error);
+    assert!(
+        final_error < 200,
+        "Final phase error {} ns exceeds 200 ns",
+        final_error
+    );
 }
 
 #[test]

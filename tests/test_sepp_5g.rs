@@ -11,8 +11,14 @@ use toy_tcpip::sepp_5g::*;
 
 #[test]
 fn test_sepp_n32c_handshake_and_n32f_prins_happy_path() {
-    let vplmn = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
-    let hplmn = PlmnId { mcc: [2, 0, 8], mnc: [0, 1, 0] };
+    let vplmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
+    let hplmn = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [0, 1, 0],
+    };
 
     let mut egress_sepp = SeppEngine::new("sepp.vplmn.net", vplmn);
     let mut ingress_sepp = SeppEngine::new("sepp.hplmn.net", hplmn);
@@ -47,7 +53,13 @@ fn test_sepp_n32c_handshake_and_n32f_prins_happy_path() {
     let payload = b"{\"supi\":\"imsi-208950000000001\",\"authType\":\"5G_AKA\"}";
 
     let protected_msg = egress_sepp
-        .n32f_protect(session_id, "POST", telescopic_fqdn, headers.clone(), payload)
+        .n32f_protect(
+            session_id,
+            "POST",
+            telescopic_fqdn,
+            headers.clone(),
+            payload,
+        )
         .expect("PRINS protection failed");
 
     assert_ne!(protected_msg.encrypted_payload, payload); // Ciphertext check
@@ -68,8 +80,14 @@ fn test_sepp_n32c_handshake_and_n32f_prins_happy_path() {
 
 #[test]
 fn test_sepp_ipx_authorized_modifications() {
-    let plmn1 = PlmnId { mcc: [3, 1, 0], mnc: [4, 1, 0] };
-    let plmn2 = PlmnId { mcc: [4, 4, 0], mnc: [2, 0, 0] };
+    let plmn1 = PlmnId {
+        mcc: [3, 1, 0],
+        mnc: [4, 1, 0],
+    };
+    let plmn2 = PlmnId {
+        mcc: [4, 4, 0],
+        mnc: [2, 0, 0],
+    };
 
     let mut egress = SeppEngine::new("sepp.us.net", plmn1);
     let mut ingress = SeppEngine::new("sepp.jp.net", plmn2);
@@ -82,12 +100,22 @@ fn test_sepp_ipx_authorized_modifications() {
         ipx_provider_id: None,
     };
 
-    egress.establish_n32_session(session_id, plmn2, "sepp.jp.net", &caps, shared_key).unwrap();
-    ingress.establish_n32_session(session_id, plmn1, "sepp.us.net", &caps, shared_key).unwrap();
+    egress
+        .establish_n32_session(session_id, plmn2, "sepp.jp.net", &caps, shared_key)
+        .unwrap();
+    ingress
+        .establish_n32_session(session_id, plmn1, "sepp.us.net", &caps, shared_key)
+        .unwrap();
     ingress.register_telescopic_route("ausf-tele.jp.net", "ausf01.core.jp.net");
 
     let mut msg = egress
-        .n32f_protect(session_id, "GET", "ausf-tele.jp.net", HashMap::new(), b"query-auth")
+        .n32f_protect(
+            session_id,
+            "GET",
+            "ausf-tele.jp.net",
+            HashMap::new(),
+            b"query-auth",
+        )
         .unwrap();
 
     // Transit IPX modifies authorized header "Via"
@@ -109,8 +137,14 @@ fn test_sepp_ipx_authorized_modifications() {
 
 #[test]
 fn test_sepp_ipx_prohibited_header_tampering_rejection() {
-    let plmn1 = PlmnId { mcc: [3, 1, 0], mnc: [4, 1, 0] };
-    let plmn2 = PlmnId { mcc: [4, 4, 0], mnc: [2, 0, 0] };
+    let plmn1 = PlmnId {
+        mcc: [3, 1, 0],
+        mnc: [4, 1, 0],
+    };
+    let plmn2 = PlmnId {
+        mcc: [4, 4, 0],
+        mnc: [2, 0, 0],
+    };
 
     let mut egress = SeppEngine::new("sepp.us.net", plmn1);
     let mut ingress = SeppEngine::new("sepp.jp.net", plmn2);
@@ -123,12 +157,22 @@ fn test_sepp_ipx_prohibited_header_tampering_rejection() {
         ipx_provider_id: None,
     };
 
-    egress.establish_n32_session(session_id, plmn2, "sepp.jp.net", &caps, shared_key).unwrap();
-    ingress.establish_n32_session(session_id, plmn1, "sepp.us.net", &caps, shared_key).unwrap();
+    egress
+        .establish_n32_session(session_id, plmn2, "sepp.jp.net", &caps, shared_key)
+        .unwrap();
+    ingress
+        .establish_n32_session(session_id, plmn1, "sepp.us.net", &caps, shared_key)
+        .unwrap();
     ingress.register_telescopic_route("pcf-tele.jp.net", "pcf01.core.jp.net");
 
     let mut msg = egress
-        .n32f_protect(session_id, "POST", "pcf-tele.jp.net", HashMap::new(), b"pcc-request")
+        .n32f_protect(
+            session_id,
+            "POST",
+            "pcf-tele.jp.net",
+            HashMap::new(),
+            b"pcc-request",
+        )
         .unwrap();
 
     // Malicious or misconfigured IPX tampers with prohibited header
@@ -154,8 +198,14 @@ fn test_sepp_ipx_prohibited_header_tampering_rejection() {
 
 #[test]
 fn test_sepp_tampered_payload_mac_failure() {
-    let plmn1 = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
-    let plmn2 = PlmnId { mcc: [2, 0, 8], mnc: [0, 1, 0] };
+    let plmn1 = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
+    let plmn2 = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [0, 1, 0],
+    };
 
     let mut egress = SeppEngine::new("sepp.v.net", plmn1);
     let mut ingress = SeppEngine::new("sepp.h.net", plmn2);
@@ -168,12 +218,22 @@ fn test_sepp_tampered_payload_mac_failure() {
         ipx_provider_id: None,
     };
 
-    egress.establish_n32_session(session_id, plmn2, "sepp.h.net", &caps, shared_key).unwrap();
-    ingress.establish_n32_session(session_id, plmn1, "sepp.v.net", &caps, shared_key).unwrap();
+    egress
+        .establish_n32_session(session_id, plmn2, "sepp.h.net", &caps, shared_key)
+        .unwrap();
+    ingress
+        .establish_n32_session(session_id, plmn1, "sepp.v.net", &caps, shared_key)
+        .unwrap();
     ingress.register_telescopic_route("udm-tele.h.net", "udm.core.h.net");
 
     let mut msg = egress
-        .n32f_protect(session_id, "GET", "udm-tele.h.net", HashMap::new(), b"sensitive-data")
+        .n32f_protect(
+            session_id,
+            "GET",
+            "udm-tele.h.net",
+            HashMap::new(),
+            b"sensitive-data",
+        )
         .unwrap();
 
     // Adversary tampers with one byte in ciphertext during transit
@@ -191,8 +251,14 @@ fn test_sepp_tampered_payload_mac_failure() {
 
 #[test]
 fn test_sepp_invalid_telescopic_fqdn_rejection() {
-    let plmn1 = PlmnId { mcc: [2, 0, 8], mnc: [9, 5, 0] };
-    let plmn2 = PlmnId { mcc: [2, 0, 8], mnc: [0, 1, 0] };
+    let plmn1 = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [9, 5, 0],
+    };
+    let plmn2 = PlmnId {
+        mcc: [2, 0, 8],
+        mnc: [0, 1, 0],
+    };
 
     let mut egress = SeppEngine::new("sepp.v.net", plmn1);
     let mut ingress = SeppEngine::new("sepp.h.net", plmn2);
@@ -205,12 +271,22 @@ fn test_sepp_invalid_telescopic_fqdn_rejection() {
         ipx_provider_id: None,
     };
 
-    egress.establish_n32_session(session_id, plmn2, "sepp.h.net", &caps, shared_key).unwrap();
-    ingress.establish_n32_session(session_id, plmn1, "sepp.v.net", &caps, shared_key).unwrap();
+    egress
+        .establish_n32_session(session_id, plmn2, "sepp.h.net", &caps, shared_key)
+        .unwrap();
+    ingress
+        .establish_n32_session(session_id, plmn1, "sepp.v.net", &caps, shared_key)
+        .unwrap();
 
     // Target unmapped telescopic FQDN
     let msg = egress
-        .n32f_protect(session_id, "GET", "unregistered.sepp.h.net", HashMap::new(), b"ping")
+        .n32f_protect(
+            session_id,
+            "GET",
+            "unregistered.sepp.h.net",
+            HashMap::new(),
+            b"ping",
+        )
         .unwrap();
 
     let res = ingress.n32f_decapsulate(&msg);

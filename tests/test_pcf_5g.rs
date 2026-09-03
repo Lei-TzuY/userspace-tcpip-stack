@@ -21,7 +21,9 @@ fn test_pcf_create_sm_policy_happy_path() {
         ue_ipv4: ue_ip,
     };
 
-    let resp = pcf.handle_create_sm_policy(&req).expect("Failed to create SM Policy");
+    let resp = pcf
+        .handle_create_sm_policy(&req)
+        .expect("Failed to create SM Policy");
 
     assert!(!resp.policy_ref.is_empty());
     assert_eq!(resp.session_ambr_dl_kbps, 200_000);

@@ -77,10 +77,20 @@ impl ParsedL2Frame {
         }
 
         let dst_mac = MacAddress::new([
-            raw_frame[0], raw_frame[1], raw_frame[2], raw_frame[3], raw_frame[4], raw_frame[5],
+            raw_frame[0],
+            raw_frame[1],
+            raw_frame[2],
+            raw_frame[3],
+            raw_frame[4],
+            raw_frame[5],
         ]);
         let src_mac = MacAddress::new([
-            raw_frame[6], raw_frame[7], raw_frame[8], raw_frame[9], raw_frame[10], raw_frame[11],
+            raw_frame[6],
+            raw_frame[7],
+            raw_frame[8],
+            raw_frame[9],
+            raw_frame[10],
+            raw_frame[11],
         ]);
 
         let mut offset = 12;
@@ -208,15 +218,19 @@ impl FlowspecL2Engine {
 
             // All match fields satisfied
             return match &rule.action {
-                FlowspecL2Action::Drop => FlowspecL2Decision::Drop { rule_id: rule.rule_id },
+                FlowspecL2Action::Drop => FlowspecL2Decision::Drop {
+                    rule_id: rule.rule_id,
+                },
                 FlowspecL2Action::RateLimitBps(bps) => FlowspecL2Decision::RateLimit {
                     rule_id: rule.rule_id,
                     bps: *bps,
                 },
-                FlowspecL2Action::RedirectInterface(iface) => FlowspecL2Decision::RedirectInterface {
-                    rule_id: rule.rule_id,
-                    iface: iface.clone(),
-                },
+                FlowspecL2Action::RedirectInterface(iface) => {
+                    FlowspecL2Decision::RedirectInterface {
+                        rule_id: rule.rule_id,
+                        iface: iface.clone(),
+                    }
+                }
                 FlowspecL2Action::RedirectVni(vni) => FlowspecL2Decision::RedirectVni {
                     rule_id: rule.rule_id,
                     vni: *vni,
@@ -282,7 +296,7 @@ mod tests {
         frame1.extend_from_slice(&victim_mac.bytes());
         frame1.extend_from_slice(&attacker_mac.bytes());
         frame1.extend_from_slice(&[0x81, 0x00]); // 802.1Q TPID
-        frame1.extend_from_slice(&[0x00, 100]);  // PCP 0, VLAN 100
+        frame1.extend_from_slice(&[0x00, 100]); // PCP 0, VLAN 100
         frame1.extend_from_slice(&[0x08, 0x00]); // EtherType IPv4
         frame1.extend_from_slice(&[0x45, 0x00, 0x00, 0x20]); // IP header snippet
 
@@ -301,7 +315,13 @@ mod tests {
         frame2.extend_from_slice(&[0x45, 0x00, 0x00, 0x20]);
 
         let dec2 = engine.evaluate_frame(&frame2);
-        assert_eq!(dec2, FlowspecL2Decision::RemarkPcp { rule_id: 2, new_pcp: 7 });
+        assert_eq!(
+            dec2,
+            FlowspecL2Decision::RemarkPcp {
+                rule_id: 2,
+                new_pcp: 7
+            }
+        );
 
         // Frame 3: Normal untagged ARP frame passes
         let mut frame3 = Vec::new();

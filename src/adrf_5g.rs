@@ -146,8 +146,7 @@ impl AdrfEngine {
             .values()
             .filter(|rec| {
                 rec.domain == domain
-                    && (target_id.is_none()
-                        || rec.target_id.as_deref() == target_id)
+                    && (target_id.is_none() || rec.target_id.as_deref() == target_id)
                     && rec.timestamp_epoch_s >= start_epoch_s
                     && rec.timestamp_epoch_s <= end_epoch_s
             })

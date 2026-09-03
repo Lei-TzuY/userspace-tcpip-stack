@@ -60,7 +60,7 @@ pub struct PtpFilteredEstimate {
 pub struct PtpPdvFloorFilter {
     pub window_size: usize,
     pub floor_threshold_percent: f64, // e.g. 5.0% lowest delay
-    pub max_cluster_spread_ns: i64,    // Max allowable spread within floor cluster
+    pub max_cluster_spread_ns: i64,   // Max allowable spread within floor cluster
     pub samples: VecDeque<PtpTimestampSample>,
     pub asymmetry_compensation_ns: i64,
     pub delay_asymmetry_ratio: Option<f64>,
@@ -81,7 +81,11 @@ pub struct PtpTimeErrorMetrics {
 }
 
 impl PtpPdvFloorFilter {
-    pub fn new(window_size: usize, floor_threshold_percent: f64, max_cluster_spread_ns: i64) -> Self {
+    pub fn new(
+        window_size: usize,
+        floor_threshold_percent: f64,
+        max_cluster_spread_ns: i64,
+    ) -> Self {
         Self {
             window_size: window_size.max(4),
             floor_threshold_percent: floor_threshold_percent.clamp(0.01, 50.0),
@@ -171,7 +175,10 @@ impl PtpPdvFloorFilter {
 
     /// Partitions sliding window into subwindows, selects the minimum-delay "lucky packet"
     /// per subwindow, and aggregates to prevent sample bunching under bursty queuing.
-    pub fn compute_subwindow_lucky_estimate(&self, subwindow_count: usize) -> Option<PtpFilteredEstimate> {
+    pub fn compute_subwindow_lucky_estimate(
+        &self,
+        subwindow_count: usize,
+    ) -> Option<PtpFilteredEstimate> {
         let n = self.samples.len();
         let k = subwindow_count.max(2);
         if n < k * 2 {
@@ -231,7 +238,8 @@ impl PtpPdvFloorFilter {
         fwd_delays.sort();
         rev_delays.sort();
 
-        let floor_count = ((n as f64 * (self.floor_threshold_percent / 100.0)).ceil() as usize).max(1);
+        let floor_count =
+            ((n as f64 * (self.floor_threshold_percent / 100.0)).ceil() as usize).max(1);
 
         // Compute average of the lowest `floor_count` delays to reduce discretization noise
         let fwd_floor_slice = &fwd_delays[0..floor_count];
@@ -282,7 +290,10 @@ impl PtpPdvFloorFilter {
 
     /// Estimates delay floors by building a delay histogram and locating the primary floor cluster bin,
     /// providing robust noise immunity against multi-modal queuing delay distributions (ITU-T G.8275.2 Annex D).
-    pub fn compute_histogram_floor_estimate(&self, bin_width_ns: i64) -> Option<PtpFilteredEstimate> {
+    pub fn compute_histogram_floor_estimate(
+        &self,
+        bin_width_ns: i64,
+    ) -> Option<PtpFilteredEstimate> {
         let n = self.samples.len();
         if n < 4 {
             return None;
@@ -296,14 +307,16 @@ impl PtpPdvFloorFilter {
         let min_rev = *rev_delays.iter().min().unwrap();
 
         // Bin forward delays
-        let mut fwd_bins: std::collections::HashMap<i64, Vec<i64>> = std::collections::HashMap::new();
+        let mut fwd_bins: std::collections::HashMap<i64, Vec<i64>> =
+            std::collections::HashMap::new();
         for &d in &fwd_delays {
             let bin_idx = (d - min_fwd) / bw;
             fwd_bins.entry(bin_idx).or_default().push(d);
         }
 
         // Bin reverse delays
-        let mut rev_bins: std::collections::HashMap<i64, Vec<i64>> = std::collections::HashMap::new();
+        let mut rev_bins: std::collections::HashMap<i64, Vec<i64>> =
+            std::collections::HashMap::new();
         for &d in &rev_delays {
             let bin_idx = (d - min_rev) / bw;
             rev_bins.entry(bin_idx).or_default().push(d);
@@ -366,8 +379,16 @@ impl PtpPdvFloorFilter {
             return None;
         }
 
-        let fwd: Vec<f64> = self.samples.iter().map(|s| s.forward_delay() as f64).collect();
-        let rev: Vec<f64> = self.samples.iter().map(|s| s.reverse_delay() as f64).collect();
+        let fwd: Vec<f64> = self
+            .samples
+            .iter()
+            .map(|s| s.forward_delay() as f64)
+            .collect();
+        let rev: Vec<f64> = self
+            .samples
+            .iter()
+            .map(|s| s.reverse_delay() as f64)
+            .collect();
 
         let mean_fwd = fwd.iter().sum::<f64>() / n as f64;
         let mean_rev = rev.iter().sum::<f64>() / n as f64;
@@ -429,8 +450,18 @@ impl PtpPdvFloorFilter {
             return (0.0, 0.0);
         }
 
-        let min_fwd = self.samples.iter().map(|s| s.forward_delay()).min().unwrap();
-        let min_rev = self.samples.iter().map(|s| s.reverse_delay()).min().unwrap();
+        let min_fwd = self
+            .samples
+            .iter()
+            .map(|s| s.forward_delay())
+            .min()
+            .unwrap();
+        let min_rev = self
+            .samples
+            .iter()
+            .map(|s| s.reverse_delay())
+            .min()
+            .unwrap();
 
         let fwd_floor_count = self
             .samples
@@ -482,11 +513,31 @@ impl PtpPdvFloorFilter {
         let k = (n / 4).clamp(2, 10);
         let older_count = n - k;
 
-        let older_min_fwd = self.samples.iter().take(older_count).map(|s| s.forward_delay()).min()?;
-        let older_min_rev = self.samples.iter().take(older_count).map(|s| s.reverse_delay()).min()?;
+        let older_min_fwd = self
+            .samples
+            .iter()
+            .take(older_count)
+            .map(|s| s.forward_delay())
+            .min()?;
+        let older_min_rev = self
+            .samples
+            .iter()
+            .take(older_count)
+            .map(|s| s.reverse_delay())
+            .min()?;
 
-        let recent_min_fwd = self.samples.iter().skip(older_count).map(|s| s.forward_delay()).min()?;
-        let recent_min_rev = self.samples.iter().skip(older_count).map(|s| s.reverse_delay()).min()?;
+        let recent_min_fwd = self
+            .samples
+            .iter()
+            .skip(older_count)
+            .map(|s| s.forward_delay())
+            .min()?;
+        let recent_min_rev = self
+            .samples
+            .iter()
+            .skip(older_count)
+            .map(|s| s.reverse_delay())
+            .min()?;
 
         let fwd_step = recent_min_fwd - older_min_fwd;
         let rev_step = recent_min_rev - older_min_rev;
@@ -596,8 +647,8 @@ impl Default for PtpClockServoConfig {
         Self {
             kp: 0.7,
             ki: 0.3,
-            step_threshold_ns: 100_000,           // 100 µs
-            lock_threshold_ns: 50,                // 50 ns (Class C / D requirement)
+            step_threshold_ns: 100_000, // 100 µs
+            lock_threshold_ns: 50,      // 50 ns (Class C / D requirement)
             lock_consecutive_count: 4,
             max_frequency_offset_ppb: 100_000.0, // ±100 ppm
             max_integral_windup_ns: 1_000_000.0,
@@ -691,9 +742,7 @@ impl PtpClockServo {
             self.consecutive_locked = 0;
             self.total_step_ns += offset_ns;
             self.integrated_error_ns = 0.0;
-            return PtpServoAction::Step {
-                step_ns: offset_ns,
-            };
+            return PtpServoAction::Step { step_ns: offset_ns };
         }
 
         // Proportional term
@@ -729,7 +778,6 @@ impl PtpClockServo {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {

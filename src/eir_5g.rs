@@ -36,9 +36,9 @@ impl EquipmentStatus {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Pei {
     pub raw: String,
-    pub tac: String,      // Type Allocation Code (8 digits)
-    pub snr: String,      // Serial Number (6 digits)
-    pub cd_or_svn: String,// Check Digit (1 digit for IMEI) or SVN (2 digits for IMEISV)
+    pub tac: String,       // Type Allocation Code (8 digits)
+    pub snr: String,       // Serial Number (6 digits)
+    pub cd_or_svn: String, // Check Digit (1 digit for IMEI) or SVN (2 digits for IMEISV)
     pub is_imeisv: bool,
 }
 
@@ -154,7 +154,8 @@ impl EirEngine {
 
     /// Add a TAC (8 digits) to the blacklist (e.g. vulnerable hardware).
     pub fn blacklist_tac(&mut self, tac: &str, reason: &str) {
-        self.blacklisted_tacs.insert(tac.to_string(), reason.to_string());
+        self.blacklisted_tacs
+            .insert(tac.to_string(), reason.to_string());
     }
 
     /// Add a PEI to the greylist with a validity expiration.

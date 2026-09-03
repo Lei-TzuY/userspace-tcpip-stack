@@ -167,7 +167,9 @@ impl Srv6Engine {
                                 payload: inner_payload.to_vec(),
                             }
                         } else {
-                            Srv6ExecutionResult::Drop("End.DT46: Unknown inner IP version".to_string())
+                            Srv6ExecutionResult::Drop(
+                                "End.DT46: Unknown inner IP version".to_string(),
+                            )
                         }
                     } else {
                         Srv6ExecutionResult::Drop("End.DT46: Empty payload".to_string())

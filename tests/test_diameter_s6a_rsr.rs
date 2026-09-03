@@ -1,5 +1,5 @@
 use toy_tcpip::diameter_s6a_rsr::{
-    RESULT_CODE_SUCCESS, S6aRsrEngine, S6aRsrMessage, DIAMETER_CMD_RESET,
+    DIAMETER_CMD_RESET, RESULT_CODE_SUCCESS, S6aRsrEngine, S6aRsrMessage,
 };
 
 #[test]

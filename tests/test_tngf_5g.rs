@@ -40,11 +40,16 @@ fn test_tngf_trusted_wifi_attachment_and_gre_forwarding_happy_path() {
         tngf.sessions.get(&sess_id).unwrap().state,
         TngfSessionState::GreSessionActive
     );
-    assert_eq!(tngf.sessions.get(&sess_id).unwrap().upf_teid, Some(upf_teid));
+    assert_eq!(
+        tngf.sessions.get(&sess_id).unwrap().upf_teid,
+        Some(upf_teid)
+    );
 
     // Step 4: UE encapsulates user payload into lightweight RFC 2890 GRE packet
     let user_payload = b"High-Speed Wi-Fi 6 Video Stream";
-    let gre_frame = tngf.encapsulate_user_packet_to_gre(&sess_id, user_payload).unwrap();
+    let gre_frame = tngf
+        .encapsulate_user_packet_to_gre(&sess_id, user_payload)
+        .unwrap();
 
     // Verify GRE header: Key present (0x20), Protocol IPv4 (0x0800), 32-bit GRE key
     assert_eq!(gre_frame[0], 0x20);
@@ -158,7 +163,8 @@ fn test_tngf_session_termination_lifecycle() {
     assert!(tngf.gre_key_to_session.contains_key(&gre_key));
 
     // Terminate session
-    tngf.terminate_session(&sess_id).expect("Termination failed");
+    tngf.terminate_session(&sess_id)
+        .expect("Termination failed");
     assert!(!tngf.sessions.contains_key(&sess_id));
     assert!(!tngf.gre_key_to_session.contains_key(&gre_key));
 

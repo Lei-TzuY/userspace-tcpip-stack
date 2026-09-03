@@ -41,7 +41,9 @@ fn test_xn_setup_procedure_happy_path() {
     assert_eq!(gnb2.peer_state, XnPeerState::Disconnected);
 
     // 1. gNB1 initiates Xn Setup toward gNB2
-    let req = gnb1.initiate_xn_setup().expect("gNB1 setup initiation failed");
+    let req = gnb1
+        .initiate_xn_setup()
+        .expect("gNB1 setup initiation failed");
     assert_eq!(gnb1.peer_state, XnPeerState::SetupPending);
     assert_eq!(req.global_gnb_id, 1001);
     assert_eq!(req.served_cells.len(), 1);
@@ -124,7 +126,10 @@ fn test_xn_handover_preparation_and_acknowledgement() {
 
     assert_eq!(ho_ack.source_ue_xnap_id, ho_req.source_ue_xnap_id);
     assert_eq!(ho_ack.pdu_session_resources_admitted.len(), 1);
-    assert_eq!(ho_ack.target_to_source_transparent_container, rrc_reconfig_sync);
+    assert_eq!(
+        ho_ack.target_to_source_transparent_container,
+        rrc_reconfig_sync
+    );
 
     // Verify DL forwarding tunnel allocated on target
     let admitted = &ho_ack.pdu_session_resources_admitted[0];

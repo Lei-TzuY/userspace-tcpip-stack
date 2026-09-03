@@ -39,8 +39,8 @@ impl Default for HoldoverTimingBudget {
     fn default() -> Self {
         HoldoverTimingBudget {
             holdover_in_spec_timeout_sec: 1000, // ~17 minutes G.8273.2 Class C
-            initial_accuracy: 0x21,              // Within 100ns
-            degraded_accuracy: 0x25,             // Within 1µs
+            initial_accuracy: 0x21,             // Within 100ns
+            degraded_accuracy: 0x25,            // Within 1µs
         }
     }
 }
@@ -215,7 +215,10 @@ impl PtpPathTraceEngine {
     /// Processes an incoming Announce message on a slave port.
     ///
     /// Returns `Ok(())` if accepted, or `Err(reason)` if rejected.
-    pub fn process_incoming_announce(&mut self, announce: &TelecomAnnounce) -> Result<(), PathTraceRejectReason> {
+    pub fn process_incoming_announce(
+        &mut self,
+        announce: &TelecomAnnounce,
+    ) -> Result<(), PathTraceRejectReason> {
         // 1. Loop detection: check if our own clock_identity is already in the path trace
         if announce.path_trace.would_create_loop(&self.clock_identity) {
             self.loop_detections += 1;
@@ -316,7 +319,10 @@ impl PtpPathTraceEngine {
     /// Advances the holdover timer by the given number of seconds.
     /// Automatically degrades from HoldoverInSpec → HoldoverOutOfSpec when budget expires.
     pub fn advance_holdover_timer(&mut self, elapsed_sec: u32) {
-        if let UpstreamRefState::HoldoverInSpec { elapsed_sec: ref mut current } = self.upstream_state {
+        if let UpstreamRefState::HoldoverInSpec {
+            elapsed_sec: ref mut current,
+        } = self.upstream_state
+        {
             *current += elapsed_sec;
             if *current >= self.holdover_budget.holdover_in_spec_timeout_sec {
                 self.upstream_state = UpstreamRefState::HoldoverOutOfSpec;
@@ -363,7 +369,14 @@ pub enum PathTraceRejectReason {
 /// Result of path trace validation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathTraceValidation {
-    Valid { depth: usize },
-    LoopAt { position: usize, clock_id: ClockIdentity },
-    ExcessiveDepth { depth: usize },
+    Valid {
+        depth: usize,
+    },
+    LoopAt {
+        position: usize,
+        clock_id: ClockIdentity,
+    },
+    ExcessiveDepth {
+        depth: usize,
+    },
 }

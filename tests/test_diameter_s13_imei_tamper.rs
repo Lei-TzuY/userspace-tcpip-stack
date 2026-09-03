@@ -1,7 +1,7 @@
 // tests/test_diameter_s13_imei_tamper.rs
 
 use toy_tcpip::diameter_s13_imei_tamper::{
-    ImeiValidationVerdict, S13ImeiTamperEngine, IMEI_LENGTH, IMEI_SV_LENGTH,
+    IMEI_LENGTH, IMEI_SV_LENGTH, ImeiValidationVerdict, S13ImeiTamperEngine,
 };
 
 #[test]
@@ -28,7 +28,11 @@ fn test_diameter_s13_imei_tamper_lifecycle() {
     let bad_imei = format!("{}{}", payload, (cd + 5) % 10);
     let v2 = engine.validate_equipment_id(&bad_imei);
     match v2 {
-        ImeiValidationVerdict::LuhnChecksumFailed { expected_cd, actual_cd, .. } => {
+        ImeiValidationVerdict::LuhnChecksumFailed {
+            expected_cd,
+            actual_cd,
+            ..
+        } => {
             assert_eq!(expected_cd, cd);
             assert_eq!(actual_cd, (cd + 5) % 10);
         }

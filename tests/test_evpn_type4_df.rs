@@ -1,7 +1,7 @@
 //! Integration tests for EVPN Route Type 4 (Ethernet Segment Route) & DF Election (RFC 7432).
 
 use toy_tcpip::evpn_type4::{
-    EthernetSegmentId as EsId, EvpnDfElection, EvpnType4Route, EVPN_ROUTE_TYPE_ETHERNET_SEGMENT,
+    EVPN_ROUTE_TYPE_ETHERNET_SEGMENT, EthernetSegmentId as EsId, EvpnDfElection, EvpnType4Route,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 
@@ -39,13 +39,13 @@ fn test_evpn_df_election_candidate_addition_and_withdrawal() {
 
     // 3 candidates: [10.0.0.1 (0), 10.0.0.2 (1), 10.0.0.3 (2)]
     assert_eq!(election.elect_df(esi, 10), Some(pe_remote1)); // 10 % 3 = 1 -> pe_remote1
-    assert_eq!(election.elect_df(esi, 12), Some(pe_local));   // 12 % 3 = 0 -> pe_local
+    assert_eq!(election.elect_df(esi, 12), Some(pe_local)); // 12 % 3 = 0 -> pe_local
     assert_eq!(election.elect_df(esi, 14), Some(pe_remote2)); // 14 % 3 = 2 -> pe_remote2
 
     // Now withdraw pe_remote1 (e.g. peer failure or interface down)
     election.withdraw_type4_route(esi, pe_remote1);
 
     // 2 candidates left: [10.0.0.1 (0), 10.0.0.3 (1)]
-    assert_eq!(election.elect_df(esi, 10), Some(pe_local));   // 10 % 2 = 0 -> pe_local
+    assert_eq!(election.elect_df(esi, 10), Some(pe_local)); // 10 % 2 = 0 -> pe_local
     assert_eq!(election.elect_df(esi, 11), Some(pe_remote2)); // 11 % 2 = 1 -> pe_remote2
 }

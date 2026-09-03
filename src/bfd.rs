@@ -603,7 +603,10 @@ mod tests {
 
     #[test]
     fn test_bfd_simple_password_rejects_zero_length_password() {
-        assert_eq!(BfdAuthHeader::parse(&[BFD_AUTH_SIMPLE_PASSWORD, 3, 7]), None);
+        assert_eq!(
+            BfdAuthHeader::parse(&[BFD_AUTH_SIMPLE_PASSWORD, 3, 7]),
+            None
+        );
     }
 
     #[test]

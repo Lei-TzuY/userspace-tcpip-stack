@@ -35,10 +35,7 @@ pub struct Srv6EndDx2Binding {
 /// Result of SRv6 End.DX2 / End.DX2V Decapsulation and VLAN Manipulation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Srv6EndDx2ForwardResult {
-    ForwardL2 {
-        out_if: String,
-        frame: Vec<u8>,
-    },
+    ForwardL2 { out_if: String, frame: Vec<u8> },
     Drop(String),
 }
 
@@ -87,10 +84,11 @@ impl Srv6EndDx2Engine {
             return Srv6EndDx2ForwardResult::Drop("Inner L2 frame too short".to_string());
         }
 
-        let rewritten_frame = match Self::apply_vlan_rewrite(inner_l2_payload, &binding.rewrite_action) {
-            Ok(f) => f,
-            Err(e) => return Srv6EndDx2ForwardResult::Drop(e),
-        };
+        let rewritten_frame =
+            match Self::apply_vlan_rewrite(inner_l2_payload, &binding.rewrite_action) {
+                Ok(f) => f,
+                Err(e) => return Srv6EndDx2ForwardResult::Drop(e),
+            };
 
         // If End.DX2V has allowed VLANs restriction, verify resulting outer VLAN
         if let Some(ref allowed) = binding.allowed_vlans {
@@ -103,7 +101,9 @@ impl Srv6EndDx2Engine {
                     ));
                 }
             } else if !allowed.is_empty() {
-                return Srv6EndDx2ForwardResult::Drop("Untagged frame not allowed on End.DX2V".to_string());
+                return Srv6EndDx2ForwardResult::Drop(
+                    "Untagged frame not allowed on End.DX2V".to_string(),
+                );
             }
         }
 
@@ -126,7 +126,8 @@ impl Srv6EndDx2Engine {
         let src_mac = &raw_frame[6..12];
         let ethertype_or_tpid = u16::from_be_bytes([raw_frame[12], raw_frame[13]]);
 
-        let has_vlan = (ethertype_or_tpid == 0x8100 || ethertype_or_tpid == 0x88A8) && raw_frame.len() >= 18;
+        let has_vlan =
+            (ethertype_or_tpid == 0x8100 || ethertype_or_tpid == 0x88A8) && raw_frame.len() >= 18;
 
         match action {
             Srv6VlanRewriteAction::RawPassthrough => Ok(raw_frame.to_vec()),
@@ -158,10 +159,13 @@ impl Srv6EndDx2Engine {
             Srv6VlanRewriteAction::SwapOuterVlan { new_vlan_id } => {
                 if !has_vlan {
                     // If untagged, push the new tag
-                    return Self::apply_vlan_rewrite(raw_frame, &Srv6VlanRewriteAction::PushVlan {
-                        vlan_id: *new_vlan_id,
-                        pcp: 0,
-                    });
+                    return Self::apply_vlan_rewrite(
+                        raw_frame,
+                        &Srv6VlanRewriteAction::PushVlan {
+                            vlan_id: *new_vlan_id,
+                            pcp: 0,
+                        },
+                    );
                 }
                 let mut swapped = raw_frame.to_vec();
                 let old_tci = u16::from_be_bytes([raw_frame[14], raw_frame[15]]);
@@ -175,7 +179,10 @@ impl Srv6EndDx2Engine {
                 // Strip any existing VLAN tags down to original EtherType
                 let mut payload_offset = 12;
                 while payload_offset + 4 <= raw_frame.len() {
-                    let curr_tpid = u16::from_be_bytes([raw_frame[payload_offset], raw_frame[payload_offset + 1]]);
+                    let curr_tpid = u16::from_be_bytes([
+                        raw_frame[payload_offset],
+                        raw_frame[payload_offset + 1],
+                    ]);
                     if curr_tpid == 0x8100 || curr_tpid == 0x88A8 {
                         payload_offset += 4;
                     } else {
@@ -221,7 +228,9 @@ mod tests {
     #[test]
     fn test_srv6_end_dx2_vlan_rewrite_and_normalization() {
         let mut engine = Srv6EndDx2Engine::new();
-        let sid = Ipv6Address::from_bytes([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0d, 0x22]);
+        let sid = Ipv6Address::from_bytes([
+            0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x0d, 0x22,
+        ]);
 
         engine.register_binding(Srv6EndDx2Binding {
             sid,
@@ -234,9 +243,9 @@ mod tests {
         let mut inner_frame = Vec::new();
         inner_frame.extend_from_slice(&[0x00, 0x11, 0x22, 0x33, 0x44, 0x55]); // Dst
         inner_frame.extend_from_slice(&[0x00, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE]); // Src
-        inner_frame.extend_from_slice(&[0x81, 0x00]);                          // TPID
-        inner_frame.extend_from_slice(&100u16.to_be_bytes());                 // VLAN 100
-        inner_frame.extend_from_slice(&[0x08, 0x00]);                          // IPv4
+        inner_frame.extend_from_slice(&[0x81, 0x00]); // TPID
+        inner_frame.extend_from_slice(&100u16.to_be_bytes()); // VLAN 100
+        inner_frame.extend_from_slice(&[0x08, 0x00]); // IPv4
         inner_frame.extend_from_slice(b"INNER_PAYLOAD");
 
         let res = engine.process_srv6_l2_decap(&sid, None, &inner_frame);

@@ -1,18 +1,14 @@
 //! Integration tests for O-RAN WG4 CUS-Plane Packet Processor & eCPRI Multiplexer Engine.
 
-use toy_tcpip::ecpri::{EcpriCommonHeader, ECPRI_MSG_RT_CONTROL};
+use toy_tcpip::ecpri::{ECPRI_MSG_RT_CONTROL, EcpriCommonHeader};
 use toy_tcpip::oran_cplane_ext::{
-    BfwBundle, BfwCompressionMethod, BfwWeight, CPlaneSectionType3, SectionExtension1,
-    SectionExtension2, ORAN_SECTION_TYPE_3,
+    BfwBundle, BfwCompressionMethod, BfwWeight, CPlaneSectionType3, ORAN_SECTION_TYPE_3,
+    SectionExtension1, SectionExtension2,
 };
-use toy_tcpip::oran_fh_cus::{
-    DataDirection, EaxcIdFormat, OranRadioHeader,
-};
+use toy_tcpip::oran_fh_cus::{DataDirection, EaxcIdFormat, OranRadioHeader};
 use toy_tcpip::oran_fh_delay_mgmt::WindowVerdict;
 use toy_tcpip::oran_iq_compression::IqSample;
-use toy_tcpip::oran_packet_proc::{
-    OranDemuxEvent, OranFronthaulProcessor, OranStreamConfig,
-};
+use toy_tcpip::oran_packet_proc::{OranDemuxEvent, OranFronthaulProcessor, OranStreamConfig};
 use toy_tcpip::tsn_8021cm_fronthaul::Ieee8021CmProfile;
 
 fn make_test_stream_config(eaxc_id: u16) -> OranStreamConfig {
@@ -35,14 +31,7 @@ fn test_oran_uplane_ingress_decompression_and_timing_window() {
     let radio_header = OranRadioHeader::new(DataDirection::Downlink, 1, 0, 0, 2);
 
     // Build U-Plane frame with 9-bit BFP compression
-    let uplane_frame = processor.build_uplane_frame(
-        eaxc_id,
-        &radio_header,
-        10,
-        4,
-        &samples,
-        9,
-    );
+    let uplane_frame = processor.build_uplane_frame(eaxc_id, &radio_header, 10, 4, &samples, 9);
 
     // On-time arrival: air time = 0 * 1,000,000 + 2 * 71,428 = 142,856 ns
     // Supported arrival window: [air_time - T2a_max, air_time - T2a_min] = [102,856, 132,856]
@@ -98,8 +87,8 @@ fn test_oran_cplane_ingress_with_bfw_and_beam_attributes() {
     let cplane_frame = processor.build_cplane_section1_frame(
         eaxc_id,
         &radio_header,
-        15, // section_id
-        0,  // start_prbc
+        15,  // section_id
+        0,   // start_prbc
         100, // num_prbc
         Some(&ext1),
         Some(&ext2),
@@ -184,14 +173,7 @@ fn test_oran_packet_dropped_on_late_arrival() {
     let radio_header = OranRadioHeader::new(DataDirection::Downlink, 1, 0, 0, 1);
     let samples = vec![IqSample::new(10, 20); 12];
 
-    let uplane_frame = processor.build_uplane_frame(
-        eaxc_id,
-        &radio_header,
-        0,
-        1,
-        &samples,
-        9,
-    );
+    let uplane_frame = processor.build_uplane_frame(eaxc_id, &radio_header, 0, 1, &samples, 9);
 
     // Expired late arrival: arrival_time = 1,000,000 ns (far past air time of symbol 1 = 71,428 ns)
     let events = processor.process_ingress_packet(&uplane_frame, 1_000_000);
@@ -218,15 +200,8 @@ fn test_oran_concatenated_ecpri_messages() {
     let radio_header = OranRadioHeader::new(DataDirection::Downlink, 1, 0, 0, 0);
 
     // Message 1: C-Plane Section 1
-    let mut cplane_frame = processor.build_cplane_section1_frame(
-        eaxc_id,
-        &radio_header,
-        100,
-        0,
-        20,
-        None,
-        None,
-    );
+    let mut cplane_frame =
+        processor.build_cplane_section1_frame(eaxc_id, &radio_header, 100, 0, 20, None, None);
     // Set concatenation bit (c = 1, bit 0 of byte 0) on Message 1
     cplane_frame[0] |= 0x01;
 
@@ -237,14 +212,7 @@ fn test_oran_concatenated_ecpri_messages() {
 
     // Message 2: U-Plane IQ data (c = 0)
     let samples = vec![IqSample::new(50, -50); 24];
-    let uplane_frame = processor.build_uplane_frame(
-        eaxc_id,
-        &radio_header,
-        0,
-        2,
-        &samples,
-        9,
-    );
+    let uplane_frame = processor.build_uplane_frame(eaxc_id, &radio_header, 0, 2, &samples, 9);
 
     // Concatenate Message 1 and Message 2 into a single raw packet
     let mut combined_packet = cplane_frame;
@@ -255,6 +223,19 @@ fn test_oran_concatenated_ecpri_messages() {
 
     // Both messages should be demultiplexed in order!
     assert_eq!(events.len(), 2);
-    assert!(matches!(&events[0], OranDemuxEvent::CPlaneSection1Received { section_id: 100, .. }));
-    assert!(matches!(&events[1], OranDemuxEvent::UPlaneReceived { prb_count: 2, samples_count: 24, .. }));
+    assert!(matches!(
+        &events[0],
+        OranDemuxEvent::CPlaneSection1Received {
+            section_id: 100,
+            ..
+        }
+    ));
+    assert!(matches!(
+        &events[1],
+        OranDemuxEvent::UPlaneReceived {
+            prb_count: 2,
+            samples_count: 24,
+            ..
+        }
+    ));
 }

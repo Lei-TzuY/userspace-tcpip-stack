@@ -1,8 +1,6 @@
 //! Integration tests for 3GPP TS 38.323 5G NR PDCP Engine.
 
-use toy_tcpip::pdcp_5g::{
-    PdcpBearerType, PdcpControlPdu, PdcpDataPdu, PdcpEntity, PdcpSnSize,
-};
+use toy_tcpip::pdcp_5g::{PdcpBearerType, PdcpControlPdu, PdcpDataPdu, PdcpEntity, PdcpSnSize};
 
 #[test]
 fn test_pdcp_12bit_and_18bit_framing_round_trip() {
@@ -109,11 +107,19 @@ fn test_pdcp_status_report_generation_and_gap_detection() {
     let mut rx = PdcpEntity::new(PdcpBearerType::Drb, PdcpSnSize::Sn18Bits);
 
     // Receive packet 0
-    let p0 = PdcpDataPdu { sn_size: PdcpSnSize::Sn18Bits, sn: 0, payload: b"0".to_vec() };
+    let p0 = PdcpDataPdu {
+        sn_size: PdcpSnSize::Sn18Bits,
+        sn: 0,
+        payload: b"0".to_vec(),
+    };
     rx.receive_pdu(&p0).unwrap();
 
     // Packet 1 missing, receive packet 2
-    let p2 = PdcpDataPdu { sn_size: PdcpSnSize::Sn18Bits, sn: 2, payload: b"2".to_vec() };
+    let p2 = PdcpDataPdu {
+        sn_size: PdcpSnSize::Sn18Bits,
+        sn: 2,
+        payload: b"2".to_vec(),
+    };
     rx.receive_pdu(&p2).unwrap();
 
     // Generate Status Report
@@ -136,8 +142,16 @@ fn test_pdcp_status_report_generation_and_gap_detection() {
 fn test_pdcp_t_reordering_timer_expiry() {
     let mut rx = PdcpEntity::new(PdcpBearerType::Drb, PdcpSnSize::Sn18Bits);
 
-    let p0 = PdcpDataPdu { sn_size: PdcpSnSize::Sn18Bits, sn: 0, payload: b"0".to_vec() };
-    let p2 = PdcpDataPdu { sn_size: PdcpSnSize::Sn18Bits, sn: 2, payload: b"2".to_vec() };
+    let p0 = PdcpDataPdu {
+        sn_size: PdcpSnSize::Sn18Bits,
+        sn: 0,
+        payload: b"0".to_vec(),
+    };
+    let p2 = PdcpDataPdu {
+        sn_size: PdcpSnSize::Sn18Bits,
+        sn: 2,
+        payload: b"2".to_vec(),
+    };
 
     rx.receive_pdu(&p0).unwrap();
     rx.receive_pdu(&p2).unwrap();

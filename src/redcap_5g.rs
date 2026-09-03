@@ -140,7 +140,10 @@ impl RedCapEngine {
         ue_id: &str,
         capability: RedCapCapability,
     ) -> Result<RedCapUeContext, RedCapError> {
-        let cell = self.cells.get(&cell_id).ok_or(RedCapError::CellNotFound { cell_id })?;
+        let cell = self
+            .cells
+            .get(&cell_id)
+            .ok_or(RedCapError::CellNotFound { cell_id })?;
 
         // 1. SIB1 Access Barring Check
         if !cell.redcap_allowed {

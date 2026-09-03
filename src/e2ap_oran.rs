@@ -22,8 +22,8 @@ pub const E2AP_PROC_RIC_INDICATION: u8 = 205;
 
 /// Well-known O-RAN Service Model (E2SM) RAN Function IDs.
 pub const RAN_FUNCTION_ID_KPM: u16 = 1; // Key Performance Measurement
-pub const RAN_FUNCTION_ID_RC: u16 = 2;  // RAN Control
-pub const RAN_FUNCTION_ID_NI: u16 = 3;  // Network Interface
+pub const RAN_FUNCTION_ID_RC: u16 = 2; // RAN Control
+pub const RAN_FUNCTION_ID_NI: u16 = 3; // Network Interface
 
 /// Type of E2 Node.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,7 +249,9 @@ impl E2apEngine {
 
         for func in &req.ran_functions_added {
             // Admit KPM and RC service models
-            if func.ran_function_id == RAN_FUNCTION_ID_KPM || func.ran_function_id == RAN_FUNCTION_ID_RC {
+            if func.ran_function_id == RAN_FUNCTION_ID_KPM
+                || func.ran_function_id == RAN_FUNCTION_ID_RC
+            {
                 accepted.push(func.ran_function_id);
             } else {
                 rejected.push(func.ran_function_id);
@@ -304,7 +306,8 @@ impl E2apEngine {
             admitted.push(act.ric_action_id);
         }
 
-        self.active_subscriptions.insert(req.ric_request_id, req.clone());
+        self.active_subscriptions
+            .insert(req.ric_request_id, req.clone());
 
         Ok(RicSubscriptionResponse {
             ric_request_id: req.ric_request_id,
@@ -328,7 +331,9 @@ impl E2apEngine {
             return Err("E2 interface is not active");
         }
 
-        let sub = self.active_subscriptions.get(&req_id)
+        let sub = self
+            .active_subscriptions
+            .get(&req_id)
             .ok_or("Subscription does not exist for specified RicRequestId")?;
 
         let sn = self.next_indication_sn;
@@ -357,7 +362,8 @@ impl E2apEngine {
         }
 
         // Apply dynamic PRB quota update for the target network slice
-        self.slice_prb_quotas.insert(ctrl.target_slice_sst, ctrl.allocated_prb_quota_ppm);
+        self.slice_prb_quotas
+            .insert(ctrl.target_slice_sst, ctrl.allocated_prb_quota_ppm);
 
         if ctrl.ack_request {
             Ok(Some(RicControlAcknowledge {

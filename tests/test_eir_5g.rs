@@ -174,5 +174,8 @@ fn test_eir_explicit_whitelist_override() {
 
     let resp = eir.check_equipment_status(&req).unwrap();
     assert_eq!(resp.status, EquipmentStatus::Whitelisted);
-    assert_eq!(resp.reason, Some("Authorized lab test equipment".to_string()));
+    assert_eq!(
+        resp.reason,
+        Some("Authorized lab test equipment".to_string())
+    );
 }

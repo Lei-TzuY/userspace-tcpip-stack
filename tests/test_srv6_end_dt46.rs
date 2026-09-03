@@ -3,9 +3,7 @@
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::Ipv6Address;
 use toy_tcpip::srv6::Srv6Header;
-use toy_tcpip::srv6_end_dt46::{
-    EndDt46Engine, EndDt46ForwardResult, VrfNextHop,
-};
+use toy_tcpip::srv6_end_dt46::{EndDt46Engine, EndDt46ForwardResult, VrfNextHop};
 
 #[test]
 fn test_srv6_end_dt46_multi_vrf_isolation() {
@@ -27,7 +25,9 @@ fn test_srv6_end_dt46_multi_vrf_isolation() {
         },
     );
     vrf10.add_ipv6_route(
-        Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        Ipv6Address([
+            0x20, 0x01, 0x0d, 0xb8, 0x10, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ]),
         64,
         VrfNextHop::DirectLocal {
             out_if: "vrf10_eth6".to_string(),
@@ -55,9 +55,16 @@ fn test_srv6_end_dt46_multi_vrf_isolation() {
 
     let res10 = engine.process_packet(sid_vrf10, srh_vrf10, &pkt_v4);
     match res10 {
-        EndDt46ForwardResult::RoutedIpv4 { vrf_id, next_hop, .. } => {
+        EndDt46ForwardResult::RoutedIpv4 {
+            vrf_id, next_hop, ..
+        } => {
             assert_eq!(vrf_id, 10);
-            assert_eq!(next_hop, VrfNextHop::DirectLocal { out_if: "vrf10_eth0".to_string() });
+            assert_eq!(
+                next_hop,
+                VrfNextHop::DirectLocal {
+                    out_if: "vrf10_eth0".to_string()
+                }
+            );
         }
         other => panic!("Expected RoutedIpv4 for VRF 10, got {:?}", other),
     }
@@ -65,9 +72,16 @@ fn test_srv6_end_dt46_multi_vrf_isolation() {
     // Identical target address sent to VRF 20 SID -> routes to VRF 20 interface
     let res20 = engine.process_packet(sid_vrf20, srh_vrf20, &pkt_v4);
     match res20 {
-        EndDt46ForwardResult::RoutedIpv4 { vrf_id, next_hop, .. } => {
+        EndDt46ForwardResult::RoutedIpv4 {
+            vrf_id, next_hop, ..
+        } => {
             assert_eq!(vrf_id, 20);
-            assert_eq!(next_hop, VrfNextHop::DirectLocal { out_if: "vrf20_eth0".to_string() });
+            assert_eq!(
+                next_hop,
+                VrfNextHop::DirectLocal {
+                    out_if: "vrf20_eth0".to_string()
+                }
+            );
         }
         other => panic!("Expected RoutedIpv4 for VRF 20, got {:?}", other),
     }

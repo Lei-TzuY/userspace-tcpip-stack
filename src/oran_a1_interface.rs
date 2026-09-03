@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use crate::e2ap_oran::{RicControlRequest, RicRequestId, RAN_FUNCTION_ID_RC};
+use crate::e2ap_oran::{RAN_FUNCTION_ID_RC, RicControlRequest, RicRequestId};
 
 /// HTTP Methods used in A1 REST interface.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -134,7 +134,8 @@ impl A1InterfaceEngine {
 
     /// Registers a Policy Type schema.
     pub fn register_policy_type(&mut self, policy_type: A1PolicyType) {
-        self.policy_types.insert(policy_type.policy_type_id, policy_type);
+        self.policy_types
+            .insert(policy_type.policy_type_id, policy_type);
     }
 
     /// Creates or updates a Policy Instance (PUT /a1-p/policytypes/{type_id}/policies/{instance_id}).

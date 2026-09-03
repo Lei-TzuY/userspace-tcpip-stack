@@ -119,20 +119,23 @@ impl AptsEngine {
                     // Continuously learn network path asymmetry:
                     // True physical asymmetry = (d_fwd - d_rev) - 2 * gnss_offset
                     if let Some(estimate) = self.pdv_filter.compute_estimate() {
-                        let raw_diff = estimate.forward_delay_floor_ns - estimate.reverse_delay_floor_ns;
+                        let raw_diff =
+                            estimate.forward_delay_floor_ns - estimate.reverse_delay_floor_ns;
                         let measured_asym = raw_diff as f64 - 2.0 * (gnss_offset_ns as f64);
 
                         let alpha = self.config.asymmetry_learning_alpha.clamp(0.001, 1.0);
                         if self.asymmetry_calibration_samples == 0 {
                             self.calibrated_asymmetry_ns = measured_asym;
                         } else {
-                            self.calibrated_asymmetry_ns =
-                                self.calibrated_asymmetry_ns * (1.0 - alpha) + measured_asym * alpha;
+                            self.calibrated_asymmetry_ns = self.calibrated_asymmetry_ns
+                                * (1.0 - alpha)
+                                + measured_asym * alpha;
                         }
                         self.asymmetry_calibration_samples += 1;
 
                         // Keep the filter's asymmetry compensation synchronized
-                        self.pdv_filter.asymmetry_compensation_ns = self.calibrated_asymmetry_ns.round() as i64;
+                        self.pdv_filter.asymmetry_compensation_ns =
+                            self.calibrated_asymmetry_ns.round() as i64;
                     }
                     self.holdover_duration_secs = 0;
                     self.accumulated_holdover_drift_ns = 0;
@@ -161,7 +164,8 @@ impl AptsEngine {
                 if self.is_ptp_adequate() {
                     self.state = AptsState::PtpLockedApts;
                     // Apply calibrated asymmetry to floor filter
-                    self.pdv_filter.asymmetry_compensation_ns = self.calibrated_asymmetry_ns.round() as i64;
+                    self.pdv_filter.asymmetry_compensation_ns =
+                        self.calibrated_asymmetry_ns.round() as i64;
                 } else {
                     self.state = AptsState::Holdover;
                     self.holdover_duration_secs = 0;
@@ -233,9 +237,9 @@ impl AptsEngine {
     /// Returns the advertised PTP Clock Class according to ITU-T G.8275.2.
     pub fn current_clock_class(&self) -> u8 {
         match self.state {
-            AptsState::GnssLocked => 6, // PRTC locked
+            AptsState::GnssLocked => 6,     // PRTC locked
             AptsState::GnssQualifying => 7, // Restoring / qualifying
-            AptsState::PtpLockedApts => 7, // In-spec APTS locked to PTP
+            AptsState::PtpLockedApts => 7,  // In-spec APTS locked to PTP
             AptsState::Holdover => {
                 if self.holdover_duration_secs <= self.config.max_holdover_within_spec_secs {
                     7 // Holdover in specification
@@ -254,7 +258,9 @@ impl AptsEngine {
             calibrated_asymmetry_ns: self.calibrated_asymmetry_ns,
             last_gnss_offset_ns: self.last_gnss_offset_ns,
             last_ptp_offset_ns: self.last_ptp_offset_ns,
-            floor_packet_rate_percent: self.pdv_filter.floor_packet_percentage(self.config.floor_width_ns),
+            floor_packet_rate_percent: self
+                .pdv_filter
+                .floor_packet_percentage(self.config.floor_width_ns),
             holdover_duration_secs: self.holdover_duration_secs,
             accumulated_holdover_drift_ns: self.accumulated_holdover_drift_ns,
             clock_class: self.current_clock_class(),

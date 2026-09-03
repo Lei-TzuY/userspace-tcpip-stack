@@ -1,11 +1,14 @@
 use toy_tcpip::diameter_s6a_nor::{
-    S6aNorEngine, S6aNorMessage, DIAMETER_CMD_NOTIFY, NOR_FLAG_READY_FOR_SM,
-    NOR_FLAG_SRVCC_SUPPORT, RESULT_CODE_SUCCESS, RESULT_CODE_USER_UNKNOWN,
+    DIAMETER_CMD_NOTIFY, NOR_FLAG_READY_FOR_SM, NOR_FLAG_SRVCC_SUPPORT, RESULT_CODE_SUCCESS,
+    RESULT_CODE_USER_UNKNOWN, S6aNorEngine, S6aNorMessage,
 };
 
 #[test]
 fn test_diameter_s6a_nor_lifecycle() {
-    let mut hss = S6aNorEngine::new("hss01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+    let mut hss = S6aNorEngine::new(
+        "hss01.epc.mnc001.mcc208.3gppnetwork.org",
+        "epc.mnc001.mcc208.3gppnetwork.org",
+    );
     let imsi = "208950112233445";
     hss.register_subscriber(imsi);
 

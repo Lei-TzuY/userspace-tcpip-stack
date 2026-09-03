@@ -2,7 +2,7 @@
 
 use toy_tcpip::ptp_pdv_filter::{PtpPdvFloorFilter, PtpTimestampSample};
 use toy_tcpip::ptp_telecom_dual_plane::{
-    DualPlaneConfig, DualPlaneEngine, PtpPlaneState, ProtectionSwitchMode, PtpPlaneId, SwitchReason,
+    DualPlaneConfig, DualPlaneEngine, ProtectionSwitchMode, PtpPlaneId, PtpPlaneState, SwitchReason,
 };
 
 #[test]
@@ -20,7 +20,10 @@ fn test_dual_plane_parallel_tracking_and_phase_delta() {
         let t2 = t1 + 10_000;
         let t3 = t2 + 10_000;
         let t4 = t3 + 10_000;
-        engine.push_plane_sample(PtpPlaneId::PlaneA, PtpTimestampSample::new(seq, t1, t2, t3, t4));
+        engine.push_plane_sample(
+            PtpPlaneId::PlaneA,
+            PtpTimestampSample::new(seq, t1, t2, t3, t4),
+        );
     }
     engine.update_plane_announce(PtpPlaneId::PlaneA, 6, 0x20, 0);
 
@@ -30,16 +33,27 @@ fn test_dual_plane_parallel_tracking_and_phase_delta() {
         let t2 = t1 + 10_040;
         let t3 = t2 + 10_000;
         let t4 = t3 + 9_960;
-        engine.push_plane_sample(PtpPlaneId::PlaneB, PtpTimestampSample::new(seq, t1, t2, t3, t4));
+        engine.push_plane_sample(
+            PtpPlaneId::PlaneB,
+            PtpTimestampSample::new(seq, t1, t2, t3, t4),
+        );
     }
     engine.update_plane_announce(PtpPlaneId::PlaneB, 6, 0x20, 0);
 
     assert_eq!(engine.active_plane, PtpPlaneId::PlaneA);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneA), PtpPlaneState::Active);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneB), PtpPlaneState::Standby);
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneA),
+        PtpPlaneState::Active
+    );
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneB),
+        PtpPlaneState::Standby
+    );
 
     // Inter-plane phase delta = Offset_A - Offset_B = 0 - 40 = -40 ns
-    let delta = engine.inter_plane_phase_delta_ns().expect("Inter-plane delta");
+    let delta = engine
+        .inter_plane_phase_delta_ns()
+        .expect("Inter-plane delta");
     assert_eq!(delta, -40);
     assert!(!engine.is_inter_plane_diverged()); // -40 <= 50ns threshold
 }
@@ -78,8 +92,14 @@ fn test_dual_plane_automatic_protection_switch_on_clock_class_degradation() {
 
     // Plane B is now Active, Plane A is Failed
     assert_eq!(engine.active_plane, PtpPlaneId::PlaneB);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneA), PtpPlaneState::Failed);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneB), PtpPlaneState::Active);
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneA),
+        PtpPlaneState::Failed
+    );
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneB),
+        PtpPlaneState::Active
+    );
     assert_eq!(engine.current_output_clock_class(), 6);
 }
 
@@ -115,7 +135,10 @@ fn test_dual_plane_hitless_phase_slewing_across_switchover() {
     // Signal loss on Plane A triggers switchover to Plane B
     engine.notify_plane_signal_loss(PtpPlaneId::PlaneA);
     let switch_res = engine.evaluate_protection_switching();
-    assert_eq!(switch_res, Some((PtpPlaneId::PlaneB, SwitchReason::SignalLoss)));
+    assert_eq!(
+        switch_res,
+        Some((PtpPlaneId::PlaneB, SwitchReason::SignalLoss))
+    );
     assert_eq!(engine.active_plane, PtpPlaneId::PlaneB);
 
     // Switchover created a +60 ns pending phase jump
@@ -182,8 +205,14 @@ fn test_dual_plane_revertive_wtr_damping_and_switchback() {
     let reverted = engine.tick_wtr(15);
     assert!(reverted);
     assert_eq!(engine.active_plane, PtpPlaneId::PlaneA);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneA), PtpPlaneState::Active);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneB), PtpPlaneState::Standby);
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneA),
+        PtpPlaneState::Active
+    );
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneB),
+        PtpPlaneState::Standby
+    );
 }
 
 #[test]
@@ -220,6 +249,12 @@ fn test_dual_plane_non_revertive_mode() {
     // In Non-Revertive mode, ticking WTR does nothing, clock remains on Plane B
     engine.tick_wtr(100);
     assert_eq!(engine.active_plane, PtpPlaneId::PlaneB);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneB), PtpPlaneState::Active);
-    assert_eq!(engine.plane_state(PtpPlaneId::PlaneA), PtpPlaneState::Standby);
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneB),
+        PtpPlaneState::Active
+    );
+    assert_eq!(
+        engine.plane_state(PtpPlaneId::PlaneA),
+        PtpPlaneState::Standby
+    );
 }

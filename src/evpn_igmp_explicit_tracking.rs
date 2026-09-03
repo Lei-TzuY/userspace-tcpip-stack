@@ -116,7 +116,11 @@ impl EvpnIgmpExplicitTrackingEngine {
 
         if let Some(idx) = channel_idx {
             let channel = &mut self.channels[idx];
-            if let Some(sub) = channel.subscribers.iter_mut().find(|s| s.host_ip == host_ip) {
+            if let Some(sub) = channel
+                .subscribers
+                .iter_mut()
+                .find(|s| s.host_ip == host_ip)
+            {
                 sub.last_report_secs = current_time_secs;
                 ExplicitTrackingVerdict::SubscriberRefreshed {
                     vni,
@@ -223,7 +227,10 @@ impl EvpnIgmpExplicitTrackingEngine {
         }
     }
 
-    pub fn check_subscriber_aging(&mut self, current_time_secs: u64) -> Vec<ExplicitTrackingVerdict> {
+    pub fn check_subscriber_aging(
+        &mut self,
+        current_time_secs: u64,
+    ) -> Vec<ExplicitTrackingVerdict> {
         let mut timeouts = Vec::new();
         let timeout_thresh = self.subscriber_timeout_secs;
 
@@ -293,20 +300,46 @@ mod tests {
 
         // Host 1 joins -> SMET Advertised
         let v1 = engine.process_membership_report(100, 1, src, grp, h1, 1000);
-        assert!(matches!(v1, ExplicitTrackingVerdict::SubscriberAdded { smet_advertise: true, total_subscribers: 1, .. }));
+        assert!(matches!(
+            v1,
+            ExplicitTrackingVerdict::SubscriberAdded {
+                smet_advertise: true,
+                total_subscribers: 1,
+                ..
+            }
+        ));
 
         // Host 2 joins on same port
         let v2 = engine.process_membership_report(100, 1, src, grp, h2, 1010);
-        assert!(matches!(v2, ExplicitTrackingVerdict::SubscriberAdded { smet_advertise: false, total_subscribers: 2, .. }));
+        assert!(matches!(
+            v2,
+            ExplicitTrackingVerdict::SubscriberAdded {
+                smet_advertise: false,
+                total_subscribers: 2,
+                ..
+            }
+        ));
 
         // Host 1 leaves -> Still active because Host 2 remains
         let v3 = engine.process_leave_group(100, 1, src, grp, h1);
-        assert!(matches!(v3, ExplicitTrackingVerdict::SubscriberRemovedRemainingActive { remaining_subscribers: 1, .. }));
+        assert!(matches!(
+            v3,
+            ExplicitTrackingVerdict::SubscriberRemovedRemainingActive {
+                remaining_subscribers: 1,
+                ..
+            }
+        ));
         assert!(engine.is_port_forwarding(100, 1, src, grp));
 
         // Host 2 leaves -> Fast Leave & SMET Withdraw
         let v4 = engine.process_leave_group(100, 1, src, grp, h2);
-        assert!(matches!(v4, ExplicitTrackingVerdict::FastLeavePruned { smet_withdraw: true, .. }));
+        assert!(matches!(
+            v4,
+            ExplicitTrackingVerdict::FastLeavePruned {
+                smet_withdraw: true,
+                ..
+            }
+        ));
         assert!(!engine.is_port_forwarding(100, 1, src, grp));
     }
 }

@@ -2,7 +2,7 @@
 
 use toy_tcpip::ptp_high_accuracy::{
     HighAccuracyPortCalibration, HighAccuracyPtpEngine, HighPrecisionTimestamp,
-    PtpDelayAsymmetryTlv, PTP_TLV_HIGH_ACCURACY_DELAY_ASYM,
+    PTP_TLV_HIGH_ACCURACY_DELAY_ASYM, PtpDelayAsymmetryTlv,
 };
 
 #[test]

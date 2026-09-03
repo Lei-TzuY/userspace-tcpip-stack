@@ -131,7 +131,10 @@ mod tests {
         let mut engine = GtpuRttDupEngine::new(1, 2, 20_000, 5_000, 3);
 
         // 1. Initial healthy state -> Single Primary
-        assert_eq!(engine.evaluate_dispatch(), DupDispatchDecision::SinglePrimary);
+        assert_eq!(
+            engine.evaluate_dispatch(),
+            DupDispatchDecision::SinglePrimary
+        );
 
         // 2. Primary leg experiences latency spike (SRTT = 35,000 µs)
         engine.update_primary_telemetry(35_000, 2_000);
@@ -153,6 +156,9 @@ mod tests {
 
         engine.update_primary_telemetry(13_000, 1_000); // 3rd -> Reverts to SinglePath
         assert_eq!(engine.current_state, DuplicationState::SinglePath);
-        assert_eq!(engine.evaluate_dispatch(), DupDispatchDecision::SinglePrimary);
+        assert_eq!(
+            engine.evaluate_dispatch(),
+            DupDispatchDecision::SinglePrimary
+        );
     }
 }

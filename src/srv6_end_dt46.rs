@@ -12,9 +12,17 @@ use std::collections::HashMap;
 /// Next-hop forwarding target for a routed packet within a VRF.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VrfNextHop {
-    DirectLocal { out_if: String },
-    GatewayIpv4 { next_hop: Ipv4Address, out_if: String },
-    GatewayIpv6 { next_hop: Ipv6Address, out_if: String },
+    DirectLocal {
+        out_if: String,
+    },
+    GatewayIpv4 {
+        next_hop: Ipv4Address,
+        out_if: String,
+    },
+    GatewayIpv6 {
+        next_hop: Ipv6Address,
+        out_if: String,
+    },
 }
 
 /// Route entry in a dual-stack VRF FIB.
@@ -50,23 +58,27 @@ impl VrfDualStackFib {
     }
 
     pub fn add_ipv4_route(&mut self, prefix: Ipv4Address, prefix_len: u8, next_hop: VrfNextHop) {
-        self.ipv4_routes.retain(|r| !(r.prefix == prefix && r.prefix_len == prefix_len));
+        self.ipv4_routes
+            .retain(|r| !(r.prefix == prefix && r.prefix_len == prefix_len));
         self.ipv4_routes.push(VrfIpv4Route {
             prefix,
             prefix_len,
             next_hop,
         });
-        self.ipv4_routes.sort_by(|a, b| b.prefix_len.cmp(&a.prefix_len));
+        self.ipv4_routes
+            .sort_by(|a, b| b.prefix_len.cmp(&a.prefix_len));
     }
 
     pub fn add_ipv6_route(&mut self, prefix: Ipv6Address, prefix_len: u8, next_hop: VrfNextHop) {
-        self.ipv6_routes.retain(|r| !(r.prefix == prefix && r.prefix_len == prefix_len));
+        self.ipv6_routes
+            .retain(|r| !(r.prefix == prefix && r.prefix_len == prefix_len));
         self.ipv6_routes.push(VrfIpv6Route {
             prefix,
             prefix_len,
             next_hop,
         });
-        self.ipv6_routes.sort_by(|a, b| b.prefix_len.cmp(&a.prefix_len));
+        self.ipv6_routes
+            .sort_by(|a, b| b.prefix_len.cmp(&a.prefix_len));
     }
 
     pub fn lookup_ipv4(&self, target: &Ipv4Address) -> Option<&VrfNextHop> {
@@ -147,13 +159,18 @@ impl EndDt46Engine {
 
     /// Provision an End.DT46 SID mapped to a VRF.
     pub fn register_dt46_sid(&mut self, sid: Ipv6Address, vrf_id: u32) {
-        self.srv6_engine.register_sid(sid, Srv6Behavior::EndDt46 { vrf_id });
-        self.vrfs.entry(vrf_id).or_insert_with(|| VrfDualStackFib::new(vrf_id));
+        self.srv6_engine
+            .register_sid(sid, Srv6Behavior::EndDt46 { vrf_id });
+        self.vrfs
+            .entry(vrf_id)
+            .or_insert_with(|| VrfDualStackFib::new(vrf_id));
     }
 
     /// Access VRF FIB for route provisioning.
     pub fn get_vrf_mut(&mut self, vrf_id: u32) -> &mut VrfDualStackFib {
-        self.vrfs.entry(vrf_id).or_insert_with(|| VrfDualStackFib::new(vrf_id))
+        self.vrfs
+            .entry(vrf_id)
+            .or_insert_with(|| VrfDualStackFib::new(vrf_id))
     }
 
     /// Ingest an incoming SRv6 packet at the egress PE node.
@@ -163,17 +180,25 @@ impl EndDt46Engine {
         srh: Srv6Header,
         inner_payload: &[u8],
     ) -> EndDt46ForwardResult {
-        let exec_result = self.srv6_engine.process_srv6_packet(active_sid, srh, inner_payload);
+        let exec_result = self
+            .srv6_engine
+            .process_srv6_packet(active_sid, srh, inner_payload);
 
         match exec_result {
             Srv6ExecutionResult::DecapIpv4 { vrf_id, payload } => {
                 let vrf = match vrf_id {
                     Some(id) => id,
-                    None => return EndDt46ForwardResult::Dropped("No VRF ID associated with End.DT46".to_string()),
+                    None => {
+                        return EndDt46ForwardResult::Dropped(
+                            "No VRF ID associated with End.DT46".to_string(),
+                        );
+                    }
                 };
 
                 if payload.len() < 20 {
-                    return EndDt46ForwardResult::Dropped("Inner IPv4 packet too short".to_string());
+                    return EndDt46ForwardResult::Dropped(
+                        "Inner IPv4 packet too short".to_string(),
+                    );
                 }
                 let dst_ip = Ipv4Address::new(payload[16], payload[17], payload[18], payload[19]);
 
@@ -198,11 +223,17 @@ impl EndDt46Engine {
             Srv6ExecutionResult::DecapIpv6 { vrf_id, payload } => {
                 let vrf = match vrf_id {
                     Some(id) => id,
-                    None => return EndDt46ForwardResult::Dropped("No VRF ID associated with End.DT46".to_string()),
+                    None => {
+                        return EndDt46ForwardResult::Dropped(
+                            "No VRF ID associated with End.DT46".to_string(),
+                        );
+                    }
                 };
 
                 if payload.len() < 40 {
-                    return EndDt46ForwardResult::Dropped("Inner IPv6 packet too short".to_string());
+                    return EndDt46ForwardResult::Dropped(
+                        "Inner IPv6 packet too short".to_string(),
+                    );
                 }
                 let mut dst_bytes = [0u8; 16];
                 dst_bytes.copy_from_slice(&payload[24..40]);
@@ -227,7 +258,9 @@ impl EndDt46Engine {
                 }
             }
             Srv6ExecutionResult::Drop(reason) => EndDt46ForwardResult::Dropped(reason),
-            _ => EndDt46ForwardResult::Dropped("Unexpected execution result for End.DT46".to_string()),
+            _ => EndDt46ForwardResult::Dropped(
+                "Unexpected execution result for End.DT46".to_string(),
+            ),
         }
     }
 }
@@ -253,7 +286,9 @@ mod tests {
             },
         );
         vrf.add_ipv6_route(
-            Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+            Ipv6Address([
+                0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            ]),
             64,
             VrfNextHop::DirectLocal {
                 out_if: "eth_v6_cust".to_string(),
@@ -265,15 +300,25 @@ mod tests {
         // 1. Inner IPv4 Packet to 10.20.1.50
         let mut inner_ipv4 = vec![0x45, 0x00, 0x00, 0x28, 0, 0, 0, 0, 64, 1, 0, 0];
         inner_ipv4.extend_from_slice(&[192, 168, 1, 1]); // src
-        inner_ipv4.extend_from_slice(&[10, 20, 1, 50]);  // dst
+        inner_ipv4.extend_from_slice(&[10, 20, 1, 50]); // dst
         inner_ipv4.extend_from_slice(b"Dual-Stack IPv4 Data");
 
         let res_v4 = engine.process_packet(dt46_sid, srh.clone(), &inner_ipv4);
         match res_v4 {
-            EndDt46ForwardResult::RoutedIpv4 { vrf_id, dst_ip, next_hop, .. } => {
+            EndDt46ForwardResult::RoutedIpv4 {
+                vrf_id,
+                dst_ip,
+                next_hop,
+                ..
+            } => {
                 assert_eq!(vrf_id, 100);
                 assert_eq!(dst_ip, Ipv4Address::new(10, 20, 1, 50));
-                assert_eq!(next_hop, VrfNextHop::DirectLocal { out_if: "eth_v4_cust".to_string() });
+                assert_eq!(
+                    next_hop,
+                    VrfNextHop::DirectLocal {
+                        out_if: "eth_v4_cust".to_string()
+                    }
+                );
             }
             other => panic!("Expected RoutedIpv4, got {:?}", other),
         }
@@ -281,15 +326,32 @@ mod tests {
         // 2. Inner IPv6 Packet to 2001:db8:cafe::1
         let mut inner_ipv6 = vec![0x60, 0x00, 0x00, 0x00, 0x00, 0x14, 0x3b, 0x40]; // IPv6 header start
         inner_ipv6.extend_from_slice(&[0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]); // src
-        inner_ipv6.extend_from_slice(&[0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]); // dst
+        inner_ipv6.extend_from_slice(&[
+            0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+        ]); // dst
         inner_ipv6.extend_from_slice(b"Dual-Stack IPv6 Data");
 
         let res_v6 = engine.process_packet(dt46_sid, srh, &inner_ipv6);
         match res_v6 {
-            EndDt46ForwardResult::RoutedIpv6 { vrf_id, dst_ip, next_hop, .. } => {
+            EndDt46ForwardResult::RoutedIpv6 {
+                vrf_id,
+                dst_ip,
+                next_hop,
+                ..
+            } => {
                 assert_eq!(vrf_id, 100);
-                assert_eq!(dst_ip, Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
-                assert_eq!(next_hop, VrfNextHop::DirectLocal { out_if: "eth_v6_cust".to_string() });
+                assert_eq!(
+                    dst_ip,
+                    Ipv6Address([
+                        0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1
+                    ])
+                );
+                assert_eq!(
+                    next_hop,
+                    VrfNextHop::DirectLocal {
+                        out_if: "eth_v6_cust".to_string()
+                    }
+                );
             }
             other => panic!("Expected RoutedIpv6, got {:?}", other),
         }

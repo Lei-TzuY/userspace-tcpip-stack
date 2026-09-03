@@ -113,7 +113,12 @@ pub struct EcnCongestionTlv {
 }
 
 impl EcnCongestionTlv {
-    pub fn new(reporting_node_id: u32, congestion_level: u8, ecn_codepoint: u8, queue_util_pct: u8) -> Self {
+    pub fn new(
+        reporting_node_id: u32,
+        congestion_level: u8,
+        ecn_codepoint: u8,
+        queue_util_pct: u8,
+    ) -> Self {
         EcnCongestionTlv {
             reporting_node_id,
             congestion_level,
@@ -340,20 +345,16 @@ impl SfcTelemetryCollector {
     /// Extracts IOAM telemetry and ECN signals from a completed NSH MD2 packet.
     pub fn collect_from_packet(&mut self, pkt: &NshMd2Packet) {
         let spi = pkt.header.service_path_id;
-        let stats = self
-            .path_stats
-            .entry(spi)
-            .or_insert_with(|| SfcPathStats {
-                path_id: spi,
-                ..Default::default()
-            });
+        let stats = self.path_stats.entry(spi).or_insert_with(|| SfcPathStats {
+            path_id: spi,
+            ..Default::default()
+        });
 
         stats.total_flows_observed += 1;
         self.total_flows_collected += 1;
 
         for tlv in &pkt.header.tlvs {
-            if tlv.class == NSH_TLV_CLASS_IOAM && tlv.tlv_type == NSH_TLV_TYPE_IOAM_HOP_TELEMETRY
-            {
+            if tlv.class == NSH_TLV_CLASS_IOAM && tlv.tlv_type == NSH_TLV_TYPE_IOAM_HOP_TELEMETRY {
                 if let Some(hop) = IoamHopTelemetry::parse(&tlv.data) {
                     stats.total_hop_records += 1;
                     stats.cumulative_delay_us += hop.transit_delay_us as u64;

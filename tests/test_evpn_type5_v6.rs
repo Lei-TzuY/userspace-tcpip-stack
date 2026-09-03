@@ -1,6 +1,6 @@
-use toy_tcpip::evpn::RouteDistinguisher;
-use toy_tcpip::evpn_type5_v6::{EvpnType5V6Rib, EvpnType5V6Route, EVPN_ROUTE_TYPE_IP_PREFIX};
 use toy_tcpip::Ipv6Address;
+use toy_tcpip::evpn::RouteDistinguisher;
+use toy_tcpip::evpn_type5_v6::{EVPN_ROUTE_TYPE_IP_PREFIX, EvpnType5V6Rib, EvpnType5V6Route};
 
 #[test]
 fn test_evpn_type5_v6_constants_and_codec() {
@@ -13,9 +13,7 @@ fn test_evpn_type5_v6_constants_and_codec() {
     let prefix = Ipv6Address([
         0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
-    let gw = Ipv6Address([
-        0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0x01,
-    ]);
+    let gw = Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x10, 0x01]);
 
     let route = EvpnType5V6Route::new(rd.clone(), prefix, 64, gw, 100500);
     let bytes = route.serialize();
@@ -37,8 +35,12 @@ fn test_evpn_type5_v6_rib_lifecycle_and_withdrawal() {
         assigned: 1,
     };
 
-    let p1 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-    let p2 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+    let p1 = Ipv6Address([
+        0x20, 0x01, 0x0d, 0xb8, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
+    let p2 = Ipv6Address([
+        0x20, 0x01, 0x0d, 0xb8, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ]);
     let gw = Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
     rib.add_route(EvpnType5V6Route::new(rd.clone(), p1, 64, gw, 20001));
@@ -46,7 +48,9 @@ fn test_evpn_type5_v6_rib_lifecycle_and_withdrawal() {
     assert_eq!(rib.routes.len(), 2);
 
     // Lookup within p1
-    let target1 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99]);
+    let target1 = Ipv6Address([
+        0x20, 0x01, 0x0d, 0xb8, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x99,
+    ]);
     let hit = rib.lookup(&rd, &target1).unwrap();
     assert_eq!(hit.label_or_vni, 20001);
 

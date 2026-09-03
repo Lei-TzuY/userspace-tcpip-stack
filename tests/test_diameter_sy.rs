@@ -1,16 +1,20 @@
 use toy_tcpip::diameter::DIAMETER_SUCCESS;
 use toy_tcpip::diameter_sy::{
-    OcsSyEngine, PcrfSyClient, PolicyCounterStatusReport, SlRequestType,
-    SpendingLimitAnswer, SpendingLimitRequest, SpendingStatusNotificationRequest,
     DIAMETER_APPLICATION_SY, DIAMETER_CMD_SPENDING_LIMIT,
-    DIAMETER_CMD_SPENDING_STATUS_NOTIFICATION,
+    DIAMETER_CMD_SPENDING_STATUS_NOTIFICATION, OcsSyEngine, PcrfSyClient,
+    PolicyCounterStatusReport, SlRequestType, SpendingLimitAnswer, SpendingLimitRequest,
+    SpendingStatusNotificationRequest,
 };
 
 #[test]
 fn test_diameter_sy_slr_sla_codec() {
-    let slr = SpendingLimitRequest::new("sy-sess-001", SlRequestType::InitialRequest, "imsi-460012345678901")
-        .with_counter("data-highspeed-50gb")
-        .with_counter("voice-roaming-300m");
+    let slr = SpendingLimitRequest::new(
+        "sy-sess-001",
+        SlRequestType::InitialRequest,
+        "imsi-460012345678901",
+    )
+    .with_counter("data-highspeed-50gb")
+    .with_counter("voice-roaming-300m");
 
     let msg = slr.to_diameter_message(1001, 2002);
     assert_eq!(msg.header.application_id, DIAMETER_APPLICATION_SY);
@@ -51,10 +55,14 @@ fn test_diameter_sy_snr_sna_codec() {
 
     let msg = snr.to_diameter_message(3001, 4002);
     assert_eq!(msg.header.application_id, DIAMETER_APPLICATION_SY);
-    assert_eq!(msg.header.command_code, DIAMETER_CMD_SPENDING_STATUS_NOTIFICATION);
+    assert_eq!(
+        msg.header.command_code,
+        DIAMETER_CMD_SPENDING_STATUS_NOTIFICATION
+    );
     assert!(msg.header.is_request());
 
-    let parsed_snr = SpendingStatusNotificationRequest::from_diameter_message(&msg).expect("parse SNR");
+    let parsed_snr =
+        SpendingStatusNotificationRequest::from_diameter_message(&msg).expect("parse SNR");
     assert_eq!(parsed_snr.session_id, "sy-sess-002");
     assert_eq!(parsed_snr.reports.len(), 1);
     assert_eq!(parsed_snr.reports[0].counter_id, "data-highspeed-50gb");
@@ -81,8 +89,14 @@ fn test_diameter_sy_ocs_pcrf_spending_limit_lifecycle() {
 
     // PCRF processes SLA and populates local counter cache
     pcrf.process_sla(&sla);
-    assert_eq!(pcrf.get_counter_status(sess_id, "tier1-data"), Some("BELOW_THRESHOLD"));
-    assert_eq!(pcrf.get_counter_status(sess_id, "tier2-video"), Some("NORMAL"));
+    assert_eq!(
+        pcrf.get_counter_status(sess_id, "tier1-data"),
+        Some("BELOW_THRESHOLD")
+    );
+    assert_eq!(
+        pcrf.get_counter_status(sess_id, "tier2-video"),
+        Some("NORMAL")
+    );
 
     // 3. Subscriber crosses threshold in OCS -> OCS proactively generates SNR
     let snr_list = ocs.update_counter_and_notify(imsi, "tier1-data", "EXCEEDED_QUOTA");
@@ -95,7 +109,10 @@ fn test_diameter_sy_ocs_pcrf_spending_limit_lifecycle() {
     let sna = pcrf.process_snr(&snr_list[0]);
     assert_eq!(sna.session_id, sess_id);
     assert_eq!(sna.result_code, DIAMETER_SUCCESS);
-    assert_eq!(pcrf.get_counter_status(sess_id, "tier1-data"), Some("EXCEEDED_QUOTA"));
+    assert_eq!(
+        pcrf.get_counter_status(sess_id, "tier1-data"),
+        Some("EXCEEDED_QUOTA")
+    );
 
     // 5. Session termination via StopRequest
     let stop_slr = SpendingLimitRequest::new(sess_id, SlRequestType::StopRequest, imsi);
@@ -119,7 +136,10 @@ fn test_diameter_sy_intermediate_request_counter_modification() {
     let slr_init = pcrf.create_initial_slr(sess_id, imsi, &["initial-tier"]);
     let sla_init = ocs.handle_slr(&slr_init);
     pcrf.process_sla(&sla_init);
-    assert_eq!(pcrf.get_counter_status(sess_id, "initial-tier"), Some("ACTIVE"));
+    assert_eq!(
+        pcrf.get_counter_status(sess_id, "initial-tier"),
+        Some("ACTIVE")
+    );
     assert_eq!(pcrf.get_counter_status(sess_id, "addon-boost"), None);
 
     // 2. Intermediate SLR dynamically subscribes to addon-boost as well
@@ -127,7 +147,10 @@ fn test_diameter_sy_intermediate_request_counter_modification() {
     let sla_inter = ocs.handle_slr(&slr_inter);
     assert_eq!(sla_inter.reports.len(), 2);
     pcrf.process_sla(&sla_inter);
-    assert_eq!(pcrf.get_counter_status(sess_id, "addon-boost"), Some("AVAILABLE"));
+    assert_eq!(
+        pcrf.get_counter_status(sess_id, "addon-boost"),
+        Some("AVAILABLE")
+    );
 
     // 3. Unsubscribe from initial-tier
     assert!(ocs.unsubscribe_counter(sess_id, "initial-tier"));

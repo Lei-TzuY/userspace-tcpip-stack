@@ -9,14 +9,10 @@ use crate::ptp::PtpTimestamp;
 use crate::ptp_5g_tdd_sync::{
     AntennaPortMeasurement, FronthaulBudgetPartition, NrTddSyncCategory, NrTddSyncEngine,
 };
-use crate::ptp_pdv_filter::{
-    PtpClockServoConfig, PtpPdvFloorFilter, PtpTimestampSample,
-};
+use crate::ptp_pdv_filter::{PtpClockServoConfig, PtpPdvFloorFilter, PtpTimestampSample};
 use crate::ptp_phc::PtpHardwareClock;
 use crate::ptp_synce_hybrid::{HybridSyncConfig, HybridSyncEngine, HybridSyncMode};
-use crate::ptp_telecom_dual_plane::{
-    DualPlaneConfig, DualPlaneEngine, PtpPlaneId, SwitchReason,
-};
+use crate::ptp_telecom_dual_plane::{DualPlaneConfig, DualPlaneEngine, PtpPlaneId, SwitchReason};
 use crate::synce_esmc::QualityLevel;
 
 /// Node Configuration Parameters for Telecom Synchronization Node.
@@ -51,18 +47,11 @@ pub enum TelecomAlarm {
     /// Physical layer SyncE reference signal lost or degraded below minimum acceptable QL
     SyncELost,
     /// Inter-plane phase difference between Plane A and Plane B exceeded alarm limit
-    InterPlaneDivergence {
-        delta_ns: i64,
-    },
+    InterPlaneDivergence { delta_ns: i64 },
     /// Cell phase absolute time error exceeds 3GPP 38.104 limit (1500 ns)
-    CellPhaseOutOfSpec {
-        max_abs_te_ns: i64,
-    },
+    CellPhaseOutOfSpec { max_abs_te_ns: i64 },
     /// MIMO antenna port Time Alignment Error exceeds 3GPP 38.104 limit (65 ns)
-    MimoTaeExceeded {
-        measured_tae_ns: i64,
-        limit_ns: i64,
-    },
+    MimoTaeExceeded { measured_tae_ns: i64, limit_ns: i64 },
     /// Operating in holdover without active external reference
     HoldoverOperating,
 }

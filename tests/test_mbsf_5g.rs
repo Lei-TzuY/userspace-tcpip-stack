@@ -57,7 +57,13 @@ fn test_mbsf_multicast_ue_join_and_leave() {
 
     // UE 1 joins
     mbsf.ue_join_multicast_session(&sess_id, ue1).unwrap();
-    assert!(mbsf.sessions.get(&sess_id).unwrap().joined_ue_supis.contains(ue1));
+    assert!(
+        mbsf.sessions
+            .get(&sess_id)
+            .unwrap()
+            .joined_ue_supis
+            .contains(ue1)
+    );
 
     // Duplicate join should fail
     let dup_err = mbsf.ue_join_multicast_session(&sess_id, ue1);
@@ -65,11 +71,21 @@ fn test_mbsf_multicast_ue_join_and_leave() {
 
     // UE 2 joins
     mbsf.ue_join_multicast_session(&sess_id, ue2).unwrap();
-    assert_eq!(mbsf.sessions.get(&sess_id).unwrap().joined_ue_supis.len(), 2);
+    assert_eq!(
+        mbsf.sessions.get(&sess_id).unwrap().joined_ue_supis.len(),
+        2
+    );
 
     // UE 1 leaves
     mbsf.ue_leave_multicast_session(&sess_id, ue1).unwrap();
-    assert!(!mbsf.sessions.get(&sess_id).unwrap().joined_ue_supis.contains(ue1));
+    assert!(
+        !mbsf
+            .sessions
+            .get(&sess_id)
+            .unwrap()
+            .joined_ue_supis
+            .contains(ue1)
+    );
 
     // UE 1 leaves again -> error
     let leave_err = mbsf.ue_leave_multicast_session(&sess_id, ue1);
@@ -89,7 +105,7 @@ fn test_mbsf_dynamic_ptm_ptp_switching() {
         vec!["tai-metro-01".to_string()],
         79, // 5QI 79 for V2X / Critical Broadcast
         MbsDeliveryMethod::DynamicPtmPtp,
-        4,  // PTM threshold: 4 UEs
+        4, // PTM threshold: 4 UEs
     );
 
     // Cell A: 2 UEs active (< 4) -> PointToPoint unicast fallback

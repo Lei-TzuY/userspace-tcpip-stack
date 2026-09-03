@@ -41,7 +41,13 @@ pub struct AggregatedLink {
 }
 
 impl AggregatedLink {
-    pub fn new(link_id: u32, name: &str, weight: u32, local_teid: u32, peer_ip: Ipv4Address) -> Self {
+    pub fn new(
+        link_id: u32,
+        name: &str,
+        weight: u32,
+        local_teid: u32,
+        peer_ip: Ipv4Address,
+    ) -> Self {
         Self {
             link_id,
             name: name.to_string(),
@@ -140,7 +146,11 @@ impl GtpuLinkAggEngine {
     }
 
     /// Dispatch a packet based on 5-tuple hash.
-    pub fn dispatch_packet(&mut self, tuple: &FiveTuple, payload_bytes: usize) -> FlowDistributionResult {
+    pub fn dispatch_packet(
+        &mut self,
+        tuple: &FiveTuple,
+        payload_bytes: usize,
+    ) -> FlowDistributionResult {
         // Collect healthy (Active or Degraded) links
         let healthy_indices: Vec<usize> = self
             .links
@@ -155,7 +165,10 @@ impl GtpuLinkAggEngine {
             return FlowDistributionResult::AllLinksDown;
         }
 
-        let total_weight: u32 = healthy_indices.iter().map(|&idx| self.links[idx].weight).sum();
+        let total_weight: u32 = healthy_indices
+            .iter()
+            .map(|&idx| self.links[idx].weight)
+            .sum();
         if total_weight == 0 {
             self.total_dropped += 1;
             return FlowDistributionResult::AllLinksDown;
@@ -195,8 +208,20 @@ mod tests {
     fn test_gtpu_multi_link_flow_aggregation() {
         let mut agg = GtpuLinkAggEngine::new(1);
 
-        let link1 = AggregatedLink::new(1, "5G-NR-Primary", 3, 0x1001, Ipv4Address::new(192, 168, 1, 10));
-        let link2 = AggregatedLink::new(2, "Wi-Fi-6-Secondary", 1, 0x2002, Ipv4Address::new(192, 168, 2, 20));
+        let link1 = AggregatedLink::new(
+            1,
+            "5G-NR-Primary",
+            3,
+            0x1001,
+            Ipv4Address::new(192, 168, 1, 10),
+        );
+        let link2 = AggregatedLink::new(
+            2,
+            "Wi-Fi-6-Secondary",
+            1,
+            0x2002,
+            Ipv4Address::new(192, 168, 2, 20),
+        );
         agg.add_link(link1);
         agg.add_link(link2);
 
@@ -218,7 +243,9 @@ mod tests {
             agg.set_link_status(link_id, LinkHealthState::Down);
             let res3 = agg.dispatch_packet(&flow_a, 1400);
             match res3 {
-                FlowDistributionResult::Forward { link_id: new_link, .. } => {
+                FlowDistributionResult::Forward {
+                    link_id: new_link, ..
+                } => {
                     assert_ne!(link_id, new_link);
                 }
                 _ => panic!("Expected failover link"),

@@ -179,7 +179,10 @@ impl BdtEngine {
         bdt_ref_id: &str,
         selected_policy_id: u32,
     ) -> Result<(), BdtError> {
-        let sess = self.sessions.get_mut(bdt_ref_id).ok_or(BdtError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(bdt_ref_id)
+            .ok_or(BdtError::SessionNotFound)?;
 
         let chosen = sess
             .candidate_policies
@@ -197,7 +200,10 @@ impl BdtEngine {
 
     /// Reject proposed policies.
     pub fn reject_bdt_negotiation(&mut self, bdt_ref_id: &str) -> Result<(), BdtError> {
-        let sess = self.sessions.get_mut(bdt_ref_id).ok_or(BdtError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(bdt_ref_id)
+            .ok_or(BdtError::SessionNotFound)?;
         sess.state = BdtNegotiationState::Rejected;
         sess.selected_policy = None;
         Ok(())
@@ -210,13 +216,20 @@ impl BdtEngine {
         current_time_s: u64,
         bytes_to_transfer: u64,
     ) -> Result<u32, BdtError> {
-        let sess = self.sessions.get_mut(bdt_ref_id).ok_or(BdtError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(bdt_ref_id)
+            .ok_or(BdtError::SessionNotFound)?;
 
-        if sess.state != BdtNegotiationState::Committed && sess.state != BdtNegotiationState::Active {
+        if sess.state != BdtNegotiationState::Committed && sess.state != BdtNegotiationState::Active
+        {
             return Err(BdtError::SessionNotCommitted);
         }
 
-        let policy = sess.selected_policy.as_ref().ok_or(BdtError::SessionNotCommitted)?;
+        let policy = sess
+            .selected_policy
+            .as_ref()
+            .ok_or(BdtError::SessionNotCommitted)?;
 
         // 1. Time Window Check
         if !policy.time_window.is_within(current_time_s) {

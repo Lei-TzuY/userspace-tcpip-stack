@@ -13,7 +13,7 @@
 
 use std::collections::HashMap;
 
-use crate::nas_5g::{verify_5g_aka_challenge, PduSessionType, SscMode};
+use crate::nas_5g::{PduSessionType, SscMode, verify_5g_aka_challenge};
 use crate::ngap_5g::Snssai;
 
 // ---------------------------------------------------------------------------
@@ -259,7 +259,10 @@ impl UdmEngine {
             .ok_or("Subscriber not found in UDM")?;
 
         // 1. Generate pseudo-random RAND
-        self.pseudo_rand_counter = self.pseudo_rand_counter.wrapping_mul(6364136223846793005).wrapping_add(1);
+        self.pseudo_rand_counter = self
+            .pseudo_rand_counter
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1);
         let mut rand = [0u8; 16];
         let rand_part1 = self.pseudo_rand_counter.to_be_bytes();
         let rand_part2 = (!self.pseudo_rand_counter).to_be_bytes();

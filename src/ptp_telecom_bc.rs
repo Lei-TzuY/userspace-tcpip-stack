@@ -283,7 +283,8 @@ impl TelecomBoundaryClockEngine {
             self.holdover_duration_secs += elapsed_secs;
 
             // Phase drift in nanoseconds = drift_ppb * elapsed_secs (ppb = ns/s)
-            let drift_ns = (self.internal_oscillator_drift_ppb * (elapsed_secs as f64)).round() as i64;
+            let drift_ns =
+                (self.internal_oscillator_drift_ppb * (elapsed_secs as f64)).round() as i64;
             self.accumulated_phase_offset_ns += drift_ns;
 
             if self.holdover_duration_secs > self.max_holdover_within_spec_secs {
@@ -310,7 +311,7 @@ impl TelecomBoundaryClockEngine {
                 }
             }
             TelecomSyncState::HoldoverWithinSpec => TelecomClockQuality {
-                clock_class: 7, // Holdover within specification (< 1.5us / G.8273.2)
+                clock_class: 7,       // Holdover within specification (< 1.5us / G.8273.2)
                 clock_accuracy: 0x21, // Within 100ns
                 offset_scaled_log_variance: 0x4E5D,
             },
@@ -336,7 +337,10 @@ impl TelecomBoundaryClockEngine {
 
         let port_cfg = self.ports.get(&port_id)?;
         let steps_removed = if let Some(slave_pid) = self.slave_port {
-            self.ports.get(&slave_pid).map(|p| p.rx_steps_removed.saturating_add(1)).unwrap_or(1)
+            self.ports
+                .get(&slave_pid)
+                .map(|p| p.rx_steps_removed.saturating_add(1))
+                .unwrap_or(1)
         } else {
             0
         };

@@ -108,9 +108,8 @@ impl PdcpDataPdu {
                 if (data[0] & 0x80) == 0 {
                     return Err("Expected Data PDU, found Control PDU (D/C=0)");
                 }
-                let sn = (((data[0] & 0x03) as u32) << 16)
-                    | ((data[1] as u32) << 8)
-                    | (data[2] as u32);
+                let sn =
+                    (((data[0] & 0x03) as u32) << 16) | ((data[1] as u32) << 8) | (data[2] as u32);
                 Ok(Self {
                     sn_size,
                     sn,
@@ -125,7 +124,7 @@ impl PdcpDataPdu {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PdcpControlPdu {
     StatusReport {
-        fmc: u32,       // First Missing COUNT (32-bit)
+        fmc: u32,        // First Missing COUNT (32-bit)
         bitmap: Vec<u8>, // Variable length bitmap
     },
 }
@@ -275,7 +274,9 @@ impl PdcpEntity {
     /// Handles t-Reordering timer expiration: flushes reordering buffer up to rx_reord.
     pub fn handle_t_reordering_expiry(&mut self) {
         // Deliver all stored SDUs with COUNT < rx_reord
-        let to_deliver: Vec<u32> = self.reordering_buffer.keys()
+        let to_deliver: Vec<u32> = self
+            .reordering_buffer
+            .keys()
             .copied()
             .filter(|&c| c < self.rx_reord)
             .collect();

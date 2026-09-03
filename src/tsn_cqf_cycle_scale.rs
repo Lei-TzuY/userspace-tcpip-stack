@@ -81,8 +81,16 @@ impl TsnCqfCycleScaleEngine {
     /// `base_granularity_ns` is the smallest valid cycle period; all requested
     /// periods must be exact integer multiples of this value.
     pub fn new(initial_period_ns: u64, base_granularity_ns: u64) -> Self {
-        let gran = if base_granularity_ns == 0 { MIN_CYCLE_NS } else { base_granularity_ns };
-        let period = if initial_period_ns < gran { gran } else { initial_period_ns };
+        let gran = if base_granularity_ns == 0 {
+            MIN_CYCLE_NS
+        } else {
+            base_granularity_ns
+        };
+        let period = if initial_period_ns < gran {
+            gran
+        } else {
+            initial_period_ns
+        };
         Self {
             oper_period_ns: period,
             base_granularity_ns: gran,
@@ -199,7 +207,9 @@ impl TsnCqfCycleScaleEngine {
     /// period) and return the number of boundaries crossed (always 1 unless
     /// the new period is shorter than the old and residual time spills over).
     pub fn advance_cycle(&mut self) -> u32 {
-        let remaining = self.oper_period_ns.saturating_sub(self.current_cycle_elapsed_ns);
+        let remaining = self
+            .oper_period_ns
+            .saturating_sub(self.current_cycle_elapsed_ns);
         self.advance_time(remaining)
     }
 }
@@ -248,20 +258,29 @@ mod tests {
     fn test_invalid_alignment_rejected() {
         let mut engine = TsnCqfCycleScaleEngine::new(500_000, MIN_CYCLE_NS);
         // 200_000 is not a multiple of 125_000.
-        assert_eq!(engine.request_scale(200_000), CycleScaleResult::InvalidAlignment);
+        assert_eq!(
+            engine.request_scale(200_000),
+            CycleScaleResult::InvalidAlignment
+        );
     }
 
     #[test]
     fn test_out_of_range_rejected() {
         let mut engine = TsnCqfCycleScaleEngine::new(500_000, MIN_CYCLE_NS);
         assert_eq!(engine.request_scale(50_000), CycleScaleResult::OutOfRange);
-        assert_eq!(engine.request_scale(20_000_000), CycleScaleResult::OutOfRange);
+        assert_eq!(
+            engine.request_scale(20_000_000),
+            CycleScaleResult::OutOfRange
+        );
     }
 
     #[test]
     fn test_duplicate_request_rejected() {
         let mut engine = TsnCqfCycleScaleEngine::new(500_000, MIN_CYCLE_NS);
         assert_eq!(engine.request_scale(250_000), CycleScaleResult::Accepted);
-        assert_eq!(engine.request_scale(375_000), CycleScaleResult::TransitionPending);
+        assert_eq!(
+            engine.request_scale(375_000),
+            CycleScaleResult::TransitionPending
+        );
     }
 }

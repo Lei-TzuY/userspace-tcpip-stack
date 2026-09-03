@@ -68,12 +68,8 @@ impl GenevePmtudOption {
         if tlv.data.len() < 10 {
             return None;
         }
-        let probe_sequence = u32::from_be_bytes([
-            tlv.data[0],
-            tlv.data[1],
-            tlv.data[2],
-            tlv.data[3],
-        ]);
+        let probe_sequence =
+            u32::from_be_bytes([tlv.data[0], tlv.data[1], tlv.data[2], tlv.data[3]]);
         let probed_mtu_size = u16::from_be_bytes([tlv.data[4], tlv.data[5]]);
         let flags = tlv.data[6];
         let min_supported_mtu = u16::from_be_bytes([tlv.data[8], tlv.data[9]]);
@@ -164,7 +160,11 @@ impl GenevePmtudEngine {
         if probe.flags & GENEVE_PMTUD_FLAG_REQ != 0 {
             // Egress side receives request: verify local supported MTU
             let supported = probe.probed_mtu_size.min(self.local_max_mtu);
-            let reply = GenevePmtudOption::new_reply(probe.probe_sequence, probe.probed_mtu_size, supported);
+            let reply = GenevePmtudOption::new_reply(
+                probe.probe_sequence,
+                probe.probed_mtu_size,
+                supported,
+            );
             let reply_tlv = reply.to_tlv();
 
             GenevePmtudResult::SendProbeReply {

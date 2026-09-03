@@ -81,7 +81,12 @@ impl S6aRsrMessage {
     }
 
     /// Create a new Reset-Answer (MME/SGSN -> HSS).
-    pub fn new_rsa(session_id: &str, origin_host: &str, origin_realm: &str, result_code: u32) -> Self {
+    pub fn new_rsa(
+        session_id: &str,
+        origin_host: &str,
+        origin_realm: &str,
+        result_code: u32,
+    ) -> Self {
         Self {
             command_code: DIAMETER_CMD_RESET,
             application_id: DIAMETER_APPLICATION_S6A,
@@ -232,7 +237,10 @@ mod tests {
 
     #[test]
     fn test_targeted_reset() {
-        let mut engine = S6aRsrEngine::new("mme01.epc.mnc001.mcc208.3gppnetwork.org", "epc.mnc001.mcc208.3gppnetwork.org");
+        let mut engine = S6aRsrEngine::new(
+            "mme01.epc.mnc001.mcc208.3gppnetwork.org",
+            "epc.mnc001.mcc208.3gppnetwork.org",
+        );
         engine.provision_subscriber("460011111111111");
         engine.provision_subscriber("460022222222222");
 

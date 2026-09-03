@@ -78,10 +78,7 @@ pub enum Duid {
         identifier: Vec<u8>,
     },
     /// DUID-LL: Link-Layer Address (Type 3)
-    Ll {
-        hw_type: u16,
-        ll_addr: MacAddress,
-    },
+    Ll { hw_type: u16, ll_addr: MacAddress },
     /// DUID-UUID: UUID-based (Type 4)
     Uuid([u8; 16]),
     /// Raw unparsed DUID
@@ -674,9 +671,8 @@ impl Dhcpv6Message {
                         break;
                     }
                     if sub_code == DHCPV6_OPT_IAPREFIX && sub_len >= 25 {
-                        let pref = u32::from_be_bytes(
-                            opt.data[sub_off + 4..sub_off + 8].try_into().ok()?,
-                        );
+                        let pref =
+                            u32::from_be_bytes(opt.data[sub_off + 4..sub_off + 8].try_into().ok()?);
                         let valid = u32::from_be_bytes(
                             opt.data[sub_off + 8..sub_off + 12].try_into().ok()?,
                         );
@@ -735,8 +731,8 @@ impl Dhcpv6Message {
                         if len > 63 || off + 1 + len > opt.data.len() {
                             return domains;
                         }
-                        let label = String::from_utf8_lossy(&opt.data[off + 1..off + 1 + len])
-                            .to_string();
+                        let label =
+                            String::from_utf8_lossy(&opt.data[off + 1..off + 1 + len]).to_string();
                         labels.push(label);
                         off += 1 + len;
                     }
@@ -750,7 +746,9 @@ impl Dhcpv6Message {
     }
 
     pub fn has_rapid_commit(&self) -> bool {
-        self.options.iter().any(|o| o.code == DHCPV6_OPT_RAPID_COMMIT)
+        self.options
+            .iter()
+            .any(|o| o.code == DHCPV6_OPT_RAPID_COMMIT)
     }
 }
 
@@ -783,13 +781,13 @@ impl Dhcpv6Server {
             next_ip_suffix: 100,
             next_prefix_index: 1,
             dns_servers: vec![Ipv6Address([
-                0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x88, 0x88,
+                0x20, 0x01, 0x48, 0x60, 0x48, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x88, 0x88,
             ])],
             search_list: vec!["lab.example.com".to_string()],
             prefix_pool_base: Ipv6Address([
-                0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00,
+                0x20, 0x01, 0x0d, 0xb8, 0xca, 0xfe, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00,
             ]),
             prefix_delegation_len: 64,
             active_leases: HashMap::new(),
@@ -973,12 +971,7 @@ impl Dhcpv6Client {
     }
 
     /// Generates Solicit message to start address / prefix discovery.
-    pub fn start_solicit(
-        &mut self,
-        rapid_commit: bool,
-        request_pd: bool,
-        _now_ms: u64,
-    ) -> Vec<u8> {
+    pub fn start_solicit(&mut self, rapid_commit: bool, request_pd: bool, _now_ms: u64) -> Vec<u8> {
         self.transaction_id = (self.transaction_id + 1) & 0x00FF_FFFF;
         self.state = Dhcpv6ClientState::Soliciting;
         let duid_bytes = self.client_duid.serialize();

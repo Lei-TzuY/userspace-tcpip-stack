@@ -196,7 +196,8 @@ impl SeppEngine {
             state: N32cState::Active,
         };
 
-        self.active_sessions.insert(session_id.to_string(), ctx.clone());
+        self.active_sessions
+            .insert(session_id.to_string(), ctx.clone());
 
         Ok(ctx)
     }
@@ -220,7 +221,9 @@ impl SeppEngine {
             .ok_or(SeppError::SessionNotFound)?;
 
         if session.state != N32cState::Active {
-            return Err(SeppError::SecurityPolicyViolation("N32 session is not active"));
+            return Err(SeppError::SecurityPolicyViolation(
+                "N32 session is not active",
+            ));
         }
 
         let msg_id = self.next_msg_id;
@@ -245,10 +248,7 @@ impl SeppEngine {
     }
 
     /// Ingress SEPP: Verify integrity, audit IPX modifications, and decapsulate SBI message.
-    pub fn n32f_decapsulate(
-        &self,
-        msg: &N32fMessage,
-    ) -> Result<DecapsulatedSbiMessage, SeppError> {
+    pub fn n32f_decapsulate(&self, msg: &N32fMessage) -> Result<DecapsulatedSbiMessage, SeppError> {
         let session = self
             .active_sessions
             .get(&msg.session_id)
@@ -256,13 +256,23 @@ impl SeppEngine {
 
         // 1. Audit IPX modifications against policy
         for modif in &msg.ipx_modifications {
-            if self.ipx_policy.prohibited_headers.iter().any(|h| h.eq_ignore_ascii_case(&modif.modified_header)) {
+            if self
+                .ipx_policy
+                .prohibited_headers
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(&modif.modified_header))
+            {
                 return Err(SeppError::UnauthorizedIpxModification(format!(
                     "IPX modified prohibited header: {}",
                     modif.modified_header
                 )));
             }
-            if !self.ipx_policy.allowed_headers.iter().any(|h| h.eq_ignore_ascii_case(&modif.modified_header)) {
+            if !self
+                .ipx_policy
+                .allowed_headers
+                .iter()
+                .any(|h| h.eq_ignore_ascii_case(&modif.modified_header))
+            {
                 return Err(SeppError::UnauthorizedIpxModification(format!(
                     "IPX modified unapproved header: {}",
                     modif.modified_header
@@ -271,7 +281,11 @@ impl SeppEngine {
         }
 
         // 2. Cryptographic MAC tag verification
-        let expected_mac = compute_mac(&session.shared_secret, msg.message_id, &msg.encrypted_payload);
+        let expected_mac = compute_mac(
+            &session.shared_secret,
+            msg.message_id,
+            &msg.encrypted_payload,
+        );
         if !constant_time_eq(&expected_mac, &msg.mac_tag) {
             return Err(SeppError::IntegrityMacFailure);
         }
@@ -284,7 +298,11 @@ impl SeppEngine {
             .ok_or(SeppError::InvalidTelescopicFqdn)?;
 
         // 4. Decrypt payload
-        let payload = xor_keystream(&msg.encrypted_payload, &session.shared_secret, msg.message_id);
+        let payload = xor_keystream(
+            &msg.encrypted_payload,
+            &session.shared_secret,
+            msg.message_id,
+        );
 
         Ok(DecapsulatedSbiMessage {
             internal_target_fqdn,

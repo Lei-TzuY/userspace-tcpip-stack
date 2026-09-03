@@ -266,7 +266,8 @@ impl E1apEngine {
         };
 
         self.bearer_contexts.insert(req.gnb_cu_cp_ue_e1ap_id, ctx);
-        self.up_to_cp_id_map.insert(up_ue_id, req.gnb_cu_cp_ue_e1ap_id);
+        self.up_to_cp_id_map
+            .insert(up_ue_id, req.gnb_cu_cp_ue_e1ap_id);
 
         Ok(BearerContextSetupResponse {
             gnb_cu_cp_ue_e1ap_id: req.gnb_cu_cp_ue_e1ap_id,
@@ -291,7 +292,8 @@ impl E1apEngine {
         };
 
         self.bearer_contexts.insert(resp.gnb_cu_cp_ue_e1ap_id, ctx);
-        self.up_to_cp_id_map.insert(resp.gnb_cu_up_ue_e1ap_id, resp.gnb_cu_cp_ue_e1ap_id);
+        self.up_to_cp_id_map
+            .insert(resp.gnb_cu_up_ue_e1ap_id, resp.gnb_cu_cp_ue_e1ap_id);
         Ok(())
     }
 
@@ -302,7 +304,9 @@ impl E1apEngine {
 
     /// Finds a Bearer Context by CU-UP UE E1AP ID.
     pub fn lookup_by_up_ue_id(&self, up_ue_id: u32) -> Option<&E1apBearerContext> {
-        self.up_to_cp_id_map.get(&up_ue_id).and_then(|cp_id| self.bearer_contexts.get(cp_id))
+        self.up_to_cp_id_map
+            .get(&up_ue_id)
+            .and_then(|cp_id| self.bearer_contexts.get(cp_id))
     }
 
     /// Releases a Bearer Context from both indexes.

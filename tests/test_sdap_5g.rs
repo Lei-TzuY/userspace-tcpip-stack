@@ -16,7 +16,7 @@ fn test_sdap_qos_flow_mapping_and_default_drb_fallback() {
     assert_eq!(sdap.resolve_drb(63), 5);
 
     // Configure explicit mappings
-    sdap.configure_mapping(9, 3);  // QFI 9 → DRB 3
+    sdap.configure_mapping(9, 3); // QFI 9 → DRB 3
     sdap.configure_mapping(15, 7); // QFI 15 → DRB 7
 
     assert_eq!(sdap.resolve_drb(9), 3);
@@ -44,8 +44,7 @@ fn test_sdap_dl_data_pdu_build_receive_roundtrip() {
     let gnb = SdapEntity::new(1, SdapRole::Gnb, 5);
     let ip_packet = vec![0x45, 0x00, 0x00, 0x3C, 0xAA, 0xBB, 0xCC, 0xDD];
 
-    let (drb_id, pdu_bytes) =
-        gnb.build_pdu(9, &ip_packet, SdapDirection::Downlink, false);
+    let (drb_id, pdu_bytes) = gnb.build_pdu(9, &ip_packet, SdapDirection::Downlink, false);
     assert_eq!(drb_id, 5); // QFI 9 not mapped → default DRB 5
 
     // Verify SDAP header in wire bytes
@@ -78,8 +77,12 @@ fn test_sdap_reflective_qos_mapping() {
 
     // Build DL PDU with RQI=1
     let ip_payload = vec![0x60, 0x00, 0x00, 0x00]; // IPv6 header start
-    let (drb_id, pdu_bytes) =
-        gnb.build_pdu(20, &ip_payload, SdapDirection::Downlink, /* rqi */ true);
+    let (drb_id, pdu_bytes) = gnb.build_pdu(
+        20,
+        &ip_payload,
+        SdapDirection::Downlink,
+        /* rqi */ true,
+    );
     assert_eq!(drb_id, 8);
 
     // Verify RQI is set in wire
@@ -173,8 +176,7 @@ fn test_sdap_transparent_mode_no_header() {
     let ip_packet = vec![0x45, 0x00, 0x00, 0x28];
 
     // Build PDU without header
-    let (drb_id, pdu_bytes) =
-        sdap.build_pdu(9, &ip_packet, SdapDirection::Downlink, false);
+    let (drb_id, pdu_bytes) = sdap.build_pdu(9, &ip_packet, SdapDirection::Downlink, false);
     assert_eq!(drb_id, 5);
     // No header prepended — PDU == raw IP
     assert_eq!(pdu_bytes, ip_packet);

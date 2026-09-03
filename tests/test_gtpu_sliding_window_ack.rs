@@ -25,7 +25,10 @@ fn test_gtpu_sliding_window_ack_integration() {
             teid: 0xABCD1234,
             received_seq: 3,
             cumulative_ack: 1,
-            sack_blocks: vec![SackBlock { start_seq: 3, end_seq: 3 }],
+            sack_blocks: vec![SackBlock {
+                start_seq: 3,
+                end_seq: 3
+            }],
         }
     );
 
@@ -37,7 +40,10 @@ fn test_gtpu_sliding_window_ack_integration() {
             teid: 0xABCD1234,
             received_seq: 4,
             cumulative_ack: 1,
-            sack_blocks: vec![SackBlock { start_seq: 3, end_seq: 4 }],
+            sack_blocks: vec![SackBlock {
+                start_seq: 3,
+                end_seq: 4
+            }],
         }
     );
 
@@ -50,8 +56,14 @@ fn test_gtpu_sliding_window_ack_integration() {
             received_seq: 6,
             cumulative_ack: 1,
             sack_blocks: vec![
-                SackBlock { start_seq: 3, end_seq: 4 },
-                SackBlock { start_seq: 6, end_seq: 6 },
+                SackBlock {
+                    start_seq: 3,
+                    end_seq: 4
+                },
+                SackBlock {
+                    start_seq: 6,
+                    end_seq: 6
+                },
             ],
         }
     );
@@ -81,5 +93,11 @@ fn test_gtpu_sliding_window_ack_integration() {
     // Check Wire Report
     let report = engine.generate_ack_report(1_000_000);
     assert_eq!(report.cumulative_ack, 4);
-    assert_eq!(report.sack_blocks, vec![SackBlock { start_seq: 6, end_seq: 6 }]);
+    assert_eq!(
+        report.sack_blocks,
+        vec![SackBlock {
+            start_seq: 6,
+            end_seq: 6
+        }]
+    );
 }

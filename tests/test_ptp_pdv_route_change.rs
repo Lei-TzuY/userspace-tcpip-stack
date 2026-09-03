@@ -35,7 +35,9 @@ fn test_ptp_pdv_route_step_detection_and_flush() {
     }
 
     // Step detector identifies the +35,000 ns reroute jump
-    let step_event = filter.detect_delay_step(20_000).expect("Route step must be detected");
+    let step_event = filter
+        .detect_delay_step(20_000)
+        .expect("Route step must be detected");
     assert_eq!(step_event.forward_step_ns, 35_000);
     assert_eq!(step_event.reverse_step_ns, 35_000);
     assert_eq!(step_event.detected_at_seq, 23);
@@ -58,7 +60,11 @@ fn test_ptp_pdv_no_false_step_on_queuing_jitter() {
     // Base delay is 10,000 ns. Queuing adds random transient noise up to 3,000 ns,
     // but the clean floor remains at 10,000 ns.
     for seq in 0..20 {
-        let jitter = if seq % 3 == 0 { 0 } else { ((seq as i64 * 31) % 3) * 1_000 };
+        let jitter = if seq % 3 == 0 {
+            0
+        } else {
+            ((seq as i64 * 31) % 3) * 1_000
+        };
         let t1 = (seq as i64) * 1_000_000;
         let t2 = t1 + 10_000 + jitter;
         let t3 = t2 + 5_000;

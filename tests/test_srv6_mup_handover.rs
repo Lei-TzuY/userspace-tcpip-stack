@@ -11,13 +11,17 @@ fn test_srv6_mup_handover_end_to_end_orchestration() {
     let ue_ip = Ipv4Address::new(10, 100, 5, 20);
     let src_gnb = Ipv4Address::new(172, 16, 1, 10);
     let tgt_gnb = Ipv4Address::new(172, 16, 2, 20);
-    let src_mup_sid = Ipv6Address::from_bytes([0xfd, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x11]);
-    let tgt_mup_sid = Ipv6Address::from_bytes([0xfd, 0x00, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x22]);
+    let src_mup_sid =
+        Ipv6Address::from_bytes([0xfd, 0x00, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x11]);
+    let tgt_mup_sid =
+        Ipv6Address::from_bytes([0xfd, 0x00, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x22]);
 
     // Initialize session
-    assert!(engine
-        .create_session(500, ue_ip, src_gnb, 1050, src_mup_sid, 5)
-        .is_ok());
+    assert!(
+        engine
+            .create_session(500, ue_ip, src_gnb, 1050, src_mup_sid, 5)
+            .is_ok()
+    );
 
     let sess = engine.sessions.get(&500).unwrap();
     assert_eq!(sess.state, MupSessionState::Active);

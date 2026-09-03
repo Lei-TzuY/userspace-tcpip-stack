@@ -42,7 +42,10 @@ fn test_udsf_record_crud_and_etag_optimistic_concurrency() {
         timestamp_epoch_s: 1010,
     };
     let err_stale = udsf.create_or_replace_record(&req_stale);
-    assert_eq!(err_stale, Err(UdsfError::PreconditionFailed("ETag mismatch")));
+    assert_eq!(
+        err_stale,
+        Err(UdsfError::PreconditionFailed("ETag mismatch"))
+    );
 
     // Successful update with matching ETag (ETag 1)
     let payload2 = b"{\"amf_ue_ngap_id\": 101, \"state\": \"CONNECTED\"}".to_vec();
@@ -87,7 +90,10 @@ fn test_udsf_distributed_pessimistic_locking_and_auto_lease() {
 
     // SMF-2 tries to acquire lock at t=105 -> should be rejected
     let lock_res2 = udsf.lock_record(collection, record_id, "smf-instance-02", 10, 105);
-    assert_eq!(lock_res2, Err(UdsfError::RecordLocked("Record locked by another NF")));
+    assert_eq!(
+        lock_res2,
+        Err(UdsfError::RecordLocked("Record locked by another NF"))
+    );
 
     // SMF-2 tries to update record at t=105 -> should be rejected
     let update_req = PutRecordRequest {
@@ -102,7 +108,9 @@ fn test_udsf_distributed_pessimistic_locking_and_auto_lease() {
     let update_res = udsf.create_or_replace_record(&update_req);
     assert_eq!(
         update_res,
-        Err(UdsfError::RecordLocked("Record is locked by another NF instance"))
+        Err(UdsfError::RecordLocked(
+            "Record is locked by another NF instance"
+        ))
     );
 
     // At t=112 (lease expired), SMF-2 can now acquire lock
@@ -110,7 +118,8 @@ fn test_udsf_distributed_pessimistic_locking_and_auto_lease() {
     assert!(lock_res3.is_ok());
 
     // SMF-2 releases lock
-    udsf.unlock_record(collection, record_id, "smf-instance-02").unwrap();
+    udsf.unlock_record(collection, record_id, "smf-instance-02")
+        .unwrap();
 }
 
 // ---------------------------------------------------------------------------
@@ -236,10 +245,14 @@ fn test_udsf_delete_with_etag_protection() {
 
     // Delete with wrong ETag -> fails
     let err = udsf.delete_record(collection, record_id, Some(rec.etag + 1));
-    assert_eq!(err, Err(UdsfError::PreconditionFailed("ETag mismatch on DELETE")));
+    assert_eq!(
+        err,
+        Err(UdsfError::PreconditionFailed("ETag mismatch on DELETE"))
+    );
 
     // Delete with matching ETag -> succeeds
-    udsf.delete_record(collection, record_id, Some(rec.etag)).unwrap();
+    udsf.delete_record(collection, record_id, Some(rec.etag))
+        .unwrap();
     assert_eq!(
         udsf.get_record(collection, record_id, 1000),
         Err(UdsfError::RecordNotFound)

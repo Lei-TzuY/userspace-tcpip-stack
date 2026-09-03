@@ -46,8 +46,8 @@ pub enum S6aUarAvp {
     OriginRealm(String),
     DestinationHost(String),
     DestinationRealm(String),
-    UserName(String),        // IMSI
-    VisitedPlmnId([u8; 3]),  // 3-octet encoded MCC/MNC
+    UserName(String),       // IMSI
+    VisitedPlmnId([u8; 3]), // 3-octet encoded MCC/MNC
     UarFlags(u32),
     ResultCode(u32),
 }
@@ -129,10 +129,13 @@ impl S6aUarMessage {
 
     /// Extract UAR Flags.
     pub fn uar_flags(&self) -> u32 {
-        self.avps.iter().find_map(|avp| match avp {
-            S6aUarAvp::UarFlags(f) => Some(*f),
-            _ => None,
-        }).unwrap_or(0)
+        self.avps
+            .iter()
+            .find_map(|avp| match avp {
+                S6aUarAvp::UarFlags(f) => Some(*f),
+                _ => None,
+            })
+            .unwrap_or(0)
     }
 
     /// Extract Result-Code.
@@ -177,7 +180,11 @@ impl S6aUarEngine {
 
     /// Add a subscriber authorization entry to the HSS database.
     pub fn add_subscriber_rule(&mut self, rule: SubscriberAuthRule) {
-        if let Some(pos) = self.subscriber_rules.iter().position(|r| r.imsi == rule.imsi) {
+        if let Some(pos) = self
+            .subscriber_rules
+            .iter()
+            .position(|r| r.imsi == rule.imsi)
+        {
             self.subscriber_rules[pos] = rule;
         } else {
             self.subscriber_rules.push(rule);
@@ -298,7 +305,10 @@ mod tests {
             0,
         );
         let uaa_roam = engine.process_uar(&uar_roam);
-        assert_eq!(uaa_roam.result_code(), Some(RESULT_CODE_ROAMING_NOT_ALLOWED));
+        assert_eq!(
+            uaa_roam.result_code(),
+            Some(RESULT_CODE_ROAMING_NOT_ALLOWED)
+        );
 
         // 3. Emergency Attach on barred PLMN -> Overrides to Success
         let uar_emg = S6aUarMessage::new_uar(

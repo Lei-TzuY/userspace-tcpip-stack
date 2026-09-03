@@ -180,8 +180,10 @@ impl HighAccuracyPtpEngine {
         // t2_actual = t2 - rx_phy_latency (Slave side)
         // t3_actual = t3 + tx_phy_latency (Slave side)
         // t4_actual = t4 - rx_phy_latency (Master side, assumed 0 if not given)
-        let t2_calibrated = t2.to_total_picoseconds() - (self.calibration.rx_phy_latency_ps as i128);
-        let t3_calibrated = t3.to_total_picoseconds() + (self.calibration.tx_phy_latency_ps as i128);
+        let t2_calibrated =
+            t2.to_total_picoseconds() - (self.calibration.rx_phy_latency_ps as i128);
+        let t3_calibrated =
+            t3.to_total_picoseconds() + (self.calibration.tx_phy_latency_ps as i128);
         let t1_ps = t1.to_total_picoseconds();
         let t4_ps = t4.to_total_picoseconds();
 

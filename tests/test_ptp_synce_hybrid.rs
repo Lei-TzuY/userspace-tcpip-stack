@@ -1,8 +1,6 @@
 //! Integration tests for SyncE + PTP Hybrid Synchronization Controller (ITU-T G.8273.2 Annex C).
 
-use toy_tcpip::ptp_synce_hybrid::{
-    HybridSyncConfig, HybridSyncEngine, HybridSyncMode,
-};
+use toy_tcpip::ptp_synce_hybrid::{HybridSyncConfig, HybridSyncEngine, HybridSyncMode};
 use toy_tcpip::synce_esmc::QualityLevel;
 
 #[test]

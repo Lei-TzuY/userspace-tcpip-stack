@@ -161,7 +161,8 @@ impl DdnmfEngine {
             valid_until_epoch_s: valid_until,
         };
 
-        self.active_announcements.insert(pac.to_hex_string(), record);
+        self.active_announcements
+            .insert(pac.to_hex_string(), record);
         Ok(pac)
     }
 

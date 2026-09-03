@@ -43,7 +43,9 @@ fn test_gtpu_link_agg_lifecycle() {
         agg.set_link_status(link_id, LinkHealthState::Down);
         let d3 = agg.dispatch_packet(&flow1, 512);
         match d3 {
-            FlowDistributionResult::Forward { link_id: new_link, .. } => {
+            FlowDistributionResult::Forward {
+                link_id: new_link, ..
+            } => {
                 assert_ne!(link_id, new_link);
             }
             _ => panic!("Expected successful failover link"),
@@ -52,6 +54,9 @@ fn test_gtpu_link_agg_lifecycle() {
         // 3. Mark remaining link down -> AllLinksDown
         let other_link = if link_id == 1 { 2 } else { 1 };
         agg.set_link_status(other_link, LinkHealthState::Down);
-        assert_eq!(agg.dispatch_packet(&flow1, 512), FlowDistributionResult::AllLinksDown);
+        assert_eq!(
+            agg.dispatch_packet(&flow1, 512),
+            FlowDistributionResult::AllLinksDown
+        );
     }
 }

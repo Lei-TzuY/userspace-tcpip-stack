@@ -94,14 +94,20 @@ impl EvpnMcastSnoopingFilterEngine {
     }
 
     /// Evaluates an IGMP/MLD Join subscription request against ACLs and CAC limits.
-    pub fn evaluate_join(&mut self, vni: u32, port_id: u32, group_ip: Ipv4Address) -> McastFilterVerdict {
+    pub fn evaluate_join(
+        &mut self,
+        vni: u32,
+        port_id: u32,
+        group_ip: Ipv4Address,
+    ) -> McastFilterVerdict {
         self.total_joins_evaluated += 1;
 
         let grp_u32 = u32::from_be_bytes(group_ip.0);
 
         // 1. ACL Rule Evaluation
         for rule in &self.rules {
-            if (rule.vni == 0 || rule.vni == vni) && (rule.port_id == 0 || rule.port_id == port_id) {
+            if (rule.vni == 0 || rule.vni == vni) && (rule.port_id == 0 || rule.port_id == port_id)
+            {
                 let start_u32 = u32::from_be_bytes(rule.group_start.0);
                 let end_u32 = u32::from_be_bytes(rule.group_end.0);
                 if grp_u32 >= start_u32 && grp_u32 <= end_u32 {
@@ -121,9 +127,16 @@ impl EvpnMcastSnoopingFilterEngine {
         }
 
         // 2. CAC Limit Check
-        let is_already_subscribed = self.active_subscriptions.iter().any(|&(v, p, g)| v == vni && p == port_id && g == group_ip);
+        let is_already_subscribed = self
+            .active_subscriptions
+            .iter()
+            .any(|&(v, p, g)| v == vni && p == port_id && g == group_ip);
         if !is_already_subscribed {
-            let port_channel_count = self.active_subscriptions.iter().filter(|&(v, p, _)| *v == vni && *p == port_id).count();
+            let port_channel_count = self
+                .active_subscriptions
+                .iter()
+                .filter(|&(v, p, _)| *v == vni && *p == port_id)
+                .count();
             if port_channel_count >= self.max_channels_per_port {
                 self.total_joins_denied_cac_limit += 1;
                 return McastFilterVerdict::JoinDeniedCacLimitReached {
@@ -137,7 +150,11 @@ impl EvpnMcastSnoopingFilterEngine {
         }
 
         self.total_joins_permitted += 1;
-        let count = self.active_subscriptions.iter().filter(|&(v, p, _)| *v == vni && *p == port_id).count();
+        let count = self
+            .active_subscriptions
+            .iter()
+            .filter(|&(v, p, _)| *v == vni && *p == port_id)
+            .count();
         McastFilterVerdict::JoinPermitted {
             vni,
             port_id,
@@ -147,9 +164,19 @@ impl EvpnMcastSnoopingFilterEngine {
     }
 
     /// Processes a leave event for a multicast channel on a port.
-    pub fn process_leave(&mut self, vni: u32, port_id: u32, group_ip: Ipv4Address) -> McastFilterVerdict {
-        self.active_subscriptions.retain(|&(v, p, g)| !(v == vni && p == port_id && g == group_ip));
-        let remaining = self.active_subscriptions.iter().filter(|&(v, p, _)| *v == vni && *p == port_id).count();
+    pub fn process_leave(
+        &mut self,
+        vni: u32,
+        port_id: u32,
+        group_ip: Ipv4Address,
+    ) -> McastFilterVerdict {
+        self.active_subscriptions
+            .retain(|&(v, p, g)| !(v == vni && p == port_id && g == group_ip));
+        let remaining = self
+            .active_subscriptions
+            .iter()
+            .filter(|&(v, p, _)| *v == vni && *p == port_id)
+            .count();
         McastFilterVerdict::ChannelLeft {
             vni,
             port_id,
@@ -159,7 +186,12 @@ impl EvpnMcastSnoopingFilterEngine {
     }
 
     /// Alias for `process_leave`.
-    pub fn leave_channel(&mut self, vni: u32, port_id: u32, group_ip: Ipv4Address) -> McastFilterVerdict {
+    pub fn leave_channel(
+        &mut self,
+        vni: u32,
+        port_id: u32,
+        group_ip: Ipv4Address,
+    ) -> McastFilterVerdict {
         self.process_leave(vni, port_id, group_ip)
     }
 
@@ -191,15 +223,33 @@ mod tests {
         );
 
         let v_denied = engine.evaluate_join(100, 1, Ipv4Address::new(239, 255, 1, 1));
-        assert!(matches!(v_denied, McastFilterVerdict::JoinDeniedByAcl { .. }));
+        assert!(matches!(
+            v_denied,
+            McastFilterVerdict::JoinDeniedByAcl { .. }
+        ));
 
         let v_ok1 = engine.evaluate_join(100, 1, Ipv4Address::new(232, 1, 1, 1));
-        assert!(matches!(v_ok1, McastFilterVerdict::JoinPermitted { current_active_channels: 1, .. }));
+        assert!(matches!(
+            v_ok1,
+            McastFilterVerdict::JoinPermitted {
+                current_active_channels: 1,
+                ..
+            }
+        ));
 
         let v_ok2 = engine.evaluate_join(100, 1, Ipv4Address::new(232, 1, 1, 2));
-        assert!(matches!(v_ok2, McastFilterVerdict::JoinPermitted { current_active_channels: 2, .. }));
+        assert!(matches!(
+            v_ok2,
+            McastFilterVerdict::JoinPermitted {
+                current_active_channels: 2,
+                ..
+            }
+        ));
 
         let v_cac = engine.evaluate_join(100, 1, Ipv4Address::new(232, 1, 1, 3));
-        assert!(matches!(v_cac, McastFilterVerdict::JoinDeniedCacLimitReached { max_limit: 2, .. }));
+        assert!(matches!(
+            v_cac,
+            McastFilterVerdict::JoinDeniedCacLimitReached { max_limit: 2, .. }
+        ));
     }
 }

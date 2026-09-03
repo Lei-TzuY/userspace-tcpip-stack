@@ -100,8 +100,12 @@ impl OranBfpEngine {
         let min_mantissa = -(1i32 << (bit_width - 1));
         let mut quantized = Vec::with_capacity(24);
         for s in samples {
-            let qi = ((s.i as i32) >> exponent).max(min_mantissa).min(max_mantissa) as i16;
-            let qq = ((s.q as i32) >> exponent).max(min_mantissa).min(max_mantissa) as i16;
+            let qi = ((s.i as i32) >> exponent)
+                .max(min_mantissa)
+                .min(max_mantissa) as i16;
+            let qq = ((s.q as i32) >> exponent)
+                .max(min_mantissa)
+                .min(max_mantissa) as i16;
             quantized.push(qi);
             quantized.push(qq);
         }

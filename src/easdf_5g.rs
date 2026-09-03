@@ -33,7 +33,7 @@ pub enum DnsAction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DnsRule {
     pub rule_id: u32,
-    pub precedence: u32, // Lower value = higher priority
+    pub precedence: u32,            // Lower value = higher priority
     pub fqdn_patterns: Vec<String>, // e.g. ["*.edge.gamestream.com", "mec-app.io"]
     pub action: DnsAction,
     pub target_ldns_ip: Option<Ipv4Address>,
@@ -161,7 +161,10 @@ impl EasdfEngine {
         context_id: &str,
         mut new_rules: Vec<DnsRule>,
     ) -> Result<(), EasdfError> {
-        let ctx = self.contexts.get_mut(context_id).ok_or(EasdfError::ContextNotFound)?;
+        let ctx = self
+            .contexts
+            .get_mut(context_id)
+            .ok_or(EasdfError::ContextNotFound)?;
         new_rules.sort_by_key(|r| r.precedence);
         ctx.dns_rules = new_rules;
         Ok(())
@@ -169,7 +172,10 @@ impl EasdfEngine {
 
     /// Delete a DNS Context upon PDU session termination.
     pub fn delete_dns_context(&mut self, context_id: &str) -> Result<(), EasdfError> {
-        let ctx = self.contexts.remove(context_id).ok_or(EasdfError::ContextNotFound)?;
+        let ctx = self
+            .contexts
+            .remove(context_id)
+            .ok_or(EasdfError::ContextNotFound)?;
         self.ue_ip_to_context.remove(&ctx.ue_ipv4);
         Ok(())
     }
@@ -191,14 +197,21 @@ impl EasdfEngine {
             .ok_or(EasdfError::ContextNotFound)?
             .clone();
 
-        let ctx = self.contexts.get(&ctx_id).ok_or(EasdfError::ContextNotFound)?;
+        let ctx = self
+            .contexts
+            .get(&ctx_id)
+            .ok_or(EasdfError::ContextNotFound)?;
         let normalized_fqdn = queried_fqdn.to_lowercase();
 
         // 1. Evaluate rules in order of precedence
         let matched_rule = ctx
             .dns_rules
             .iter()
-            .find(|rule| rule.fqdn_patterns.iter().any(|pattern| match_fqdn_pattern(pattern, &normalized_fqdn)))
+            .find(|rule| {
+                rule.fqdn_patterns
+                    .iter()
+                    .any(|pattern| match_fqdn_pattern(pattern, &normalized_fqdn))
+            })
             .cloned();
 
         let (target_ldns, matched_id, ecs_injected) = if let Some(rule) = matched_rule {
@@ -236,9 +249,14 @@ impl EasdfEngine {
         let resolved_ip = self
             .dns_records
             .get(&(target_ldns, normalized_fqdn.clone()))
-            .or_else(|| self.dns_records.get(&(self.default_dns_server, normalized_fqdn.clone())))
+            .or_else(|| {
+                self.dns_records
+                    .get(&(self.default_dns_server, normalized_fqdn.clone()))
+            })
             .copied()
-            .ok_or(EasdfError::FqdnResolutionFailed("Domain not found in target LDNS"))?;
+            .ok_or(EasdfError::FqdnResolutionFailed(
+                "Domain not found in target LDNS",
+            ))?;
 
         Ok(DnsResolutionResult {
             fqdn: normalized_fqdn,

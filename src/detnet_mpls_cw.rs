@@ -50,7 +50,7 @@ impl DetNetMplsControlWord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DetNetMplsProfile {
     pub flow_id: u32,
-    pub s_label: u32,      // DetNet Service Label (20-bit MPLS label)
+    pub s_label: u32,       // DetNet Service Label (20-bit MPLS label)
     pub f_labels: Vec<u32>, // DetNet Forwarding Labels for dual-path replication
 }
 
@@ -70,10 +70,7 @@ pub enum DetNetMplsResult {
         payload: Vec<u8>,
     },
     /// Egress / Elimination: Duplicate packet dropped
-    DuplicateDropped {
-        s_label: u32,
-        seq: u16,
-    },
+    DuplicateDropped { s_label: u32, seq: u16 },
     /// Invalid packet or unrecognized S-Label
     InvalidPacket(String),
 }
@@ -103,11 +100,7 @@ impl DetNetMplsEngine {
     }
 
     /// Ingress: Encapsulate payload with DetNet Control Word (d-CW), S-Label, and replicate across F-Labels (PRF).
-    pub fn ingress_replicate(
-        &mut self,
-        flow_id: u32,
-        payload: &[u8],
-    ) -> DetNetMplsResult {
+    pub fn ingress_replicate(&mut self, flow_id: u32, payload: &[u8]) -> DetNetMplsResult {
         let profile = match self.ingress_profiles.get(&flow_id) {
             Some(p) => p.clone(),
             None => return DetNetMplsResult::InvalidPacket("Unknown Flow ID".to_string()),
@@ -148,10 +141,7 @@ impl DetNetMplsEngine {
     }
 
     /// Egress / Transit: Process incoming MPLS Service PDU, inspect d-CW, and eliminate duplicates (PEF).
-    pub fn egress_eliminate(
-        &mut self,
-        service_pdu: &[u8],
-    ) -> DetNetMplsResult {
+    pub fn egress_eliminate(&mut self, service_pdu: &[u8]) -> DetNetMplsResult {
         if service_pdu.len() < 8 {
             return DetNetMplsResult::InvalidPacket("Service PDU too short".to_string());
         }
@@ -168,7 +158,9 @@ impl DetNetMplsEngine {
         // Parse d-CW (Next 4 bytes)
         let dcw = match DetNetMplsControlWord::parse(&service_pdu[4..8]) {
             Some(cw) => cw,
-            None => return DetNetMplsResult::InvalidPacket("Invalid DetNet Control Word".to_string()),
+            None => {
+                return DetNetMplsResult::InvalidPacket("Invalid DetNet Control Word".to_string());
+            }
         };
 
         // PEF (Packet Elimination Function)
@@ -230,7 +222,11 @@ mod tests {
         // Ingress PRF
         let rep_res = engine.ingress_replicate(1, app_data);
         let frames = match rep_res {
-            DetNetMplsResult::ReplicatedPaths { s_label, seq, frames } => {
+            DetNetMplsResult::ReplicatedPaths {
+                s_label,
+                seq,
+                frames,
+            } => {
                 assert_eq!(s_label, 1000);
                 assert_eq!(seq, 0);
                 assert_eq!(frames.len(), 2);
@@ -243,7 +239,11 @@ mod tests {
         let service_pdu_path1 = &frames[0].1[4..];
         let elim1 = engine.egress_eliminate(service_pdu_path1);
         match elim1 {
-            DetNetMplsResult::AcceptedUnique { s_label, seq, payload } => {
+            DetNetMplsResult::AcceptedUnique {
+                s_label,
+                seq,
+                payload,
+            } => {
                 assert_eq!(s_label, 1000);
                 assert_eq!(seq, 0);
                 assert_eq!(payload, app_data);

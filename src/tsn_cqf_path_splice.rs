@@ -84,9 +84,7 @@ pub enum PathSpliceVerdict {
         total_alternate: u64,
     },
     /// Stream was not registered.
-    StreamNotFound {
-        stream_id: u32,
-    },
+    StreamNotFound { stream_id: u32 },
 }
 
 /// Engine managing CQF Dynamic Path Splicing.
@@ -135,7 +133,11 @@ impl TsnCqfPathSpliceEngine {
         lead_time_cycles: u64,
     ) -> PathSpliceVerdict {
         if let Some(session) = self.sessions.iter_mut().find(|s| s.stream_id == stream_id) {
-            let prim_delay: u64 = session.primary_path.iter().map(|h| h.propagation_delay_ns).sum();
+            let prim_delay: u64 = session
+                .primary_path
+                .iter()
+                .map(|h| h.propagation_delay_ns)
+                .sum();
             let alt_delay: u64 = alternate_path.iter().map(|h| h.propagation_delay_ns).sum();
             let phase_delta = (alt_delay as i64) - (prim_delay as i64);
 
@@ -243,8 +245,18 @@ mod tests {
         let mut engine = TsnCqfPathSpliceEngine::new(100_000);
 
         let p1 = vec![
-            TsnCqfHop { node_id: 1, egress_port: 1, propagation_delay_ns: 2000, cycle_offset: 0 },
-            TsnCqfHop { node_id: 2, egress_port: 2, propagation_delay_ns: 3000, cycle_offset: 1 },
+            TsnCqfHop {
+                node_id: 1,
+                egress_port: 1,
+                propagation_delay_ns: 2000,
+                cycle_offset: 0,
+            },
+            TsnCqfHop {
+                node_id: 2,
+                egress_port: 2,
+                propagation_delay_ns: 3000,
+                cycle_offset: 1,
+            },
         ];
         engine.register_stream(100, p1);
 
@@ -261,9 +273,24 @@ mod tests {
 
         // Request splice to alternate path
         let alt = vec![
-            TsnCqfHop { node_id: 1, egress_port: 3, propagation_delay_ns: 1500, cycle_offset: 0 },
-            TsnCqfHop { node_id: 3, egress_port: 1, propagation_delay_ns: 1500, cycle_offset: 1 },
-            TsnCqfHop { node_id: 4, egress_port: 2, propagation_delay_ns: 1000, cycle_offset: 2 },
+            TsnCqfHop {
+                node_id: 1,
+                egress_port: 3,
+                propagation_delay_ns: 1500,
+                cycle_offset: 0,
+            },
+            TsnCqfHop {
+                node_id: 3,
+                egress_port: 1,
+                propagation_delay_ns: 1500,
+                cycle_offset: 1,
+            },
+            TsnCqfHop {
+                node_id: 4,
+                egress_port: 2,
+                propagation_delay_ns: 1000,
+                cycle_offset: 2,
+            },
         ];
         let v_req = engine.request_splice(100, alt, 10, 2);
         assert_eq!(

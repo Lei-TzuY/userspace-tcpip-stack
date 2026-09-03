@@ -20,10 +20,7 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PriorityPromoteVerdict {
     /// Forwarded with original base priority.
-    Normal {
-        pcp: u8,
-        age_ns: u64,
-    },
+    Normal { pcp: u8, age_ns: u64 },
     /// Elevated to higher priority due to nearing deadline.
     Promoted {
         original_pcp: u8,
@@ -31,14 +28,9 @@ pub enum PriorityPromoteVerdict {
         age_ns: u64,
     },
     /// Demoted to best-effort preemption queue due to high-priority buffer full.
-    PreemptionFallback {
-        fallback_pcp: u8,
-    },
+    PreemptionFallback { fallback_pcp: u8 },
     /// Dropped because deadline has expired.
-    DeadlineMissDrop {
-        age_ns: u64,
-        max_allowed_ns: u64,
-    },
+    DeadlineMissDrop { age_ns: u64, max_allowed_ns: u64 },
 }
 
 /// Profile for priority-promotable TSN stream.
@@ -101,7 +93,11 @@ impl TsnCqfPrioPromoteEngine {
 
     /// Register or update a stream profile.
     pub fn register_stream(&mut self, profile: PrioPromoteProfile) {
-        if let Some(pos) = self.streams.iter().position(|s| s.stream_id == profile.stream_id) {
+        if let Some(pos) = self
+            .streams
+            .iter()
+            .position(|s| s.stream_id == profile.stream_id)
+        {
             self.streams[pos] = profile;
         } else {
             self.streams.push(profile);

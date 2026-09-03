@@ -182,7 +182,8 @@ fn test_upip_error_handling() {
     assert_eq!(err2, Err(UpipError::SessionNotFound));
 
     // Remove session
-    upip.remove_security_context(sess_id).expect("Removal failed");
+    upip.remove_security_context(sess_id)
+        .expect("Removal failed");
     assert_eq!(
         upip.verify_uplink_packet(sess_id, b"1234"),
         Err(UpipError::SessionNotFound)

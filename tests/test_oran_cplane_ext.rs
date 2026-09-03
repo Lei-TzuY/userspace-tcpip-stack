@@ -41,7 +41,10 @@ fn test_section_ext_1_64t64r_beamforming_weights_round_trip() {
     let parsed = OranCPlaneExtEngine::validate_and_parse_bfw(&serialized, num_antennas)
         .expect("Failed to parse Section Extension 1");
 
-    assert_eq!(parsed.bfw_comp_meth, BfwCompressionMethod::BlockFloatingPoint);
+    assert_eq!(
+        parsed.bfw_comp_meth,
+        BfwCompressionMethod::BlockFloatingPoint
+    );
     assert_eq!(parsed.bfw_iq_width, 16);
     assert_eq!(parsed.bundles.len(), 2);
 
@@ -78,7 +81,8 @@ fn test_section_ext_2_beam_attributes() {
     let serialized = ext2.serialize();
     assert_eq!(serialized.len() % 4, 0);
 
-    let parsed = SectionExtension2::parse(&serialized).expect("Failed to parse Section Extension 2");
+    let parsed =
+        SectionExtension2::parse(&serialized).expect("Failed to parse Section Extension 2");
     assert_eq!(parsed.bf_id, 512);
     assert!((parsed.azimuth_deg - 45.50).abs() < 0.01);
     assert!((parsed.elevation_deg - (-12.25)).abs() < 0.01);
@@ -90,7 +94,8 @@ fn test_section_ext_4_modulation_compression() {
     let serialized = ext4.serialize();
     assert_eq!(serialized.len() % 4, 0);
 
-    let parsed = SectionExtension4::parse(&serialized).expect("Failed to parse Section Extension 4");
+    let parsed =
+        SectionExtension4::parse(&serialized).expect("Failed to parse Section Extension 4");
     assert!(parsed.csf);
     assert_eq!(parsed.mod_comp_scaler, 2048);
 }
@@ -143,6 +148,9 @@ fn test_cplane_ext_engine_malformed_and_bounds() {
     let res = OranCPlaneExtEngine::validate_and_parse_bfw(&ser, 64);
     assert_eq!(
         res,
-        Err(OranCPlaneError::AntennaCountMismatch { expected: 64, got: 32 })
+        Err(OranCPlaneError::AntennaCountMismatch {
+            expected: 64,
+            got: 32
+        })
     );
 }

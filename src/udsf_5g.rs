@@ -91,7 +91,9 @@ impl UdsfEngine {
             if existing.lock_owner.is_some() {
                 let lock_exp = existing.lock_expires_at_epoch_s.unwrap_or(0);
                 if req.timestamp_epoch_s < lock_exp {
-                    return Err(UdsfError::RecordLocked("Record is locked by another NF instance"));
+                    return Err(UdsfError::RecordLocked(
+                        "Record is locked by another NF instance",
+                    ));
                 } else {
                     // Lock has expired, clear it
                     existing.lock_owner = None;
@@ -107,7 +109,9 @@ impl UdsfEngine {
             }
         } else if req.if_match_etag.is_some() {
             // If-Match requested on non-existent record
-            return Err(UdsfError::PreconditionFailed("Target record does not exist"));
+            return Err(UdsfError::PreconditionFailed(
+                "Target record does not exist",
+            ));
         }
 
         let new_etag = self.next_etag;

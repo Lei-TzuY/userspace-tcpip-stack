@@ -127,7 +127,10 @@ fn test_nwdaf_anomaly_detection_z_score() {
 #[test]
 fn test_nwdaf_events_subscription_and_threshold_notification() {
     let mut nwdaf = NwdafEngine::new("nwdaf-core-003");
-    let urllc = Snssai { sst: 2, sd: Some([1, 2, 3]) };
+    let urllc = Snssai {
+        sst: 2,
+        sd: Some([1, 2, 3]),
+    };
 
     // Subscribe to Slice Load > 75%
     nwdaf.subscribe(AnalyticsSubscription {

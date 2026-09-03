@@ -13,8 +13,8 @@ use crate::ipv4::Ipv4Address;
 use crate::nas_5g::{Nas5GsmMessage, NasPdu, PduSessionEstablishmentAccept};
 use crate::ngap_5g::{PduSessionResourceSetupRequest, Snssai};
 use crate::pfcp_5g::{
-    ForwardingActionRule, PacketDetectionRule, PfcpNode, PfcpSession, PFCP_APPLY_ACTION_FORWARD,
-    PFCP_SRC_INTERFACE_ACCESS, PFCP_SRC_INTERFACE_CORE,
+    ForwardingActionRule, PFCP_APPLY_ACTION_FORWARD, PFCP_SRC_INTERFACE_ACCESS,
+    PFCP_SRC_INTERFACE_CORE, PacketDetectionRule, PfcpNode, PfcpSession,
 };
 
 // ---------------------------------------------------------------------------
@@ -213,11 +213,7 @@ pub struct SmfEngine {
 
 impl SmfEngine {
     /// Create a new SMF engine instance.
-    pub fn new(
-        smf_instance_id: &str,
-        upf_transport_ip: Ipv4Address,
-        ipam_prefix: [u8; 3],
-    ) -> Self {
+    pub fn new(smf_instance_id: &str, upf_transport_ip: Ipv4Address, ipam_prefix: [u8; 3]) -> Self {
         let mut pfcp = PfcpNode::default();
         pfcp.node_id = "upf-edge-001".to_string();
         pfcp.is_associated = true;
@@ -239,8 +235,8 @@ impl SmfEngine {
         req: &CreateSmContextRequest,
     ) -> Result<CreateSmContextResponse, &'static str> {
         // 1. Parse encapsulated 5GSM PduSessionEstablishmentRequest
-        let inner_pdu = NasPdu::from_bytes(&req.n1_sm_container)
-            .ok_or("Failed to decode inner 5GSM PDU")?;
+        let inner_pdu =
+            NasPdu::from_bytes(&req.n1_sm_container).ok_or("Failed to decode inner 5GSM PDU")?;
         let gsm_req = match inner_pdu.gsm_message {
             Some(Nas5GsmMessage::EstablishmentRequest(r)) => r,
             _ => return Err("Inner NAS message was not PduSessionEstablishmentRequest"),

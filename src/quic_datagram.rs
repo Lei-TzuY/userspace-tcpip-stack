@@ -11,7 +11,7 @@
 //! - WebTransport RFC 9297 Quarter-Stream ID / Context ID multiplexing
 //! - Congestion backpressure queues with configurable drop policies (`DropOldest`, `DropNewest`).
 
-use crate::quic::{decode_vint, encode_vint, QuicError};
+use crate::quic::{QuicError, decode_vint, encode_vint};
 use std::collections::{HashMap, VecDeque};
 use std::fmt;
 
@@ -70,12 +70,24 @@ impl QuicDatagramFrame {
             let payload = data[offset..offset + len_usize].to_vec();
             offset += len_usize;
 
-            Ok((QuicDatagramFrame { has_length, payload }, offset))
+            Ok((
+                QuicDatagramFrame {
+                    has_length,
+                    payload,
+                },
+                offset,
+            ))
         } else {
             // Implicit length: consumes remainder of buffer
             let payload = data[offset..].to_vec();
             let total_len = data.len();
-            Ok((QuicDatagramFrame { has_length, payload }, total_len))
+            Ok((
+                QuicDatagramFrame {
+                    has_length,
+                    payload,
+                },
+                total_len,
+            ))
         }
     }
 }
@@ -129,7 +141,11 @@ impl fmt::Display for DatagramQueueError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             DatagramQueueError::ExceedsMaxDatagramSize(sz, max) => {
-                write!(f, "Datagram size ({} bytes) exceeds max allowed ({} bytes)", sz, max)
+                write!(
+                    f,
+                    "Datagram size ({} bytes) exceeds max allowed ({} bytes)",
+                    sz, max
+                )
             }
             DatagramQueueError::QueueFull => write!(f, "Datagram queue is full"),
         }
@@ -155,7 +171,11 @@ pub struct QuicDatagramQueue {
 }
 
 impl QuicDatagramQueue {
-    pub fn new(max_capacity: usize, max_datagram_size: usize, drop_policy: DatagramDropPolicy) -> Self {
+    pub fn new(
+        max_capacity: usize,
+        max_datagram_size: usize,
+        drop_policy: DatagramDropPolicy,
+    ) -> Self {
         QuicDatagramQueue {
             max_capacity,
             max_datagram_size,
@@ -267,7 +287,11 @@ pub struct WebTransportDatagramEngine {
 }
 
 impl WebTransportDatagramEngine {
-    pub fn new(max_datagram_size: usize, session_capacity: usize, drop_policy: DatagramDropPolicy) -> Self {
+    pub fn new(
+        max_datagram_size: usize,
+        session_capacity: usize,
+        drop_policy: DatagramDropPolicy,
+    ) -> Self {
         Self {
             max_datagram_size,
             session_capacity,
@@ -278,7 +302,11 @@ impl WebTransportDatagramEngine {
     }
 
     /// Sends an unreliable WebTransport datagram for a specific session ID (RFC 9297 Section 3).
-    pub fn send_session_datagram(&mut self, session_id: u64, payload: Vec<u8>) -> Result<(), DatagramQueueError> {
+    pub fn send_session_datagram(
+        &mut self,
+        session_id: u64,
+        payload: Vec<u8>,
+    ) -> Result<(), DatagramQueueError> {
         let wt_dgram = WebTransportDatagram::new(session_id, payload);
         let serialized = wt_dgram.serialize();
         self.tx_queue.push(serialized)
@@ -291,11 +319,21 @@ impl WebTransportDatagramEngine {
     }
 
     /// Processes an incoming raw QUIC DATAGRAM frame, demultiplexing it into the session queue.
-    pub fn receive_and_demux(&mut self, frame: &QuicDatagramFrame) -> Result<WebTransportDatagram, QuicError> {
+    pub fn receive_and_demux(
+        &mut self,
+        frame: &QuicDatagramFrame,
+    ) -> Result<WebTransportDatagram, QuicError> {
         let wt = WebTransportDatagram::parse(&frame.payload)?;
-        let queue = self.session_rx_queues.entry(wt.session_id).or_insert_with(|| {
-            QuicDatagramQueue::new(self.session_capacity, self.max_datagram_size, self.drop_policy)
-        });
+        let queue = self
+            .session_rx_queues
+            .entry(wt.session_id)
+            .or_insert_with(|| {
+                QuicDatagramQueue::new(
+                    self.session_capacity,
+                    self.max_datagram_size,
+                    self.drop_policy,
+                )
+            });
         let _ = queue.push(wt.payload.clone());
         Ok(wt)
     }
@@ -307,7 +345,10 @@ impl WebTransportDatagramEngine {
 
     /// Returns the number of queued datagrams for a session.
     pub fn session_queue_len(&self, session_id: u64) -> usize {
-        self.session_rx_queues.get(&session_id).map(|q| q.len()).unwrap_or(0)
+        self.session_rx_queues
+            .get(&session_id)
+            .map(|q| q.len())
+            .unwrap_or(0)
     }
 }
 

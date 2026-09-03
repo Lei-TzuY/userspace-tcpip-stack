@@ -1,6 +1,4 @@
-use toy_tcpip::srv6_mup_qos::{
-    FiveQiProfile, FiveQiResourceType, Srv6MupQosEngine,
-};
+use toy_tcpip::srv6_mup_qos::{FiveQiProfile, FiveQiResourceType, Srv6MupQosEngine};
 
 #[test]
 fn test_srv6_mup_qos_5qi_classification_and_custom_profiles() {

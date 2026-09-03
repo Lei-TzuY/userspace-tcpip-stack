@@ -1,6 +1,4 @@
-use toy_tcpip::tsn_cqf_prio_inherit::{
-    PriorityInheritVerdict, TsnCqfPrioInheritEngine,
-};
+use toy_tcpip::tsn_cqf_prio_inherit::{PriorityInheritVerdict, TsnCqfPrioInheritEngine};
 
 #[test]
 fn test_tsn_cqf_prio_inherit_lifecycle() {

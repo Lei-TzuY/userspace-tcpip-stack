@@ -97,10 +97,13 @@ fn test_evpn_v6_mld_synch_routes_codec() {
     let esi = EthernetSegmentId::from_u32(0x8888);
     let src_v6 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
     let grp_v6 = Ipv6Address([0xff, 0x0e, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x01]);
-    let orig_v6 = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfe]);
+    let orig_v6 = Ipv6Address([
+        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xfe,
+    ]);
 
     // Type 7 IPv6
-    let join_v6 = EvpnJoinSynchRouteV6::new_source_specific(esi, 500, src_v6, grp_v6, orig_v6, false);
+    let join_v6 =
+        EvpnJoinSynchRouteV6::new_source_specific(esi, 500, src_v6, grp_v6, orig_v6, false);
     let wire7 = join_v6.serialize_nlri();
     assert_eq!(wire7.len(), 68);
     let parsed7 = EvpnJoinSynchRouteV6::parse_nlri(&wire7).expect("parse join synch v6");
@@ -125,8 +128,12 @@ fn test_evpn_multicast_ssm_and_leave_expiration() {
     let pe = Ipv4Address::new(192, 0, 2, 1);
 
     // Join (src1, group) and (src2, group)
-    engine.process_join_synch(EvpnJoinSynchRoute::new_source_specific(esi, 100, src1, group, pe, false));
-    engine.process_join_synch(EvpnJoinSynchRoute::new_source_specific(esi, 100, src2, group, pe, false));
+    engine.process_join_synch(EvpnJoinSynchRoute::new_source_specific(
+        esi, 100, src1, group, pe, false,
+    ));
+    engine.process_join_synch(EvpnJoinSynchRoute::new_source_specific(
+        esi, 100, src2, group, pe, false,
+    ));
 
     assert!(engine.is_source_group_active(esi, 100, src1, group));
     assert!(engine.is_source_group_active(esi, 100, src2, group));
@@ -137,7 +144,9 @@ fn test_evpn_multicast_ssm_and_leave_expiration() {
     assert!(sources.contains(&src2));
 
     // Peer PE sends Leave Synch with max_response_time_ms = 1000
-    engine.process_leave_synch(EvpnLeaveSynchRoute::new_source_specific(esi, 100, src1, group, pe, 1000));
+    engine.process_leave_synch(EvpnLeaveSynchRoute::new_source_specific(
+        esi, 100, src1, group, pe, 1000,
+    ));
     // Join route for (src1, group) should be removed immediately from this PE
     assert!(!engine.is_source_group_active(esi, 100, src1, group));
     assert_eq!(engine.leave_routes.len(), 1);

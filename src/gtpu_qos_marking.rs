@@ -78,7 +78,7 @@ impl GtpuQosMarkingEngine {
             five_qi: 1,
             resource_type: FiveQiResourceType::GuaranteedBitRate,
             default_dscp: 46, // Expedited Forwarding (EF)
-            default_pcp: 5,  // Voice (< 10ms latency)
+            default_pcp: 5,   // Voice (< 10ms latency)
             packet_delay_budget_ms: 100,
             description: "Conversational Voice".to_string(),
         });
@@ -88,7 +88,7 @@ impl GtpuQosMarkingEngine {
             five_qi: 2,
             resource_type: FiveQiResourceType::GuaranteedBitRate,
             default_dscp: 34, // Assured Forwarding AF41
-            default_pcp: 4,  // Video (< 100ms latency)
+            default_pcp: 4,   // Video (< 100ms latency)
             packet_delay_budget_ms: 150,
             description: "Conversational Video".to_string(),
         });
@@ -98,7 +98,7 @@ impl GtpuQosMarkingEngine {
             five_qi: 80,
             resource_type: FiveQiResourceType::NonGuaranteedBitRate,
             default_dscp: 26, // Assured Forwarding AF31
-            default_pcp: 6,  // Internetwork Control
+            default_pcp: 6,   // Internetwork Control
             packet_delay_budget_ms: 10,
             description: "Low Latency eMBB / AR / Gaming".to_string(),
         });
@@ -108,7 +108,7 @@ impl GtpuQosMarkingEngine {
             five_qi: 82,
             resource_type: FiveQiResourceType::DelayCriticalGbr,
             default_dscp: 48, // Class Selector 6 (CS6)
-            default_pcp: 7,  // Network Control / URLLC
+            default_pcp: 7,   // Network Control / URLLC
             packet_delay_budget_ms: 5,
             description: "V2X / Discrete Automation URLLC".to_string(),
         });
@@ -118,7 +118,7 @@ impl GtpuQosMarkingEngine {
             five_qi: 9,
             resource_type: FiveQiResourceType::NonGuaranteedBitRate,
             default_dscp: 0, // Best Effort (CS0)
-            default_pcp: 0, // Best Effort
+            default_pcp: 0,  // Best Effort
             packet_delay_budget_ms: 300,
             description: "Default Internet eMBB".to_string(),
         });
@@ -135,7 +135,11 @@ impl GtpuQosMarkingEngine {
 
     /// Registers or updates a 5QI QoS profile.
     pub fn register_profile(&mut self, profile: FiveQiProfile) {
-        if let Some(pos) = self.profiles.iter().position(|p| p.five_qi == profile.five_qi) {
+        if let Some(pos) = self
+            .profiles
+            .iter()
+            .position(|p| p.five_qi == profile.five_qi)
+        {
             self.profiles[pos] = profile;
         } else {
             self.profiles.push(profile);

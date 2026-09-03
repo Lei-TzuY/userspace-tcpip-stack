@@ -614,17 +614,42 @@ fn test_socket_options_and_address_inspection() {
     // Default UDP options
     assert!(!client_stack.sockets.udp_broadcast(udp_sock).unwrap());
     assert_eq!(client_stack.sockets.udp_multicast_ttl(udp_sock).unwrap(), 1);
-    assert!(client_stack.sockets.udp_multicast_loop_v4(udp_sock).unwrap());
+    assert!(
+        client_stack
+            .sockets
+            .udp_multicast_loop_v4(udp_sock)
+            .unwrap()
+    );
 
     // Modify UDP options
-    client_stack.sockets.udp_set_broadcast(udp_sock, true).unwrap();
-    client_stack.sockets.udp_set_multicast_ttl(udp_sock, 32).unwrap();
-    client_stack.sockets.udp_set_multicast_loop_v4(udp_sock, false).unwrap();
-    client_stack.sockets.udp_set_nonblocking(udp_sock, true).unwrap();
+    client_stack
+        .sockets
+        .udp_set_broadcast(udp_sock, true)
+        .unwrap();
+    client_stack
+        .sockets
+        .udp_set_multicast_ttl(udp_sock, 32)
+        .unwrap();
+    client_stack
+        .sockets
+        .udp_set_multicast_loop_v4(udp_sock, false)
+        .unwrap();
+    client_stack
+        .sockets
+        .udp_set_nonblocking(udp_sock, true)
+        .unwrap();
 
     assert!(client_stack.sockets.udp_broadcast(udp_sock).unwrap());
-    assert_eq!(client_stack.sockets.udp_multicast_ttl(udp_sock).unwrap(), 32);
-    assert!(!client_stack.sockets.udp_multicast_loop_v4(udp_sock).unwrap());
+    assert_eq!(
+        client_stack.sockets.udp_multicast_ttl(udp_sock).unwrap(),
+        32
+    );
+    assert!(
+        !client_stack
+            .sockets
+            .udp_multicast_loop_v4(udp_sock)
+            .unwrap()
+    );
     assert!(client_stack.sockets.udp_nonblocking(udp_sock).unwrap());
 
     // 2. Test TCP socket options & 4-tuple inspection
@@ -641,16 +666,37 @@ fn test_socket_options_and_address_inspection() {
     // Default TCP options
     assert!(!client_stack.sockets.tcp_nodelay(client_stream).unwrap());
     assert!(!client_stack.sockets.tcp_nonblocking(client_stream).unwrap());
-    assert_eq!(client_stack.sockets.tcp_read_timeout(client_stream).unwrap(), None);
+    assert_eq!(
+        client_stack
+            .sockets
+            .tcp_read_timeout(client_stream)
+            .unwrap(),
+        None
+    );
 
     // Set TCP options
-    client_stack.sockets.tcp_set_nodelay(client_stream, true).unwrap();
-    client_stack.sockets.tcp_set_nonblocking(client_stream, true).unwrap();
-    client_stack.sockets.tcp_set_read_timeout(client_stream, Some(2500)).unwrap();
+    client_stack
+        .sockets
+        .tcp_set_nodelay(client_stream, true)
+        .unwrap();
+    client_stack
+        .sockets
+        .tcp_set_nonblocking(client_stream, true)
+        .unwrap();
+    client_stack
+        .sockets
+        .tcp_set_read_timeout(client_stream, Some(2500))
+        .unwrap();
 
     assert!(client_stack.sockets.tcp_nodelay(client_stream).unwrap());
     assert!(client_stack.sockets.tcp_nonblocking(client_stream).unwrap());
-    assert_eq!(client_stack.sockets.tcp_read_timeout(client_stream).unwrap(), Some(2500));
+    assert_eq!(
+        client_stack
+            .sockets
+            .tcp_read_timeout(client_stream)
+            .unwrap(),
+        Some(2500)
+    );
 
     // Cleanup on UDP close
     client_stack.sockets.udp_close(udp_sock).unwrap();

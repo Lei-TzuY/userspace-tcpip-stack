@@ -331,11 +331,7 @@ impl Igmpv3HostState {
             .or_insert_with(|| (FilterMode::Include, HashSet::new()));
         entry.1.insert(source);
 
-        let rec = Igmpv3GroupRecord::new(
-            IGMPV3_ALLOW_NEW_SOURCES,
-            group,
-            vec![source],
-        );
+        let rec = Igmpv3GroupRecord::new(IGMPV3_ALLOW_NEW_SOURCES, group, vec![source]);
         Igmpv3Report::new(vec![rec])
     }
 
@@ -344,11 +340,7 @@ impl Igmpv3HostState {
         if let Some(entry) = self.subscriptions.get_mut(&group) {
             entry.1.remove(&source);
         }
-        let rec = Igmpv3GroupRecord::new(
-            IGMPV3_BLOCK_OLD_SOURCES,
-            group,
-            vec![source],
-        );
+        let rec = Igmpv3GroupRecord::new(IGMPV3_BLOCK_OLD_SOURCES, group, vec![source]);
         Igmpv3Report::new(vec![rec])
     }
 
@@ -408,13 +400,19 @@ mod tests {
         let unauthorized_src = Ipv4Address([10, 0, 0, 2]);
 
         let join_report = host.join_ssm_channel(authorized_src, group);
-        assert_eq!(join_report.group_records[0].record_type, IGMPV3_ALLOW_NEW_SOURCES);
+        assert_eq!(
+            join_report.group_records[0].record_type,
+            IGMPV3_ALLOW_NEW_SOURCES
+        );
 
         assert!(host.should_receive(authorized_src, group));
         assert!(!host.should_receive(unauthorized_src, group));
 
         let leave_report = host.leave_ssm_channel(authorized_src, group);
-        assert_eq!(leave_report.group_records[0].record_type, IGMPV3_BLOCK_OLD_SOURCES);
+        assert_eq!(
+            leave_report.group_records[0].record_type,
+            IGMPV3_BLOCK_OLD_SOURCES
+        );
         assert!(!host.should_receive(authorized_src, group));
     }
 }

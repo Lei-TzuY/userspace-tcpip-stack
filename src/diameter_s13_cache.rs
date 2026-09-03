@@ -121,7 +121,8 @@ impl DiameterS13CacheEngine {
     /// Invalidate/evict expired entries.
     pub fn purge_expired(&mut self, current_time_secs: u64) -> usize {
         let initial_len = self.entries.len();
-        self.entries.retain(|e| current_time_secs < e.expires_at_secs);
+        self.entries
+            .retain(|e| current_time_secs < e.expires_at_secs);
         initial_len - self.entries.len()
     }
 }
@@ -157,7 +158,10 @@ mod tests {
         );
 
         // 2. Cache miss
-        assert_eq!(cache.query("111222333444555", 1010), EirCacheLookupResult::Miss);
+        assert_eq!(
+            cache.query("111222333444555", 1010),
+            EirCacheLookupResult::Miss
+        );
 
         // 3. Graylisted IMEI expires at t=1100 (> 1000 + 60)
         assert_eq!(

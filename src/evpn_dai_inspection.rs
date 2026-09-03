@@ -56,7 +56,10 @@ impl ArpRateBucket {
         let elapsed = current_time_secs.saturating_sub(self.last_refill_secs);
         if elapsed > 0 {
             let added = (elapsed as u32).saturating_mul(self.refill_rate_per_sec);
-            self.current_tokens = self.current_tokens.saturating_add(added).min(self.max_tokens);
+            self.current_tokens = self
+                .current_tokens
+                .saturating_add(added)
+                .min(self.max_tokens);
             self.last_refill_secs = current_time_secs;
         }
 
@@ -139,7 +142,11 @@ impl EvpnDaiEngine {
         }
 
         // 2. Per-port rate limiting
-        let bucket = if let Some(pos) = self.port_rate_limiters.iter().position(|(p, _)| *p == port_id) {
+        let bucket = if let Some(pos) = self
+            .port_rate_limiters
+            .iter()
+            .position(|(p, _)| *p == port_id)
+        {
             &mut self.port_rate_limiters[pos].1
         } else {
             self.port_rate_limiters.push((

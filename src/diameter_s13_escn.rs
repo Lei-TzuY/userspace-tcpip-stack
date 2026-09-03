@@ -115,7 +115,10 @@ impl S13EscnEngine {
         timestamp_secs: u64,
     ) -> EscnVerdict {
         let clean_imei = imei.trim();
-        if clean_imei.len() < 14 || clean_imei.len() > 16 || !clean_imei.chars().all(|c| c.is_ascii_digit()) {
+        if clean_imei.len() < 14
+            || clean_imei.len() > 16
+            || !clean_imei.chars().all(|c| c.is_ascii_digit())
+        {
             return EscnVerdict::InvalidImeiRejected {
                 input: imei.to_string(),
             };
@@ -136,10 +139,15 @@ impl S13EscnEngine {
         }
 
         // Update central database
-        if let Some(entry) = self.device_statuses.iter_mut().find(|(k, _)| k == clean_imei) {
+        if let Some(entry) = self
+            .device_statuses
+            .iter_mut()
+            .find(|(k, _)| k == clean_imei)
+        {
             entry.1 = new_status;
         } else {
-            self.device_statuses.push((clean_imei.to_string(), new_status));
+            self.device_statuses
+                .push((clean_imei.to_string(), new_status));
         }
 
         self.total_status_changes += 1;
@@ -257,22 +265,29 @@ mod tests {
         assert_eq!(engine.total_notifications_generated, 2);
 
         // 2. Acknowledge from MME 1
-        let ack1 = engine.acknowledge_notification(
-            "353918001234567",
-            "mme01.epc.mnc001.mcc208.3gppnetwork.org",
-        );
+        let ack1 = engine
+            .acknowledge_notification("353918001234567", "mme01.epc.mnc001.mcc208.3gppnetwork.org");
         assert!(ack1);
         assert_eq!(engine.total_notifications_acked, 1);
 
         // 3. Batch Audit check with MME 2 having stale WhiteListed cache
         let cached = vec![
-            ("353918001234567".to_string(), S13EquipmentStatus::WhiteListed),
-            ("860011112222333".to_string(), S13EquipmentStatus::WhiteListed),
+            (
+                "353918001234567".to_string(),
+                S13EquipmentStatus::WhiteListed,
+            ),
+            (
+                "860011112222333".to_string(),
+                S13EquipmentStatus::WhiteListed,
+            ),
         ];
         let audit = engine.audit_edge_cache("mme02.epc.mnc001.mcc208.3gppnetwork.org", &cached);
         assert_eq!(audit.len(), 2);
         assert!(!audit[0].synchronized);
-        assert_eq!(audit[0].eir_authoritative_status, S13EquipmentStatus::BlackListed);
+        assert_eq!(
+            audit[0].eir_authoritative_status,
+            S13EquipmentStatus::BlackListed
+        );
         assert!(audit[1].synchronized);
         assert_eq!(engine.total_discrepancies_fixed, 1);
     }

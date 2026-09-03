@@ -230,11 +230,29 @@ impl ChfEngine {
     pub fn new(chf_instance_id: &str) -> Self {
         let mut rating_plans = HashMap::new();
         // Default Web/Internet: 5 cents per MB
-        rating_plans.insert(100, RatingPlan { rating_group: 100, cents_per_megabyte: 5 });
+        rating_plans.insert(
+            100,
+            RatingPlan {
+                rating_group: 100,
+                cents_per_megabyte: 5,
+            },
+        );
         // Video Streaming: 10 cents per MB
-        rating_plans.insert(200, RatingPlan { rating_group: 200, cents_per_megabyte: 10 });
+        rating_plans.insert(
+            200,
+            RatingPlan {
+                rating_group: 200,
+                cents_per_megabyte: 10,
+            },
+        );
         // Low Latency Gaming: 15 cents per MB
-        rating_plans.insert(300, RatingPlan { rating_group: 300, cents_per_megabyte: 15 });
+        rating_plans.insert(
+            300,
+            RatingPlan {
+                rating_group: 300,
+                cents_per_megabyte: 15,
+            },
+        );
 
         ChfEngine {
             chf_instance_id: chf_instance_id.to_string(),
@@ -371,7 +389,9 @@ impl ChfEngine {
         let debit_cost_cents = consumed_mb * plan.cents_per_megabyte;
 
         // 2. Reconcile reservation and debit account balance
-        acct.reserved_cents = acct.reserved_cents.saturating_sub(ctx.currently_reserved_cents);
+        acct.reserved_cents = acct
+            .reserved_cents
+            .saturating_sub(ctx.currently_reserved_cents);
         acct.balance_cents = acct.balance_cents.saturating_sub(debit_cost_cents);
 
         ctx.total_used_volume_bytes += req.used_quota.total_volume_bytes;
@@ -390,7 +410,9 @@ impl ChfEngine {
             return Ok(UpdateChargingResponse {
                 granted_quota: None,
                 final_unit_indication: Some(FinalUnitIndication {
-                    action: FinalUnitAction::RestrictAccess { max_bitrate_kbps: 64 },
+                    action: FinalUnitAction::RestrictAccess {
+                        max_bitrate_kbps: 64,
+                    },
                 }),
                 remaining_balance_cents: acct.balance_cents,
             });
@@ -447,7 +469,9 @@ impl ChfEngine {
         let final_mb = (req.final_used_quota.total_volume_bytes + 999_999) / 1_000_000;
         let final_cost = final_mb * plan.cents_per_megabyte;
 
-        acct.reserved_cents = acct.reserved_cents.saturating_sub(ctx.currently_reserved_cents);
+        acct.reserved_cents = acct
+            .reserved_cents
+            .saturating_sub(ctx.currently_reserved_cents);
         acct.balance_cents = acct.balance_cents.saturating_sub(final_cost);
 
         ctx.total_used_volume_bytes += req.final_used_quota.total_volume_bytes;

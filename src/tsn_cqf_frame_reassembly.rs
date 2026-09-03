@@ -78,7 +78,11 @@ pub struct TsnCqfFrameReassemblyEngine {
 }
 
 impl TsnCqfFrameReassemblyEngine {
-    pub fn new(cycle_duration_ns: u64, max_reassembly_timeout_ns: u64, max_buffer_bytes_per_frame: usize) -> Self {
+    pub fn new(
+        cycle_duration_ns: u64,
+        max_reassembly_timeout_ns: u64,
+        max_buffer_bytes_per_frame: usize,
+    ) -> Self {
         Self {
             cycle_duration_ns: cycle_duration_ns.max(10_000),
             max_reassembly_timeout_ns: max_reassembly_timeout_ns.max(1_000),
@@ -100,7 +104,9 @@ impl TsnCqfFrameReassemblyEngine {
         if !fragment.crc_valid {
             self.total_crc_errors += 1;
             // Discard active buffer if corrupted fragment belongs to it
-            self.buffers.retain(|b| !(b.stream_id == fragment.stream_id && b.frame_id == fragment.frame_id));
+            self.buffers.retain(|b| {
+                !(b.stream_id == fragment.stream_id && b.frame_id == fragment.frame_id)
+            });
             return FrameReassemblyVerdict::CrcErrorDropped {
                 stream_id: fragment.stream_id,
                 frame_id: fragment.frame_id,
@@ -111,9 +117,10 @@ impl TsnCqfFrameReassemblyEngine {
         let cycle_dur = self.cycle_duration_ns;
         let target_cycle = (fragment.timestamp_ns / cycle_dur) + 1;
 
-        let buf_idx = self.buffers.iter().position(|b| {
-            b.stream_id == fragment.stream_id && b.frame_id == fragment.frame_id
-        });
+        let buf_idx = self
+            .buffers
+            .iter()
+            .position(|b| b.stream_id == fragment.stream_id && b.frame_id == fragment.frame_id);
 
         match buf_idx {
             None => {
@@ -259,7 +266,7 @@ mod tests {
     #[test]
     fn test_reassembly_success() {
         let mut engine = TsnCqfFrameReassemblyEngine::new(100_000, 50_000, 2000);
-        
+
         let f0 = TsnFragment {
             stream_id: 1,
             frame_id: 100,
@@ -270,7 +277,14 @@ mod tests {
             crc_valid: true,
         };
         let v0 = engine.ingest_fragment(f0);
-        assert!(matches!(v0, FrameReassemblyVerdict::FragmentBuffered { fragment_seq: 0, accumulated_bytes: 500, .. }));
+        assert!(matches!(
+            v0,
+            FrameReassemblyVerdict::FragmentBuffered {
+                fragment_seq: 0,
+                accumulated_bytes: 500,
+                ..
+            }
+        ));
 
         let f1 = TsnFragment {
             stream_id: 1,
@@ -282,7 +296,14 @@ mod tests {
             crc_valid: true,
         };
         let v1 = engine.ingest_fragment(f1);
-        assert!(matches!(v1, FrameReassemblyVerdict::FrameReassembledAndScheduled { total_bytes: 800, target_cycle: 1, .. }));
+        assert!(matches!(
+            v1,
+            FrameReassemblyVerdict::FrameReassembledAndScheduled {
+                total_bytes: 800,
+                target_cycle: 1,
+                ..
+            }
+        ));
         assert_eq!(engine.total_frames_reassembled, 1);
     }
 }

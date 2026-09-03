@@ -1,6 +1,6 @@
 use toy_tcpip::evpn_pref_df::{
-    compute_hrw_weight, BGP_EXT_COMM_SUBTYPE_DF_ELECTION, BGP_EXT_COMM_TYPE_EVPN, CandidatePe,
-    DfElectionAlgorithm, DfTimerState, EvpnDfElectionExtCommunity, EvpnPrefDfEngine,
+    BGP_EXT_COMM_SUBTYPE_DF_ELECTION, BGP_EXT_COMM_TYPE_EVPN, CandidatePe, DfElectionAlgorithm,
+    DfTimerState, EvpnDfElectionExtCommunity, EvpnPrefDfEngine, compute_hrw_weight,
 };
 use toy_tcpip::evpn_synch::EthernetSegmentId;
 use toy_tcpip::ipv4::Ipv4Address;
@@ -123,7 +123,10 @@ fn test_evpn_hrw_and_modulo_per_vlan_df_carving() {
     for winner in hrw_map.values() {
         *pe_counts.entry(*winner).or_insert(0) += 1;
     }
-    assert!(pe_counts.len() >= 2, "HRW should distribute VLANs across candidates");
+    assert!(
+        pe_counts.len() >= 2,
+        "HRW should distribute VLANs across candidates"
+    );
 
     // HRW weight determinism
     let w1 = compute_hrw_weight(100, pe1);

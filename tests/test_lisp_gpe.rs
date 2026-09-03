@@ -1,8 +1,8 @@
-use toy_tcpip::lisp_gpe::{
-    LispGpeEngine, LispGpeHeader, LispGpeMapping, LispGpeNextProto, LispGpePacket,
-    LISP_GPE_FLAG_I, LISP_GPE_FLAG_P, LISP_GPE_FLAG_V, LISP_GPE_UDP_PORT,
-};
 use toy_tcpip::Ipv4Address;
+use toy_tcpip::lisp_gpe::{
+    LISP_GPE_FLAG_I, LISP_GPE_FLAG_P, LISP_GPE_FLAG_V, LISP_GPE_UDP_PORT, LispGpeEngine,
+    LispGpeHeader, LispGpeMapping, LispGpeNextProto, LispGpePacket,
+};
 
 #[test]
 fn test_lisp_gpe_constants_and_ports() {
@@ -57,8 +57,8 @@ fn test_lisp_gpe_l2_ethernet_encap() {
     let eth_frame = vec![
         0x00, 0x11, 0x22, 0x33, 0x44, 0x55, // Dst MAC
         0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, // Src MAC
-        0x08, 0x00,                         // EtherType IPv4
-        0x45, 0x00, 0x00, 0x14,             // IPv4 header stub
+        0x08, 0x00, // EtherType IPv4
+        0x45, 0x00, 0x00, 0x14, // IPv4 header stub
     ];
 
     let packet = engine.encapsulate(2000, LispGpeNextProto::Ethernet, &eth_frame);

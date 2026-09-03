@@ -19,7 +19,8 @@ fn test_geneve_ecn_codepoints() {
 
 #[test]
 fn test_geneve_ecn_tunnel_modes_and_marking() {
-    let pipeline_uniform = GeneveEcnPipeline::new(GeneveEcnMode::Normal, DiffServTunnelMode::Uniform);
+    let pipeline_uniform =
+        GeneveEcnPipeline::new(GeneveEcnMode::Normal, DiffServTunnelMode::Uniform);
 
     // IPv6 Packet with DSCP CS5 (40 -> 0x28) and ECN ECT(1) (1) -> TC = (40 << 2) | 1 = 161 (0xA1)
     let mut ipv6_pkt = vec![0x60 | (0xA1 >> 4), (0xA1 << 4), 0, 0, 0, 10, 59, 64];
@@ -34,7 +35,11 @@ fn test_geneve_ecn_tunnel_modes_and_marking() {
     let outer_ce_tos = (outer_tos & !0b11) | 0b11;
     let res = pipeline_uniform.decapsulate_and_combine_ecn(outer_ce_tos, ipv6_pkt);
     match res {
-        EcnDecapResult::Admitted { final_ecn, final_dscp, inner_packet } => {
+        EcnDecapResult::Admitted {
+            final_ecn,
+            final_dscp,
+            inner_packet,
+        } => {
             assert_eq!(final_ecn, EcnCodepoint::Ce);
             assert_eq!(final_dscp, 40);
             let tc = ((inner_packet[0] & 0x0F) << 4) | (inner_packet[1] >> 4);

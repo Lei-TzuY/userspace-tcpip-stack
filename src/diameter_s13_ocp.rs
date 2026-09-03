@@ -97,7 +97,9 @@ impl S13OverloadControlEngine {
         let reduction = reduction_percentage.min(100);
 
         if let Some(ref existing) = self.current_olr {
-            if sequence_number <= existing.sequence_number && !existing.is_expired(current_time_secs) {
+            if sequence_number <= existing.sequence_number
+                && !existing.is_expired(current_time_secs)
+            {
                 return; // Ignore older or out-of-order OLR
             }
         }
@@ -117,7 +119,11 @@ impl S13OverloadControlEngine {
     }
 
     /// Evaluate whether an outgoing S13 Equipment-Check Request should be admitted or throttled.
-    pub fn evaluate_request(&mut self, is_emergency: bool, current_time_secs: u64) -> OcThrottleVerdict {
+    pub fn evaluate_request(
+        &mut self,
+        is_emergency: bool,
+        current_time_secs: u64,
+    ) -> OcThrottleVerdict {
         if is_emergency {
             self.total_bypassed += 1;
             return OcThrottleVerdict::EmergencyBypass;
@@ -163,21 +169,30 @@ mod tests {
         let mut engine = S13OverloadControlEngine::new("eir01.epc.mnc001.mcc208.3gppnetwork.org");
 
         // 1. Initial normal state: all requests admitted
-        assert_eq!(engine.evaluate_request(false, 1000), OcThrottleVerdict::AdmitRequest);
+        assert_eq!(
+            engine.evaluate_request(false, 1000),
+            OcThrottleVerdict::AdmitRequest
+        );
 
         // 2. EIR signals 50% overload for 60 seconds (seq #1)
         engine.update_overload_report(1, OcReportType::Host, 50, 60, 1000);
         assert!(engine.current_olr.is_some());
 
         // 3. Emergency request always bypasses
-        assert_eq!(engine.evaluate_request(true, 1005), OcThrottleVerdict::EmergencyBypass);
+        assert_eq!(
+            engine.evaluate_request(true, 1005),
+            OcThrottleVerdict::EmergencyBypass
+        );
 
         // 4. Over 10 normal requests, 5 should be throttled and 5 admitted (50% reduction)
         let mut throttled = 0;
         let mut admitted = 0;
         for _ in 0..10 {
             match engine.evaluate_request(false, 1010) {
-                OcThrottleVerdict::ThrottleDrop { reduction_percentage, result_code } => {
+                OcThrottleVerdict::ThrottleDrop {
+                    reduction_percentage,
+                    result_code,
+                } => {
                     assert_eq!(reduction_percentage, 50);
                     assert_eq!(result_code, DIAMETER_TOO_BUSY);
                     throttled += 1;
@@ -190,6 +205,9 @@ mod tests {
         assert_eq!(admitted, 5);
 
         // 5. After 70s, OLR expires -> reverts to 100% admission
-        assert_eq!(engine.evaluate_request(false, 1070), OcThrottleVerdict::AdmitRequest);
+        assert_eq!(
+            engine.evaluate_request(false, 1070),
+            OcThrottleVerdict::AdmitRequest
+        );
     }
 }

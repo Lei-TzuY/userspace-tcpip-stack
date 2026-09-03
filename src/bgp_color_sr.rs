@@ -95,9 +95,7 @@ pub enum SrSteeringVerdict {
         segments: ColorSrSegmentList,
     },
     /// Fell back to native best effort next-hop routing
-    FallbackBestEffort {
-        endpoint: Ipv4Address,
-    },
+    FallbackBestEffort { endpoint: Ipv4Address },
     /// Dropped due to strict policy requirement (CO-bits StrictDrop)
     StrictDropNoPolicyMatch,
 }
@@ -207,7 +205,10 @@ mod tests {
         let res1 = engine.steer_route(endpoint, Some(&comm_fallback));
         match res1 {
             SrSteeringVerdict::SteeredOverPolicy { segments, .. } => {
-                assert_eq!(segments, ColorSrSegmentList::MplsLabels(vec![16001, 16002, 16003]));
+                assert_eq!(
+                    segments,
+                    ColorSrSegmentList::MplsLabels(vec![16001, 16002, 16003])
+                );
             }
             other => panic!("Expected SteeredOverPolicy, got {:?}", other),
         }

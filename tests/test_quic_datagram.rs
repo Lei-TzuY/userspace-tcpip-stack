@@ -1,7 +1,7 @@
 use toy_tcpip::quic_datagram::{
-    DatagramDropPolicy, DatagramQueueError, QuicDatagramEngine, QuicDatagramFrame,
-    QuicDatagramQueue, WebTransportDatagram, QUIC_FRAME_DATAGRAM, QUIC_FRAME_DATAGRAM_LEN,
-    QUIC_TP_MAX_DATAGRAM_FRAME_SIZE,
+    DatagramDropPolicy, DatagramQueueError, QUIC_FRAME_DATAGRAM, QUIC_FRAME_DATAGRAM_LEN,
+    QUIC_TP_MAX_DATAGRAM_FRAME_SIZE, QuicDatagramEngine, QuicDatagramFrame, QuicDatagramQueue,
+    WebTransportDatagram,
 };
 
 #[test]
@@ -92,9 +92,15 @@ fn test_webtransport_datagram_engine_session_multiplexing_and_demux() {
     // Client sends datagrams on two distinct WebTransport sessions:
     // Session 10: Video track
     // Session 20: Audio track
-    client_wt.send_session_datagram(10, b"video-frame-key".to_vec()).unwrap();
-    client_wt.send_session_datagram(20, b"audio-sample-01".to_vec()).unwrap();
-    client_wt.send_session_datagram(10, b"video-frame-delta".to_vec()).unwrap();
+    client_wt
+        .send_session_datagram(10, b"video-frame-key".to_vec())
+        .unwrap();
+    client_wt
+        .send_session_datagram(20, b"audio-sample-01".to_vec())
+        .unwrap();
+    client_wt
+        .send_session_datagram(10, b"video-frame-delta".to_vec())
+        .unwrap();
 
     // Pull outgoing QUIC DATAGRAM frames (with explicit length)
     let f1 = client_wt.create_outgoing_frame(true).expect("frame 1");
@@ -116,11 +122,20 @@ fn test_webtransport_datagram_engine_session_multiplexing_and_demux() {
     assert_eq!(server_wt.session_queue_len(999), 0);
 
     // Pop from Session 10
-    assert_eq!(server_wt.pop_session_datagram(10).unwrap(), b"video-frame-key");
-    assert_eq!(server_wt.pop_session_datagram(10).unwrap(), b"video-frame-delta");
+    assert_eq!(
+        server_wt.pop_session_datagram(10).unwrap(),
+        b"video-frame-key"
+    );
+    assert_eq!(
+        server_wt.pop_session_datagram(10).unwrap(),
+        b"video-frame-delta"
+    );
     assert_eq!(server_wt.pop_session_datagram(10), None);
 
     // Pop from Session 20
-    assert_eq!(server_wt.pop_session_datagram(20).unwrap(), b"audio-sample-01");
+    assert_eq!(
+        server_wt.pop_session_datagram(20).unwrap(),
+        b"audio-sample-01"
+    );
     assert_eq!(server_wt.pop_session_datagram(20), None);
 }

@@ -41,9 +41,7 @@ pub enum SlotAdmissionVerdict {
         max_slots: usize,
     },
     /// Rejected because the stream is already registered.
-    RejectedDuplicateStream {
-        stream_id: u32,
-    },
+    RejectedDuplicateStream { stream_id: u32 },
 }
 
 /// Verdict for frame transmission evaluation within a cycle.
@@ -72,9 +70,7 @@ pub enum SlotTransmissionVerdict {
         remaining_slot_quota: usize,
     },
     /// Stream has no active reservation in the CQF slot engine.
-    UnreservedStreamDrop {
-        stream_id: u32,
-    },
+    UnreservedStreamDrop { stream_id: u32 },
 }
 
 /// Specification of a single time slot within a CQF cycle.
@@ -213,11 +209,17 @@ impl TsnCqfSlotReservationEngine {
 
     /// Releases an existing stream reservation.
     pub fn release_reservation(&mut self, stream_id: u32) -> bool {
-        if let Some(pos) = self.reservations.iter().position(|r| r.stream_id == stream_id) {
+        if let Some(pos) = self
+            .reservations
+            .iter()
+            .position(|r| r.stream_id == stream_id)
+        {
             let res = self.reservations.remove(pos);
             if res.slot_index < self.slots.len() {
                 let slot = &mut self.slots[res.slot_index];
-                slot.allocated_bytes = slot.allocated_bytes.saturating_sub(res.reserved_bytes_per_cycle);
+                slot.allocated_bytes = slot
+                    .allocated_bytes
+                    .saturating_sub(res.reserved_bytes_per_cycle);
                 slot.assigned_streams = slot.assigned_streams.saturating_sub(1);
             }
             true
@@ -233,7 +235,11 @@ impl TsnCqfSlotReservationEngine {
         frame_bytes: usize,
         time_in_cycle_ns: u64,
     ) -> SlotTransmissionVerdict {
-        let res_idx = match self.reservations.iter().position(|r| r.stream_id == stream_id) {
+        let res_idx = match self
+            .reservations
+            .iter()
+            .position(|r| r.stream_id == stream_id)
+        {
             Some(idx) => idx,
             None => {
                 self.total_dropped_bytes += frame_bytes as u64;
@@ -261,7 +267,9 @@ impl TsnCqfSlotReservationEngine {
 
         // Check byte quota
         let res = &mut self.reservations[res_idx];
-        let remaining_quota = res.reserved_bytes_per_cycle.saturating_sub(res.used_bytes_in_current_cycle);
+        let remaining_quota = res
+            .reserved_bytes_per_cycle
+            .saturating_sub(res.used_bytes_in_current_cycle);
 
         if frame_bytes > remaining_quota {
             self.total_dropped_bytes += frame_bytes as u64;

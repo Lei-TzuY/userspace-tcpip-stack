@@ -82,7 +82,12 @@ impl GtpuJitterBufEngine {
     }
 
     /// Ingress packet handler.
-    pub fn push_packet(&mut self, seq_num: u32, payload: Vec<u8>, current_time_us: u64) -> JitterBufferAction {
+    pub fn push_packet(
+        &mut self,
+        seq_num: u32,
+        payload: Vec<u8>,
+        current_time_us: u64,
+    ) -> JitterBufferAction {
         self.total_received += 1;
 
         if seq_num < self.expected_seq {
@@ -99,7 +104,11 @@ impl GtpuJitterBufEngine {
             self.expected_seq = self.expected_seq.wrapping_add(1);
 
             // Drain contiguous buffered packets
-            while let Some(pos) = self.buffer.iter().position(|p| p.seq_num == self.expected_seq) {
+            while let Some(pos) = self
+                .buffer
+                .iter()
+                .position(|p| p.seq_num == self.expected_seq)
+            {
                 let pkt = self.buffer.remove(pos);
                 self.expected_seq = self.expected_seq.wrapping_add(1);
                 released.push(pkt);
@@ -129,16 +138,22 @@ impl GtpuJitterBufEngine {
         let hold_delay = self.target_hold_delay_us();
         let mut released = Vec::new();
 
-        if let Some(first_expired) = self.buffer.iter().position(|p| {
-            current_time_us.saturating_sub(p.arrival_time_us) >= hold_delay
-        }) {
+        if let Some(first_expired) = self
+            .buffer
+            .iter()
+            .position(|p| current_time_us.saturating_sub(p.arrival_time_us) >= hold_delay)
+        {
             let pkt = self.buffer.remove(first_expired);
             self.expected_seq = pkt.seq_num.wrapping_add(1);
             self.total_timed_out += 1;
             released.push(pkt);
 
             // Drain any now-contiguous subsequent packets
-            while let Some(pos) = self.buffer.iter().position(|p| p.seq_num == self.expected_seq) {
+            while let Some(pos) = self
+                .buffer
+                .iter()
+                .position(|p| p.seq_num == self.expected_seq)
+            {
                 let p = self.buffer.remove(pos);
                 self.expected_seq = self.expected_seq.wrapping_add(1);
                 released.push(p);

@@ -1,9 +1,9 @@
 //! Integration tests for NSH MD Type 2 Extended Context TLVs (IOAM Telemetry, ECN, Subscriber ID).
 
-use toy_tcpip::nsh_md2::{NshMd2Header, NshMd2Packet, NSH_NP_IPV4};
+use toy_tcpip::nsh_md2::{NSH_NP_IPV4, NshMd2Header, NshMd2Packet};
 use toy_tcpip::nsh_md2_ext::{
-    EcnCongestionTlv, IoamHopTelemetry, NshMd2ExtendedTransitEngine, SfcTelemetryCollector,
-    SubscriberIdTlv, SubscriberIdType, NSH_TLV_CLASS_IOAM, NSH_TLV_TYPE_IOAM_HOP_TELEMETRY,
+    EcnCongestionTlv, IoamHopTelemetry, NSH_TLV_CLASS_IOAM, NSH_TLV_TYPE_IOAM_HOP_TELEMETRY,
+    NshMd2ExtendedTransitEngine, SfcTelemetryCollector, SubscriberIdTlv, SubscriberIdType,
 };
 
 #[test]

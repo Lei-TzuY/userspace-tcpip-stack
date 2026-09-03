@@ -20,12 +20,10 @@ use std::collections::{BinaryHeap, HashMap};
 
 pub const IP_PROTO_OSPFV3: u8 = 89;
 
-pub const OSPFV3_ALL_SPF_ROUTERS: Ipv6Address = Ipv6Address([
-    0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x05,
-]);
-pub const OSPFV3_ALL_D_ROUTERS: Ipv6Address = Ipv6Address([
-    0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x06,
-]);
+pub const OSPFV3_ALL_SPF_ROUTERS: Ipv6Address =
+    Ipv6Address([0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x05]);
+pub const OSPFV3_ALL_D_ROUTERS: Ipv6Address =
+    Ipv6Address([0xff, 0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x06]);
 
 pub const OSPFV3_VERSION: u8 = 3;
 pub const OSPFV3_HEADER_LEN: usize = 16;
@@ -535,7 +533,9 @@ impl Ospfv3Lsdb {
                     .values()
                     .find(|ll| ll.header.adv_router == nh_router)
                     .map(|ll| ll.link_local_address)
-                    .unwrap_or(Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]));
+                    .unwrap_or(Ipv6Address([
+                        0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+                    ]));
 
                 for prefix in &lsa.prefixes {
                     routes.push(Ospfv3Route {
@@ -648,12 +648,16 @@ mod tests {
             },
             router_priority: 1,
             options: 0,
-            link_local_address: Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x02]),
+            link_local_address: Ipv6Address([
+                0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x02,
+            ]),
             prefixes: Vec::new(),
         });
 
         // Intra-Area-Prefix-LSA for R3 advertising 2001:db8:3::/64
-        let r3_prefix = Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0x00, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        let r3_prefix = Ipv6Address([
+            0x20, 0x01, 0x0d, 0xb8, 0x00, 0x03, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ]);
         lsdb.add_intra_area_prefix_lsa(Ospfv3IntraAreaPrefixLsa {
             header: Ospfv3LsaHeader {
                 age: 1,
@@ -679,6 +683,9 @@ mod tests {
         assert_eq!(routes.len(), 1);
         assert_eq!(routes[0].destination, r3_prefix);
         assert_eq!(routes[0].metric, 10 + 20 + 5); // 35
-        assert_eq!(routes[0].next_hop, Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x02]));
+        assert_eq!(
+            routes[0].next_hop,
+            Ipv6Address([0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x02])
+        );
     }
 }

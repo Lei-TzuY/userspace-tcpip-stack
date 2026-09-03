@@ -169,7 +169,10 @@ impl MbsfEngine {
 
     /// Activate an MBS Session (transitions to Active, starts media transmission).
     pub fn activate_mbs_session(&mut self, session_id: &str) -> Result<(), MbsError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(MbsError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbsError::SessionNotFound)?;
         if sess.state == MbsSessionState::Active {
             return Err(MbsError::SessionAlreadyActive);
         }
@@ -183,7 +186,10 @@ impl MbsfEngine {
         session_id: &str,
         supi: &str,
     ) -> Result<(), MbsError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(MbsError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbsError::SessionNotFound)?;
         if sess.service_type != MbsServiceType::Multicast {
             return Err(MbsError::InvalidServiceType(
                 "UE Join is only applicable to Multicast service type",
@@ -204,7 +210,10 @@ impl MbsfEngine {
         session_id: &str,
         supi: &str,
     ) -> Result<(), MbsError> {
-        let sess = self.sessions.get_mut(session_id).ok_or(MbsError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get_mut(session_id)
+            .ok_or(MbsError::SessionNotFound)?;
         if sess.service_type != MbsServiceType::Multicast {
             return Err(MbsError::InvalidServiceType(
                 "UE Leave is only applicable to Multicast service type",
@@ -224,7 +233,10 @@ impl MbsfEngine {
         session_id: &str,
         active_cell_ues: u32,
     ) -> Result<CellDeliveryMode, MbsError> {
-        let sess = self.sessions.get(session_id).ok_or(MbsError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .get(session_id)
+            .ok_or(MbsError::SessionNotFound)?;
 
         match sess.delivery_method {
             MbsDeliveryMethod::PtmOnly => Ok(CellDeliveryMode::PointToMultipoint),
@@ -241,7 +253,10 @@ impl MbsfEngine {
 
     /// Release an MBS session and reclaim its TMGI.
     pub fn release_mbs_session(&mut self, session_id: &str) -> Result<(), MbsError> {
-        let sess = self.sessions.remove(session_id).ok_or(MbsError::SessionNotFound)?;
+        let sess = self
+            .sessions
+            .remove(session_id)
+            .ok_or(MbsError::SessionNotFound)?;
         self.tmgi_to_session.remove(&sess.tmgi);
         Ok(())
     }

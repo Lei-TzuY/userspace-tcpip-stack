@@ -59,7 +59,14 @@ impl DiameterS13ImeiRangeEngine {
     }
 
     /// Adds a TAC range rule (sorted by priority descending).
-    pub fn add_rule(&mut self, start_tac: u64, end_tac: u64, status: S13EquipmentStatus, description: &str, priority: u32) {
+    pub fn add_rule(
+        &mut self,
+        start_tac: u64,
+        end_tac: u64,
+        status: S13EquipmentStatus,
+        description: &str,
+        priority: u32,
+    ) {
         let (min_tac, max_tac) = if start_tac <= end_tac {
             (start_tac, end_tac)
         } else {
@@ -141,14 +148,38 @@ mod tests {
     #[test]
     fn test_range_rule_matching() {
         let mut engine = DiameterS13ImeiRangeEngine::new();
-        engine.add_rule(35391800, 35391899, S13EquipmentStatus::BlackListed, "Compromised Batch", 100);
-        engine.add_rule(35300000, 35399999, S13EquipmentStatus::GrayListed, "Vendor Observation", 50);
+        engine.add_rule(
+            35391800,
+            35391899,
+            S13EquipmentStatus::BlackListed,
+            "Compromised Batch",
+            100,
+        );
+        engine.add_rule(
+            35300000,
+            35399999,
+            S13EquipmentStatus::GrayListed,
+            "Vendor Observation",
+            50,
+        );
 
         let v1 = engine.evaluate_imei("353918551234567");
-        assert!(matches!(v1, ImeiRangeVerdict::RangeMatched { status: S13EquipmentStatus::BlackListed, .. }));
+        assert!(matches!(
+            v1,
+            ImeiRangeVerdict::RangeMatched {
+                status: S13EquipmentStatus::BlackListed,
+                ..
+            }
+        ));
 
         let v2 = engine.evaluate_imei("353500001234567");
-        assert!(matches!(v2, ImeiRangeVerdict::RangeMatched { status: S13EquipmentStatus::GrayListed, .. }));
+        assert!(matches!(
+            v2,
+            ImeiRangeVerdict::RangeMatched {
+                status: S13EquipmentStatus::GrayListed,
+                ..
+            }
+        ));
 
         let v3 = engine.evaluate_imei("860000001234567");
         assert!(matches!(v3, ImeiRangeVerdict::DefaultWhiteListed { .. }));

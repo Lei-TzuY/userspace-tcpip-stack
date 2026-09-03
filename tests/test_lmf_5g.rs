@@ -56,7 +56,9 @@ fn test_lmf_multi_rtt_high_precision_positioning() {
         timestamp_epoch_s: 1700000000,
     };
 
-    let resp = lmf.determine_location(&req).expect("Positioning calculation failed");
+    let resp = lmf
+        .determine_location(&req)
+        .expect("Positioning calculation failed");
     assert_eq!(resp.method_used, PositioningMethod::MultiRtt);
     assert!(resp.qos_satisfied);
     assert!(resp.position.uncertainty_horizontal_m <= 3.0);
@@ -201,7 +203,7 @@ fn test_lmf_velocity_and_bearing_motion_tracking() {
         measurements: vec![GnbMeasurement {
             gnb_id: 1,
             cell_id: 1,
-            gnb_latitude: 35.6905, // ~111 meters North
+            gnb_latitude: 35.6905,   // ~111 meters North
             gnb_longitude: 139.6927, // ~90 meters East
             timing_advance_ns: None,
             rx_tx_diff_ns: None,

@@ -1,8 +1,7 @@
 //! Integration tests for Geneve PMTUD & Active Flow Probe Option (RFC 8926 §4.4 / RFC 1191).
 
 use toy_tcpip::geneve_pmtud::{
-    GenevePmtudEngine, GenevePmtudResult, GENEVE_CLASS_PMTUD_OAM,
-    GENEVE_TYPE_PMTUD_PROBE,
+    GENEVE_CLASS_PMTUD_OAM, GENEVE_TYPE_PMTUD_PROBE, GenevePmtudEngine, GenevePmtudResult,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 

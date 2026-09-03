@@ -109,7 +109,10 @@ pub struct IcmpMatch {
 
 impl IcmpMatch {
     pub fn new(icmp_type: u8, icmp_code: Option<u8>) -> Self {
-        IcmpMatch { icmp_type, icmp_code }
+        IcmpMatch {
+            icmp_type,
+            icmp_code,
+        }
     }
 
     pub fn matches(&self, icmp_type: u8, icmp_code: u8) -> bool {
@@ -130,11 +133,11 @@ impl IcmpMatch {
 pub enum FlowspecVrfAction {
     Pass,
     Drop,
-    RedirectVrf(String),         // VRF Name or Route Target
-    RemarkDscp(u8),              // 6-bit DSCP value (0..63)
-    RateLimitBytesPerSec(u64),   // RFC 8955 Section 7.1
+    RedirectVrf(String),       // VRF Name or Route Target
+    RemarkDscp(u8),            // 6-bit DSCP value (0..63)
+    RateLimitBytesPerSec(u64), // RFC 8955 Section 7.1
     RedirectAndRemark { vrf: String, dscp: u8 },
-    SampleAndMirror(String),     // Sampling / Mirroring target
+    SampleAndMirror(String), // Sampling / Mirroring target
 }
 
 /// Flowspec Filtering and Action Rule (Basic).
@@ -191,16 +194,7 @@ impl FlowspecVrfAdvancedRule {
         packet_len: u16,
     ) -> bool {
         self.matches_full(
-            src_ip,
-            dst_ip,
-            protocol,
-            src_port,
-            dst_port,
-            tcp_flags,
-            packet_len,
-            false,
-            0,
-            false,
+            src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, packet_len, false, 0, false,
             None,
         )
     }
@@ -378,13 +372,7 @@ impl FlowspecVrfScrubbingEngine {
         // 1. Evaluate advanced rules first (priority)
         for r in &self.advanced_rules {
             if r.matches(
-                src_ip,
-                dst_ip,
-                protocol,
-                src_port,
-                dst_port,
-                tcp_flags,
-                packet_len,
+                src_ip, dst_ip, protocol, src_port, dst_port, tcp_flags, packet_len,
             ) {
                 match &r.action {
                     FlowspecVrfAction::RedirectVrf(_) => {
@@ -478,4 +466,3 @@ impl FlowspecVrfScrubbingEngine {
         self.evaluate_packet(dst_ip, protocol, dst_port)
     }
 }
-

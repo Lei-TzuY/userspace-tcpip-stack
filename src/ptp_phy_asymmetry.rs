@@ -110,7 +110,7 @@ mod tests {
         let engine = PtpPhyAsymmetryEngine::new();
 
         let master_phy = PortPhyCalibration::new("master-port", 12.5, 8.0, 1.0); // Tx=12.5, Rx=8.0, Cable=1.0 -> Asym = +5.5ns
-        let slave_phy = PortPhyCalibration::new("slave-port", 10.0, 10.0, 0.0);   // Tx=10.0, Rx=10.0 -> Asym = 0.0ns
+        let slave_phy = PortPhyCalibration::new("slave-port", 10.0, 10.0, 0.0); // Tx=10.0, Rx=10.0 -> Asym = 0.0ns
 
         let ts = PtpFourTimestamps {
             t1_sync_tx_ns: 1000.0,

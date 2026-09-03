@@ -87,7 +87,11 @@ impl GtpuNetworkInstanceDemuxEngine {
         network_instance_id: u32,
         max_bandwidth_bps: u64,
     ) {
-        if let Some(existing) = self.dnn_profiles.iter_mut().find(|d| d.dnn_name == dnn_name) {
+        if let Some(existing) = self
+            .dnn_profiles
+            .iter_mut()
+            .find(|d| d.dnn_name == dnn_name)
+        {
             existing.vrf_id = vrf_id;
             existing.network_instance_id = network_instance_id;
             existing.max_bandwidth_bps = max_bandwidth_bps;
@@ -123,7 +127,11 @@ impl GtpuNetworkInstanceDemuxEngine {
         payload_bytes: usize,
         claimed_dnn: Option<&str>,
     ) -> NetworkInstanceDemuxVerdict {
-        let binding = match self.teid_bindings.iter().find(|b| b.teid == teid && b.active) {
+        let binding = match self
+            .teid_bindings
+            .iter()
+            .find(|b| b.teid == teid && b.active)
+        {
             Some(b) => b,
             None => {
                 self.total_unmapped_teid_drops += 1;
@@ -143,7 +151,11 @@ impl GtpuNetworkInstanceDemuxEngine {
             }
         }
 
-        let dnn = match self.dnn_profiles.iter().find(|d| d.dnn_name == binding.dnn_name) {
+        let dnn = match self
+            .dnn_profiles
+            .iter()
+            .find(|d| d.dnn_name == binding.dnn_name)
+        {
             Some(d) => d,
             None => {
                 self.total_unmapped_teid_drops += 1;
@@ -192,14 +204,23 @@ mod tests {
 
         // Packet for Internet TEID
         let v1 = engine.demux_packet(0x10001, 1400, Some("internet"));
-        assert!(matches!(v1, NetworkInstanceDemuxVerdict::RoutedToTenantVrf { vrf_id: 1, .. }));
+        assert!(matches!(
+            v1,
+            NetworkInstanceDemuxVerdict::RoutedToTenantVrf { vrf_id: 1, .. }
+        ));
 
         // Packet with cross-tenant spoofed DNN
         let v2 = engine.demux_packet(0x10001, 1400, Some("ims"));
-        assert!(matches!(v2, NetworkInstanceDemuxVerdict::SecurityViolationTenantMismatch { .. }));
+        assert!(matches!(
+            v2,
+            NetworkInstanceDemuxVerdict::SecurityViolationTenantMismatch { .. }
+        ));
 
         // Unmapped TEID
         let v3 = engine.demux_packet(0x99999, 1000, None);
-        assert!(matches!(v3, NetworkInstanceDemuxVerdict::UnmappedTeidDrop { .. }));
+        assert!(matches!(
+            v3,
+            NetworkInstanceDemuxVerdict::UnmappedTeidDrop { .. }
+        ));
     }
 }

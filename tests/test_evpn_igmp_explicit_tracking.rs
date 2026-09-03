@@ -1,8 +1,7 @@
 // tests/test_evpn_igmp_explicit_tracking.rs
 
 use toy_tcpip::evpn_igmp_explicit_tracking::{
-    EvpnIgmpExplicitTrackingEngine, ExplicitTrackingVerdict,
-    DEFAULT_EXPLICIT_TRACKING_TIMEOUT_SECS,
+    DEFAULT_EXPLICIT_TRACKING_TIMEOUT_SECS, EvpnIgmpExplicitTrackingEngine, ExplicitTrackingVerdict,
 };
 use toy_tcpip::ipv4::Ipv4Address;
 

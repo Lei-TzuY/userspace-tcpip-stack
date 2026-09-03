@@ -50,10 +50,7 @@ pub enum GeoVerdict {
         result_code: u32,
     },
     /// Device is operating in an unauthorized foreign PLMN network.
-    UnauthorizedPlmn {
-        plmn_id: String,
-        result_code: u32,
-    },
+    UnauthorizedPlmn { plmn_id: String, result_code: u32 },
 }
 
 /// Geographical coordinate point (latitude/longitude in microdegrees for integer arithmetic).
@@ -174,7 +171,11 @@ impl S13GeoFenceEngine {
         lon_microdeg: i32,
         is_restricted: bool,
     ) {
-        if let Some(pos) = self.tracking_areas.iter().position(|t| t.tac == tac && t.plmn_id == plmn_id) {
+        if let Some(pos) = self
+            .tracking_areas
+            .iter()
+            .position(|t| t.tac == tac && t.plmn_id == plmn_id)
+        {
             self.tracking_areas[pos].center_coord = GeoCoord::new(lat_microdeg, lon_microdeg);
             self.tracking_areas[pos].is_restricted = is_restricted;
         } else {

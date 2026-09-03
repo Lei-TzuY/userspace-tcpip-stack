@@ -32,7 +32,7 @@ pub enum OrbitType {
 pub struct SatelliteEphemeris {
     pub sat_id: String,
     pub orbit_type: OrbitType,
-    pub position_ecef_m: [f64; 3],  // X, Y, Z coordinates in meters
+    pub position_ecef_m: [f64; 3],   // X, Y, Z coordinates in meters
     pub velocity_ecef_mps: [f64; 3], // Vx, Vy, Vz in meters per second
     pub epoch_timestamp_s: u64,
 }
@@ -60,8 +60,13 @@ pub struct NtnLinkMetrics {
 /// Satellite Handover Evaluation Result.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NtnHandoverStatus {
-    InService { elevation_deg: f64 },
-    HandoverRequired { elevation_deg: f64, min_threshold_deg: f64 },
+    InService {
+        elevation_deg: f64,
+    },
+    HandoverRequired {
+        elevation_deg: f64,
+        min_threshold_deg: f64,
+    },
 }
 
 /// NTN Error Types.
@@ -111,7 +116,10 @@ impl NtnEngine {
             return Err(NtnError::InvalidSubcarrierSpacing);
         }
 
-        let sat = self.satellites.get(sat_id).ok_or(NtnError::SatelliteNotFound)?;
+        let sat = self
+            .satellites
+            .get(sat_id)
+            .ok_or(NtnError::SatelliteNotFound)?;
 
         // 1. Calculate Slant Range Vector R = P_sat - P_ue
         let rx = sat.position_ecef_m[0] - ue_pos.position_ecef_m[0];

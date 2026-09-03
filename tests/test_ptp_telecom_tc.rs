@@ -42,7 +42,7 @@ fn test_ptp_telecom_sub_nanosecond_scaled_correction_and_asymmetry() {
     assert_eq!(PTP_SUB_NS_SCALE, 65536);
     let mut tc = TelecomPeerTransparentClockEngine::new();
     tc.set_port_peer_delay(1, 200); // 200 ns peer delay
-    tc.set_port_asymmetry(1, 15);   // +15 ns fiber asymmetry
+    tc.set_port_asymmetry(1, 15); // +15 ns fiber asymmetry
 
     // Initial correction = 10.5 ns = 10.5 * 65536 = 688128 scaled units
     let initial_scaled = TelecomPeerTransparentClockEngine::to_scaled_nanoseconds(10.5);
@@ -60,7 +60,7 @@ fn test_ptp_telecom_sub_nanosecond_scaled_correction_and_asymmetry() {
 
 #[test]
 fn test_ptp_telecom_header_in_place_correction() {
-    use toy_tcpip::ptp::{PtpHeader, PTP_MSG_SYNC};
+    use toy_tcpip::ptp::{PTP_MSG_SYNC, PtpHeader};
 
     let mut tc = TelecomPeerTransparentClockEngine::new();
     tc.set_port_peer_delay(2, 150);

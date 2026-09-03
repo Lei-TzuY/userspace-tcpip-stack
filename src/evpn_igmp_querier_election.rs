@@ -61,14 +61,9 @@ pub enum QuerierVerdict {
         is_startup: bool,
     },
     /// Other querier timed out; local node failed over to become Active Querier.
-    FailoverToActiveQuerier {
-        vni: u32,
-        local_ip: Ipv4Address,
-    },
+    FailoverToActiveQuerier { vni: u32, local_ip: Ipv4Address },
     /// VNI instance was not found.
-    VniNotFound {
-        vni: u32,
-    },
+    VniNotFound { vni: u32 },
 }
 
 /// Engine managing EVPN IGMP Querier Election and Timers across VNIs.
@@ -224,7 +219,9 @@ mod tests {
         // Receive query from lower IP (10.0.0.1) -> becomes NonQuerier
         let v_low = engine.process_rx_query(100, Ipv4Address::new(10, 0, 0, 1), 1002);
         match v_low {
-            QuerierVerdict::ElectedNonQuerier { active_querier_ip, .. } => {
+            QuerierVerdict::ElectedNonQuerier {
+                active_querier_ip, ..
+            } => {
                 assert_eq!(active_querier_ip, Ipv4Address::new(10, 0, 0, 1));
             }
             _ => panic!("Expected ElectedNonQuerier"),
@@ -236,10 +233,7 @@ mod tests {
         assert_eq!(v_failover.len(), 1);
         assert_eq!(
             v_failover[0],
-            QuerierVerdict::FailoverToActiveQuerier {
-                vni: 100,
-                local_ip,
-            }
+            QuerierVerdict::FailoverToActiveQuerier { vni: 100, local_ip }
         );
         assert_eq!(engine.instances[0].role, QuerierRole::ActiveQuerier);
     }

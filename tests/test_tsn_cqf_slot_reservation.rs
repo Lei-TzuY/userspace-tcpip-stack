@@ -100,7 +100,12 @@ fn test_tsn_cqf_slot_reservation_lifecycle() {
     // Stream 3 frame 800B at 15,000 ns (in Slot 0 timing, but reserved in Slot 2) -> Late/Early Slot Violation
     let t4 = engine.evaluate_transmission(3, 800, 15_000);
     match t4 {
-        SlotTransmissionVerdict::LateSlotViolation { stream_id, slot_index, expected_start_ns, .. } => {
+        SlotTransmissionVerdict::LateSlotViolation {
+            stream_id,
+            slot_index,
+            expected_start_ns,
+            ..
+        } => {
             assert_eq!(stream_id, 3);
             assert_eq!(slot_index, 2);
             assert_eq!(expected_start_ns, 50_000);
@@ -122,7 +127,10 @@ fn test_tsn_cqf_slot_reservation_lifecycle() {
 
     // Unregistered stream 99 -> UnreservedStreamDrop
     let t6 = engine.evaluate_transmission(99, 500, 55_000);
-    assert_eq!(t6, SlotTransmissionVerdict::UnreservedStreamDrop { stream_id: 99 });
+    assert_eq!(
+        t6,
+        SlotTransmissionVerdict::UnreservedStreamDrop { stream_id: 99 }
+    );
 
     // Release reservation
     assert!(engine.release_reservation(1));

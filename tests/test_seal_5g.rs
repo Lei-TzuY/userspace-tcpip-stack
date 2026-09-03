@@ -11,7 +11,8 @@ fn test_seal_group_management_lifecycle() {
     let mut seal = SealServerEngine::new("seal-server-01");
 
     let group_id = "val-group-v2x-platoon-alpha";
-    seal.create_val_group(group_id, ValDomain::V2xAutomotive, 3).unwrap();
+    seal.create_val_group(group_id, ValDomain::V2xAutomotive, 3)
+        .unwrap();
 
     // Add 3 members
     seal.add_group_member(group_id, "car-01").unwrap();
@@ -29,7 +30,14 @@ fn test_seal_group_management_lifecycle() {
     seal.add_group_member(group_id, "car-04").unwrap();
 
     let members = &seal.groups.get(group_id).unwrap().members;
-    assert_eq!(members, &vec!["car-01".to_string(), "car-03".to_string(), "car-04".to_string()]);
+    assert_eq!(
+        members,
+        &vec![
+            "car-01".to_string(),
+            "car-03".to_string(),
+            "car-04".to_string()
+        ]
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -96,22 +104,32 @@ fn test_seal_proximity_detection() {
     let car_b = "car-toyota-02";
 
     // Position Car A
-    seal.update_device_location(car_a, GeoPoint {
-        latitude_e6: 35_680_000,
-        longitude_e6: 139_760_000,
-    });
+    seal.update_device_location(
+        car_a,
+        GeoPoint {
+            latitude_e6: 35_680_000,
+            longitude_e6: 139_760_000,
+        },
+    );
 
     // Position Car B close by (~30 meters apart)
-    seal.update_device_location(car_b, GeoPoint {
-        latitude_e6: 35_680_250,
-        longitude_e6: 139_760_000,
-    });
+    seal.update_device_location(
+        car_b,
+        GeoPoint {
+            latitude_e6: 35_680_250,
+            longitude_e6: 139_760_000,
+        },
+    );
 
     // Proximity threshold 100 meters -> Detected
     let res = seal.check_proximity(car_a, car_b, 100).unwrap();
     assert!(res.is_some());
     match res.unwrap() {
-        SealAlertEvent::ProximityDetected { val_user_id_a, val_user_id_b, distance_meters } => {
+        SealAlertEvent::ProximityDetected {
+            val_user_id_a,
+            val_user_id_b,
+            distance_meters,
+        } => {
             assert_eq!(val_user_id_a, car_a);
             assert_eq!(val_user_id_b, car_b);
             assert!(distance_meters < 50);
@@ -133,7 +151,8 @@ fn test_seal_network_resource_reservation_and_release() {
     let mut seal = SealServerEngine::new("seal-server-04");
 
     let group_id = "val-drone-swarm-01";
-    seal.create_val_group(group_id, ValDomain::UasDroneSwarm, 10).unwrap();
+    seal.create_val_group(group_id, ValDomain::UasDroneSwarm, 10)
+        .unwrap();
 
     // Reserve QoS resources
     let res_id = seal.reserve_network_resources(group_id, 250, 8).unwrap();
@@ -143,7 +162,8 @@ fn test_seal_network_resource_reservation_and_release() {
     assert_eq!(res.active, true);
 
     // Release reservation
-    seal.release_network_resources(&res_id).expect("Release failed");
+    seal.release_network_resources(&res_id)
+        .expect("Release failed");
     assert_eq!(seal.qos_reservations.get(&res_id).unwrap().active, false);
 }
 
@@ -159,7 +179,8 @@ fn test_seal_error_handling() {
     let err1 = seal.add_group_member("ghost-group", "user-1");
     assert_eq!(err1, Err(SealError::GroupNotFound));
 
-    seal.create_val_group("g1", ValDomain::SmartCity, 5).unwrap();
+    seal.create_val_group("g1", ValDomain::SmartCity, 5)
+        .unwrap();
     seal.add_group_member("g1", "user-1").unwrap();
 
     // Duplicate member

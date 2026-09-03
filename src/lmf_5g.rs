@@ -71,7 +71,7 @@ pub struct GnbMeasurement {
     pub gnb_latitude: f64,
     pub gnb_longitude: f64,
     pub timing_advance_ns: Option<u32>,
-    pub rx_tx_diff_ns: Option<i64>, // For Multi-RTT: (T_Rx - T_Tx)
+    pub rx_tx_diff_ns: Option<i64>,   // For Multi-RTT: (T_Rx - T_Tx)
     pub aoa_azimuth_deg: Option<f32>, // For UL-AoA: 0.0 .. 360.0
     pub rsrp_dbm: Option<i16>,
 }
@@ -139,7 +139,10 @@ impl LmfEngine {
             && req.measurements.iter().all(|m| m.rx_tx_diff_ns.is_some())
         {
             // Method 1: Multi-RTT Trilateration across 3+ gNBs
-            (self.solve_multi_rtt(&req.measurements)?, PositioningMethod::MultiRtt)
+            (
+                self.solve_multi_rtt(&req.measurements)?,
+                PositioningMethod::MultiRtt,
+            )
         } else if let Some(meas) = req.measurements.first() {
             if meas.aoa_azimuth_deg.is_some() && meas.timing_advance_ns.is_some() {
                 // Method 2: UL-AoA + Timing Advance Angle-of-Arrival positioning
@@ -191,7 +194,10 @@ impl LmfEngine {
     // -----------------------------------------------------------------------
 
     /// Multi-RTT Trilateration solver using speed of light c = 299,792,458 m/s.
-    fn solve_multi_rtt(&self, measurements: &[GnbMeasurement]) -> Result<GeographicCoordinates, LmfError> {
+    fn solve_multi_rtt(
+        &self,
+        measurements: &[GnbMeasurement],
+    ) -> Result<GeographicCoordinates, LmfError> {
         const C: f64 = 0.299792458; // meters per nanosecond
 
         let mut sum_lat = 0.0;
@@ -209,7 +215,9 @@ impl LmfEngine {
         }
 
         if total_weight == 0.0 {
-            return Err(LmfError::CalculationFailed("Zero total weight in Multi-RTT"));
+            return Err(LmfError::CalculationFailed(
+                "Zero total weight in Multi-RTT",
+            ));
         }
 
         let lat = sum_lat / total_weight;
@@ -323,9 +331,11 @@ fn calculate_velocity(
     curr: &GeographicCoordinates,
     dt_s: u64,
 ) -> VelocityEstimate {
-    let distance_m = haversine_distance_m(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+    let distance_m =
+        haversine_distance_m(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
     let speed = (distance_m / dt_s as f64) as f32;
-    let bearing = calculate_bearing_deg(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
+    let bearing =
+        calculate_bearing_deg(prev.latitude, prev.longitude, curr.latitude, curr.longitude);
 
     VelocityEstimate {
         horizontal_speed_mps: speed,

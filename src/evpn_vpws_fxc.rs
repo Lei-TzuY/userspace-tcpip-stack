@@ -118,12 +118,7 @@ impl EvpnVpwsEngine {
     }
 
     /// Registers a point-to-point VPWS cross-connect between a local AC and remote VPWS-ID.
-    pub fn bind_cross_connect(
-        &mut self,
-        if_name: &str,
-        vlan_id: u16,
-        service: EvpnVpwsService,
-    ) {
+    pub fn bind_cross_connect(&mut self, if_name: &str, vlan_id: u16, service: EvpnVpwsService) {
         let ac = AttachmentCircuit {
             if_name: if_name.to_string(),
             vlan_id,
@@ -229,7 +224,10 @@ mod tests {
 
         engine.bind_cross_connect("eth1", 100, service);
 
-        let frame = vec![0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0x08, 0x00, 0xaa, 0xbb];
+        let frame = vec![
+            0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0x08, 0x00,
+            0xaa, 0xbb,
+        ];
         let encap = engine.encapsulate_l2_frame("eth1", 100, &frame).unwrap();
         assert_eq!(encap.remote_pe, Ipv4Address::new(10, 1, 1, 2));
         assert_eq!(encap.mpls_label, 4001);

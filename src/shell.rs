@@ -39,9 +39,7 @@ use crate::diameter_rx::{
 };
 use crate::diameter_s6a::{HssS6aEngine, HssSubscriberProfile};
 use crate::diameter_s6a_clr::{CancellationType, S6aClrEngine, S6aClrMessage};
-use crate::diameter_s6a_idr::{
-    DynamicSubscriberProfile, S6aIdrEngine, S6aIdrMessage,
-};
+use crate::diameter_s6a_idr::{DynamicSubscriberProfile, S6aIdrEngine, S6aIdrMessage};
 use crate::diameter_s6a_nor::{
     NOR_FLAG_READY_FOR_SM, NOR_FLAG_SRVCC_SUPPORT, S6aNorEngine, S6aNorMessage,
 };
@@ -49,9 +47,7 @@ use crate::diameter_s6a_pur::{
     PUA_FLAG_FREEZE_M_TMSI, PUA_FLAG_FREEZE_P_TMSI, S6aPurEngine, S6aPurMessage,
 };
 use crate::diameter_s6a_rsr::{S6aRsrEngine, S6aRsrMessage};
-use crate::diameter_s6a_uar::{
-    S6aUarEngine, S6aUarMessage, SubscriberAuthRule,
-};
+use crate::diameter_s6a_uar::{S6aUarEngine, S6aUarMessage, SubscriberAuthRule};
 use crate::diameter_s6b::{
     AaaS6bEngine, DIAMETER_CMD_AA, DIAMETER_CMD_SESSION_TERMINATION, Non3gppSubProfile,
     Non3gppUserStatus, S6bAvp, S6bMessage,
@@ -65,43 +61,26 @@ use crate::diameter_s6t::{
 };
 use crate::diameter_s9::{PcrfS9Engine, SubsessionEnforcementInfo};
 use crate::diameter_s13::{EirS13Engine, EquipmentStatus};
-use crate::diameter_s13_cache::{
-    DiameterS13CacheEngine, EirCacheLookupResult, EirEquipmentStatus,
+use crate::diameter_s13_bulk::{BulkBlacklistAction, S13BulkEngine, S13BulkMessage};
+use crate::diameter_s13_cache::{DiameterS13CacheEngine, EirCacheLookupResult, EirEquipmentStatus};
+use crate::diameter_s13_emergency_exemption::{
+    DiameterS13EmergencyExemptionEngine, EmergencyCallType, EmergencyExemptionVerdict,
 };
-use crate::diameter_s13_escn::{
-    EscnVerdict, S13EquipmentStatus, S13EscnEngine,
+use crate::diameter_s13_escn::{EscnVerdict, S13EquipmentStatus, S13EscnEngine};
+use crate::diameter_s13_geo_fence::{GeoVerdict, S13GeoFenceEngine};
+use crate::diameter_s13_graylist::{
+    EirGraylistEngine, EirStatus as S13GraylistStatus, S13GraylistAvp, S13GraylistMessage,
 };
-use crate::diameter_s13_bulk::{
-    BulkBlacklistAction, S13BulkEngine, S13BulkMessage,
-};
+use crate::diameter_s13_imei_range::{DiameterS13ImeiRangeEngine, ImeiRangeVerdict};
+use crate::diameter_s13_imei_tamper::{ImeiValidationVerdict, S13ImeiTamperEngine};
+use crate::diameter_s13_imeidb::{GsmaDeviceStatus, S13ImeiDbEngine, S13ImeiDbMessage};
+use crate::diameter_s13_ocp::{OcReportType, OcThrottleVerdict, S13OverloadControlEngine};
 use crate::diameter_s13_prime::{
     EirS13PrimeEngine, EquipmentStatus as S13PrimeEquipmentStatus, S13PrimeAvp, S13PrimeMessage,
     TerminalInformation,
 };
-use crate::diameter_s13_graylist::{
-    EirGraylistEngine, EirStatus as S13GraylistStatus, S13GraylistAvp,
-    S13GraylistMessage,
-};
-use crate::diameter_s13_emergency_exemption::{
-    DiameterS13EmergencyExemptionEngine, EmergencyCallType, EmergencyExemptionVerdict,
-};
-use crate::diameter_s13_imei_range::{
-    DiameterS13ImeiRangeEngine, ImeiRangeVerdict,
-};
-use crate::diameter_s13_geo_fence::{GeoVerdict, S13GeoFenceEngine};
-use crate::diameter_s13_imei_tamper::{ImeiValidationVerdict, S13ImeiTamperEngine};
-use crate::diameter_s13_imeidb::{
-    GsmaDeviceStatus, S13ImeiDbEngine, S13ImeiDbMessage,
-};
-use crate::diameter_s13_ocp::{
-    OcReportType, OcThrottleVerdict, S13OverloadControlEngine,
-};
-use crate::diameter_s13_roam_mismatch::{
-    RoamingValidationVerdict, S13RoamingMismatchEngine,
-};
-use crate::diameter_s13_tac_whitelist_expiry::{
-    DiameterS13TacWhitelistExpiryEngine, LeaseVerdict,
-};
+use crate::diameter_s13_roam_mismatch::{RoamingValidationVerdict, S13RoamingMismatchEngine};
+use crate::diameter_s13_tac_whitelist_expiry::{DiameterS13TacWhitelistExpiryEngine, LeaseVerdict};
 use crate::diameter_sgd::{SgdAvp, SgdMessage, SmsSgdEngine};
 use crate::diameter_sh::{HssShEngine, HssShSubscriberProfile};
 use crate::diameter_slh::HssSlhEngine;
@@ -123,18 +102,12 @@ use crate::evpn_dht_probe::{DhtTickAction, EvpnDhtEngine};
 use crate::evpn_etree::{ETreeRole, EvpnETreeEngine};
 use crate::evpn_flap_damping::EvpnFlapDampingEngine;
 use crate::evpn_frr_protection::{EvpnFrrEngine, EvpnProtectedRoute};
-use crate::evpn_igmp_explicit_tracking::{
-    EvpnIgmpExplicitTrackingEngine, ExplicitTrackingVerdict,
-};
-use crate::evpn_igmp_join_suppress::{
-    EvpnIgmpJoinSuppressEngine, JoinSuppressVerdict,
-};
+use crate::evpn_igmp_explicit_tracking::{EvpnIgmpExplicitTrackingEngine, ExplicitTrackingVerdict};
+use crate::evpn_igmp_join_suppress::{EvpnIgmpJoinSuppressEngine, JoinSuppressVerdict};
 use crate::evpn_igmp_mld_snooping_filter::{
     EvpnMcastSnoopingFilterEngine, McastAclAction, McastFilterVerdict,
 };
-use crate::evpn_igmp_querier_election::{
-    EvpnIgmpQuerierElectionEngine, QuerierVerdict,
-};
+use crate::evpn_igmp_querier_election::{EvpnIgmpQuerierElectionEngine, QuerierVerdict};
 use crate::evpn_igmp_rate_limit_policer::{
     EvpnIgmpRateLimitPolicerEngine, IgmpMessageType, IgmpPolicerVerdict,
 };
@@ -153,35 +126,29 @@ use crate::evpn_mac_mobility::{EvpnMacMobilityEngine, MacMobilityExtComm};
 use crate::evpn_mass_withdraw::EvpnMassWithdrawEngine;
 use crate::evpn_multicast_ir::{EvpnSelectiveIrEngine, MulticastChannel};
 use crate::evpn_multihoming::EvpnDfElectionEngine;
+use crate::evpn_port_security::{EvpnPortSecurityEngine, PortSecurityViolationAction};
 use crate::evpn_pref_df::{CandidatePe, EvpnPrefDfEngine};
 use crate::evpn_proxy_arp::{ArpSuppressionAction, EvpnProxyArpEngine};
 use crate::evpn_pvlan::{EvpnPvlanEngine, PvlanPortType};
-use crate::evpn_port_security::{
-    EvpnPortSecurityEngine, PortSecurityViolationAction,
-};
-use crate::evpn_uu_egress_filter::{
-    EgressPortConfig, EgressVerdict, Esi, EvpnUuEgressFilterEngine,
-};
-use crate::evpn_uu_ratelimit::{EvpnUuRateLimitEngine, UuRateLimitVerdict};
 use crate::evpn_smet::{EvpnSmetEngine, EvpnSmetRoute};
-use crate::evpn_ssm_dr_election::{
-    DrElectionVerdict, EvpnSsmDrElectionEngine,
-};
+use crate::evpn_ssm_dr_election::{DrElectionVerdict, EvpnSsmDrElectionEngine};
 use crate::evpn_ssm_snooping::{EvpnSsmEngine, SmetRouteAction};
 use crate::evpn_ssm_source_active::{
     EvpnSourceActiveEngine, EvpnSourceActiveRoute, SourceActiveVerdict,
 };
-use crate::evpn_ssm_underlay::{
-    EvpnUnderlayPmsiEngine, UnderlayEncapsulationPlan,
-};
+use crate::evpn_ssm_underlay::{EvpnUnderlayPmsiEngine, UnderlayEncapsulationPlan};
 use crate::evpn_synch::{
     EthernetSegmentId, EvpnJoinSynchRoute, EvpnLeaveSynchRoute, EvpnMulticastSynchEngine,
 };
 use crate::evpn_type1::{EvpnAliasingEngine, EvpnEthernetAdRoute};
 use crate::evpn_type3::{EvpnBumFloodingTree, EvpnType3Route};
 use crate::evpn_type5::{EvpnType5Rib, EvpnType5Route};
-use crate::evpn_umt_ir::EvpnUmtEngine;
 use crate::evpn_umrt_prune::{EvpnUmrtEngine, IngressDomain};
+use crate::evpn_umt_ir::EvpnUmtEngine;
+use crate::evpn_uu_egress_filter::{
+    EgressPortConfig, EgressVerdict, Esi, EvpnUuEgressFilterEngine,
+};
+use crate::evpn_uu_ratelimit::{EvpnUuRateLimitEngine, UuRateLimitVerdict};
 use crate::evpn_uu_suppression::{EvpnUuSuppressionEngine, UuSuppressionDecision};
 use crate::evpn_vrf_leaking::EvpnVrfLeakingEngine;
 use crate::firewall::{FirewallAction, FirewallChain, FirewallRule, IpCidr};
@@ -216,26 +183,22 @@ use crate::gtp_ext::{
     parse_gtpu_with_pdu_container,
 };
 use crate::gtpc_v2::{CAUSE_REQUEST_ACCEPTED, Gtpv2cMessage, IE_CAUSE, IE_FTEID, SgwEngine};
+use crate::gtpu_atsss_split::{AtsssAccessLeg, AtsssSteeringRule, GtpuAtsssSplitEngine};
+use crate::gtpu_bearer_qos_flow_map::{BearerFlowTranslationVerdict, GtpuBearerQosFlowMapEngine};
+use crate::gtpu_dynamic_echo::GtpuDynamicEchoEngine;
 use crate::gtpu_fast_failover::{FastFailoverSession, GtpuFastFailoverEngine};
 use crate::gtpu_flow_label_entropy::{
     FlowLabelAlgorithm, GtpuFlowLabelEntropyEngine, InnerPacketTuple,
 };
-use crate::gtpu_flow_reanchor::{
-    GtpuFlowReanchorEngine, ReanchorAction,
-};
+use crate::gtpu_flow_reanchor::{GtpuFlowReanchorEngine, ReanchorAction};
 use crate::gtpu_gap_retransmit::{GapAction, GtpuGapRetransmitEngine};
-use crate::gtpu_link_agg::{
-    AggregatedLink, FiveTuple, FlowDistributionResult, GtpuLinkAggEngine, LinkHealthState,
-};
-use crate::gtpu_atsss_split::{AtsssAccessLeg, AtsssSteeringRule, GtpuAtsssSplitEngine};
-use crate::gtpu_bearer_qos_flow_map::{
-    BearerFlowTranslationVerdict, GtpuBearerQosFlowMapEngine,
-};
-use crate::gtpu_dynamic_echo::GtpuDynamicEchoEngine;
 use crate::gtpu_heartbeat::{GtpuEchoMessage, GtpuPathEngine};
 use crate::gtpu_hole_nack::{GtpuHoleNackEngine, HoleNackVerdict};
 use crate::gtpu_jitter_buf::{GtpuJitterBufEngine, JitterBufferAction};
 use crate::gtpu_jitter_telemetry::GtpuJitterTelemetryEngine;
+use crate::gtpu_link_agg::{
+    AggregatedLink, FiveTuple, FlowDistributionResult, GtpuLinkAggEngine, LinkHealthState,
+};
 use crate::gtpu_loss_telemetry::GtpuLossTelemetryEngine;
 use crate::gtpu_ma_pdu::{AccessLegType, AtsssMode, MaPduSessionEngine};
 use crate::gtpu_network_instance_demux::{
@@ -249,9 +212,7 @@ use crate::gtpu_reordering::GtpuReorderingEngine;
 use crate::gtpu_rtt_dup::{DupDispatchDecision, GtpuRttDupEngine};
 use crate::gtpu_rtt_probing::{GtpuRttProbingEngine, ProbeAccessLeg};
 use crate::gtpu_rtt_smooth::{GtpuRttSmoothEngine, RttAnomalyVerdict};
-use crate::gtpu_rtt_variance::{
-    AsymmetryVerdict, GtpuRttVarianceEngine, DEFAULT_GRANULARITY_US,
-};
+use crate::gtpu_rtt_variance::{AsymmetryVerdict, DEFAULT_GRANULARITY_US, GtpuRttVarianceEngine};
 use crate::gtpu_sliding_window_ack::{GtpuSlidingWindowAckEngine, SlidingWindowAckVerdict};
 use crate::gtpu_telemetry::GtpuTelemetryEngine;
 use crate::gtpu_upf_relocation::{HandoverGtpuPacket, TargetUpfRelocationEngine};
@@ -383,27 +344,11 @@ use crate::tsn_cnc::{
     CentralizedNetworkConfigurator, StreamId, TrafficSpecification, TsnListener, TsnTalker,
     UserToNetworkRequirements,
 };
-use crate::tsn_cqf_multicycle::CqfMultiCycleEngine;
-use crate::tsn_cqf_cycle_scale::{CycleScaleResult, TsnCqfCycleScaleEngine, MIN_CYCLE_NS};
-use crate::tsn_cqf_offset::TsnCqfOffsetEngine;
+use crate::tsn_cqf_burst_absorb::{BurstAbsorbVerdict, TsnCqfBurstAbsorbEngine};
+use crate::tsn_cqf_cycle_scale::{CycleScaleResult, MIN_CYCLE_NS, TsnCqfCycleScaleEngine};
 use crate::tsn_cqf_deadline::{CqfAdmissionResult, CqfScheduledFrame, TsnCqfDeadlineEngine};
 use crate::tsn_cqf_deficit_meter::{
     DeficitMeterVerdict, DeficitStreamProfile, TsnCqfDeficitMeterEngine,
-};
-use crate::tsn_cqf_frame_replication::{
-    FrerEliminationVerdict, ReplicationPath, TsnCqfFrameReplicationEngine,
-};
-use crate::tsn_cqf_gate_coord::{
-    CoordinatedCqfFrame, GateCoordVerdict, TsnCqfGateCoordEngine, NUM_PRIORITIES,
-};
-use crate::tsn_cqf_jitter_bound::{
-    CqfHopProfile, SlaComplianceResult, TsnCqfJitterBoundEngine,
-};
-use crate::tsn_cqf_max_sdu_enforcer::{
-    MaxSduAction, MaxSduVerdict, TsnCqfMaxSduEnforcerEngine,
-};
-use crate::tsn_cqf_burst_absorb::{
-    BurstAbsorbVerdict, TsnCqfBurstAbsorbEngine,
 };
 use crate::tsn_cqf_dual_plane::{
     DualPlaneDispatchVerdict, DualPlaneMode, TsnCqfDualPlaneEngine, TsnPlane,
@@ -411,28 +356,30 @@ use crate::tsn_cqf_dual_plane::{
 use crate::tsn_cqf_frame_reassembly::{
     FrameReassemblyVerdict, TsnCqfFrameReassemblyEngine, TsnFragment,
 };
-use crate::tsn_cqf_path_splice::{
-    PathSpliceVerdict, TsnCqfHop, TsnCqfPathSpliceEngine,
+use crate::tsn_cqf_frame_replication::{
+    FrerEliminationVerdict, ReplicationPath, TsnCqfFrameReplicationEngine,
 };
+use crate::tsn_cqf_gate_coord::{
+    CoordinatedCqfFrame, GateCoordVerdict, NUM_PRIORITIES, TsnCqfGateCoordEngine,
+};
+use crate::tsn_cqf_gate_preempt::{CqfPreemptVerdict, TsnCqfGatePreemptEngine, TsnTrafficClass};
+use crate::tsn_cqf_jitter_bound::{CqfHopProfile, SlaComplianceResult, TsnCqfJitterBoundEngine};
+use crate::tsn_cqf_max_sdu_enforcer::{MaxSduAction, MaxSduVerdict, TsnCqfMaxSduEnforcerEngine};
+use crate::tsn_cqf_multicycle::CqfMultiCycleEngine;
+use crate::tsn_cqf_offset::TsnCqfOffsetEngine;
+use crate::tsn_cqf_path_splice::{PathSpliceVerdict, TsnCqfHop, TsnCqfPathSpliceEngine};
+use crate::tsn_cqf_prio_inherit::{PriorityInheritVerdict, TsnCqfPrioInheritEngine};
 use crate::tsn_cqf_prio_promote::{
     PrioPromoteProfile, PriorityPromoteVerdict, TsnCqfPrioPromoteEngine,
 };
-use crate::tsn_cqf_prio_inherit::{
-    PriorityInheritVerdict, TsnCqfPrioInheritEngine,
-};
-use crate::tsn_cqf_ring_align::{
-    RingAlignVerdict, TsnCqfRingAlignEngine, TsnRingId,
-};
+use crate::tsn_cqf_ring_align::{RingAlignVerdict, TsnCqfRingAlignEngine, TsnRingId};
 use crate::tsn_cqf_slot_reservation::{
     SlotAdmissionVerdict, SlotTransmissionVerdict, TsnCqfSlotReservationEngine,
 };
+use crate::tsn_cqf_time_dispatch::TsnCqfTimeDispatchEngine;
 use crate::tsn_cqf_timestamp_jitter::{
     JitterAnalyzerVerdict, StreamJitterStats, TsnCqfTimestampJitterEngine,
 };
-use crate::tsn_cqf_gate_preempt::{
-    CqfPreemptVerdict, TsnCqfGatePreemptEngine, TsnTrafficClass,
-};
-use crate::tsn_cqf_time_dispatch::TsnCqfTimeDispatchEngine;
 use crate::tsn_cqf_trtcm::{TrTcmColor, TsnCqfTrTcmEngine};
 use crate::tsn_guard_band::{PriorityType, TsnPreemptionGuardBandEngine};
 use crate::tsn_psfp_stream_filter::{
@@ -2330,7 +2277,8 @@ impl NetworkShell {
         s6a_clr_engine.attach_subscriber("460012345678901");
         s6a_clr_engine.attach_subscriber("460029988776655");
 
-        let mut evpn_dhcp_snoop_engine = EvpnDhcpSnoopingEngine::new(MacAddress([0x52, 0x54, 0x00, 0xAA, 0xBB, 0xCC]));
+        let mut evpn_dhcp_snoop_engine =
+            EvpnDhcpSnoopingEngine::new(MacAddress([0x52, 0x54, 0x00, 0xAA, 0xBB, 0xCC]));
         evpn_dhcp_snoop_engine.set_port_trusted(10, true);
 
         let mut gtpu_rtt_smooth_engine = GtpuRttSmoothEngine::new(0x7001, (1, 4), (1, 16), 150);
@@ -2339,7 +2287,12 @@ impl NetworkShell {
         }
 
         let mut tsn_cqf_deficit_engine = TsnCqfDeficitMeterEngine::new(100_000);
-        tsn_cqf_deficit_engine.register_stream(DeficitStreamProfile::new(1, "Robotics-Stream", 1500, 3000));
+        tsn_cqf_deficit_engine.register_stream(DeficitStreamProfile::new(
+            1,
+            "Robotics-Stream",
+            1500,
+            3000,
+        ));
 
         let mut s6a_nor_engine = S6aNorEngine::new(
             "hss01.epc.mnc001.mcc208.3gppnetwork.org",
@@ -2385,9 +2338,24 @@ impl NetworkShell {
         ));
 
         let mut s13_cache_engine = DiameterS13CacheEngine::new(3600, 100);
-        s13_cache_engine.insert("860123456789012", EirEquipmentStatus::WhiteListed, 1000, None);
-        s13_cache_engine.insert("869999999999999", EirEquipmentStatus::BlackListed, 1000, None);
-        s13_cache_engine.insert("868888888888888", EirEquipmentStatus::GrayListed, 1000, Some(300));
+        s13_cache_engine.insert(
+            "860123456789012",
+            EirEquipmentStatus::WhiteListed,
+            1000,
+            None,
+        );
+        s13_cache_engine.insert(
+            "869999999999999",
+            EirEquipmentStatus::BlackListed,
+            1000,
+            None,
+        );
+        s13_cache_engine.insert(
+            "868888888888888",
+            EirEquipmentStatus::GrayListed,
+            1000,
+            Some(300),
+        );
 
         let mut evpn_umrt_engine = EvpnUmrtEngine::new(Ipv4Address::new(10, 0, 0, 1));
         evpn_umrt_engine.add_local_port(1, 100, false);
@@ -2409,13 +2377,29 @@ impl NetworkShell {
             "mme01.epc.mnc001.mcc208.3gppnetwork.org",
             "epc.mnc001.mcc208.3gppnetwork.org",
         );
-        s13_bulk_engine.blacklisted_imeis.push("860000000000001".to_string());
-        s13_bulk_engine.blacklisted_imeis.push("860000000000002".to_string());
+        s13_bulk_engine
+            .blacklisted_imeis
+            .push("860000000000001".to_string());
+        s13_bulk_engine
+            .blacklisted_imeis
+            .push("860000000000002".to_string());
         s13_bulk_engine.current_version = 10;
 
         let mut evpn_dht_engine = EvpnDhtEngine::new(30, 2);
-        evpn_dht_engine.touch_host(100, 1, MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x01]), Ipv4Address::new(10, 1, 1, 10), 1000);
-        evpn_dht_engine.touch_host(100, 2, MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x02]), Ipv4Address::new(10, 1, 1, 20), 980);
+        evpn_dht_engine.touch_host(
+            100,
+            1,
+            MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x01]),
+            Ipv4Address::new(10, 1, 1, 10),
+            1000,
+        );
+        evpn_dht_engine.touch_host(
+            100,
+            2,
+            MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x02]),
+            Ipv4Address::new(10, 1, 1, 20),
+            980,
+        );
 
         let gtpu_gap_engine = GtpuGapRetransmitEngine::new(0x7001, 1, 3);
 
@@ -2423,22 +2407,52 @@ impl NetworkShell {
         tsn_cqf_inherit_engine.acquire_resource(1, 10, 2);
 
         let mut s13_imeidb_engine = S13ImeiDbEngine::new("imeidb.gsma.org", "gsma.org");
-        s13_imeidb_engine.register_device("860011112222333", "Galaxy S24 Ultra", "Samsung", GsmaDeviceStatus::Stolen, "20801");
-        s13_imeidb_engine.register_device("860044445555666", "iPhone 16 Pro", "Apple", GsmaDeviceStatus::ClonedFraud, "20802");
+        s13_imeidb_engine.register_device(
+            "860011112222333",
+            "Galaxy S24 Ultra",
+            "Samsung",
+            GsmaDeviceStatus::Stolen,
+            "20801",
+        );
+        s13_imeidb_engine.register_device(
+            "860044445555666",
+            "iPhone 16 Pro",
+            "Apple",
+            GsmaDeviceStatus::ClonedFraud,
+            "20802",
+        );
 
         let mut evpn_ssm_engine = EvpnSsmEngine::new(Ipv4Address::new(10, 0, 0, 1), 60);
-        evpn_ssm_engine.handle_local_join(100, 1, Ipv4Address::new(232, 1, 1, 1), Ipv4Address::new(192, 168, 1, 100), 1000);
-        evpn_ssm_engine.handle_remote_smet_add(100, Ipv4Address::new(10, 0, 0, 2), Ipv4Address::new(232, 1, 1, 1), Ipv4Address::new(192, 168, 1, 100));
+        evpn_ssm_engine.handle_local_join(
+            100,
+            1,
+            Ipv4Address::new(232, 1, 1, 1),
+            Ipv4Address::new(192, 168, 1, 100),
+            1000,
+        );
+        evpn_ssm_engine.handle_remote_smet_add(
+            100,
+            Ipv4Address::new(10, 0, 0, 2),
+            Ipv4Address::new(232, 1, 1, 1),
+            Ipv4Address::new(192, 168, 1, 100),
+        );
 
         let gtpu_rtt_dup_engine = GtpuRttDupEngine::new(1, 2, 20_000, 5_000, 3);
 
         let tsn_cqf_preempt_engine = TsnCqfGatePreemptEngine::new(100_000, 1);
 
-        let mut s13_ocp_engine = S13OverloadControlEngine::new("eir01.epc.mnc001.mcc208.3gppnetwork.org");
+        let mut s13_ocp_engine =
+            S13OverloadControlEngine::new("eir01.epc.mnc001.mcc208.3gppnetwork.org");
         s13_ocp_engine.update_overload_report(1, OcReportType::Host, 20, 120, 1000);
 
-        let mut evpn_underlay_engine = EvpnUnderlayPmsiEngine::new(Ipv4Address::new(10, 0, 0, 1), 2);
-        evpn_underlay_engine.add_receiver_vtep(100, Ipv4Address::new(232, 1, 1, 1), Ipv4Address::new(192, 168, 1, 100), Ipv4Address::new(10, 0, 0, 2));
+        let mut evpn_underlay_engine =
+            EvpnUnderlayPmsiEngine::new(Ipv4Address::new(10, 0, 0, 1), 2);
+        evpn_underlay_engine.add_receiver_vtep(
+            100,
+            Ipv4Address::new(232, 1, 1, 1),
+            Ipv4Address::new(192, 168, 1, 100),
+            Ipv4Address::new(10, 0, 0, 2),
+        );
 
         let mut gtpu_reanchor_engine = GtpuFlowReanchorEngine::new(0x8001);
         gtpu_reanchor_engine.register_flow(1, 1, 1000);
@@ -2452,8 +2466,13 @@ impl NetworkShell {
         s13_geofence_engine.register_tracking_area(20, "20801", 51_500_000, -120_000, false);
         s13_geofence_engine.register_tracking_area(99, "20801", 45_000_000, 5_000_000, true);
 
-        let mut evpn_dr_engine = EvpnSsmDrElectionEngine::new(Ipv4Address::new(10, 0, 0, 1), 150, 60);
-        evpn_dr_engine.register_segment([0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99], 100, 1000);
+        let mut evpn_dr_engine =
+            EvpnSsmDrElectionEngine::new(Ipv4Address::new(10, 0, 0, 1), 150, 60);
+        evpn_dr_engine.register_segment(
+            [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99],
+            100,
+            1000,
+        );
 
         let mut gtpu_marking_engine = GtpuQosMarkingEngine::new();
         gtpu_marking_engine.evaluate_marking(1, 0);
@@ -2467,7 +2486,13 @@ impl NetworkShell {
         let s13_tamper_engine = S13ImeiTamperEngine::new();
 
         let mut evpn_sa_engine = EvpnSourceActiveEngine::new(Ipv4Address::new(10, 0, 0, 1), 60);
-        evpn_sa_engine.record_source_traffic(100, [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99], Ipv4Address::new(192, 168, 1, 100), Ipv4Address::new(232, 1, 1, 1), 1000);
+        evpn_sa_engine.record_source_traffic(
+            100,
+            [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99],
+            Ipv4Address::new(192, 168, 1, 100),
+            Ipv4Address::new(232, 1, 1, 1),
+            1000,
+        );
 
         let gtpu_bearer_map_engine = GtpuBearerQosFlowMapEngine::new(5, 0x10001);
 
@@ -2477,7 +2502,14 @@ impl NetworkShell {
         let s13_roam_engine = S13RoamingMismatchEngine::new();
 
         let mut evpn_explicit_track_engine = EvpnIgmpExplicitTrackingEngine::new(60);
-        evpn_explicit_track_engine.process_membership_report(100, 1, Ipv4Address::new(192, 168, 1, 100), Ipv4Address::new(232, 1, 1, 1), Ipv4Address::new(10, 0, 0, 10), 1000);
+        evpn_explicit_track_engine.process_membership_report(
+            100,
+            1,
+            Ipv4Address::new(192, 168, 1, 100),
+            Ipv4Address::new(232, 1, 1, 1),
+            Ipv4Address::new(10, 0, 0, 10),
+            1000,
+        );
 
         let mut gtpu_demux_engine = GtpuNetworkInstanceDemuxEngine::new();
         gtpu_demux_engine.bind_teid_to_dnn(0x10001, "internet", 9);
@@ -2487,10 +2519,21 @@ impl NetworkShell {
 
         let mut s13_escn_engine = S13EscnEngine::new("eir01.epc.mnc001.mcc208.3gppnetwork.org");
         s13_escn_engine.subscribe_mme("mme01.epc.mnc001.mcc208.3gppnetwork.org");
-        s13_escn_engine.update_equipment_status("353918001234567", S13EquipmentStatus::BlackListed, "Initial Blacklist", 1000);
+        s13_escn_engine.update_equipment_status(
+            "353918001234567",
+            S13EquipmentStatus::BlackListed,
+            "Initial Blacklist",
+            1000,
+        );
 
         let mut evpn_join_suppress_engine = EvpnIgmpJoinSuppressEngine::new();
-        evpn_join_suppress_engine.process_join(100, 1, Ipv4Address::new(192, 168, 1, 100), Ipv4Address::new(232, 1, 1, 1), Ipv4Address::new(10, 0, 0, 1));
+        evpn_join_suppress_engine.process_join(
+            100,
+            1,
+            Ipv4Address::new(192, 168, 1, 100),
+            Ipv4Address::new(232, 1, 1, 1),
+            Ipv4Address::new(10, 0, 0, 1),
+        );
 
         let mut gtpu_reorder_flush_engine = GtpuReorderFlushEngine::new(64, 50_000, 1);
         gtpu_reorder_flush_engine.ingest_packet(1, 1400, 1000);
@@ -2499,32 +2542,58 @@ impl NetworkShell {
 
         let s13_exempt_engine = DiameterS13EmergencyExemptionEngine::new(3600);
 
-        let evpn_querier_election_engine = EvpnIgmpQuerierElectionEngine::new(
-            Ipv4Address::new(10, 0, 0, 1), 125, 10, 2,
-        );
+        let evpn_querier_election_engine =
+            EvpnIgmpQuerierElectionEngine::new(Ipv4Address::new(10, 0, 0, 1), 125, 10, 2);
 
         let gtpu_hole_nack_engine = GtpuHoleNackEngine::new(0x10001, 32, 100_000);
 
         let tsn_cqf_reassembly_engine = TsnCqfFrameReassemblyEngine::new(125_000, 250_000, 2000);
 
         let mut s13_imei_range_engine = DiameterS13ImeiRangeEngine::new();
-        s13_imei_range_engine.add_rule(35391800, 35391899, S13EquipmentStatus::BlackListed, "Compromised Hardware Range", 100);
+        s13_imei_range_engine.add_rule(
+            35391800,
+            35391899,
+            S13EquipmentStatus::BlackListed,
+            "Compromised Hardware Range",
+            100,
+        );
 
         let mut evpn_snooping_filter_engine = EvpnMcastSnoopingFilterEngine::new(16);
-        evpn_snooping_filter_engine.add_rule(100, 1, Ipv4Address::new(239, 255, 0, 0), Ipv4Address::new(239, 255, 255, 255), McastAclAction::Deny, "Deny local scoped multicast");
+        evpn_snooping_filter_engine.add_rule(
+            100,
+            1,
+            Ipv4Address::new(239, 255, 0, 0),
+            Ipv4Address::new(239, 255, 255, 255),
+            McastAclAction::Deny,
+            "Deny local scoped multicast",
+        );
 
         let gtpu_sliding_window_ack_engine = GtpuSlidingWindowAckEngine::new(0x10001, 64);
 
         let mut tsn_cqf_max_sdu_engine = TsnCqfMaxSduEnforcerEngine::new(125_000, 1500);
-        tsn_cqf_max_sdu_engine.add_rule(1, 500, MaxSduAction::DropOversized, "Critical Low-Latency Stream");
+        tsn_cqf_max_sdu_engine.add_rule(
+            1,
+            500,
+            MaxSduAction::DropOversized,
+            "Critical Low-Latency Stream",
+        );
 
         let mut s13_whitelist_lease_engine = DiameterS13TacWhitelistExpiryEngine::new();
-        s13_whitelist_lease_engine.grant_lease(35391800, 35391899, 1000, 3600, 300, S13EquipmentStatus::BlackListed, "Initial Trial Batch Lease");
+        s13_whitelist_lease_engine.grant_lease(
+            35391800,
+            35391899,
+            1000,
+            3600,
+            300,
+            S13EquipmentStatus::BlackListed,
+            "Initial Trial Batch Lease",
+        );
 
         let mut evpn_mcast_rate_policer = EvpnIgmpRateLimitPolicerEngine::new(100, 20);
         evpn_mcast_rate_policer.set_port_policy(100, 1, 50, 10, 5, 5_000_000);
 
-        let gtpu_flow_entropy_engine = GtpuFlowLabelEntropyEngine::new(FlowLabelAlgorithm::Fnv1aEntropy, 16);
+        let gtpu_flow_entropy_engine =
+            GtpuFlowLabelEntropyEngine::new(FlowLabelAlgorithm::Fnv1aEntropy, 16);
 
         NetworkShell {
             stack: client_stack,
@@ -2906,70 +2975,154 @@ impl NetworkShell {
                 "evpn-umt" | "umt" | "mcast-tree" => self.cmd_evpn_umt(&parts[1..]),
                 "gtpu-jitter" | "gtp-jitter" | "owd" => self.cmd_gtpu_jitter(&parts[1..]),
                 "tsn-cqf-meter" | "cqf-meter" | "cqf-trtcm" => self.cmd_tsn_cqf_meter(&parts[1..]),
-                "diameter-s13-gray" | "s13-gray" | "eir-gray" => self.cmd_diameter_s13_gray(&parts[1..]),
+                "diameter-s13-gray" | "s13-gray" | "eir-gray" => {
+                    self.cmd_diameter_s13_gray(&parts[1..])
+                }
                 "evpn-port-sec" | "port-sec" | "sticky-mac" => self.cmd_evpn_port_sec(&parts[1..]),
                 "gtpu-probe" | "gtp-probe" | "atsss-probe" => self.cmd_gtpu_probe(&parts[1..]),
-                "tsn-cqf-offset" | "cqf-offset" | "cqf-multihop" => self.cmd_tsn_cqf_offset(&parts[1..]),
+                "tsn-cqf-offset" | "cqf-offset" | "cqf-multihop" => {
+                    self.cmd_tsn_cqf_offset(&parts[1..])
+                }
                 "diameter-s6a-idr" | "s6a-idr" | "idr" => self.cmd_diameter_s6a_idr(&parts[1..]),
                 "evpn-uu-rate" | "uu-rate" | "uu-storm" => self.cmd_evpn_uu_rate(&parts[1..]),
-                "gtpu-dynamic-echo" | "gtp-dynamic-echo" | "dyn-echo" => self.cmd_gtpu_dynamic_echo(&parts[1..]),
-                "tsn-cqf-deadline" | "cqf-deadline" | "cqf-overrun" => self.cmd_tsn_cqf_deadline(&parts[1..]),
-                "diameter-s6a-pur" | "s6a-pur" | "purge-ue" => self.cmd_diameter_s6a_pur(&parts[1..]),
-                "evpn-uu-filter" | "uu-filter" | "egress-filter" => self.cmd_evpn_uu_filter(&parts[1..]),
-                "gtpu-rtt-var" | "gtp-rtt-var" | "rto-predict" => self.cmd_gtpu_rtt_var(&parts[1..]),
-                "tsn-cqf-scale" | "cqf-scale" | "cycle-scale" => self.cmd_tsn_cqf_scale(&parts[1..]),
-                "diameter-s6a-rsr" | "s6a-rsr" | "hss-reset" => self.cmd_diameter_s6a_rsr(&parts[1..]),
-                "evpn-mac-freeze" | "mac-freeze" | "move-damp" => self.cmd_evpn_mac_freeze(&parts[1..]),
+                "gtpu-dynamic-echo" | "gtp-dynamic-echo" | "dyn-echo" => {
+                    self.cmd_gtpu_dynamic_echo(&parts[1..])
+                }
+                "tsn-cqf-deadline" | "cqf-deadline" | "cqf-overrun" => {
+                    self.cmd_tsn_cqf_deadline(&parts[1..])
+                }
+                "diameter-s6a-pur" | "s6a-pur" | "purge-ue" => {
+                    self.cmd_diameter_s6a_pur(&parts[1..])
+                }
+                "evpn-uu-filter" | "uu-filter" | "egress-filter" => {
+                    self.cmd_evpn_uu_filter(&parts[1..])
+                }
+                "gtpu-rtt-var" | "gtp-rtt-var" | "rto-predict" => {
+                    self.cmd_gtpu_rtt_var(&parts[1..])
+                }
+                "tsn-cqf-scale" | "cqf-scale" | "cycle-scale" => {
+                    self.cmd_tsn_cqf_scale(&parts[1..])
+                }
+                "diameter-s6a-rsr" | "s6a-rsr" | "hss-reset" => {
+                    self.cmd_diameter_s6a_rsr(&parts[1..])
+                }
+                "evpn-mac-freeze" | "mac-freeze" | "move-damp" => {
+                    self.cmd_evpn_mac_freeze(&parts[1..])
+                }
                 "gtpu-loss" | "gtp-loss" | "plm" => self.cmd_gtpu_loss(&parts[1..]),
                 "tsn-cqf-gate" | "cqf-gate" | "gate-coord" => self.cmd_tsn_cqf_gate(&parts[1..]),
                 "diameter-s6a-uar" | "s6a-uar" | "uar" => self.cmd_diameter_s6a_uar(&parts[1..]),
-                "evpn-anti-spoof" | "anti-spoof" | "ip-guard" => self.cmd_evpn_anti_spoof(&parts[1..]),
-                "gtpu-atsss-split" | "atsss-split" | "gtp-split" => self.cmd_gtpu_atsss_split(&parts[1..]),
-                "tsn-cqf-jitter" | "cqf-jitter" | "jitter-bound" => self.cmd_tsn_cqf_jitter(&parts[1..]),
+                "evpn-anti-spoof" | "anti-spoof" | "ip-guard" => {
+                    self.cmd_evpn_anti_spoof(&parts[1..])
+                }
+                "gtpu-atsss-split" | "atsss-split" | "gtp-split" => {
+                    self.cmd_gtpu_atsss_split(&parts[1..])
+                }
+                "tsn-cqf-jitter" | "cqf-jitter" | "jitter-bound" => {
+                    self.cmd_tsn_cqf_jitter(&parts[1..])
+                }
                 "diameter-s6a-clr" | "s6a-clr" | "clr" => self.cmd_diameter_s6a_clr(&parts[1..]),
                 "evpn-dhcp-snoop" | "dhcp-snoop" | "opt82" => self.cmd_evpn_dhcp_snoop(&parts[1..]),
-                "gtpu-rtt-smooth" | "rtt-smooth" | "rtt-ema" => self.cmd_gtpu_rtt_smooth(&parts[1..]),
-                "tsn-cqf-deficit" | "cqf-deficit" | "deficit-meter" => self.cmd_tsn_cqf_deficit(&parts[1..]),
+                "gtpu-rtt-smooth" | "rtt-smooth" | "rtt-ema" => {
+                    self.cmd_gtpu_rtt_smooth(&parts[1..])
+                }
+                "tsn-cqf-deficit" | "cqf-deficit" | "deficit-meter" => {
+                    self.cmd_tsn_cqf_deficit(&parts[1..])
+                }
                 "diameter-s6a-nor" | "s6a-nor" | "nor" => self.cmd_diameter_s6a_nor(&parts[1..]),
                 "evpn-dai" | "dai" | "arp-inspect" => self.cmd_evpn_dai(&parts[1..]),
                 "gtpu-link-agg" | "link-agg" | "gtp-agg" => self.cmd_gtpu_link_agg(&parts[1..]),
-                "tsn-cqf-promote" | "cqf-promote" | "prio-promote" => self.cmd_tsn_cqf_promote(&parts[1..]),
-                "diameter-s13-cache" | "s13-cache" | "eir-cache" => self.cmd_diameter_s13_cache(&parts[1..]),
+                "tsn-cqf-promote" | "cqf-promote" | "prio-promote" => {
+                    self.cmd_tsn_cqf_promote(&parts[1..])
+                }
+                "diameter-s13-cache" | "s13-cache" | "eir-cache" => {
+                    self.cmd_diameter_s13_cache(&parts[1..])
+                }
                 "evpn-umrt" | "umrt" | "umrt-prune" => self.cmd_evpn_umrt(&parts[1..]),
                 "gtpu-jitter-buf" | "jitter-buf" | "jbuf" => self.cmd_gtpu_jitter_buf(&parts[1..]),
-                "tsn-cqf-analyzer" | "cqf-analyzer" | "jitter-analyzer" => self.cmd_tsn_cqf_analyzer(&parts[1..]),
-                "diameter-s13-bulk" | "s13-bulk" | "bulk-blacklist" => self.cmd_diameter_s13_bulk(&parts[1..]),
+                "tsn-cqf-analyzer" | "cqf-analyzer" | "jitter-analyzer" => {
+                    self.cmd_tsn_cqf_analyzer(&parts[1..])
+                }
+                "diameter-s13-bulk" | "s13-bulk" | "bulk-blacklist" => {
+                    self.cmd_diameter_s13_bulk(&parts[1..])
+                }
                 "evpn-dht" | "dht" | "host-track" => self.cmd_evpn_dht(&parts[1..]),
-                "gtpu-gap-retransmit" | "gap-retransmit" | "gtp-gap" => self.cmd_gtpu_gap_retransmit(&parts[1..]),
-                "tsn-cqf-inherit" | "cqf-inherit" | "prio-inherit" => self.cmd_tsn_cqf_inherit(&parts[1..]),
-                "diameter-s13-imeidb" | "s13-imeidb" | "imeidb" => self.cmd_diameter_s13_imeidb(&parts[1..]),
+                "gtpu-gap-retransmit" | "gap-retransmit" | "gtp-gap" => {
+                    self.cmd_gtpu_gap_retransmit(&parts[1..])
+                }
+                "tsn-cqf-inherit" | "cqf-inherit" | "prio-inherit" => {
+                    self.cmd_tsn_cqf_inherit(&parts[1..])
+                }
+                "diameter-s13-imeidb" | "s13-imeidb" | "imeidb" => {
+                    self.cmd_diameter_s13_imeidb(&parts[1..])
+                }
                 "evpn-ssm" | "ssm-snoop" | "ssm" => self.cmd_evpn_ssm(&parts[1..]),
                 "gtpu-rtt-dup" | "rtt-dup" | "gtp-dup" => self.cmd_gtpu_rtt_dup(&parts[1..]),
-                "tsn-cqf-preempt" | "cqf-preempt" | "gate-preempt" => self.cmd_tsn_cqf_preempt(&parts[1..]),
-                "tsn-cqf-ring-align" | "cqf-ring" | "ring-align" => self.cmd_tsn_cqf_ring_align(&parts[1..]),
-                "diameter-s13-ocp" | "s13-ocp" | "eir-ocp" => self.cmd_diameter_s13_ocp(&parts[1..]),
-                "evpn-ssm-underlay" | "ssm-underlay" | "pmsi-tree" => self.cmd_evpn_ssm_underlay(&parts[1..]),
-                "gtpu-flow-reanchor" | "flow-reanchor" | "gtp-reanchor" => self.cmd_gtpu_flow_reanchor(&parts[1..]),
-                "diameter-s13-geofence" | "s13-geofence" | "eir-geofence" => self.cmd_diameter_s13_geofence(&parts[1..]),
+                "tsn-cqf-preempt" | "cqf-preempt" | "gate-preempt" => {
+                    self.cmd_tsn_cqf_preempt(&parts[1..])
+                }
+                "tsn-cqf-ring-align" | "cqf-ring" | "ring-align" => {
+                    self.cmd_tsn_cqf_ring_align(&parts[1..])
+                }
+                "diameter-s13-ocp" | "s13-ocp" | "eir-ocp" => {
+                    self.cmd_diameter_s13_ocp(&parts[1..])
+                }
+                "evpn-ssm-underlay" | "ssm-underlay" | "pmsi-tree" => {
+                    self.cmd_evpn_ssm_underlay(&parts[1..])
+                }
+                "gtpu-flow-reanchor" | "flow-reanchor" | "gtp-reanchor" => {
+                    self.cmd_gtpu_flow_reanchor(&parts[1..])
+                }
+                "diameter-s13-geofence" | "s13-geofence" | "eir-geofence" => {
+                    self.cmd_diameter_s13_geofence(&parts[1..])
+                }
                 "evpn-ssm-dr" | "ssm-dr" | "dr-election" => self.cmd_evpn_ssm_dr(&parts[1..]),
-                "gtpu-qos-marking" | "qos-marking" | "gtp-marking" => self.cmd_gtpu_qos_marking(&parts[1..]),
+                "gtpu-qos-marking" | "qos-marking" | "gtp-marking" => {
+                    self.cmd_gtpu_qos_marking(&parts[1..])
+                }
                 "tsn-cqf-slot" | "cqf-slot" | "slot-reserve" => self.cmd_tsn_cqf_slot(&parts[1..]),
                 "tsn-cqf-frer" | "cqf-frer" | "frer-repl" => self.cmd_tsn_cqf_frer(&parts[1..]),
-                "diameter-s13-tamper" | "s13-tamper" | "imei-luhn" => self.cmd_diameter_s13_tamper(&parts[1..]),
+                "diameter-s13-tamper" | "s13-tamper" | "imei-luhn" => {
+                    self.cmd_diameter_s13_tamper(&parts[1..])
+                }
                 "evpn-ssm-sa" | "ssm-sa" | "source-active" => self.cmd_evpn_ssm_sa(&parts[1..]),
-                "gtpu-bearer-map" | "bearer-map" | "qfi-ebi" => self.cmd_gtpu_bearer_map(&parts[1..]),
-                "tsn-cqf-burst" | "cqf-burst" | "burst-absorb" => self.cmd_tsn_cqf_burst(&parts[1..]),
-                "diameter-s13-roam" | "s13-roam" | "roam-mismatch" => self.cmd_diameter_s13_roam(&parts[1..]),
-                "evpn-explicit-track" | "explicit-track" | "fast-leave" => self.cmd_evpn_explicit_track(&parts[1..]),
-                "gtpu-dnn-demux" | "dnn-demux" | "instance-demux" => self.cmd_gtpu_dnn_demux(&parts[1..]),
+                "gtpu-bearer-map" | "bearer-map" | "qfi-ebi" => {
+                    self.cmd_gtpu_bearer_map(&parts[1..])
+                }
+                "tsn-cqf-burst" | "cqf-burst" | "burst-absorb" => {
+                    self.cmd_tsn_cqf_burst(&parts[1..])
+                }
+                "diameter-s13-roam" | "s13-roam" | "roam-mismatch" => {
+                    self.cmd_diameter_s13_roam(&parts[1..])
+                }
+                "evpn-explicit-track" | "explicit-track" | "fast-leave" => {
+                    self.cmd_evpn_explicit_track(&parts[1..])
+                }
+                "gtpu-dnn-demux" | "dnn-demux" | "instance-demux" => {
+                    self.cmd_gtpu_dnn_demux(&parts[1..])
+                }
                 "tsn-cqf-plane" | "cqf-plane" | "dual-plane" => self.cmd_tsn_cqf_plane(&parts[1..]),
-                "diameter-s13-escn" | "s13-escn" | "escn" => self.cmd_diameter_s13_escn(&parts[1..]),
-                "evpn-join-suppress" | "join-suppress" | "proxy-join" => self.cmd_evpn_join_suppress(&parts[1..]),
-                "gtpu-reorder-flush" | "reorder-flush" | "early-flush" => self.cmd_gtpu_reorder_flush(&parts[1..]),
-                "tsn-cqf-splice" | "cqf-splice" | "path-splice" => self.cmd_tsn_cqf_splice(&parts[1..]),
-                "diameter-s13-exempt" | "s13-exempt" | "emergency-exempt" => self.cmd_diameter_s13_exempt(&parts[1..]),
-                "evpn-querier-elect" | "querier-elect" | "igmp-querier" => self.cmd_evpn_querier_elect(&parts[1..]),
-                "gtpu-hole-nack" | "hole-nack" | "nack-engine" => self.cmd_gtpu_hole_nack(&parts[1..]),
+                "diameter-s13-escn" | "s13-escn" | "escn" => {
+                    self.cmd_diameter_s13_escn(&parts[1..])
+                }
+                "evpn-join-suppress" | "join-suppress" | "proxy-join" => {
+                    self.cmd_evpn_join_suppress(&parts[1..])
+                }
+                "gtpu-reorder-flush" | "reorder-flush" | "early-flush" => {
+                    self.cmd_gtpu_reorder_flush(&parts[1..])
+                }
+                "tsn-cqf-splice" | "cqf-splice" | "path-splice" => {
+                    self.cmd_tsn_cqf_splice(&parts[1..])
+                }
+                "diameter-s13-exempt" | "s13-exempt" | "emergency-exempt" => {
+                    self.cmd_diameter_s13_exempt(&parts[1..])
+                }
+                "evpn-querier-elect" | "querier-elect" | "igmp-querier" => {
+                    self.cmd_evpn_querier_elect(&parts[1..])
+                }
+                "gtpu-hole-nack" | "hole-nack" | "nack-engine" => {
+                    self.cmd_gtpu_hole_nack(&parts[1..])
+                }
                 "tsn-cqf-reassembly" | "cqf-reassembly" | "frag-reassembly" => {
                     self.cmd_tsn_cqf_reassembly(&parts[1..])
                 }
@@ -18489,27 +18642,71 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP Diameter S13 EIR Equipment Check with Graylist Throttling (App ID: 16777252 / TS 29.272):");
-                println!("  • EIR Realm             : {}", self.s13_graylist_engine.eir_realm);
-                println!("  • Graylist Rate Limit   : {} kbps", self.s13_graylist_engine.graylist_rate_limit_kbps);
-                println!("  • Total ECR Checks      : {}", self.s13_graylist_engine.total_ecr_checks);
-                println!("  • Registered IMEIs      : {}", self.s13_graylist_engine.imei_database.len());
+                println!(
+                    "3GPP Diameter S13 EIR Equipment Check with Graylist Throttling (App ID: 16777252 / TS 29.272):"
+                );
+                println!(
+                    "  • EIR Realm             : {}",
+                    self.s13_graylist_engine.eir_realm
+                );
+                println!(
+                    "  • Graylist Rate Limit   : {} kbps",
+                    self.s13_graylist_engine.graylist_rate_limit_kbps
+                );
+                println!(
+                    "  • Total ECR Checks      : {}",
+                    self.s13_graylist_engine.total_ecr_checks
+                );
+                println!(
+                    "  • Registered IMEIs      : {}",
+                    self.s13_graylist_engine.imei_database.len()
+                );
                 for (imei, status) in &self.s13_graylist_engine.imei_database {
                     println!("    [IMEI {}] Equipment Status: {:?}", imei, status);
                 }
             }
             "check" => {
-                let imei = if args.len() >= 2 { args[1] } else { "352099001122334" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "352099001122334"
+                };
                 let ecr = S13GraylistMessage::new_ecr("s13-gray-sess", imei);
                 let (eca, qos) = self.s13_graylist_engine.handle_ecr(&ecr);
-                let status = eca.avps.iter().find_map(|a| if let S13GraylistAvp::EquipmentStatus(s) = a { Some(*s) } else { None }).unwrap_or(S13GraylistStatus::WhiteListed);
-                let rc = eca.avps.iter().find_map(|a| if let S13GraylistAvp::ResultCode(c) = a { Some(*c) } else { None }).unwrap_or(5000);
+                let status = eca
+                    .avps
+                    .iter()
+                    .find_map(|a| {
+                        if let S13GraylistAvp::EquipmentStatus(s) = a {
+                            Some(*s)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(S13GraylistStatus::WhiteListed);
+                let rc = eca
+                    .avps
+                    .iter()
+                    .find_map(|a| {
+                        if let S13GraylistAvp::ResultCode(c) = a {
+                            Some(*c)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(5000);
 
-                println!("  [DIAMETER S13 ECR/ECA] IMEI: {} -> Status: {:?}, Policy Action: {:?} (Result-Code: {})",
-                    imei, status, qos, rc);
+                println!(
+                    "  [DIAMETER S13 ECR/ECA] IMEI: {} -> Status: {:?}, Policy Action: {:?} (Result-Code: {})",
+                    imei, status, qos, rc
+                );
             }
             "set" => {
-                let imei = if args.len() >= 2 { args[1] } else { "352099001122334" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "352099001122334"
+                };
                 let stat_str = if args.len() >= 3 { args[2] } else { "gray" };
                 let status = match stat_str.to_lowercase().as_str() {
                     "black" | "b" => S13GraylistStatus::BlackListed,
@@ -18519,7 +18716,9 @@ impl NetworkShell {
                 self.s13_graylist_engine.set_imei_status(imei, status);
                 println!("  [IMEI STATUS UPDATED] IMEI {} set to {:?}", imei, status);
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-gray [status | check <imei> | set <imei> <white|black|gray>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-gray [status | check <imei> | set <imei> <white|black|gray>]"
+            ),
         }
     }
 
@@ -18527,23 +18726,52 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Dynamic Port Security & Sticky MAC Aging (RFC 7432 Section 15):");
-                println!("  • Configured Ports      : {}", self.evpn_port_sec_engine.ports.len());
-                println!("  • Total Allowed Frames  : {}", self.evpn_port_sec_engine.total_allowed_frames);
-                println!("  • Total Violation Drops : {}", self.evpn_port_sec_engine.total_violation_drops);
+                println!(
+                    "EVPN Layer 2 Dynamic Port Security & Sticky MAC Aging (RFC 7432 Section 15):"
+                );
+                println!(
+                    "  • Configured Ports      : {}",
+                    self.evpn_port_sec_engine.ports.len()
+                );
+                println!(
+                    "  • Total Allowed Frames  : {}",
+                    self.evpn_port_sec_engine.total_allowed_frames
+                );
+                println!(
+                    "  • Total Violation Drops : {}",
+                    self.evpn_port_sec_engine.total_violation_drops
+                );
                 for (port_name, cfg) in &self.evpn_port_sec_engine.ports {
-                    println!("    [Port {}] State: {:?} | Max MACs: {} | Violation: {:?} | Learned: {} | Violations: {}",
-                        port_name, cfg.state, cfg.max_macs, cfg.violation_action, cfg.learned_macs.len(), cfg.violation_count);
+                    println!(
+                        "    [Port {}] State: {:?} | Max MACs: {} | Violation: {:?} | Learned: {} | Violations: {}",
+                        port_name,
+                        cfg.state,
+                        cfg.max_macs,
+                        cfg.violation_action,
+                        cfg.learned_macs.len(),
+                        cfg.violation_count
+                    );
                     for (mac, entry) in &cfg.learned_macs {
-                        println!("      - MAC: {} (Learned at {}s, Last seen {}s)", mac, entry.learned_timestamp_sec, entry.last_seen_sec);
+                        println!(
+                            "      - MAC: {} (Learned at {}s, Last seen {}s)",
+                            mac, entry.learned_timestamp_sec, entry.last_seen_sec
+                        );
                     }
                 }
             }
             "config" => {
                 let port = if args.len() >= 2 { args[1] } else { "ge0/1" };
-                let max_mac = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(2) } else { 2 };
+                let max_mac = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(2)
+                } else {
+                    2
+                };
                 let viol_str = if args.len() >= 4 { args[3] } else { "shutdown" };
-                let aging = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(300) } else { 300 };
+                let aging = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(300)
+                } else {
+                    300
+                };
 
                 let viol = match viol_str.to_lowercase().as_str() {
                     "protect" | "p" => PortSecurityViolationAction::Protect,
@@ -18551,27 +18779,46 @@ impl NetworkShell {
                     _ => PortSecurityViolationAction::Shutdown,
                 };
 
-                self.evpn_port_sec_engine.configure_port(port, max_mac, viol, aging);
-                println!("  [PORT SECURITY CONFIGURED] Port '{}' -> Max MACs: {}, Violation Action: {:?}, Aging: {}s",
-                    port, max_mac, viol, aging);
+                self.evpn_port_sec_engine
+                    .configure_port(port, max_mac, viol, aging);
+                println!(
+                    "  [PORT SECURITY CONFIGURED] Port '{}' -> Max MACs: {}, Violation Action: {:?}, Aging: {}s",
+                    port, max_mac, viol, aging
+                );
             }
             "test" => {
                 let port = if args.len() >= 2 { args[1] } else { "ge0/1" };
-                let mac_str = if args.len() >= 3 { args[2] } else { "00:11:22:33:44:55" };
-                let now_sec = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(100) } else { 100 };
+                let mac_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "00:11:22:33:44:55"
+                };
+                let now_sec = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(100)
+                } else {
+                    100
+                };
 
                 if let Ok(mac) = MacAddress::from_str(mac_str) {
                     let allowed = self.evpn_port_sec_engine.ingress_frame(port, mac, now_sec);
                     if allowed {
-                        println!("  ✅ [FRAME ACCEPTED] Port '{}' permitted frame from source MAC {}", port, mac);
+                        println!(
+                            "  ✅ [FRAME ACCEPTED] Port '{}' permitted frame from source MAC {}",
+                            port, mac
+                        );
                     } else {
-                        println!("  🛑 [PORT SECURITY VIOLATION] Port '{}' DROPPED frame from source MAC {}", port, mac);
+                        println!(
+                            "  🛑 [PORT SECURITY VIOLATION] Port '{}' DROPPED frame from source MAC {}",
+                            port, mac
+                        );
                     }
                 } else {
                     println!("Invalid MAC address format. Example: 00:11:22:33:44:55");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-port-sec [status | config <port> <max_mac> <protect|restrict|shutdown> [aging_s] | test <port> <mac>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-port-sec [status | config <port> <max_mac> <protect|restrict|shutdown> [aging_s] | test <port> <mac>]"
+            ),
         }
     }
 
@@ -18579,38 +18826,88 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G Multi-Access User-Plane Latency-Aware Active Probing Engine (3GPP TS 24.193 / TS 23.501):");
-                println!("  • Session ID            : {}", self.gtpu_probe_engine.session_id);
-                println!("  • Smoothed RTT (3GPP)   : {:.2} µs", self.gtpu_probe_engine.smoothed_rtt_3gpp_us);
-                println!("  • Smoothed RTT (Non-3G) : {:.2} µs", self.gtpu_probe_engine.smoothed_rtt_non3gpp_us);
-                println!("  • Optimal ATSSS Leg     : {:?}", self.gtpu_probe_engine.get_optimal_leg());
-                println!("  • Total Probes Sent     : {}", self.gtpu_probe_engine.total_probes_sent);
-                println!("  • Total Probes Received : {}", self.gtpu_probe_engine.total_probes_received);
+                println!(
+                    "5G Multi-Access User-Plane Latency-Aware Active Probing Engine (3GPP TS 24.193 / TS 23.501):"
+                );
+                println!(
+                    "  • Session ID            : {}",
+                    self.gtpu_probe_engine.session_id
+                );
+                println!(
+                    "  • Smoothed RTT (3GPP)   : {:.2} µs",
+                    self.gtpu_probe_engine.smoothed_rtt_3gpp_us
+                );
+                println!(
+                    "  • Smoothed RTT (Non-3G) : {:.2} µs",
+                    self.gtpu_probe_engine.smoothed_rtt_non3gpp_us
+                );
+                println!(
+                    "  • Optimal ATSSS Leg     : {:?}",
+                    self.gtpu_probe_engine.get_optimal_leg()
+                );
+                println!(
+                    "  • Total Probes Sent     : {}",
+                    self.gtpu_probe_engine.total_probes_sent
+                );
+                println!(
+                    "  • Total Probes Received : {}",
+                    self.gtpu_probe_engine.total_probes_received
+                );
             }
             "probe" => {
                 let leg_str = if args.len() >= 2 { args[1] } else { "3gpp" };
-                let rtt_us = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(8000) } else { 8000 };
-                let leg = if leg_str.contains("non") || leg_str.contains("wifi") { ProbeAccessLeg::NonThreeGpp } else { ProbeAccessLeg::ThreeGpp };
+                let rtt_us = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(8000)
+                } else {
+                    8000
+                };
+                let leg = if leg_str.contains("non") || leg_str.contains("wifi") {
+                    ProbeAccessLeg::NonThreeGpp
+                } else {
+                    ProbeAccessLeg::ThreeGpp
+                };
 
                 let probe = self.gtpu_probe_engine.create_probe(leg, 100_000);
-                let srtt = self.gtpu_probe_engine.handle_probe_reply(&probe, 100_000 + rtt_us);
+                let srtt = self
+                    .gtpu_probe_engine
+                    .handle_probe_reply(&probe, 100_000 + rtt_us);
 
-                println!("  [RTT PROBE DISPATCHED] Leg: {:?} (Sample RTT: {} µs) -> New Smoothed RTT: {:.2} µs (Optimal Leg: {:?})",
-                    leg, rtt_us, srtt, self.gtpu_probe_engine.get_optimal_leg());
+                println!(
+                    "  [RTT PROBE DISPATCHED] Leg: {:?} (Sample RTT: {} µs) -> New Smoothed RTT: {:.2} µs (Optimal Leg: {:?})",
+                    leg,
+                    rtt_us,
+                    srtt,
+                    self.gtpu_probe_engine.get_optimal_leg()
+                );
             }
             "stream" => {
-                let count = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(5) } else { 5 };
+                let count = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(5)
+                } else {
+                    5
+                };
                 for i in 1..=count {
-                    let p_3g = self.gtpu_probe_engine.create_probe(ProbeAccessLeg::ThreeGpp, 100_000);
-                    self.gtpu_probe_engine.handle_probe_reply(&p_3g, 100_000 + 4000 + (i as u64 * 200));
+                    let p_3g = self
+                        .gtpu_probe_engine
+                        .create_probe(ProbeAccessLeg::ThreeGpp, 100_000);
+                    self.gtpu_probe_engine
+                        .handle_probe_reply(&p_3g, 100_000 + 4000 + (i as u64 * 200));
 
-                    let p_wf = self.gtpu_probe_engine.create_probe(ProbeAccessLeg::NonThreeGpp, 100_000);
-                    self.gtpu_probe_engine.handle_probe_reply(&p_wf, 100_000 + 12000 + (i as u64 * 500));
+                    let p_wf = self
+                        .gtpu_probe_engine
+                        .create_probe(ProbeAccessLeg::NonThreeGpp, 100_000);
+                    self.gtpu_probe_engine
+                        .handle_probe_reply(&p_wf, 100_000 + 12000 + (i as u64 * 500));
                 }
-                println!("  [ACTIVE PROBE STREAM FINISHED] Ingested {} dual-leg probe rounds -> Optimal Leg: {:?}",
-                    count, self.gtpu_probe_engine.get_optimal_leg());
+                println!(
+                    "  [ACTIVE PROBE STREAM FINISHED] Ingested {} dual-leg probe rounds -> Optimal Leg: {:?}",
+                    count,
+                    self.gtpu_probe_engine.get_optimal_leg()
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-probe [status | probe <3gpp|wifi> [rtt_us] | stream <count>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-probe [status | probe <3gpp|wifi> [rtt_us] | stream <count>]"
+            ),
         }
     }
 
@@ -18619,33 +18916,82 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Multi-Hop Phase Offset Alignment Engine:");
-                println!("  • Configured Hops       : {}", self.tsn_cqf_offset_engine.hops.len());
-                println!("  • Frames Forwarded      : {}", self.tsn_cqf_offset_engine.total_frames_forwarded);
-                println!("  • Total Aligned Cycles  : {}", self.tsn_cqf_offset_engine.total_aligned_cycles);
+                println!(
+                    "  • Configured Hops       : {}",
+                    self.tsn_cqf_offset_engine.hops.len()
+                );
+                println!(
+                    "  • Frames Forwarded      : {}",
+                    self.tsn_cqf_offset_engine.total_frames_forwarded
+                );
+                println!(
+                    "  • Total Aligned Cycles  : {}",
+                    self.tsn_cqf_offset_engine.total_aligned_cycles
+                );
                 for hop in &self.tsn_cqf_offset_engine.hops {
-                    println!("    [Hop #{}] Cycle: {} ns | Propagation: {} ns | Processing: {} ns | Phase Offset: {} ns",
-                        hop.hop_id, hop.cycle_time_ns, hop.link_propagation_delay_ns, hop.internal_processing_delay_ns,
-                        hop.calculate_phase_offset_ns());
+                    println!(
+                        "    [Hop #{}] Cycle: {} ns | Propagation: {} ns | Processing: {} ns | Phase Offset: {} ns",
+                        hop.hop_id,
+                        hop.cycle_time_ns,
+                        hop.link_propagation_delay_ns,
+                        hop.internal_processing_delay_ns,
+                        hop.calculate_phase_offset_ns()
+                    );
                 }
             }
             "add-hop" => {
-                let cycle = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(10_000) } else { 10_000 };
-                let prop = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1500) } else { 1500 };
-                let proc_d = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(500) } else { 500 };
+                let cycle = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(10_000)
+                } else {
+                    10_000
+                };
+                let prop = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(1500)
+                } else {
+                    1500
+                };
+                let proc_d = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(500)
+                } else {
+                    500
+                };
 
                 self.tsn_cqf_offset_engine.add_hop(cycle, prop, proc_d);
-                println!("  [CQF HOP ADDED] Hop #{} configured with Cycle: {} ns, Propagation: {} ns, Processing: {} ns",
-                    self.tsn_cqf_offset_engine.hops.len(), cycle, prop, proc_d);
+                println!(
+                    "  [CQF HOP ADDED] Hop #{} configured with Cycle: {} ns, Propagation: {} ns, Processing: {} ns",
+                    self.tsn_cqf_offset_engine.hops.len(),
+                    cycle,
+                    prop,
+                    proc_d
+                );
             }
             "forward" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(101) } else { 101 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(512) } else { 512 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(101)
+                } else {
+                    101
+                };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(512)
+                } else {
+                    512
+                };
 
-                let frame = self.tsn_cqf_offset_engine.forward_frame_multihop(stream_id, bytes);
-                println!("  [CQF MULTI-HOP FORWARDED] Stream #{}: {} Bytes traversed {} hops. Total Accumulated Latency: {} ns ({:.2} µs)",
-                    frame.stream_id, frame.payload_bytes, frame.current_hop, frame.accumulated_latency_ns, (frame.accumulated_latency_ns as f64) / 1000.0);
+                let frame = self
+                    .tsn_cqf_offset_engine
+                    .forward_frame_multihop(stream_id, bytes);
+                println!(
+                    "  [CQF MULTI-HOP FORWARDED] Stream #{}: {} Bytes traversed {} hops. Total Accumulated Latency: {} ns ({:.2} µs)",
+                    frame.stream_id,
+                    frame.payload_bytes,
+                    frame.current_hop,
+                    frame.accumulated_latency_ns,
+                    (frame.accumulated_latency_ns as f64) / 1000.0
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-offset [status | add-hop <cycle_ns> <prop_ns> <proc_ns> | forward <stream> <bytes>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-offset [status | add-hop <cycle_ns> <prop_ns> <proc_ns> | forward <stream> <bytes>]"
+            ),
         }
     }
 
@@ -18653,21 +18999,57 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP Diameter S6a / S6d Insert-Subscriber-Data (IDR / IDA) Engine (App ID: 16777251 / TS 29.272):");
-                println!("  • HSS Realm             : {}", self.s6a_idr_engine.hss_realm);
-                println!("  • Total IDR Sent        : {}", self.s6a_idr_engine.total_idr_sent);
-                println!("  • Total IDA Received    : {}", self.s6a_idr_engine.total_ida_received);
-                println!("  • Managed Profiles      : {}", self.s6a_idr_engine.subscriber_profiles.len());
+                println!(
+                    "3GPP Diameter S6a / S6d Insert-Subscriber-Data (IDR / IDA) Engine (App ID: 16777251 / TS 29.272):"
+                );
+                println!(
+                    "  • HSS Realm             : {}",
+                    self.s6a_idr_engine.hss_realm
+                );
+                println!(
+                    "  • Total IDR Sent        : {}",
+                    self.s6a_idr_engine.total_idr_sent
+                );
+                println!(
+                    "  • Total IDA Received    : {}",
+                    self.s6a_idr_engine.total_ida_received
+                );
+                println!(
+                    "  • Managed Profiles      : {}",
+                    self.s6a_idr_engine.subscriber_profiles.len()
+                );
                 for (imsi, prof) in &self.s6a_idr_engine.subscriber_profiles {
-                    println!("    [IMSI {}] AMBR UL: {} kbps, DL: {} kbps | APN: {} | Roaming: {}",
-                        imsi, prof.max_bandwidth_ul_kbps, prof.max_bandwidth_dl_kbps, prof.default_apn, prof.roaming_allowed);
+                    println!(
+                        "    [IMSI {}] AMBR UL: {} kbps, DL: {} kbps | APN: {} | Roaming: {}",
+                        imsi,
+                        prof.max_bandwidth_ul_kbps,
+                        prof.max_bandwidth_dl_kbps,
+                        prof.default_apn,
+                        prof.roaming_allowed
+                    );
                 }
             }
             "update" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
-                let ul = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(30_000) } else { 30_000 };
-                let dl = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(60_000) } else { 60_000 };
-                let apn = if args.len() >= 5 { args[4] } else { "ims.voip.carrier" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
+                let ul = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(30_000)
+                } else {
+                    30_000
+                };
+                let dl = if args.len() >= 4 {
+                    args[3].parse::<u32>().unwrap_or(60_000)
+                } else {
+                    60_000
+                };
+                let apn = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "ims.voip.carrier"
+                };
 
                 let prof = DynamicSubscriberProfile {
                     imsi: imsi.to_string(),
@@ -18678,14 +19060,21 @@ impl NetworkShell {
                 };
 
                 let idr = self.s6a_idr_engine.update_profile(prof);
-                println!("  [IDR DISPATCHED TO MME] Session: {} -> Updated Profile (UL: {} kbps, DL: {} kbps, APN: {})",
-                    idr.session_id, ul, dl, apn);
+                println!(
+                    "  [IDR DISPATCHED TO MME] Session: {} -> Updated Profile (UL: {} kbps, DL: {} kbps, APN: {})",
+                    idr.session_id, ul, dl, apn
+                );
 
                 let ida = S6aIdrMessage::new_ida(&idr, 2001);
                 let ok = self.s6a_idr_engine.handle_ida(&ida);
-                println!("  [IDA RECEIVED FROM MME] Result: 2001 DIAMETER_SUCCESS (Handled: {})", ok);
+                println!(
+                    "  [IDA RECEIVED FROM MME] Result: 2001 DIAMETER_SUCCESS (Handled: {})",
+                    ok
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-idr [status | update <imsi> <ul_kbps> <dl_kbps> [apn]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-idr [status | update <imsi> <ul_kbps> <dl_kbps> [apn]]"
+            ),
         }
     }
 
@@ -18693,36 +19082,93 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Unknown Unicast (UU) Storm Rate-Limiter Engine (RFC 7432 Section 16):");
-                println!("  • Configured VNIs       : {}", self.evpn_uu_rate_engine.vni_buckets.len());
-                println!("  • Total Evaluated Frames: {}", self.evpn_uu_rate_engine.total_evaluated_frames);
-                println!("  • Total Passed Frames   : {}", self.evpn_uu_rate_engine.total_passed_frames);
-                println!("  • Total Rate-Limit Drops: {}", self.evpn_uu_rate_engine.total_rate_limited_drops);
+                println!(
+                    "EVPN Layer 2 Unknown Unicast (UU) Storm Rate-Limiter Engine (RFC 7432 Section 16):"
+                );
+                println!(
+                    "  • Configured VNIs       : {}",
+                    self.evpn_uu_rate_engine.vni_buckets.len()
+                );
+                println!(
+                    "  • Total Evaluated Frames: {}",
+                    self.evpn_uu_rate_engine.total_evaluated_frames
+                );
+                println!(
+                    "  • Total Passed Frames   : {}",
+                    self.evpn_uu_rate_engine.total_passed_frames
+                );
+                println!(
+                    "  • Total Rate-Limit Drops: {}",
+                    self.evpn_uu_rate_engine.total_rate_limited_drops
+                );
                 for (vni, bucket) in &self.evpn_uu_rate_engine.vni_buckets {
-                    println!("    [VNI {}] Rate: {} B/s | Burst: {} B | Available: {:.1} B",
-                        vni, bucket.rate_bytes_per_sec, bucket.burst_capacity_bytes, bucket.available_tokens);
+                    println!(
+                        "    [VNI {}] Rate: {} B/s | Burst: {} B | Available: {:.1} B",
+                        vni,
+                        bucket.rate_bytes_per_sec,
+                        bucket.burst_capacity_bytes,
+                        bucket.available_tokens
+                    );
                 }
             }
             "limit" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let rate = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(500_000) } else { 500_000 };
-                let burst = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(10_000) } else { 10_000 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let rate = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(500_000)
+                } else {
+                    500_000
+                };
+                let burst = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(10_000)
+                } else {
+                    10_000
+                };
 
-                self.evpn_uu_rate_engine.configure_vni_limit(vni, rate, burst);
-                println!("  [UU RATE LIMIT CONFIGURED] VNI {} -> Rate: {} B/s, Burst: {} Bytes", vni, rate, burst);
+                self.evpn_uu_rate_engine
+                    .configure_vni_limit(vni, rate, burst);
+                println!(
+                    "  [UU RATE LIMIT CONFIGURED] VNI {} -> Rate: {} B/s, Burst: {} Bytes",
+                    vni, rate, burst
+                );
             }
             "police" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(1500) } else { 1500 };
-                let now_us = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(1_000_000) } else { 1_000_000 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(1500)
+                } else {
+                    1500
+                };
+                let now_us = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(1_000_000)
+                } else {
+                    1_000_000
+                };
 
-                let verdict = self.evpn_uu_rate_engine.police_unknown_unicast(vni, bytes, now_us);
+                let verdict = self
+                    .evpn_uu_rate_engine
+                    .police_unknown_unicast(vni, bytes, now_us);
                 match verdict {
-                    UuRateLimitVerdict::Pass => println!("  🟢 [UU FRAME ADMITTED] VNI {}: {} Bytes permitted for BUM flooding.", vni, bytes),
-                    UuRateLimitVerdict::DropExceeded => println!("  🔴 [UU STORM DROPPED] VNI {}: {} Bytes DROPPED due to rate limit violation!", vni, bytes),
+                    UuRateLimitVerdict::Pass => println!(
+                        "  🟢 [UU FRAME ADMITTED] VNI {}: {} Bytes permitted for BUM flooding.",
+                        vni, bytes
+                    ),
+                    UuRateLimitVerdict::DropExceeded => println!(
+                        "  🔴 [UU STORM DROPPED] VNI {}: {} Bytes DROPPED due to rate limit violation!",
+                        vni, bytes
+                    ),
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-uu-rate [status | limit <vni> <rate_bps> <burst_bytes> | police <vni> <bytes>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-uu-rate [status | limit <vni> <rate_bps> <burst_bytes> | police <vni> <bytes>]"
+            ),
         }
     }
 
@@ -18730,35 +19176,75 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U Adaptive Heartbeat & Loss-Triggered Fast Probing Engine (3GPP TS 29.281):");
-                println!("  • Path Health State     : {:?}", self.gtpu_dynamic_echo_engine.state);
-                println!("  • Active Interval       : {} ms", self.gtpu_dynamic_echo_engine.current_interval_ms());
-                println!("  • Normal / Fast Interval: {} ms / {} ms", self.gtpu_dynamic_echo_engine.normal_interval_ms, self.gtpu_dynamic_echo_engine.fast_interval_ms);
-                println!("  • Consecutive Losses    : {}", self.gtpu_dynamic_echo_engine.consecutive_losses);
-                println!("  • Consecutive Successes : {}", self.gtpu_dynamic_echo_engine.consecutive_successes);
-                println!("  • Total Echoes Sent     : {}", self.gtpu_dynamic_echo_engine.total_echo_requests_sent);
+                println!(
+                    "5G GTP-U Adaptive Heartbeat & Loss-Triggered Fast Probing Engine (3GPP TS 29.281):"
+                );
+                println!(
+                    "  • Path Health State     : {:?}",
+                    self.gtpu_dynamic_echo_engine.state
+                );
+                println!(
+                    "  • Active Interval       : {} ms",
+                    self.gtpu_dynamic_echo_engine.current_interval_ms()
+                );
+                println!(
+                    "  • Normal / Fast Interval: {} ms / {} ms",
+                    self.gtpu_dynamic_echo_engine.normal_interval_ms,
+                    self.gtpu_dynamic_echo_engine.fast_interval_ms
+                );
+                println!(
+                    "  • Consecutive Losses    : {}",
+                    self.gtpu_dynamic_echo_engine.consecutive_losses
+                );
+                println!(
+                    "  • Consecutive Successes : {}",
+                    self.gtpu_dynamic_echo_engine.consecutive_successes
+                );
+                println!(
+                    "  • Total Echoes Sent     : {}",
+                    self.gtpu_dynamic_echo_engine.total_echo_requests_sent
+                );
             }
             "loss" => {
                 self.gtpu_dynamic_echo_engine.record_probe_result(false);
-                println!("  🛑 [ECHO TIMEOUT RECORDED] New Path State: {:?} (Active Interval: {} ms)",
-                    self.gtpu_dynamic_echo_engine.state, self.gtpu_dynamic_echo_engine.current_interval_ms());
+                println!(
+                    "  🛑 [ECHO TIMEOUT RECORDED] New Path State: {:?} (Active Interval: {} ms)",
+                    self.gtpu_dynamic_echo_engine.state,
+                    self.gtpu_dynamic_echo_engine.current_interval_ms()
+                );
             }
             "success" => {
                 self.gtpu_dynamic_echo_engine.record_probe_result(true);
-                println!("  ✅ [ECHO RESPONSE RECORDED] New Path State: {:?} (Active Interval: {} ms)",
-                    self.gtpu_dynamic_echo_engine.state, self.gtpu_dynamic_echo_engine.current_interval_ms());
+                println!(
+                    "  ✅ [ECHO RESPONSE RECORDED] New Path State: {:?} (Active Interval: {} ms)",
+                    self.gtpu_dynamic_echo_engine.state,
+                    self.gtpu_dynamic_echo_engine.current_interval_ms()
+                );
             }
             "tick" => {
-                let now_ms = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(6000) } else { 6000 };
+                let now_ms = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(6000)
+                } else {
+                    6000
+                };
                 let send = self.gtpu_dynamic_echo_engine.should_send_echo(now_ms);
                 if send {
                     self.gtpu_dynamic_echo_engine.notify_echo_sent(now_ms);
-                    println!("  [ECHO DISPATCHED] Timestamp: {} ms (Interval: {} ms)", now_ms, self.gtpu_dynamic_echo_engine.current_interval_ms());
+                    println!(
+                        "  [ECHO DISPATCHED] Timestamp: {} ms (Interval: {} ms)",
+                        now_ms,
+                        self.gtpu_dynamic_echo_engine.current_interval_ms()
+                    );
                 } else {
-                    println!("  [ECHO SUPPRESSED] Timestamp: {} ms (Awaiting next interval)", now_ms);
+                    println!(
+                        "  [ECHO SUPPRESSED] Timestamp: {} ms (Awaiting next interval)",
+                        now_ms
+                    );
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-dynamic-echo [status | loss | success | tick <ms>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-dynamic-echo [status | loss | success | tick <ms>]"
+            ),
         }
     }
 
@@ -18767,20 +19253,64 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Deadline & Buffer Overrun Protection Engine:");
-                println!("  • Cycle Time / Safe Window: {} ns / {} ns", self.tsn_cqf_deadline_engine.cycle_time_ns, self.tsn_cqf_deadline_engine.ingress_deadline_offset_ns);
-                println!("  • Max Bytes / Frames/Cycle : {} B / {}", self.tsn_cqf_deadline_engine.max_bytes_per_cycle, self.tsn_cqf_deadline_engine.max_frames_per_cycle);
-                println!("  • Current Cycle Load       : {} B ({} frames)", self.tsn_cqf_deadline_engine.current_cycle_bytes, self.tsn_cqf_deadline_engine.current_cycle_frames);
-                println!("  • Next Cycle (Deferred)    : {} B ({} frames)", self.tsn_cqf_deadline_engine.next_cycle_bytes, self.tsn_cqf_deadline_engine.next_cycle_frames);
-                println!("  • Total Admitted           : {}", self.tsn_cqf_deadline_engine.total_admitted);
-                println!("  • Total Deferred           : {}", self.tsn_cqf_deadline_engine.total_deferred);
-                println!("  • Total Overrun Drops      : {}", self.tsn_cqf_deadline_engine.total_overrun_drops);
-                println!("  • Total Deadline Drops     : {}", self.tsn_cqf_deadline_engine.total_deadline_drops);
+                println!(
+                    "  • Cycle Time / Safe Window: {} ns / {} ns",
+                    self.tsn_cqf_deadline_engine.cycle_time_ns,
+                    self.tsn_cqf_deadline_engine.ingress_deadline_offset_ns
+                );
+                println!(
+                    "  • Max Bytes / Frames/Cycle : {} B / {}",
+                    self.tsn_cqf_deadline_engine.max_bytes_per_cycle,
+                    self.tsn_cqf_deadline_engine.max_frames_per_cycle
+                );
+                println!(
+                    "  • Current Cycle Load       : {} B ({} frames)",
+                    self.tsn_cqf_deadline_engine.current_cycle_bytes,
+                    self.tsn_cqf_deadline_engine.current_cycle_frames
+                );
+                println!(
+                    "  • Next Cycle (Deferred)    : {} B ({} frames)",
+                    self.tsn_cqf_deadline_engine.next_cycle_bytes,
+                    self.tsn_cqf_deadline_engine.next_cycle_frames
+                );
+                println!(
+                    "  • Total Admitted           : {}",
+                    self.tsn_cqf_deadline_engine.total_admitted
+                );
+                println!(
+                    "  • Total Deferred           : {}",
+                    self.tsn_cqf_deadline_engine.total_deferred
+                );
+                println!(
+                    "  • Total Overrun Drops      : {}",
+                    self.tsn_cqf_deadline_engine.total_overrun_drops
+                );
+                println!(
+                    "  • Total Deadline Drops     : {}",
+                    self.tsn_cqf_deadline_engine.total_deadline_drops
+                );
             }
             "ingest" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(500) } else { 500 };
-                let arr_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(4000) } else { 4000 };
-                let max_delay = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(30_000) } else { 30_000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(500)
+                } else {
+                    500
+                };
+                let arr_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(4000)
+                } else {
+                    4000
+                };
+                let max_delay = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(30_000)
+                } else {
+                    30_000
+                };
 
                 let frame = CqfScheduledFrame {
                     stream_id,
@@ -18791,17 +19321,33 @@ impl NetworkShell {
 
                 let res = self.tsn_cqf_deadline_engine.ingest_frame(&frame);
                 match res {
-                    CqfAdmissionResult::AdmittedCurrentCycle { cycle_id } => println!("  🟢 [ADMITTED CURRENT CYCLE] Stream #{}: {} Bytes admitted into Cycle #{}", stream_id, bytes, cycle_id),
-                    CqfAdmissionResult::DeferredToNextCycle { cycle_id } => println!("  🟡 [DEFERRED NEXT CYCLE] Stream #{}: Arrival at {} ns past deadline -> Deferred to Cycle #{}", stream_id, arr_ns, cycle_id),
-                    CqfAdmissionResult::DroppedBufferOverrun => println!("  🔴 [BUFFER OVERRUN DROP] Stream #{}: Cycle capacity exceeded!", stream_id),
-                    CqfAdmissionResult::DroppedDeadlineMiss => println!("  🛑 [DEADLINE EXPIRED DROP] Stream #{}: Deferral would violate max latency constraint ({} ns)!", stream_id, max_delay),
+                    CqfAdmissionResult::AdmittedCurrentCycle { cycle_id } => println!(
+                        "  🟢 [ADMITTED CURRENT CYCLE] Stream #{}: {} Bytes admitted into Cycle #{}",
+                        stream_id, bytes, cycle_id
+                    ),
+                    CqfAdmissionResult::DeferredToNextCycle { cycle_id } => println!(
+                        "  🟡 [DEFERRED NEXT CYCLE] Stream #{}: Arrival at {} ns past deadline -> Deferred to Cycle #{}",
+                        stream_id, arr_ns, cycle_id
+                    ),
+                    CqfAdmissionResult::DroppedBufferOverrun => println!(
+                        "  🔴 [BUFFER OVERRUN DROP] Stream #{}: Cycle capacity exceeded!",
+                        stream_id
+                    ),
+                    CqfAdmissionResult::DroppedDeadlineMiss => println!(
+                        "  🛑 [DEADLINE EXPIRED DROP] Stream #{}: Deferral would violate max latency constraint ({} ns)!",
+                        stream_id, max_delay
+                    ),
                 }
             }
             "advance" => {
                 self.tsn_cqf_deadline_engine.advance_cycle();
-                println!("  [CQF CYCLE CLOCK ADVANCED] Swapped deferred frames into active transmission cycle.");
+                println!(
+                    "  [CQF CYCLE CLOCK ADVANCED] Swapped deferred frames into active transmission cycle."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-deadline [status | ingest <stream> <bytes> <arrival_ns> [max_delay_ns] | advance]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-deadline [status | ingest <stream> <bytes> <arrival_ns> [max_delay_ns] | advance]"
+            ),
         }
     }
 
@@ -18810,35 +19356,63 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("3GPP Diameter S6a / S6d Purge-UE (PUR / PUA Command 321) Engine:");
-                println!("  • Purge Log Entries     : {}", self.s6a_pur_engine.purge_log().len());
+                println!(
+                    "  • Purge Log Entries     : {}",
+                    self.s6a_pur_engine.purge_log().len()
+                );
                 for r in self.s6a_pur_engine.purge_log() {
-                    println!("    [Purged IMSI {}] Timestamp: {} ns | Flags: 0x{:08X} | Released: {}",
-                        r.imsi, r.purged_at_ns, r.flags, r.context_released);
+                    println!(
+                        "    [Purged IMSI {}] Timestamp: {} ns | Flags: 0x{:08X} | Released: {}",
+                        r.imsi, r.purged_at_ns, r.flags, r.context_released
+                    );
                 }
             }
             "add" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 self.s6a_pur_engine.add_subscriber(imsi);
-                println!("  [SUBSCRIBER PROVISIONED] IMSI {} marked active/attached in HSS database.", imsi);
+                println!(
+                    "  [SUBSCRIBER PROVISIONED] IMSI {} marked active/attached in HSS database.",
+                    imsi
+                );
             }
             "purge" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 let flags = if args.len() >= 3 {
-                    args[2].parse::<u32>().unwrap_or(PUA_FLAG_FREEZE_M_TMSI | PUA_FLAG_FREEZE_P_TMSI)
+                    args[2]
+                        .parse::<u32>()
+                        .unwrap_or(PUA_FLAG_FREEZE_M_TMSI | PUA_FLAG_FREEZE_P_TMSI)
                 } else {
                     PUA_FLAG_FREEZE_M_TMSI | PUA_FLAG_FREEZE_P_TMSI
                 };
 
                 let pur = S6aPurMessage::new_pur("sess-pur-shell-001", imsi, flags);
                 let pua = self.s6a_pur_engine.process_pur(&pur);
-                println!("  [PUR DISPATCHED] Purge-UE-Request for IMSI: {} (Flags: 0x{:08X})", imsi, flags);
+                println!(
+                    "  [PUR DISPATCHED] Purge-UE-Request for IMSI: {} (Flags: 0x{:08X})",
+                    imsi, flags
+                );
                 match pua.result_code() {
-                    Some(2001) => println!("  🟢 [PUA SUCCESS] Result-Code 2001 (DIAMETER_SUCCESS). Context reclaimed at HSS."),
-                    Some(rc) => println!("  🔴 [PUA FAILED] Result-Code {} (User Unknown / Error).", rc),
+                    Some(2001) => println!(
+                        "  🟢 [PUA SUCCESS] Result-Code 2001 (DIAMETER_SUCCESS). Context reclaimed at HSS."
+                    ),
+                    Some(rc) => println!(
+                        "  🔴 [PUA FAILED] Result-Code {} (User Unknown / Error).",
+                        rc
+                    ),
                     None => println!("  ⚠️ [PUA ANOMALY] Missing Result-Code AVP."),
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-pur [status | purge <imsi> [flags] | add <imsi>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-pur [status | purge <imsi> [flags] | add <imsi>]"
+            ),
         }
     }
 
@@ -18846,8 +19420,13 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Unknown Unicast Egress Horizon & ESI Pruning Engine (RFC 7432):");
-                println!("  • Configured Ports      : {}", self.evpn_uu_filter_engine.port_count());
+                println!(
+                    "EVPN Layer 2 Unknown Unicast Egress Horizon & ESI Pruning Engine (RFC 7432):"
+                );
+                println!(
+                    "  • Configured Ports      : {}",
+                    self.evpn_uu_filter_engine.port_count()
+                );
                 let s = self.evpn_uu_filter_engine.stats();
                 println!("  • Frames Evaluated      : {}", s.total_frames_evaluated);
                 println!("  • Port Decisions        : {}", s.total_port_decisions);
@@ -18857,25 +19436,48 @@ impl NetworkShell {
                 println!("  • Pruned (VNI Mismatch) : {}", s.pruned_vni);
             }
             "eval" => {
-                let horizon = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(10) } else { 10 };
-                let esi_last_byte = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(1) } else { 1 };
-                let vni = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(100) } else { 100 };
+                let horizon = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(10)
+                } else {
+                    10
+                };
+                let esi_last_byte = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let vni = if args.len() >= 4 {
+                    args[3].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
 
                 let mut src_esi: Esi = [0u8; 10];
                 src_esi[9] = esi_last_byte;
 
                 let verdicts = self.evpn_uu_filter_engine.evaluate(horizon, &src_esi, vni);
-                println!("  [UU EGRESS FILTER EVALUATION] Ingress Horizon: {}, Source ESI: [..{:02X}], VNI: {}", horizon, esi_last_byte, vni);
+                println!(
+                    "  [UU EGRESS FILTER EVALUATION] Ingress Horizon: {}, Source ESI: [..{:02X}], VNI: {}",
+                    horizon, esi_last_byte, vni
+                );
                 for res in verdicts {
                     match res.verdict {
                         EgressVerdict::Forward => println!("    Port {}: 🟢 FORWARD", res.port_id),
-                        EgressVerdict::PrunedHorizon => println!("    Port {}: 🚫 PRUNED (Split-Horizon Group)", res.port_id),
-                        EgressVerdict::PrunedEsi => println!("    Port {}: 🚫 PRUNED (Source ESI Match)", res.port_id),
-                        EgressVerdict::PrunedVni => println!("    Port {}: 🚫 PRUNED (VNI Mismatch)", res.port_id),
+                        EgressVerdict::PrunedHorizon => {
+                            println!("    Port {}: 🚫 PRUNED (Split-Horizon Group)", res.port_id)
+                        }
+                        EgressVerdict::PrunedEsi => {
+                            println!("    Port {}: 🚫 PRUNED (Source ESI Match)", res.port_id)
+                        }
+                        EgressVerdict::PrunedVni => {
+                            println!("    Port {}: 🚫 PRUNED (VNI Mismatch)", res.port_id)
+                        }
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-uu-filter [status | eval <horizon> <esi_id> <vni>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-uu-filter [status | eval <horizon> <esi_id> <vni>]"
+            ),
         }
     }
 
@@ -18886,41 +19488,91 @@ impl NetworkShell {
                 println!("5G GTP-U Path RTT Variance & Adaptive RTO Predictor (RFC 6298):");
                 for teid in self.gtpu_rtt_var_engine.tracked_teids() {
                     if let Some(s) = self.gtpu_rtt_var_engine.path_state(teid) {
-                        println!("  [TEID 0x{:08X}] SRTT: {} µs | RTTVAR: {} µs | RTO: {} µs | Samples: {} | Min/Max: {}/{} µs | Timeouts: {}",
-                            teid, s.srtt_us(), s.rttvar_us(), s.rto_us(), s.sample_count(), s.min_rtt_us(), s.max_rtt_us(), s.consecutive_timeouts());
+                        println!(
+                            "  [TEID 0x{:08X}] SRTT: {} µs | RTTVAR: {} µs | RTO: {} µs | Samples: {} | Min/Max: {}/{} µs | Timeouts: {}",
+                            teid,
+                            s.srtt_us(),
+                            s.rttvar_us(),
+                            s.rto_us(),
+                            s.sample_count(),
+                            s.min_rtt_us(),
+                            s.max_rtt_us(),
+                            s.consecutive_timeouts()
+                        );
                     }
                 }
             }
             "update" => {
-                let teid = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1001) } else { 1001 };
-                let rtt_us = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(15_000) } else { 15_000 };
+                let teid = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1001)
+                } else {
+                    1001
+                };
+                let rtt_us = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(15_000)
+                } else {
+                    15_000
+                };
 
                 self.gtpu_rtt_var_engine.register_path(teid);
                 self.gtpu_rtt_var_engine.update_rtt(teid, rtt_us);
                 let s = self.gtpu_rtt_var_engine.path_state(teid).unwrap();
-                println!("  [RTT SAMPLE INGESTED] TEID 0x{:08X}: Sample {} µs -> SRTT: {} µs, RTTVAR: {} µs, RTO: {} µs",
-                    teid, rtt_us, s.srtt_us(), s.rttvar_us(), s.rto_us());
+                println!(
+                    "  [RTT SAMPLE INGESTED] TEID 0x{:08X}: Sample {} µs -> SRTT: {} µs, RTTVAR: {} µs, RTO: {} µs",
+                    teid,
+                    rtt_us,
+                    s.srtt_us(),
+                    s.rttvar_us(),
+                    s.rto_us()
+                );
             }
             "timeout" => {
-                let teid = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1001) } else { 1001 };
+                let teid = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1001)
+                } else {
+                    1001
+                };
                 self.gtpu_rtt_var_engine.notify_timeout(teid);
                 if let Some(s) = self.gtpu_rtt_var_engine.path_state(teid) {
-                    println!("  🛑 [PROBE TIMEOUT] TEID 0x{:08X}: Exponential back-off applied -> New RTO: {} µs (Timeouts: {})",
-                        teid, s.rto_us(), s.consecutive_timeouts());
+                    println!(
+                        "  🛑 [PROBE TIMEOUT] TEID 0x{:08X}: Exponential back-off applied -> New RTO: {} µs (Timeouts: {})",
+                        teid,
+                        s.rto_us(),
+                        s.consecutive_timeouts()
+                    );
                 }
             }
             "asym" => {
-                let fwd = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(4000) } else { 4000 };
-                let rev = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(12000) } else { 12000 };
+                let fwd = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(4000)
+                } else {
+                    4000
+                };
+                let rev = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(12000)
+                } else {
+                    12000
+                };
                 let res = self.gtpu_rtt_var_engine.check_asymmetry(fwd, rev);
                 match res {
-                    AsymmetryVerdict::Symmetric => println!("  🟢 [SYMMETRIC DELAY] Forward: {} µs, Reverse: {} µs -> Within threshold.", fwd, rev),
-                    AsymmetryVerdict::Asymmetric { forward_us, reverse_us } => {
-                        println!("  ⚠️ [ASYMMETRIC PATH DETECTED] Forward: {} µs vs Reverse: {} µs -> Delay skew exceeds threshold!", forward_us, reverse_us);
+                    AsymmetryVerdict::Symmetric => println!(
+                        "  🟢 [SYMMETRIC DELAY] Forward: {} µs, Reverse: {} µs -> Within threshold.",
+                        fwd, rev
+                    ),
+                    AsymmetryVerdict::Asymmetric {
+                        forward_us,
+                        reverse_us,
+                    } => {
+                        println!(
+                            "  ⚠️ [ASYMMETRIC PATH DETECTED] Forward: {} µs vs Reverse: {} µs -> Delay skew exceeds threshold!",
+                            forward_us, reverse_us
+                        );
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-rtt-var [status | update <teid> <rtt_us> | timeout <teid> | asym <fwd_us> <rev_us>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-rtt-var [status | update <teid> <rtt_us> | timeout <teid> | asym <fwd_us> <rev_us>]"
+            ),
         }
     }
 
@@ -18929,41 +19581,98 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Dynamic Cycle Duration Scaling Engine:");
-                println!("  • Operational Period    : {} ns ({:.2} µs)", self.tsn_cqf_scale_engine.oper_period_ns(), (self.tsn_cqf_scale_engine.oper_period_ns() as f64) / 1000.0);
-                println!("  • Admin (Pending) Period: {:?}", self.tsn_cqf_scale_engine.admin_period_ns());
-                println!("  • Base Granularity      : {} ns", self.tsn_cqf_scale_engine.base_granularity_ns());
-                println!("  • Cycle Counter         : {}", self.tsn_cqf_scale_engine.cycle_index());
-                println!("  • Drain Pending Frames  : {}", self.tsn_cqf_scale_engine.drain_pending());
-                println!("  • Transition Log        : {} events", self.tsn_cqf_scale_engine.transition_log().len());
+                println!(
+                    "  • Operational Period    : {} ns ({:.2} µs)",
+                    self.tsn_cqf_scale_engine.oper_period_ns(),
+                    (self.tsn_cqf_scale_engine.oper_period_ns() as f64) / 1000.0
+                );
+                println!(
+                    "  • Admin (Pending) Period: {:?}",
+                    self.tsn_cqf_scale_engine.admin_period_ns()
+                );
+                println!(
+                    "  • Base Granularity      : {} ns",
+                    self.tsn_cqf_scale_engine.base_granularity_ns()
+                );
+                println!(
+                    "  • Cycle Counter         : {}",
+                    self.tsn_cqf_scale_engine.cycle_index()
+                );
+                println!(
+                    "  • Drain Pending Frames  : {}",
+                    self.tsn_cqf_scale_engine.drain_pending()
+                );
+                println!(
+                    "  • Transition Log        : {} events",
+                    self.tsn_cqf_scale_engine.transition_log().len()
+                );
                 for evt in self.tsn_cqf_scale_engine.transition_log() {
-                    println!("    [Transition at {} ns] Cycle #{}: {} ns -> {} ns",
-                        evt.effective_at_ns, evt.swap_cycle_index, evt.old_period_ns, evt.new_period_ns);
+                    println!(
+                        "    [Transition at {} ns] Cycle #{}: {} ns -> {} ns",
+                        evt.effective_at_ns,
+                        evt.swap_cycle_index,
+                        evt.old_period_ns,
+                        evt.new_period_ns
+                    );
                 }
             }
             "scale" => {
-                let period_ns = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(250_000) } else { 250_000 };
+                let period_ns = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(250_000)
+                } else {
+                    250_000
+                };
                 let res = self.tsn_cqf_scale_engine.request_scale(period_ns);
                 match res {
-                    CycleScaleResult::Accepted => println!("  🟢 [SCALE REQUEST STAGED] Admin period set to {} ns. Will swap at next cycle boundary after drain.", period_ns),
-                    CycleScaleResult::InvalidAlignment => println!("  🔴 [INVALID ALIGNMENT] {} ns is not an integer multiple of base granularity ({} ns)!", period_ns, self.tsn_cqf_scale_engine.base_granularity_ns()),
-                    CycleScaleResult::OutOfRange => println!("  🔴 [OUT OF RANGE] Cycle period must be within [125 µs, 10 ms]."),
-                    CycleScaleResult::TransitionPending => println!("  ⚠️ [TRANSITION PENDING] Another scale transition is already staged!"),
+                    CycleScaleResult::Accepted => println!(
+                        "  🟢 [SCALE REQUEST STAGED] Admin period set to {} ns. Will swap at next cycle boundary after drain.",
+                        period_ns
+                    ),
+                    CycleScaleResult::InvalidAlignment => println!(
+                        "  🔴 [INVALID ALIGNMENT] {} ns is not an integer multiple of base granularity ({} ns)!",
+                        period_ns,
+                        self.tsn_cqf_scale_engine.base_granularity_ns()
+                    ),
+                    CycleScaleResult::OutOfRange => {
+                        println!("  🔴 [OUT OF RANGE] Cycle period must be within [125 µs, 10 ms].")
+                    }
+                    CycleScaleResult::TransitionPending => println!(
+                        "  ⚠️ [TRANSITION PENDING] Another scale transition is already staged!"
+                    ),
                 }
             }
             "advance" => {
-                let count = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let count = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 for _ in 0..count {
                     self.tsn_cqf_scale_engine.advance_cycle();
                 }
-                println!("  [CYCLE ADVANCED] Advanced {} cycle(s) -> Current Oper Period: {} ns (Cycle #{})",
-                    count, self.tsn_cqf_scale_engine.oper_period_ns(), self.tsn_cqf_scale_engine.cycle_index());
+                println!(
+                    "  [CYCLE ADVANCED] Advanced {} cycle(s) -> Current Oper Period: {} ns (Cycle #{})",
+                    count,
+                    self.tsn_cqf_scale_engine.oper_period_ns(),
+                    self.tsn_cqf_scale_engine.cycle_index()
+                );
             }
             "drain" => {
-                let count = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(5) } else { 5 };
+                let count = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(5)
+                } else {
+                    5
+                };
                 self.tsn_cqf_scale_engine.drain_frames(count);
-                println!("  [DRAIN NOTIFIED] Drained {} frames -> Remaining pending: {}", count, self.tsn_cqf_scale_engine.drain_pending());
+                println!(
+                    "  [DRAIN NOTIFIED] Drained {} frames -> Remaining pending: {}",
+                    count,
+                    self.tsn_cqf_scale_engine.drain_pending()
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-scale [status | scale <period_ns> | advance [count] | drain <count>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-scale [status | scale <period_ns> | advance [count] | drain <count>]"
+            ),
         }
     }
 
@@ -18972,20 +19681,41 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("3GPP Diameter S6a / S6d Reset (RSR / RSA Command 322) Engine:");
-                println!("  • Node ID               : {}", self.s6a_rsr_engine.node_id);
+                println!(
+                    "  • Node ID               : {}",
+                    self.s6a_rsr_engine.node_id
+                );
                 println!("  • Realm                 : {}", self.s6a_rsr_engine.realm);
-                println!("  • Total RSR Received    : {}", self.s6a_rsr_engine.total_rsr_received);
-                println!("  • Total Subs Reset      : {}", self.s6a_rsr_engine.total_subscribers_reset);
-                println!("  • Provisioned Subs      : {}", self.s6a_rsr_engine.subscribers.len());
+                println!(
+                    "  • Total RSR Received    : {}",
+                    self.s6a_rsr_engine.total_rsr_received
+                );
+                println!(
+                    "  • Total Subs Reset      : {}",
+                    self.s6a_rsr_engine.total_subscribers_reset
+                );
+                println!(
+                    "  • Provisioned Subs      : {}",
+                    self.s6a_rsr_engine.subscribers.len()
+                );
                 for sub in &self.s6a_rsr_engine.subscribers {
-                    println!("    [IMSI {}] Needs Resync: {} | Marked at: {} ns",
-                        sub.imsi, sub.needs_resync, sub.marked_at_ns);
+                    println!(
+                        "    [IMSI {}] Needs Resync: {} | Marked at: {} ns",
+                        sub.imsi, sub.needs_resync, sub.marked_at_ns
+                    );
                 }
             }
             "add" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 self.s6a_rsr_engine.provision_subscriber(imsi);
-                println!("  [SUBSCRIBER PROVISIONED] IMSI {} stored in MME cache.", imsi);
+                println!(
+                    "  [SUBSCRIBER PROVISIONED] IMSI {} stored in MME cache.",
+                    imsi
+                );
             }
             "reset" => {
                 let mut affected_imsis = Vec::new();
@@ -19001,19 +19731,34 @@ impl NetworkShell {
                     &affected_imsis,
                 );
                 let rsa = self.s6a_rsr_engine.process_rsr(&rsr);
-                println!("  [RSR PROCESSED] Reset-Request handled. Scope: {:?} -> Result-Code: {:?}",
-                    if affected_imsis.is_empty() { "GLOBAL ALL SUBSCRIBERS" } else { affected_imsis[0] },
-                    rsa.result_code());
+                println!(
+                    "  [RSR PROCESSED] Reset-Request handled. Scope: {:?} -> Result-Code: {:?}",
+                    if affected_imsis.is_empty() {
+                        "GLOBAL ALL SUBSCRIBERS"
+                    } else {
+                        affected_imsis[0]
+                    },
+                    rsa.result_code()
+                );
             }
             "clear" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 if self.s6a_rsr_engine.clear_resync(imsi) {
-                    println!("  🟢 [RESYNC CLEARED] IMSI {} completed location update with HSS.", imsi);
+                    println!(
+                        "  🟢 [RESYNC CLEARED] IMSI {} completed location update with HSS.",
+                        imsi
+                    );
                 } else {
                     println!("  🔴 [NOT FOUND] IMSI {} not found in MME cache.", imsi);
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-rsr [status | reset [imsi] | add <imsi> | clear <imsi>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-rsr [status | reset [imsi] | add <imsi> | clear <imsi>]"
+            ),
         }
     }
 
@@ -19022,45 +19767,106 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("EVPN MAC Address Mobility Freeze & Move Flap Damping Engine (RFC 7432):");
-                println!("  • Move Limit Threshold : {} moves in {}s", self.evpn_mac_freeze_engine.max_moves, self.evpn_mac_freeze_engine.window_secs);
-                println!("  • Freeze Duration       : {}s", self.evpn_mac_freeze_engine.freeze_duration_secs);
-                println!("  • Freezes Triggered     : {}", self.evpn_mac_freeze_engine.total_freezes_triggered);
-                println!("  • Total Unfreezes       : {}", self.evpn_mac_freeze_engine.total_unfreezes);
-                println!("  • Tracked MACs          : {}", self.evpn_mac_freeze_engine.tracked_macs.len());
+                println!(
+                    "  • Move Limit Threshold : {} moves in {}s",
+                    self.evpn_mac_freeze_engine.max_moves, self.evpn_mac_freeze_engine.window_secs
+                );
+                println!(
+                    "  • Freeze Duration       : {}s",
+                    self.evpn_mac_freeze_engine.freeze_duration_secs
+                );
+                println!(
+                    "  • Freezes Triggered     : {}",
+                    self.evpn_mac_freeze_engine.total_freezes_triggered
+                );
+                println!(
+                    "  • Total Unfreezes       : {}",
+                    self.evpn_mac_freeze_engine.total_unfreezes
+                );
+                println!(
+                    "  • Tracked MACs          : {}",
+                    self.evpn_mac_freeze_engine.tracked_macs.len()
+                );
                 for e in &self.evpn_mac_freeze_engine.tracked_macs {
-                    println!("    [VNI {} MAC {}] VTEP: {} | Seq: {} | Total Moves: {} | State: {:?}",
-                        e.vni, e.mac, e.current_vtep, e.seq_number, e.total_moves, e.state);
+                    println!(
+                        "    [VNI {} MAC {}] VTEP: {} | Seq: {} | Total Moves: {} | State: {:?}",
+                        e.vni, e.mac, e.current_vtep, e.seq_number, e.total_moves, e.state
+                    );
                 }
             }
             "move" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let mac_str = if args.len() >= 3 { args[2] } else { "52:54:00:11:22:33" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let mac_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "52:54:00:11:22:33"
+                };
                 let vtep_str = if args.len() >= 4 { args[3] } else { "10.0.0.2" };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
-                let vtep = vtep_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 2));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
+                let vtep = vtep_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 2));
 
                 let now_secs = 200; // Simulated timestamp
-                let res = self.evpn_mac_freeze_engine.record_move(vni, mac, vtep, now_secs);
+                let res = self
+                    .evpn_mac_freeze_engine
+                    .record_move(vni, mac, vtep, now_secs);
                 match res {
-                    MacMoveVerdict::Accepted { new_seq } => println!("  🟢 [MOVE ACCEPTED] MAC {} -> VTEP {} (Seq #{})", mac, vtep, new_seq),
-                    MacMoveVerdict::FreezeTriggered { moves_in_window } => println!("  🛑 [FREEZE TRIGGERED] MAC {} exceeded flap threshold ({} moves in window) -> Quarantined!", mac, moves_in_window),
-                    MacMoveVerdict::SuppressedFrozen => println!("  ⛔ [SUPPRESSED FROZEN] MAC {} is currently in frozen state. Update blocked.", mac),
-                    MacMoveVerdict::NoChange => println!("  ℹ️ [NO CHANGE] MAC {} already located at VTEP {}", mac, vtep),
+                    MacMoveVerdict::Accepted { new_seq } => println!(
+                        "  🟢 [MOVE ACCEPTED] MAC {} -> VTEP {} (Seq #{})",
+                        mac, vtep, new_seq
+                    ),
+                    MacMoveVerdict::FreezeTriggered { moves_in_window } => println!(
+                        "  🛑 [FREEZE TRIGGERED] MAC {} exceeded flap threshold ({} moves in window) -> Quarantined!",
+                        mac, moves_in_window
+                    ),
+                    MacMoveVerdict::SuppressedFrozen => println!(
+                        "  ⛔ [SUPPRESSED FROZEN] MAC {} is currently in frozen state. Update blocked.",
+                        mac
+                    ),
+                    MacMoveVerdict::NoChange => println!(
+                        "  ℹ️ [NO CHANGE] MAC {} already located at VTEP {}",
+                        mac, vtep
+                    ),
                 }
             }
             "unfreeze" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let mac_str = if args.len() >= 3 { args[2] } else { "52:54:00:11:22:33" };
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let mac_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "52:54:00:11:22:33"
+                };
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
 
                 if self.evpn_mac_freeze_engine.unfreeze_mac(vni, mac) {
-                    println!("  🟢 [ADMIN UNFREEZE] MAC {} in VNI {} restored to normal mobility tracking.", mac, vni);
+                    println!(
+                        "  🟢 [ADMIN UNFREEZE] MAC {} in VNI {} restored to normal mobility tracking.",
+                        mac, vni
+                    );
                 } else {
-                    println!("  🔴 [NOT FROZEN / NOT FOUND] MAC {} in VNI {} is not frozen.", mac, vni);
+                    println!(
+                        "  🔴 [NOT FROZEN / NOT FOUND] MAC {} in VNI {} is not frozen.",
+                        mac, vni
+                    );
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-mac-freeze [status | move <vni> <mac> <vtep_ip> | unfreeze <vni> <mac>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-mac-freeze [status | move <vni> <mac> <vtep_ip> | unfreeze <vni> <mac>]"
+            ),
         }
     }
 
@@ -19069,33 +19875,84 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("5G GTP-U In-Band Packet Loss Measurement (LMM/LMR) Telemetry Engine:");
-                println!("  • Total LMM Generated   : {}", self.gtpu_loss_engine.total_lmm_generated);
-                println!("  • Total LMR Processed   : {}", self.gtpu_loss_engine.total_lmr_processed);
-                println!("  • Tracked Sessions      : {}", self.gtpu_loss_engine.session_counters.len());
+                println!(
+                    "  • Total LMM Generated   : {}",
+                    self.gtpu_loss_engine.total_lmm_generated
+                );
+                println!(
+                    "  • Total LMR Processed   : {}",
+                    self.gtpu_loss_engine.total_lmr_processed
+                );
+                println!(
+                    "  • Tracked Sessions      : {}",
+                    self.gtpu_loss_engine.session_counters.len()
+                );
                 for (s, q, c) in &self.gtpu_loss_engine.session_counters {
-                    println!("    [Session 0x{:08X} QFI {}] Tx Fwd: {} | Rx Fwd: {} | Last Far-End Loss: {} | Measurements: {}",
-                        s, q, c.tx_packets_forward, c.rx_packets_forward, c.last_far_end_loss, c.total_measurements);
+                    println!(
+                        "    [Session 0x{:08X} QFI {}] Tx Fwd: {} | Rx Fwd: {} | Last Far-End Loss: {} | Measurements: {}",
+                        s,
+                        q,
+                        c.tx_packets_forward,
+                        c.rx_packets_forward,
+                        c.last_far_end_loss,
+                        c.total_measurements
+                    );
                 }
             }
             "tx" => {
-                let sess = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(0x5001) } else { 0x5001 };
-                let qfi = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(9) } else { 9 };
+                let sess = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(0x5001)
+                } else {
+                    0x5001
+                };
+                let qfi = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(9)
+                } else {
+                    9
+                };
                 self.gtpu_loss_engine.record_tx_packet(sess, qfi);
-                println!("  [TX PACKET RECORDED] Session 0x{:08X} (QFI {}): Transmit frame counter incremented.", sess, qfi);
+                println!(
+                    "  [TX PACKET RECORDED] Session 0x{:08X} (QFI {}): Transmit frame counter incremented.",
+                    sess, qfi
+                );
             }
             "rx" => {
-                let sess = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(0x5001) } else { 0x5001 };
-                let qfi = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(9) } else { 9 };
+                let sess = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(0x5001)
+                } else {
+                    0x5001
+                };
+                let qfi = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(9)
+                } else {
+                    9
+                };
                 self.gtpu_loss_engine.record_rx_packet(sess, qfi);
-                println!("  [RX PACKET RECORDED] Session 0x{:08X} (QFI {}): Receive frame counter incremented.", sess, qfi);
+                println!(
+                    "  [RX PACKET RECORDED] Session 0x{:08X} (QFI {}): Receive frame counter incremented.",
+                    sess, qfi
+                );
             }
             "lmm" => {
-                let sess = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(0x5001) } else { 0x5001 };
-                let qfi = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(9) } else { 9 };
+                let sess = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(0x5001)
+                } else {
+                    0x5001
+                };
+                let qfi = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(9)
+                } else {
+                    9
+                };
                 let lmm = self.gtpu_loss_engine.create_lmm(sess, qfi, 100_000);
-                println!("  [LMM DISPATCHED] Session 0x{:08X} QFI {}: Tx_FC_f = {}", sess, qfi, lmm.tx_fc_f);
+                println!(
+                    "  [LMM DISPATCHED] Session 0x{:08X} QFI {}: Tx_FC_f = {}",
+                    sess, qfi, lmm.tx_fc_f
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-loss [status | tx <sess> <qfi> | rx <sess> <qfi> | lmm <sess> <qfi>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-loss [status | tx <sess> <qfi> | rx <sess> <qfi> | lmm <sess> <qfi>]"
+            ),
         }
     }
 
@@ -19103,25 +19960,67 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Multi-Priority Gate State Coordinated Dispatch Engine:");
-                println!("  • Cycle Duration        : {} ns ({:.2} µs)", self.tsn_cqf_gate_coord_engine.cycle_time_ns, (self.tsn_cqf_gate_coord_engine.cycle_time_ns as f64) / 1000.0);
-                println!("  • Cycle Index           : {}", self.tsn_cqf_gate_coord_engine.cycle_index);
-                println!("  • Active TX Buffer      : Buffer {} (Ingress RX: Buffer {})", self.tsn_cqf_gate_coord_engine.active_tx_buffer, 1 - self.tsn_cqf_gate_coord_engine.active_tx_buffer);
-                println!("  • Gate Mask (C0 TX)     : 0x{:02X}", self.tsn_cqf_gate_coord_engine.gate_mask_cycle_0_tx);
-                println!("  • Gate Mask (C1 TX)     : 0x{:02X}", self.tsn_cqf_gate_coord_engine.gate_mask_cycle_1_tx);
-                println!("  • Buffer 0 / 1 Pending  : {} / {} frames", self.tsn_cqf_gate_coord_engine.buffer_0.len(), self.tsn_cqf_gate_coord_engine.buffer_1.len());
+                println!(
+                    "IEEE 802.1Qch CQF Multi-Priority Gate State Coordinated Dispatch Engine:"
+                );
+                println!(
+                    "  • Cycle Duration        : {} ns ({:.2} µs)",
+                    self.tsn_cqf_gate_coord_engine.cycle_time_ns,
+                    (self.tsn_cqf_gate_coord_engine.cycle_time_ns as f64) / 1000.0
+                );
+                println!(
+                    "  • Cycle Index           : {}",
+                    self.tsn_cqf_gate_coord_engine.cycle_index
+                );
+                println!(
+                    "  • Active TX Buffer      : Buffer {} (Ingress RX: Buffer {})",
+                    self.tsn_cqf_gate_coord_engine.active_tx_buffer,
+                    1 - self.tsn_cqf_gate_coord_engine.active_tx_buffer
+                );
+                println!(
+                    "  • Gate Mask (C0 TX)     : 0x{:02X}",
+                    self.tsn_cqf_gate_coord_engine.gate_mask_cycle_0_tx
+                );
+                println!(
+                    "  • Gate Mask (C1 TX)     : 0x{:02X}",
+                    self.tsn_cqf_gate_coord_engine.gate_mask_cycle_1_tx
+                );
+                println!(
+                    "  • Buffer 0 / 1 Pending  : {} / {} frames",
+                    self.tsn_cqf_gate_coord_engine.buffer_0.len(),
+                    self.tsn_cqf_gate_coord_engine.buffer_1.len()
+                );
                 for p in 0..NUM_PRIORITIES {
                     let s = &self.tsn_cqf_gate_coord_engine.stats[p];
                     if s.frames_admitted > 0 || s.frames_gate_blocked > 0 {
-                        println!("    [Priority {}] Admitted: {} ({} B) | Dispatched: {} ({} B) | Gate Blocked: {}",
-                            p, s.frames_admitted, s.bytes_admitted, s.frames_dispatched, s.bytes_dispatched, s.frames_gate_blocked);
+                        println!(
+                            "    [Priority {}] Admitted: {} ({} B) | Dispatched: {} ({} B) | Gate Blocked: {}",
+                            p,
+                            s.frames_admitted,
+                            s.bytes_admitted,
+                            s.frames_dispatched,
+                            s.bytes_dispatched,
+                            s.frames_gate_blocked
+                        );
                     }
                 }
             }
             "ingest" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let priority = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(0) } else { 0 };
-                let bytes = if args.len() >= 4 { args[3].parse::<usize>().unwrap_or(256) } else { 256 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let priority = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(0)
+                } else {
+                    0
+                };
+                let bytes = if args.len() >= 4 {
+                    args[3].parse::<usize>().unwrap_or(256)
+                } else {
+                    256
+                };
 
                 let frame = CoordinatedCqfFrame {
                     stream_id,
@@ -19131,28 +20030,61 @@ impl NetworkShell {
                 };
                 let res = self.tsn_cqf_gate_coord_engine.ingest_frame(frame);
                 match res {
-                    GateCoordVerdict::Admitted { cycle_index, cycle_buffer } => println!("  🟢 [ADMITTED] Stream #{}, Priority {}: {} Bytes enqueued into Buffer {} (Cycle #{})", stream_id, priority, bytes, cycle_buffer, cycle_index),
-                    GateCoordVerdict::DroppedGateClosed => println!("  🔴 [GATE CLOSED DROP] Priority {} gate is closed on active receive buffer!", priority),
-                    GateCoordVerdict::DroppedInvalidPriority => println!("  🔴 [INVALID PRIORITY] Priority must be 0..7."),
+                    GateCoordVerdict::Admitted {
+                        cycle_index,
+                        cycle_buffer,
+                    } => println!(
+                        "  🟢 [ADMITTED] Stream #{}, Priority {}: {} Bytes enqueued into Buffer {} (Cycle #{})",
+                        stream_id, priority, bytes, cycle_buffer, cycle_index
+                    ),
+                    GateCoordVerdict::DroppedGateClosed => println!(
+                        "  🔴 [GATE CLOSED DROP] Priority {} gate is closed on active receive buffer!",
+                        priority
+                    ),
+                    GateCoordVerdict::DroppedInvalidPriority => {
+                        println!("  🔴 [INVALID PRIORITY] Priority must be 0..7.")
+                    }
                 }
             }
             "dispatch" => {
                 let dispatched = self.tsn_cqf_gate_coord_engine.dispatch_active_buffer();
-                println!("  [TX BUFFER DRAINED] Successfully dispatched {} frame(s) passing gate checks.", dispatched.len());
+                println!(
+                    "  [TX BUFFER DRAINED] Successfully dispatched {} frame(s) passing gate checks.",
+                    dispatched.len()
+                );
             }
             "advance" => {
-                let delta_ns = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(100_000) } else { 100_000 };
+                let delta_ns = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(100_000)
+                } else {
+                    100_000
+                };
                 let rotations = self.tsn_cqf_gate_coord_engine.advance_time(delta_ns);
-                println!("  [TIME ADVANCED] Advanced {} ns (Rotations: {}) -> New Active TX Buffer: {}",
-                    delta_ns, rotations, self.tsn_cqf_gate_coord_engine.active_tx_buffer);
+                println!(
+                    "  [TIME ADVANCED] Advanced {} ns (Rotations: {}) -> New Active TX Buffer: {}",
+                    delta_ns, rotations, self.tsn_cqf_gate_coord_engine.active_tx_buffer
+                );
             }
             "mask" => {
-                let m0 = if args.len() >= 2 { u8::from_str_radix(args[1].trim_start_matches("0x"), 16).unwrap_or(0xFF) } else { 0xFF };
-                let m1 = if args.len() >= 3 { u8::from_str_radix(args[2].trim_start_matches("0x"), 16).unwrap_or(0xFF) } else { 0xFF };
+                let m0 = if args.len() >= 2 {
+                    u8::from_str_radix(args[1].trim_start_matches("0x"), 16).unwrap_or(0xFF)
+                } else {
+                    0xFF
+                };
+                let m1 = if args.len() >= 3 {
+                    u8::from_str_radix(args[2].trim_start_matches("0x"), 16).unwrap_or(0xFF)
+                } else {
+                    0xFF
+                };
                 self.tsn_cqf_gate_coord_engine.set_gate_masks(m0, m1);
-                println!("  [GATE MASKS CONFIGURED] Cycle 0 TX Mask: 0x{:02X} | Cycle 1 TX Mask: 0x{:02X}", m0, m1);
+                println!(
+                    "  [GATE MASKS CONFIGURED] Cycle 0 TX Mask: 0x{:02X} | Cycle 1 TX Mask: 0x{:02X}",
+                    m0, m1
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-gate [status | ingest <stream> <prio> <bytes> | dispatch | advance <ns> | mask <c0_hex> <c1_hex>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-gate [status | ingest <stream> <prio> <bytes> | dispatch | advance <ns> | mask <c0_hex> <c1_hex>]"
+            ),
         }
     }
 
@@ -19160,22 +20092,46 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP Diameter S6a / S6d User-Authorization (UAR / UAA Command 316) Engine:");
+                println!(
+                    "3GPP Diameter S6a / S6d User-Authorization (UAR / UAA Command 316) Engine:"
+                );
                 println!("  • HSS Node ID           : {}", self.s6a_uar_engine.hss_id);
                 println!("  • Realm                 : {}", self.s6a_uar_engine.realm);
-                println!("  • Total UAR Processed   : {}", self.s6a_uar_engine.total_uar_processed);
-                println!("  • Authorized Attachments: {}", self.s6a_uar_engine.total_authorized);
-                println!("  • Rejected Attachments  : {}", self.s6a_uar_engine.total_rejected);
-                println!("  • Subscribed Auth Rules : {}", self.s6a_uar_engine.subscriber_rules.len());
+                println!(
+                    "  • Total UAR Processed   : {}",
+                    self.s6a_uar_engine.total_uar_processed
+                );
+                println!(
+                    "  • Authorized Attachments: {}",
+                    self.s6a_uar_engine.total_authorized
+                );
+                println!(
+                    "  • Rejected Attachments  : {}",
+                    self.s6a_uar_engine.total_rejected
+                );
+                println!(
+                    "  • Subscribed Auth Rules : {}",
+                    self.s6a_uar_engine.subscriber_rules.len()
+                );
                 for r in &self.s6a_uar_engine.subscriber_rules {
-                    println!("    [IMSI {}] Roaming Allowed: {} | Allowed PLMNs: {:?}",
-                        r.imsi, r.is_roaming_allowed, r.allowed_plmns);
+                    println!(
+                        "    [IMSI {}] Roaming Allowed: {} | Allowed PLMNs: {:?}",
+                        r.imsi, r.is_roaming_allowed, r.allowed_plmns
+                    );
                 }
             }
             "auth" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 let plmn_hex = if args.len() >= 3 { args[2] } else { "04F601" };
-                let flags = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(0) } else { 0 };
+                let flags = if args.len() >= 4 {
+                    args[3].parse::<u32>().unwrap_or(0)
+                } else {
+                    0
+                };
 
                 let mut plmn = [0x04, 0xF6, 0x01];
                 if plmn_hex.len() >= 6 {
@@ -19198,11 +20154,22 @@ impl NetworkShell {
                     flags,
                 );
                 let uaa = self.s6a_uar_engine.process_uar(&uar);
-                println!("  [UAR PROCESSED] IMSI: {} | Visited PLMN: {:02X}{:02X}{:02X} | Flags: 0x{:08X} -> Result-Code: {:?}",
-                    imsi, plmn[0], plmn[1], plmn[2], flags, uaa.result_code());
+                println!(
+                    "  [UAR PROCESSED] IMSI: {} | Visited PLMN: {:02X}{:02X}{:02X} | Flags: 0x{:08X} -> Result-Code: {:?}",
+                    imsi,
+                    plmn[0],
+                    plmn[1],
+                    plmn[2],
+                    flags,
+                    uaa.result_code()
+                );
             }
             "add" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 let plmn_hex = if args.len() >= 3 { args[2] } else { "04F601" };
                 let mut plmn = [0x04, 0xF6, 0x01];
                 if plmn_hex.len() >= 6 {
@@ -19220,9 +20187,14 @@ impl NetworkShell {
                     is_roaming_allowed: true,
                     allowed_plmns: vec![plmn],
                 });
-                println!("  [RULE PROVISIONED] IMSI {} authorized for PLMN {:02X}{:02X}{:02X}.", imsi, plmn[0], plmn[1], plmn[2]);
+                println!(
+                    "  [RULE PROVISIONED] IMSI {} authorized for PLMN {:02X}{:02X}{:02X}.",
+                    imsi, plmn[0], plmn[1], plmn[2]
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-uar [status | auth <imsi> <plmn_hex> [flags] | add <imsi> [plmn_hex]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-uar [status | auth <imsi> <plmn_hex> [flags] | add <imsi> [plmn_hex]]"
+            ),
         }
     }
 
@@ -19230,30 +20202,71 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Distributed IP Anti-Spoofing & IP Source Guard Engine (RFC 7432 / RFC 9136):");
-                println!("  • Total Packets Evaluated: {}", self.evpn_anti_spoof_engine.stats.total_evaluated);
-                println!("  • Forwarded Legitimate   : {}", self.evpn_anti_spoof_engine.stats.total_forwarded);
-                println!("  • Spoofed IP Drops       : {}", self.evpn_anti_spoof_engine.stats.total_spoofed_ip_drops);
-                println!("  • Spoofed MAC Drops      : {}", self.evpn_anti_spoof_engine.stats.total_spoofed_mac_drops);
-                println!("  • Unbound Ingress Drops  : {}", self.evpn_anti_spoof_engine.stats.total_unbound_drops);
-                println!("  • Active IP-MAC Bindings : {}", self.evpn_anti_spoof_engine.bindings.len());
+                println!(
+                    "EVPN Distributed IP Anti-Spoofing & IP Source Guard Engine (RFC 7432 / RFC 9136):"
+                );
+                println!(
+                    "  • Total Packets Evaluated: {}",
+                    self.evpn_anti_spoof_engine.stats.total_evaluated
+                );
+                println!(
+                    "  • Forwarded Legitimate   : {}",
+                    self.evpn_anti_spoof_engine.stats.total_forwarded
+                );
+                println!(
+                    "  • Spoofed IP Drops       : {}",
+                    self.evpn_anti_spoof_engine.stats.total_spoofed_ip_drops
+                );
+                println!(
+                    "  • Spoofed MAC Drops      : {}",
+                    self.evpn_anti_spoof_engine.stats.total_spoofed_mac_drops
+                );
+                println!(
+                    "  • Unbound Ingress Drops  : {}",
+                    self.evpn_anti_spoof_engine.stats.total_unbound_drops
+                );
+                println!(
+                    "  • Active IP-MAC Bindings : {}",
+                    self.evpn_anti_spoof_engine.bindings.len()
+                );
                 for b in &self.evpn_anti_spoof_engine.bindings {
-                    println!("    [VNI {} Port {}] MAC: {} -> IP: {} (Static: {})",
-                        b.vni, b.port_id, b.mac, b.ip, b.is_static);
+                    println!(
+                        "    [VNI {} Port {}] MAC: {} -> IP: {} (Static: {})",
+                        b.vni, b.port_id, b.mac, b.ip, b.is_static
+                    );
                 }
-                println!("  • Port Trust Modes       : {}", self.evpn_anti_spoof_engine.port_trust_modes.len());
+                println!(
+                    "  • Port Trust Modes       : {}",
+                    self.evpn_anti_spoof_engine.port_trust_modes.len()
+                );
                 for (p, m) in &self.evpn_anti_spoof_engine.port_trust_modes {
                     println!("    [Port {}] Mode: {:?}", p, m);
                 }
             }
             "bind" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "52:54:00:11:22:33" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "52:54:00:11:22:33"
+                };
                 let ip_str = if args.len() >= 5 { args[4] } else { "10.0.0.1" };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 1));
 
                 self.evpn_anti_spoof_engine.add_binding(IpSourceBinding {
                     vni,
@@ -19262,37 +20275,76 @@ impl NetworkShell {
                     ip,
                     is_static: true,
                 });
-                println!("  [BINDING REGISTERED] VNI {} Port {}: MAC {} -> IP {}", vni, port_id, mac, ip);
+                println!(
+                    "  [BINDING REGISTERED] VNI {} Port {}: MAC {} -> IP {}",
+                    vni, port_id, mac, ip
+                );
             }
             "check" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "52:54:00:11:22:33" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "52:54:00:11:22:33"
+                };
                 let ip_str = if args.len() >= 5 { args[4] } else { "10.0.0.1" };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x52, 0x54, 0x00, 0x11, 0x22, 0x33]));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 1));
 
-                let verdict = self.evpn_anti_spoof_engine.evaluate_ingress(vni, port_id, mac, ip);
+                let verdict = self
+                    .evpn_anti_spoof_engine
+                    .evaluate_ingress(vni, port_id, mac, ip);
                 match verdict {
-                    AntiSpoofVerdict::Forward => println!("  🟢 [PERMITTED / FORWARD] Ingress frame verified against IP Source Guard table."),
-                    AntiSpoofVerdict::DropSpoofedIp => println!("  🔴 [SPOOFED IP DROP] Source IP {} is registered on another port/MAC!", ip),
-                    AntiSpoofVerdict::DropSpoofedMac => println!("  🔴 [SPOOFED MAC DROP] Source MAC {} does not match authorized binding for IP {}!", mac, ip),
-                    AntiSpoofVerdict::DropUnbound => println!("  ⛔ [UNBOUND DROP] No active IP-MAC binding for {} on untrusted Port {}.", ip, port_id),
+                    AntiSpoofVerdict::Forward => println!(
+                        "  🟢 [PERMITTED / FORWARD] Ingress frame verified against IP Source Guard table."
+                    ),
+                    AntiSpoofVerdict::DropSpoofedIp => println!(
+                        "  🔴 [SPOOFED IP DROP] Source IP {} is registered on another port/MAC!",
+                        ip
+                    ),
+                    AntiSpoofVerdict::DropSpoofedMac => println!(
+                        "  🔴 [SPOOFED MAC DROP] Source MAC {} does not match authorized binding for IP {}!",
+                        mac, ip
+                    ),
+                    AntiSpoofVerdict::DropUnbound => println!(
+                        "  ⛔ [UNBOUND DROP] No active IP-MAC binding for {} on untrusted Port {}.",
+                        ip, port_id
+                    ),
                 }
             }
             "trust" => {
-                let port_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let port_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let mode_str = if args.len() >= 3 { args[2] } else { "trusted" };
                 let mode = if mode_str.eq_ignore_ascii_case("trusted") {
                     PortTrustMode::Trusted
                 } else {
                     PortTrustMode::Untrusted
                 };
-                self.evpn_anti_spoof_engine.set_port_trust_mode(port_id, mode);
+                self.evpn_anti_spoof_engine
+                    .set_port_trust_mode(port_id, mode);
                 println!("  [PORT TRUST CONFIGURED] Port {}: {:?}", port_id, mode);
             }
-            _ => println!("Unknown subcommand. Usage: evpn-anti-spoof [status | bind <vni> <port> <mac> <ip> | check <vni> <port> <mac> <ip> | trust <port> <trusted|untrusted>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-anti-spoof [status | bind <vni> <port> <mac> <ip> | check <vni> <port> <mac> <ip> | trust <port> <trusted|untrusted>]"
+            ),
         }
     }
 
@@ -19300,25 +20352,57 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G ATSSS Dynamic Packet Splitting & Multi-Access Aggregation Engine (TS 23.501):");
-                println!("  • Session ID            : 0x{:08X}", self.gtpu_atsss_split_engine.session_id);
-                println!("  • Steering Rule         : {:?}", self.gtpu_atsss_split_engine.steering_rule);
-                println!("  • 3GPP Cellular Leg     : Health: {} | Pkts: {} | Bytes: {}",
-                    if self.gtpu_atsss_split_engine.is_3gpp_healthy { "UP" } else { "DOWN" },
+                println!(
+                    "5G ATSSS Dynamic Packet Splitting & Multi-Access Aggregation Engine (TS 23.501):"
+                );
+                println!(
+                    "  • Session ID            : 0x{:08X}",
+                    self.gtpu_atsss_split_engine.session_id
+                );
+                println!(
+                    "  • Steering Rule         : {:?}",
+                    self.gtpu_atsss_split_engine.steering_rule
+                );
+                println!(
+                    "  • 3GPP Cellular Leg     : Health: {} | Pkts: {} | Bytes: {}",
+                    if self.gtpu_atsss_split_engine.is_3gpp_healthy {
+                        "UP"
+                    } else {
+                        "DOWN"
+                    },
                     self.gtpu_atsss_split_engine.stats_3gpp.packets_forwarded,
-                    self.gtpu_atsss_split_engine.stats_3gpp.bytes_forwarded);
-                println!("  • Non-3GPP Wi-Fi Leg    : Health: {} | Pkts: {} | Bytes: {}",
-                    if self.gtpu_atsss_split_engine.is_wifi_healthy { "UP" } else { "DOWN" },
+                    self.gtpu_atsss_split_engine.stats_3gpp.bytes_forwarded
+                );
+                println!(
+                    "  • Non-3GPP Wi-Fi Leg    : Health: {} | Pkts: {} | Bytes: {}",
+                    if self.gtpu_atsss_split_engine.is_wifi_healthy {
+                        "UP"
+                    } else {
+                        "DOWN"
+                    },
                     self.gtpu_atsss_split_engine.stats_wifi.packets_forwarded,
-                    self.gtpu_atsss_split_engine.stats_wifi.bytes_forwarded);
-                println!("  • Next Monotonic MA Seq : {}", self.gtpu_atsss_split_engine.next_seq);
+                    self.gtpu_atsss_split_engine.stats_wifi.bytes_forwarded
+                );
+                println!(
+                    "  • Next Monotonic MA Seq : {}",
+                    self.gtpu_atsss_split_engine.next_seq
+                );
             }
             "split" => {
-                let bytes = if args.len() >= 2 { args[1].parse::<usize>().unwrap_or(256) } else { 256 };
+                let bytes = if args.len() >= 2 {
+                    args[1].parse::<usize>().unwrap_or(256)
+                } else {
+                    256
+                };
                 let res = self.gtpu_atsss_split_engine.split_packet(bytes);
                 match res {
-                    Some(pkt) => println!("  🟢 [SPLIT DISPATCHED] Seq #{}: Dispatched {} Bytes via Leg {:?}", pkt.ma_seq, pkt.payload_bytes, pkt.leg),
-                    None => println!("  🔴 [DROP] All multi-access legs are currently DOWN! Packet dropped."),
+                    Some(pkt) => println!(
+                        "  🟢 [SPLIT DISPATCHED] Seq #{}: Dispatched {} Bytes via Leg {:?}",
+                        pkt.ma_seq, pkt.payload_bytes, pkt.leg
+                    ),
+                    None => println!(
+                        "  🔴 [DROP] All multi-access legs are currently DOWN! Packet dropped."
+                    ),
                 }
             }
             "leg-health" => {
@@ -19331,7 +20415,11 @@ impl NetworkShell {
                     AtsssAccessLeg::ThreeGppCellular
                 };
                 self.gtpu_atsss_split_engine.set_leg_health(leg, healthy);
-                println!("  [LEG HEALTH UPDATED] Leg {:?} -> Health: {}", leg, if healthy { "UP" } else { "DOWN" });
+                println!(
+                    "  [LEG HEALTH UPDATED] Leg {:?} -> Health: {}",
+                    leg,
+                    if healthy { "UP" } else { "DOWN" }
+                );
             }
             "rule" => {
                 let r_type = if args.len() >= 2 { args[1] } else { "split" };
@@ -19339,18 +20427,33 @@ impl NetworkShell {
                     self.gtpu_atsss_split_engine.steering_rule = AtsssSteeringRule::ActiveStandby {
                         primary: AtsssAccessLeg::ThreeGppCellular,
                     };
-                    println!("  [RULE UPDATED] Switched to Active-Standby (Primary: 3GPP Cellular).");
+                    println!(
+                        "  [RULE UPDATED] Switched to Active-Standby (Primary: 3GPP Cellular)."
+                    );
                 } else {
-                    let w1 = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(3) } else { 3 };
-                    let w2 = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(1) } else { 1 };
+                    let w1 = if args.len() >= 3 {
+                        args[2].parse::<u32>().unwrap_or(3)
+                    } else {
+                        3
+                    };
+                    let w2 = if args.len() >= 4 {
+                        args[3].parse::<u32>().unwrap_or(1)
+                    } else {
+                        1
+                    };
                     self.gtpu_atsss_split_engine.steering_rule = AtsssSteeringRule::WeightedSplit {
                         weight_3gpp: w1,
                         weight_wifi: w2,
                     };
-                    println!("  [RULE UPDATED] Switched to Weighted-Split (3GPP: {}, Wi-Fi: {}).", w1, w2);
+                    println!(
+                        "  [RULE UPDATED] Switched to Weighted-Split (3GPP: {}, Wi-Fi: {}).",
+                        w1, w2
+                    );
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-atsss-split [status | split <bytes> | leg-health <3gpp|wifi> <up|down> | rule <split|standby>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-atsss-split [status | split <bytes> | leg-health <3gpp|wifi> <up|down> | rule <split|standby>]"
+            ),
         }
     }
 
@@ -19358,23 +20461,67 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Multi-Hop Jitter Accumulation & Bounded Delay Predictor:");
-                println!("  • Configured Path Hops  : {}", self.tsn_cqf_jitter_engine.hops.len());
+                println!(
+                    "IEEE 802.1Qch CQF Multi-Hop Jitter Accumulation & Bounded Delay Predictor:"
+                );
+                println!(
+                    "  • Configured Path Hops  : {}",
+                    self.tsn_cqf_jitter_engine.hops.len()
+                );
                 for hop in &self.tsn_cqf_jitter_engine.hops {
-                    println!("    [Hop #{}: {}] Cycle: {} ns | Link Prop: {} ns | Proc Delay: [{}..{}] ns",
-                        hop.hop_id, hop.name, hop.cycle_time_ns, hop.link_prop_ns, hop.bridge_proc_min_ns, hop.bridge_proc_max_ns);
+                    println!(
+                        "    [Hop #{}: {}] Cycle: {} ns | Link Prop: {} ns | Proc Delay: [{}..{}] ns",
+                        hop.hop_id,
+                        hop.name,
+                        hop.cycle_time_ns,
+                        hop.link_prop_ns,
+                        hop.bridge_proc_min_ns,
+                        hop.bridge_proc_max_ns
+                    );
                 }
                 let bounds = self.tsn_cqf_jitter_engine.compute_bounds();
-                println!("  • Minimum E2E Delay     : {} ns ({:.2} µs)", bounds.min_delay_ns, (bounds.min_delay_ns as f64) / 1000.0);
-                println!("  • Maximum E2E Delay     : {} ns ({:.2} µs)", bounds.max_delay_ns, (bounds.max_delay_ns as f64) / 1000.0);
-                println!("  • Maximum Jitter Bound  : {} ns ({:.2} µs)", bounds.jitter_bound_ns, (bounds.jitter_bound_ns as f64) / 1000.0);
+                println!(
+                    "  • Minimum E2E Delay     : {} ns ({:.2} µs)",
+                    bounds.min_delay_ns,
+                    (bounds.min_delay_ns as f64) / 1000.0
+                );
+                println!(
+                    "  • Maximum E2E Delay     : {} ns ({:.2} µs)",
+                    bounds.max_delay_ns,
+                    (bounds.max_delay_ns as f64) / 1000.0
+                );
+                println!(
+                    "  • Maximum Jitter Bound  : {} ns ({:.2} µs)",
+                    bounds.jitter_bound_ns,
+                    (bounds.jitter_bound_ns as f64) / 1000.0
+                );
             }
             "add" => {
-                let name = if args.len() >= 2 { args[1] } else { "Switch-Node" };
-                let cycle_ns = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(100_000) } else { 100_000 };
-                let prop_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(5_000) } else { 5_000 };
-                let proc_min = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(2_000) } else { 2_000 };
-                let proc_max = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(4_000) } else { 4_000 };
+                let name = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "Switch-Node"
+                };
+                let cycle_ns = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(100_000)
+                } else {
+                    100_000
+                };
+                let prop_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(5_000)
+                } else {
+                    5_000
+                };
+                let proc_min = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(2_000)
+                } else {
+                    2_000
+                };
+                let proc_max = if args.len() >= 6 {
+                    args[5].parse::<u64>().unwrap_or(4_000)
+                } else {
+                    4_000
+                };
 
                 let hop_id = (self.tsn_cqf_jitter_engine.hops.len() + 1) as u32;
                 self.tsn_cqf_jitter_engine.add_hop(CqfHopProfile {
@@ -19385,27 +20532,67 @@ impl NetworkShell {
                     bridge_proc_min_ns: proc_min,
                     bridge_proc_max_ns: proc_max,
                 });
-                println!("  [HOP ADDED] Hop #{}: {} configured along CQF path.", hop_id, name);
+                println!(
+                    "  [HOP ADDED] Hop #{}: {} configured along CQF path.",
+                    hop_id, name
+                );
             }
             "eval" => {
-                let max_lat_ns = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(500_000) } else { 500_000 };
-                let max_jit_ns = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(250_000) } else { 250_000 };
+                let max_lat_ns = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(500_000)
+                } else {
+                    500_000
+                };
+                let max_jit_ns = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(250_000)
+                } else {
+                    250_000
+                };
 
-                let res = self.tsn_cqf_jitter_engine.evaluate_stream_sla(max_lat_ns, max_jit_ns);
+                let res = self
+                    .tsn_cqf_jitter_engine
+                    .evaluate_stream_sla(max_lat_ns, max_jit_ns);
                 match res {
-                    SlaComplianceResult::Compliant => println!("  🟢 [SLA COMPLIANT] Path delay & jitter bounds satisfy stream QoS constraints."),
-                    SlaComplianceResult::LatencyViolation { calculated_max_ns, allowed_max_ns } => {
-                        println!("  🔴 [LATENCY VIOLATION] Max path delay ({} ns) exceeds stream deadline ({} ns)!", calculated_max_ns, allowed_max_ns);
+                    SlaComplianceResult::Compliant => println!(
+                        "  🟢 [SLA COMPLIANT] Path delay & jitter bounds satisfy stream QoS constraints."
+                    ),
+                    SlaComplianceResult::LatencyViolation {
+                        calculated_max_ns,
+                        allowed_max_ns,
+                    } => {
+                        println!(
+                            "  🔴 [LATENCY VIOLATION] Max path delay ({} ns) exceeds stream deadline ({} ns)!",
+                            calculated_max_ns, allowed_max_ns
+                        );
                     }
-                    SlaComplianceResult::JitterViolation { calculated_jitter_ns, allowed_jitter_ns } => {
-                        println!("  🔴 [JITTER VIOLATION] Path jitter bound ({} ns) exceeds stream constraint ({} ns)!", calculated_jitter_ns, allowed_jitter_ns);
+                    SlaComplianceResult::JitterViolation {
+                        calculated_jitter_ns,
+                        allowed_jitter_ns,
+                    } => {
+                        println!(
+                            "  🔴 [JITTER VIOLATION] Path jitter bound ({} ns) exceeds stream constraint ({} ns)!",
+                            calculated_jitter_ns, allowed_jitter_ns
+                        );
                     }
-                    SlaComplianceResult::DualViolation { calculated_max_ns, allowed_max_ns, calculated_jitter_ns, allowed_jitter_ns } => {
-                        println!("  ⛔ [DUAL VIOLATION] Both latency ({} ns > {} ns) and jitter ({} ns > {} ns) exceed limits!", calculated_max_ns, allowed_max_ns, calculated_jitter_ns, allowed_jitter_ns);
+                    SlaComplianceResult::DualViolation {
+                        calculated_max_ns,
+                        allowed_max_ns,
+                        calculated_jitter_ns,
+                        allowed_jitter_ns,
+                    } => {
+                        println!(
+                            "  ⛔ [DUAL VIOLATION] Both latency ({} ns > {} ns) and jitter ({} ns > {} ns) exceed limits!",
+                            calculated_max_ns,
+                            allowed_max_ns,
+                            calculated_jitter_ns,
+                            allowed_jitter_ns
+                        );
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-jitter [status | add <name> <cycle_ns> <prop_ns> <proc_min> <proc_max> | eval <max_lat_ns> <max_jit_ns>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-jitter [status | add <name> <cycle_ns> <prop_ns> <proc_min> <proc_max> | eval <max_lat_ns> <max_jit_ns>]"
+            ),
         }
     }
 
@@ -19416,18 +20603,42 @@ impl NetworkShell {
                 println!("3GPP Diameter S6a / S6d Cancel-Location (CLR / CLA Command 317) Engine:");
                 println!("  • Serving MME Node ID   : {}", self.s6a_clr_engine.mme_id);
                 println!("  • Realm                 : {}", self.s6a_clr_engine.realm);
-                println!("  • Total CLR Received    : {}", self.s6a_clr_engine.total_clr_received);
-                println!("  • Contexts Cancelled OK : {}", self.s6a_clr_engine.total_cancelled_success);
-                println!("  • Rejected CLR Requests : {}", self.s6a_clr_engine.total_rejected);
-                println!("  • Serving Subscribers   : {}", self.s6a_clr_engine.active_subscribers.len());
+                println!(
+                    "  • Total CLR Received    : {}",
+                    self.s6a_clr_engine.total_clr_received
+                );
+                println!(
+                    "  • Contexts Cancelled OK : {}",
+                    self.s6a_clr_engine.total_cancelled_success
+                );
+                println!(
+                    "  • Rejected CLR Requests : {}",
+                    self.s6a_clr_engine.total_rejected
+                );
+                println!(
+                    "  • Serving Subscribers   : {}",
+                    self.s6a_clr_engine.active_subscribers.len()
+                );
                 for s in &self.s6a_clr_engine.active_subscribers {
-                    println!("    [IMSI {}] Active: {} | Cancel Reason: {:?}", s.imsi, s.is_active, s.cancellation_reason);
+                    println!(
+                        "    [IMSI {}] Active: {} | Cancel Reason: {:?}",
+                        s.imsi, s.is_active, s.cancellation_reason
+                    );
                 }
             }
             "cancel" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
-                let reason_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(0) } else { 0 };
-                let cancel_type = CancellationType::from_u32(reason_id).unwrap_or(CancellationType::MmeUpdateProcedure);
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
+                let reason_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(0)
+                } else {
+                    0
+                };
+                let cancel_type = CancellationType::from_u32(reason_id)
+                    .unwrap_or(CancellationType::MmeUpdateProcedure);
 
                 let clr = S6aClrMessage::new_clr(
                     "sess-clr-shell-01",
@@ -19440,15 +20651,28 @@ impl NetworkShell {
                     0,
                 );
                 let cla = self.s6a_clr_engine.process_clr(&clr);
-                println!("  [CLR PROCESSED] IMSI: {} | Reason: {:?} -> Result-Code: {:?}",
-                    imsi, cancel_type, cla.result_code());
+                println!(
+                    "  [CLR PROCESSED] IMSI: {} | Reason: {:?} -> Result-Code: {:?}",
+                    imsi,
+                    cancel_type,
+                    cla.result_code()
+                );
             }
             "attach" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 self.s6a_clr_engine.attach_subscriber(imsi);
-                println!("  [SUBSCRIBER ATTACHED] IMSI {} registered and active on MME.", imsi);
+                println!(
+                    "  [SUBSCRIBER ATTACHED] IMSI {} registered and active on MME.",
+                    imsi
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-clr [status | cancel <imsi> [reason_id] | attach <imsi>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-clr [status | cancel <imsi> [reason_id] | attach <imsi>]"
+            ),
         }
     }
 
@@ -19456,25 +20680,67 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 DHCPv4 / DHCPv6 Snooping & Option 82 Injection Engine (RFC 7432 / RFC 3046):");
-                println!("  • Leaf Chassis MAC      : {}", self.evpn_dhcp_snoop_engine.leaf_mac);
-                println!("  • Total DHCP Discovers  : {}", self.evpn_dhcp_snoop_engine.total_discovers);
-                println!("  • Total DHCP Offers     : {}", self.evpn_dhcp_snoop_engine.total_offers);
-                println!("  • Total DHCP Requests   : {}", self.evpn_dhcp_snoop_engine.total_requests);
-                println!("  • Total DHCP ACKs       : {}", self.evpn_dhcp_snoop_engine.total_acks);
-                println!("  • Rogue Server Drops    : {}", self.evpn_dhcp_snoop_engine.total_rogue_drops);
-                println!("  • Trusted Uplink Ports  : {:?}", self.evpn_dhcp_snoop_engine.trusted_ports);
-                println!("  • Snooped Active Leases : {}", self.evpn_dhcp_snoop_engine.bindings.len());
+                println!(
+                    "EVPN Layer 2 DHCPv4 / DHCPv6 Snooping & Option 82 Injection Engine (RFC 7432 / RFC 3046):"
+                );
+                println!(
+                    "  • Leaf Chassis MAC      : {}",
+                    self.evpn_dhcp_snoop_engine.leaf_mac
+                );
+                println!(
+                    "  • Total DHCP Discovers  : {}",
+                    self.evpn_dhcp_snoop_engine.total_discovers
+                );
+                println!(
+                    "  • Total DHCP Offers     : {}",
+                    self.evpn_dhcp_snoop_engine.total_offers
+                );
+                println!(
+                    "  • Total DHCP Requests   : {}",
+                    self.evpn_dhcp_snoop_engine.total_requests
+                );
+                println!(
+                    "  • Total DHCP ACKs       : {}",
+                    self.evpn_dhcp_snoop_engine.total_acks
+                );
+                println!(
+                    "  • Rogue Server Drops    : {}",
+                    self.evpn_dhcp_snoop_engine.total_rogue_drops
+                );
+                println!(
+                    "  • Trusted Uplink Ports  : {:?}",
+                    self.evpn_dhcp_snoop_engine.trusted_ports
+                );
+                println!(
+                    "  • Snooped Active Leases : {}",
+                    self.evpn_dhcp_snoop_engine.bindings.len()
+                );
                 for b in &self.evpn_dhcp_snoop_engine.bindings {
-                    println!("    [VNI {} Port {}] Client MAC: {} -> IP: {} (Expiry: {}s)",
-                        b.vni, b.port_id, b.mac, b.ip, b.lease_expiry_secs);
+                    println!(
+                        "    [VNI {} Port {}] Client MAC: {} -> IP: {} (Expiry: {}s)",
+                        b.vni, b.port_id, b.mac, b.ip, b.lease_expiry_secs
+                    );
                 }
             }
             "discover" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "00:11:22:33:44:55" };
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "00:11:22:33:44:55"
+                };
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
 
                 let pkt = DhcpSnoopPacket {
                     msg_type: DhcpSnoopMsgType::Discover,
@@ -19484,28 +20750,62 @@ impl NetworkShell {
                     lease_time_secs: 0,
                     option_82: None,
                 };
-                let verdict = self.evpn_dhcp_snoop_engine.process_dhcp_packet(vni, port, pkt, 1000);
+                let verdict = self
+                    .evpn_dhcp_snoop_engine
+                    .process_dhcp_packet(vni, port, pkt, 1000);
                 match verdict {
                     DhcpSnoopVerdict::Forward(fwd) => {
                         let opt82_str = match fwd.option_82 {
-                            Some(ref o) => format!("Option 82 Injected (Circuit: {}, Remote: {})", o.circuit_id, o.remote_id),
+                            Some(ref o) => format!(
+                                "Option 82 Injected (Circuit: {}, Remote: {})",
+                                o.circuit_id, o.remote_id
+                            ),
                             None => "No Option 82".to_string(),
                         };
-                        println!("  🟢 [FORWARD] DHCP Discover processed on VNI {} Port {}: {}", vni, port, opt82_str);
+                        println!(
+                            "  🟢 [FORWARD] DHCP Discover processed on VNI {} Port {}: {}",
+                            vni, port, opt82_str
+                        );
                     }
-                    DhcpSnoopVerdict::DropRogueServerResponse => println!("  🔴 [ROGUE SERVER DROP]"),
+                    DhcpSnoopVerdict::DropRogueServerResponse => {
+                        println!("  🔴 [ROGUE SERVER DROP]")
+                    }
                     DhcpSnoopVerdict::DropInvalid => println!("  🔴 [INVALID DROP]"),
                 }
             }
             "ack" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(10) } else { 10 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "00:11:22:33:44:55" };
-                let ip_str = if args.len() >= 5 { args[4] } else { "10.0.0.50" };
-                let lease = if args.len() >= 6 { args[5].parse::<u32>().unwrap_or(3600) } else { 3600 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(10)
+                } else {
+                    10
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "00:11:22:33:44:55"
+                };
+                let ip_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "10.0.0.50"
+                };
+                let lease = if args.len() >= 6 {
+                    args[5].parse::<u32>().unwrap_or(3600)
+                } else {
+                    3600
+                };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 50));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 50));
 
                 let pkt = DhcpSnoopPacket {
                     msg_type: DhcpSnoopMsgType::Ack,
@@ -19518,24 +20818,41 @@ impl NetworkShell {
                         remote_id: self.evpn_dhcp_snoop_engine.leaf_mac,
                     }),
                 };
-                let verdict = self.evpn_dhcp_snoop_engine.process_dhcp_packet(vni, port, pkt, 1000);
+                let verdict = self
+                    .evpn_dhcp_snoop_engine
+                    .process_dhcp_packet(vni, port, pkt, 1000);
                 match verdict {
                     DhcpSnoopVerdict::Forward(fwd) => {
-                        println!("  🟢 [FORWARD & BIND] DHCP ACK accepted on trusted Port {}. Option 82 stripped: {}",
-                            port, fwd.option_82.is_none());
+                        println!(
+                            "  🟢 [FORWARD & BIND] DHCP ACK accepted on trusted Port {}. Option 82 stripped: {}",
+                            port,
+                            fwd.option_82.is_none()
+                        );
                     }
-                    DhcpSnoopVerdict::DropRogueServerResponse => println!("  🔴 [ROGUE SERVER DROP] DHCP ACK received on untrusted port! Dropped."),
+                    DhcpSnoopVerdict::DropRogueServerResponse => println!(
+                        "  🔴 [ROGUE SERVER DROP] DHCP ACK received on untrusted port! Dropped."
+                    ),
                     DhcpSnoopVerdict::DropInvalid => println!("  🔴 [INVALID DROP]"),
                 }
             }
             "trust" => {
-                let port = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let port = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let mode_str = if args.len() >= 3 { args[2] } else { "trusted" };
                 let trusted = mode_str.eq_ignore_ascii_case("trusted");
                 self.evpn_dhcp_snoop_engine.set_port_trusted(port, trusted);
-                println!("  [PORT TRUST UPDATED] Port {} -> {}", port, if trusted { "TRUSTED" } else { "UNTRUSTED" });
+                println!(
+                    "  [PORT TRUST UPDATED] Port {} -> {}",
+                    port,
+                    if trusted { "TRUSTED" } else { "UNTRUSTED" }
+                );
             }
-            _ => println!("Unknown subcommand. Usage: evpn-dhcp-snoop [status | discover <vni> <port> <mac> | ack <vni> <port> <mac> <ip> <lease> | trust <port> <trusted|untrusted>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-dhcp-snoop [status | discover <vni> <port> <mac> | ack <vni> <port> <mac> <ip> <lease> | trust <port> <trusted|untrusted>]"
+            ),
         }
     }
 
@@ -19543,34 +20860,79 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U Path RTT Dual-EMA Smoothing & Anomaly Filter Engine (3GPP TS 29.281):");
-                println!("  • Session ID            : 0x{:08X}", self.gtpu_rtt_smooth_engine.session_id);
-                println!("  • Fast EMA Smoothing    : {} µs ({:.2} ms)", self.gtpu_rtt_smooth_engine.fast_ema_us(), (self.gtpu_rtt_smooth_engine.fast_ema_us() as f64) / 1000.0);
-                println!("  • Slow EMA Baseline     : {} µs ({:.2} ms)", self.gtpu_rtt_smooth_engine.slow_ema_us(), (self.gtpu_rtt_smooth_engine.slow_ema_us() as f64) / 1000.0);
-                println!("  • Total Samples Fed     : {}", self.gtpu_rtt_smooth_engine.sample_count);
-                println!("  • Spike Anomalies Seen  : {}", self.gtpu_rtt_smooth_engine.total_spikes_detected);
-                println!("  • Spike Alert Threshold : {}%", self.gtpu_rtt_smooth_engine.spike_threshold_pct);
+                println!(
+                    "5G GTP-U Path RTT Dual-EMA Smoothing & Anomaly Filter Engine (3GPP TS 29.281):"
+                );
+                println!(
+                    "  • Session ID            : 0x{:08X}",
+                    self.gtpu_rtt_smooth_engine.session_id
+                );
+                println!(
+                    "  • Fast EMA Smoothing    : {} µs ({:.2} ms)",
+                    self.gtpu_rtt_smooth_engine.fast_ema_us(),
+                    (self.gtpu_rtt_smooth_engine.fast_ema_us() as f64) / 1000.0
+                );
+                println!(
+                    "  • Slow EMA Baseline     : {} µs ({:.2} ms)",
+                    self.gtpu_rtt_smooth_engine.slow_ema_us(),
+                    (self.gtpu_rtt_smooth_engine.slow_ema_us() as f64) / 1000.0
+                );
+                println!(
+                    "  • Total Samples Fed     : {}",
+                    self.gtpu_rtt_smooth_engine.sample_count
+                );
+                println!(
+                    "  • Spike Anomalies Seen  : {}",
+                    self.gtpu_rtt_smooth_engine.total_spikes_detected
+                );
+                println!(
+                    "  • Spike Alert Threshold : {}%",
+                    self.gtpu_rtt_smooth_engine.spike_threshold_pct
+                );
             }
             "sample" => {
-                let rtt_us = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(20_000) } else { 20_000 };
+                let rtt_us = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(20_000)
+                } else {
+                    20_000
+                };
                 let verdict = self.gtpu_rtt_smooth_engine.feed_sample(rtt_us);
                 match verdict {
-                    RttAnomalyVerdict::Normal => println!("  🟢 [NORMAL] Sample {} µs -> Fast EMA: {} µs | Slow EMA: {} µs",
-                        rtt_us, self.gtpu_rtt_smooth_engine.fast_ema_us(), self.gtpu_rtt_smooth_engine.slow_ema_us()),
-                    RttAnomalyVerdict::LatencySpike { fast_ema_us, slow_ema_us, ratio_percent } => {
-                        println!("  🔴 [LATENCY SPIKE ANOMALY] Sample {} µs -> Fast EMA: {} µs > Slow EMA: {} µs (Ratio: {}% >= Threshold)",
-                            rtt_us, fast_ema_us, slow_ema_us, ratio_percent);
+                    RttAnomalyVerdict::Normal => println!(
+                        "  🟢 [NORMAL] Sample {} µs -> Fast EMA: {} µs | Slow EMA: {} µs",
+                        rtt_us,
+                        self.gtpu_rtt_smooth_engine.fast_ema_us(),
+                        self.gtpu_rtt_smooth_engine.slow_ema_us()
+                    ),
+                    RttAnomalyVerdict::LatencySpike {
+                        fast_ema_us,
+                        slow_ema_us,
+                        ratio_percent,
+                    } => {
+                        println!(
+                            "  🔴 [LATENCY SPIKE ANOMALY] Sample {} µs -> Fast EMA: {} µs > Slow EMA: {} µs (Ratio: {}% >= Threshold)",
+                            rtt_us, fast_ema_us, slow_ema_us, ratio_percent
+                        );
                     }
-                    RttAnomalyVerdict::RouteOptimized { fast_ema_us, slow_ema_us } => {
-                        println!("  🔵 [ROUTE OPTIMIZED / LATENCY DROP] Fast EMA: {} µs significantly lower than Slow EMA: {} µs", fast_ema_us, slow_ema_us);
+                    RttAnomalyVerdict::RouteOptimized {
+                        fast_ema_us,
+                        slow_ema_us,
+                    } => {
+                        println!(
+                            "  🔵 [ROUTE OPTIMIZED / LATENCY DROP] Fast EMA: {} µs significantly lower than Slow EMA: {} µs",
+                            fast_ema_us, slow_ema_us
+                        );
                     }
                 }
             }
             "reset" => {
-                self.gtpu_rtt_smooth_engine = GtpuRttSmoothEngine::new(0x7001, (1, 4), (1, 16), 150);
+                self.gtpu_rtt_smooth_engine =
+                    GtpuRttSmoothEngine::new(0x7001, (1, 4), (1, 16), 150);
                 println!("  [ENGINE RESET] Dual-EMA filter state reinitialized.");
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-rtt-smooth [status | sample <us> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-rtt-smooth [status | sample <us> | reset]"
+            ),
         }
     }
 
@@ -19579,47 +20941,106 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Ingress Deficit Metering & Queue Protection Engine:");
-                println!("  • Cycle Duration        : {} ns ({:.2} µs)", self.tsn_cqf_deficit_engine.cycle_duration_ns, (self.tsn_cqf_deficit_engine.cycle_duration_ns as f64) / 1000.0);
-                println!("  • Active Cycle Index    : {}", self.tsn_cqf_deficit_engine.current_cycle_index);
-                println!("  • Metered Streams       : {}", self.tsn_cqf_deficit_engine.streams.len());
+                println!(
+                    "  • Cycle Duration        : {} ns ({:.2} µs)",
+                    self.tsn_cqf_deficit_engine.cycle_duration_ns,
+                    (self.tsn_cqf_deficit_engine.cycle_duration_ns as f64) / 1000.0
+                );
+                println!(
+                    "  • Active Cycle Index    : {}",
+                    self.tsn_cqf_deficit_engine.current_cycle_index
+                );
+                println!(
+                    "  • Metered Streams       : {}",
+                    self.tsn_cqf_deficit_engine.streams.len()
+                );
                 for s in &self.tsn_cqf_deficit_engine.streams {
-                    println!("    [Stream #{}: {}] Credit: {} / {} B (Quantum: {} B) | Admitted: {} ({} B) | Dropped: {} ({} B)",
-                        s.stream_id, s.name, s.current_credit_bytes, s.max_credit_bytes, s.cycle_quantum_bytes,
-                        s.total_admitted_frames, s.total_admitted_bytes, s.total_dropped_frames, s.total_dropped_bytes);
+                    println!(
+                        "    [Stream #{}: {}] Credit: {} / {} B (Quantum: {} B) | Admitted: {} ({} B) | Dropped: {} ({} B)",
+                        s.stream_id,
+                        s.name,
+                        s.current_credit_bytes,
+                        s.max_credit_bytes,
+                        s.cycle_quantum_bytes,
+                        s.total_admitted_frames,
+                        s.total_admitted_bytes,
+                        s.total_dropped_frames,
+                        s.total_dropped_bytes
+                    );
                 }
             }
             "meter" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(500) } else { 500 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(500)
+                } else {
+                    500
+                };
 
                 let verdict = self.tsn_cqf_deficit_engine.meter_frame(stream_id, bytes);
                 match verdict {
-                    DeficitMeterVerdict::Admitted { remaining_credit_bytes } => {
-                        println!("  🟢 [ADMITTED] Stream #{}: {} Bytes admitted. Remaining credit: {} Bytes", stream_id, bytes, remaining_credit_bytes);
+                    DeficitMeterVerdict::Admitted {
+                        remaining_credit_bytes,
+                    } => {
+                        println!(
+                            "  🟢 [ADMITTED] Stream #{}: {} Bytes admitted. Remaining credit: {} Bytes",
+                            stream_id, bytes, remaining_credit_bytes
+                        );
                     }
-                    DeficitMeterVerdict::DeficitExceeded { required_bytes, available_credit_bytes } => {
-                        println!("  🔴 [DEFICIT EXCEEDED / DROPPED] Stream #{}: Requires {} Bytes but only {} Bytes credit available!", stream_id, required_bytes, available_credit_bytes);
+                    DeficitMeterVerdict::DeficitExceeded {
+                        required_bytes,
+                        available_credit_bytes,
+                    } => {
+                        println!(
+                            "  🔴 [DEFICIT EXCEEDED / DROPPED] Stream #{}: Requires {} Bytes but only {} Bytes credit available!",
+                            stream_id, required_bytes, available_credit_bytes
+                        );
                     }
                 }
             }
             "rotate" => {
                 self.tsn_cqf_deficit_engine.rotate_cycle();
-                println!("  [CYCLE ROTATED] Advanced to Cycle #{} -> Quantums replenished & credits updated.", self.tsn_cqf_deficit_engine.current_cycle_index);
+                println!(
+                    "  [CYCLE ROTATED] Advanced to Cycle #{} -> Quantums replenished & credits updated.",
+                    self.tsn_cqf_deficit_engine.current_cycle_index
+                );
             }
             "add" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(2) } else { 2 };
-                let quantum = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(1000) } else { 1000 };
-                let max_cap = if args.len() >= 4 { args[3].parse::<usize>().unwrap_or(2000) } else { 2000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(2)
+                } else {
+                    2
+                };
+                let quantum = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(1000)
+                } else {
+                    1000
+                };
+                let max_cap = if args.len() >= 4 {
+                    args[3].parse::<usize>().unwrap_or(2000)
+                } else {
+                    2000
+                };
 
-                self.tsn_cqf_deficit_engine.register_stream(DeficitStreamProfile::new(
-                    stream_id,
-                    &format!("Stream-{}", stream_id),
-                    quantum,
-                    max_cap,
-                ));
-                println!("  [STREAM REGISTERED] Stream #{}: Quantum = {} B, Max Burst Cap = {} B", stream_id, quantum, max_cap);
+                self.tsn_cqf_deficit_engine
+                    .register_stream(DeficitStreamProfile::new(
+                        stream_id,
+                        &format!("Stream-{}", stream_id),
+                        quantum,
+                        max_cap,
+                    ));
+                println!(
+                    "  [STREAM REGISTERED] Stream #{}: Quantum = {} B, Max Burst Cap = {} B",
+                    stream_id, quantum, max_cap
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-deficit [status | meter <stream_id> <bytes> | rotate | add <stream_id> <quantum> <max_cap>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-deficit [status | meter <stream_id> <bytes> | rotate | add <stream_id> <quantum> <max_cap>]"
+            ),
         }
     }
 
@@ -19630,19 +21051,47 @@ impl NetworkShell {
                 println!("3GPP Diameter S6a / S6d Notify (NOR / NOA Command 323) Engine:");
                 println!("  • HSS Node ID           : {}", self.s6a_nor_engine.hss_id);
                 println!("  • Realm                 : {}", self.s6a_nor_engine.realm);
-                println!("  • Total NOR Received    : {}", self.s6a_nor_engine.total_nor_received);
-                println!("  • Total Accepted (NOA)  : {}", self.s6a_nor_engine.total_nor_accepted);
-                println!("  • Total Rejected (NOA)  : {}", self.s6a_nor_engine.total_nor_rejected);
-                println!("  • Managed Subscribers   : {}", self.s6a_nor_engine.subscribers.len());
+                println!(
+                    "  • Total NOR Received    : {}",
+                    self.s6a_nor_engine.total_nor_received
+                );
+                println!(
+                    "  • Total Accepted (NOA)  : {}",
+                    self.s6a_nor_engine.total_nor_accepted
+                );
+                println!(
+                    "  • Total Rejected (NOA)  : {}",
+                    self.s6a_nor_engine.total_nor_rejected
+                );
+                println!(
+                    "  • Managed Subscribers   : {}",
+                    self.s6a_nor_engine.subscribers.len()
+                );
                 for s in &self.s6a_nor_engine.subscribers {
-                    println!("    [IMSI {}] SRVCC: {} | Ready-for-SM: {} | IMEI: {:?}",
-                        s.imsi, s.srvcc_supported, s.ready_for_sm, s.current_imei);
+                    println!(
+                        "    [IMSI {}] SRVCC: {} | Ready-for-SM: {} | IMEI: {:?}",
+                        s.imsi, s.srvcc_supported, s.ready_for_sm, s.current_imei
+                    );
                 }
             }
             "notify" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
-                let flags = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(NOR_FLAG_SRVCC_SUPPORT | NOR_FLAG_READY_FOR_SM) } else { NOR_FLAG_SRVCC_SUPPORT | NOR_FLAG_READY_FOR_SM };
-                let imei = if args.len() >= 4 { Some(args[3]) } else { Some("860123456789012") };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
+                let flags = if args.len() >= 3 {
+                    args[2]
+                        .parse::<u32>()
+                        .unwrap_or(NOR_FLAG_SRVCC_SUPPORT | NOR_FLAG_READY_FOR_SM)
+                } else {
+                    NOR_FLAG_SRVCC_SUPPORT | NOR_FLAG_READY_FOR_SM
+                };
+                let imei = if args.len() >= 4 {
+                    Some(args[3])
+                } else {
+                    Some("860123456789012")
+                };
 
                 let nor = S6aNorMessage::new_nor(
                     "sess-nor-shell-01",
@@ -19655,15 +21104,29 @@ impl NetworkShell {
                     imei,
                 );
                 let noa = self.s6a_nor_engine.process_nor(&nor);
-                println!("  [NOR PROCESSED] IMSI: {} | Flags: 0x{:X} | IMEI: {:?} -> Result-Code: {:?}",
-                    imsi, flags, imei, noa.result_code());
+                println!(
+                    "  [NOR PROCESSED] IMSI: {} | Flags: 0x{:X} | IMEI: {:?} -> Result-Code: {:?}",
+                    imsi,
+                    flags,
+                    imei,
+                    noa.result_code()
+                );
             }
             "add" => {
-                let imsi = if args.len() >= 2 { args[1] } else { "460012345678901" };
+                let imsi = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "460012345678901"
+                };
                 self.s6a_nor_engine.register_subscriber(imsi);
-                println!("  [SUBSCRIBER REGISTERED] IMSI {} provisioned in HSS notify registry.", imsi);
+                println!(
+                    "  [SUBSCRIBER REGISTERED] IMSI {} provisioned in HSS notify registry.",
+                    imsi
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s6a-nor [status | notify <imsi> [flags] [imei] | add <imsi>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s6a-nor [status | notify <imsi> [flags] [imei] | add <imsi>]"
+            ),
         }
     }
 
@@ -19671,58 +21134,162 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Dynamic ARP Inspection (DAI) & Rate-Limiter Engine (RFC 7432):");
-                println!("  • Default Rate Limit    : {} pps", self.evpn_dai_engine.default_rate_limit_pps);
-                println!("  • Trusted Ports         : {:?}", self.evpn_dai_engine.trusted_ports);
-                println!("  • Authorized Bindings   : {}", self.evpn_dai_engine.bindings.len());
-                println!("  • Total Permitted       : {}", self.evpn_dai_engine.total_permitted);
-                println!("  • Total Bypassed (Trust): {}", self.evpn_dai_engine.total_bypassed);
-                println!("  • Rate-Limit Drops      : {}", self.evpn_dai_engine.total_ratelimit_drops);
-                println!("  • Validation Drops      : {}", self.evpn_dai_engine.total_validation_drops);
+                println!(
+                    "EVPN Layer 2 Dynamic ARP Inspection (DAI) & Rate-Limiter Engine (RFC 7432):"
+                );
+                println!(
+                    "  • Default Rate Limit    : {} pps",
+                    self.evpn_dai_engine.default_rate_limit_pps
+                );
+                println!(
+                    "  • Trusted Ports         : {:?}",
+                    self.evpn_dai_engine.trusted_ports
+                );
+                println!(
+                    "  • Authorized Bindings   : {}",
+                    self.evpn_dai_engine.bindings.len()
+                );
+                println!(
+                    "  • Total Permitted       : {}",
+                    self.evpn_dai_engine.total_permitted
+                );
+                println!(
+                    "  • Total Bypassed (Trust): {}",
+                    self.evpn_dai_engine.total_bypassed
+                );
+                println!(
+                    "  • Rate-Limit Drops      : {}",
+                    self.evpn_dai_engine.total_ratelimit_drops
+                );
+                println!(
+                    "  • Validation Drops      : {}",
+                    self.evpn_dai_engine.total_validation_drops
+                );
                 for b in &self.evpn_dai_engine.bindings {
-                    println!("    [VNI {} Port {}] MAC: {} <-> IP: {}", b.vni, b.port_id, b.mac, b.ip);
+                    println!(
+                        "    [VNI {} Port {}] MAC: {} <-> IP: {}",
+                        b.vni, b.port_id, b.mac, b.ip
+                    );
                 }
             }
             "inspect" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let eth_mac_str = if args.len() >= 4 { args[3] } else { "00:11:22:33:44:55" };
-                let arp_mac_str = if args.len() >= 5 { args[4] } else { eth_mac_str };
-                let ip_str = if args.len() >= 6 { args[5] } else { "10.0.0.50" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let eth_mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "00:11:22:33:44:55"
+                };
+                let arp_mac_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    eth_mac_str
+                };
+                let ip_str = if args.len() >= 6 {
+                    args[5]
+                } else {
+                    "10.0.0.50"
+                };
 
-                let eth_mac = eth_mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
+                let eth_mac = eth_mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
                 let arp_mac = arp_mac_str.parse::<MacAddress>().unwrap_or(eth_mac);
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 50));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 50));
 
-                let verdict = self.evpn_dai_engine.inspect_arp(vni, port, eth_mac, arp_mac, ip, 1000);
+                let verdict = self
+                    .evpn_dai_engine
+                    .inspect_arp(vni, port, eth_mac, arp_mac, ip, 1000);
                 match verdict {
-                    DaiVerdict::Permit => println!("  🟢 [PERMIT] ARP packet valid on VNI {} Port {}: MAC {} -> IP {}", vni, port, arp_mac, ip),
-                    DaiVerdict::BypassTrusted => println!("  🔵 [BYPASS] Port {} is TRUSTED -> Inspection bypassed.", port),
-                    DaiVerdict::DropMacMismatch => println!("  🔴 [DROP - MAC MISMATCH] Eth MAC {} != ARP MAC {}", eth_mac, arp_mac),
-                    DaiVerdict::DropBindingNotFound => println!("  🔴 [DROP - UNBOUND] No binding for (VNI {}, Port {}, MAC {}, IP {})", vni, port, arp_mac, ip),
-                    DaiVerdict::DropRateLimitExceeded => println!("  🔴 [DROP - RATE LIMIT] Ingress ARP rate exceeded token bucket capacity!"),
+                    DaiVerdict::Permit => println!(
+                        "  🟢 [PERMIT] ARP packet valid on VNI {} Port {}: MAC {} -> IP {}",
+                        vni, port, arp_mac, ip
+                    ),
+                    DaiVerdict::BypassTrusted => println!(
+                        "  🔵 [BYPASS] Port {} is TRUSTED -> Inspection bypassed.",
+                        port
+                    ),
+                    DaiVerdict::DropMacMismatch => println!(
+                        "  🔴 [DROP - MAC MISMATCH] Eth MAC {} != ARP MAC {}",
+                        eth_mac, arp_mac
+                    ),
+                    DaiVerdict::DropBindingNotFound => println!(
+                        "  🔴 [DROP - UNBOUND] No binding for (VNI {}, Port {}, MAC {}, IP {})",
+                        vni, port, arp_mac, ip
+                    ),
+                    DaiVerdict::DropRateLimitExceeded => println!(
+                        "  🔴 [DROP - RATE LIMIT] Ingress ARP rate exceeded token bucket capacity!"
+                    ),
                 }
             }
             "bind" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "00:11:22:33:44:55" };
-                let ip_str = if args.len() >= 5 { args[4] } else { "10.0.0.50" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "00:11:22:33:44:55"
+                };
+                let ip_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "10.0.0.50"
+                };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 50));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x00, 0x11, 0x22, 0x33, 0x44, 0x55]));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 50));
 
-                self.evpn_dai_engine.add_binding(DaiBinding { vni, port_id: port, mac, ip });
-                println!("  [BINDING ADDED] VNI {} Port {}: MAC {} <-> IP {}", vni, port, mac, ip);
+                self.evpn_dai_engine.add_binding(DaiBinding {
+                    vni,
+                    port_id: port,
+                    mac,
+                    ip,
+                });
+                println!(
+                    "  [BINDING ADDED] VNI {} Port {}: MAC {} <-> IP {}",
+                    vni, port, mac, ip
+                );
             }
             "trust" => {
-                let port = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let port = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let mode_str = if args.len() >= 3 { args[2] } else { "trusted" };
                 let trusted = mode_str.eq_ignore_ascii_case("trusted");
                 self.evpn_dai_engine.set_port_trusted(port, trusted);
-                println!("  [PORT TRUST UPDATED] Port {} -> {}", port, if trusted { "TRUSTED" } else { "UNTRUSTED" });
+                println!(
+                    "  [PORT TRUST UPDATED] Port {} -> {}",
+                    port,
+                    if trusted { "TRUSTED" } else { "UNTRUSTED" }
+                );
             }
-            _ => println!("Unknown subcommand. Usage: evpn-dai [status | inspect <vni> <port> <eth_mac> <arp_mac> <ip> | bind <vni> <port> <mac> <ip> | trust <port> <trusted|untrusted>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-dai [status | inspect <vni> <port> <eth_mac> <arp_mac> <ip> | bind <vni> <port> <mac> <ip> | trust <port> <trusted|untrusted>]"
+            ),
         }
     }
 
@@ -19730,27 +21297,74 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U Path Multi-Link Flow Aggregation & Distribution Engine (3GPP TS 29.281 / RFC 8684):");
-                println!("  • Group ID              : {}", self.gtpu_link_agg_engine.group_id);
-                println!("  • Total Flows Dispatched: {}", self.gtpu_link_agg_engine.total_dispatched);
-                println!("  • Dropped (All Links Dn): {}", self.gtpu_link_agg_engine.total_dropped);
-                println!("  • Configured Links      : {}", self.gtpu_link_agg_engine.links.len());
+                println!(
+                    "5G GTP-U Path Multi-Link Flow Aggregation & Distribution Engine (3GPP TS 29.281 / RFC 8684):"
+                );
+                println!(
+                    "  • Group ID              : {}",
+                    self.gtpu_link_agg_engine.group_id
+                );
+                println!(
+                    "  • Total Flows Dispatched: {}",
+                    self.gtpu_link_agg_engine.total_dispatched
+                );
+                println!(
+                    "  • Dropped (All Links Dn): {}",
+                    self.gtpu_link_agg_engine.total_dropped
+                );
+                println!(
+                    "  • Configured Links      : {}",
+                    self.gtpu_link_agg_engine.links.len()
+                );
                 for l in &self.gtpu_link_agg_engine.links {
-                    println!("    [Link #{}: {}] Weight: {} | Status: {:?} | TEID: 0x{:X} | Peer: {} | Fwd: {} pkts ({} B)",
-                        l.link_id, l.name, l.weight, l.status, l.local_teid, l.peer_ip, l.total_packets_forwarded, l.total_bytes_forwarded);
+                    println!(
+                        "    [Link #{}: {}] Weight: {} | Status: {:?} | TEID: 0x{:X} | Peer: {} | Fwd: {} pkts ({} B)",
+                        l.link_id,
+                        l.name,
+                        l.weight,
+                        l.status,
+                        l.local_teid,
+                        l.peer_ip,
+                        l.total_packets_forwarded,
+                        l.total_bytes_forwarded
+                    );
                 }
             }
             "dispatch" => {
                 let src_ip_str = if args.len() >= 2 { args[1] } else { "10.1.1.5" };
-                let dst_ip_str = if args.len() >= 3 { args[2] } else { "93.184.216.34" };
-                let src_p = if args.len() >= 4 { args[3].parse::<u16>().unwrap_or(54321) } else { 54321 };
-                let dst_p = if args.len() >= 5 { args[4].parse::<u16>().unwrap_or(443) } else { 443 };
-                let proto = if args.len() >= 6 { args[5].parse::<u8>().unwrap_or(6) } else { 6 };
-                let bytes = if args.len() >= 7 { args[6].parse::<usize>().unwrap_or(1400) } else { 1400 };
+                let dst_ip_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "93.184.216.34"
+                };
+                let src_p = if args.len() >= 4 {
+                    args[3].parse::<u16>().unwrap_or(54321)
+                } else {
+                    54321
+                };
+                let dst_p = if args.len() >= 5 {
+                    args[4].parse::<u16>().unwrap_or(443)
+                } else {
+                    443
+                };
+                let proto = if args.len() >= 6 {
+                    args[5].parse::<u8>().unwrap_or(6)
+                } else {
+                    6
+                };
+                let bytes = if args.len() >= 7 {
+                    args[6].parse::<usize>().unwrap_or(1400)
+                } else {
+                    1400
+                };
 
                 let tuple = FiveTuple {
-                    src_ip: src_ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 1, 1, 5)),
-                    dst_ip: dst_ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(93, 184, 216, 34)),
+                    src_ip: src_ip_str
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 1, 1, 5)),
+                    dst_ip: dst_ip_str
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(93, 184, 216, 34)),
                     src_port: src_p,
                     dst_port: dst_p,
                     proto,
@@ -19758,15 +21372,30 @@ impl NetworkShell {
 
                 let res = self.gtpu_link_agg_engine.dispatch_packet(&tuple, bytes);
                 match res {
-                    FlowDistributionResult::Forward { link_id, local_teid, peer_ip } => {
-                        println!("  🟢 [FORWARD] Flow (Hash 0x{:08X}) pinned -> Link #{}: TEID 0x{:X}, Peer: {}",
-                            tuple.hash_fnv1a(), link_id, local_teid, peer_ip);
+                    FlowDistributionResult::Forward {
+                        link_id,
+                        local_teid,
+                        peer_ip,
+                    } => {
+                        println!(
+                            "  🟢 [FORWARD] Flow (Hash 0x{:08X}) pinned -> Link #{}: TEID 0x{:X}, Peer: {}",
+                            tuple.hash_fnv1a(),
+                            link_id,
+                            local_teid,
+                            peer_ip
+                        );
                     }
-                    FlowDistributionResult::AllLinksDown => println!("  🔴 [DROP - ALL LINKS DOWN] No active or degraded transport links available!"),
+                    FlowDistributionResult::AllLinksDown => println!(
+                        "  🔴 [DROP - ALL LINKS DOWN] No active or degraded transport links available!"
+                    ),
                 }
             }
             "link-state" => {
-                let link_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let link_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let state_str = if args.len() >= 3 { args[2] } else { "up" };
                 let status = match state_str {
                     "up" | "active" => LinkHealthState::Active,
@@ -19776,7 +21405,9 @@ impl NetworkShell {
                 self.gtpu_link_agg_engine.set_link_status(link_id, status);
                 println!("  [LINK STATUS UPDATED] Link #{} -> {:?}", link_id, status);
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-link-agg [status | dispatch <src_ip> <dst_ip> <src_p> <dst_p> <proto> <bytes> | link-state <link_id> <up|down>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-link-agg [status | dispatch <src_ip> <dst_ip> <src_p> <dst_p> <proto> <bytes> | link-state <link_id> <up|down>]"
+            ),
         }
     }
 
@@ -19784,33 +21415,84 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Stream Priority Promotion & Preemption Fallback Engine:");
-                println!("  • High-Prio Capacity    : {}", self.tsn_cqf_promote_engine.high_prio_capacity);
-                println!("  • High-Prio Active Count: {}", self.tsn_cqf_promote_engine.high_prio_current_count);
-                println!("  • Monitored Streams     : {}", self.tsn_cqf_promote_engine.streams.len());
+                println!(
+                    "IEEE 802.1Qch CQF Stream Priority Promotion & Preemption Fallback Engine:"
+                );
+                println!(
+                    "  • High-Prio Capacity    : {}",
+                    self.tsn_cqf_promote_engine.high_prio_capacity
+                );
+                println!(
+                    "  • High-Prio Active Count: {}",
+                    self.tsn_cqf_promote_engine.high_prio_current_count
+                );
+                println!(
+                    "  • Monitored Streams     : {}",
+                    self.tsn_cqf_promote_engine.streams.len()
+                );
                 for s in &self.tsn_cqf_promote_engine.streams {
-                    println!("    [Stream #{}: {}] Base PCP: {} | Promoted PCP: {} | Fallback PCP: {} | Prom Thresh: {} ns | Drop: {} ns | Fwd: Norm {} / Prom {} / Fallback {} / Miss {}",
-                        s.stream_id, s.name, s.base_pcp, s.promoted_pcp, s.fallback_pcp, s.promote_threshold_ns, s.drop_deadline_ns,
-                        s.total_normal, s.total_promoted, s.total_fallbacks, s.total_deadline_misses);
+                    println!(
+                        "    [Stream #{}: {}] Base PCP: {} | Promoted PCP: {} | Fallback PCP: {} | Prom Thresh: {} ns | Drop: {} ns | Fwd: Norm {} / Prom {} / Fallback {} / Miss {}",
+                        s.stream_id,
+                        s.name,
+                        s.base_pcp,
+                        s.promoted_pcp,
+                        s.fallback_pcp,
+                        s.promote_threshold_ns,
+                        s.drop_deadline_ns,
+                        s.total_normal,
+                        s.total_promoted,
+                        s.total_fallbacks,
+                        s.total_deadline_misses
+                    );
                 }
             }
             "eval" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let age_ns = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(20_000) } else { 20_000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let age_ns = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(20_000)
+                } else {
+                    20_000
+                };
 
-                let verdict = self.tsn_cqf_promote_engine.evaluate_frame(stream_id, age_ns);
+                let verdict = self
+                    .tsn_cqf_promote_engine
+                    .evaluate_frame(stream_id, age_ns);
                 match verdict {
                     PriorityPromoteVerdict::Normal { pcp, age_ns } => {
-                        println!("  🟢 [NORMAL] Stream #{}: Age {} ns < Promote Threshold -> Forwarded at Base PCP {}", stream_id, age_ns, pcp);
+                        println!(
+                            "  🟢 [NORMAL] Stream #{}: Age {} ns < Promote Threshold -> Forwarded at Base PCP {}",
+                            stream_id, age_ns, pcp
+                        );
                     }
-                    PriorityPromoteVerdict::Promoted { original_pcp, promoted_pcp, age_ns } => {
-                        println!("  🟡 [PROMOTED] Stream #{}: Age {} ns >= Promote Threshold -> Elevated from PCP {} to PCP {}", stream_id, age_ns, original_pcp, promoted_pcp);
+                    PriorityPromoteVerdict::Promoted {
+                        original_pcp,
+                        promoted_pcp,
+                        age_ns,
+                    } => {
+                        println!(
+                            "  🟡 [PROMOTED] Stream #{}: Age {} ns >= Promote Threshold -> Elevated from PCP {} to PCP {}",
+                            stream_id, age_ns, original_pcp, promoted_pcp
+                        );
                     }
                     PriorityPromoteVerdict::PreemptionFallback { fallback_pcp } => {
-                        println!("  🔵 [PREEMPTION FALLBACK] Stream #{}: High-priority queue full -> Demoted to Fallback PCP {}", stream_id, fallback_pcp);
+                        println!(
+                            "  🔵 [PREEMPTION FALLBACK] Stream #{}: High-priority queue full -> Demoted to Fallback PCP {}",
+                            stream_id, fallback_pcp
+                        );
                     }
-                    PriorityPromoteVerdict::DeadlineMissDrop { age_ns, max_allowed_ns } => {
-                        println!("  🔴 [DEADLINE MISS DROP] Stream #{}: Age {} ns exceeded maximum deadline ({} ns)! Dropped.", stream_id, age_ns, max_allowed_ns);
+                    PriorityPromoteVerdict::DeadlineMissDrop {
+                        age_ns,
+                        max_allowed_ns,
+                    } => {
+                        println!(
+                            "  🔴 [DEADLINE MISS DROP] Stream #{}: Age {} ns exceeded maximum deadline ({} ns)! Dropped.",
+                            stream_id, age_ns, max_allowed_ns
+                        );
                     }
                 }
             }
@@ -19818,7 +21500,9 @@ impl NetworkShell {
                 self.tsn_cqf_promote_engine.reset_cycle();
                 println!("  [CYCLE RESET] High-priority buffer counter reset to 0.");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-promote [status | eval <stream_id> <age_ns> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-promote [status | eval <stream_id> <age_ns> | reset]"
+            ),
         }
     }
 
@@ -19827,34 +21511,81 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("3GPP Diameter S13 / S13' Local EIR Cache Engine (3GPP TS 29.272):");
-                println!("  • Default TTL           : {} s", self.s13_cache_engine.default_ttl_secs);
-                println!("  • Capacity              : {} entries", self.s13_cache_engine.max_entries);
-                println!("  • Cached Entries        : {}", self.s13_cache_engine.entries.len());
-                println!("  • Cache Hits            : {}", self.s13_cache_engine.total_hits);
-                println!("  • Cache Misses          : {}", self.s13_cache_engine.total_misses);
-                println!("  • Expired Lookups       : {}", self.s13_cache_engine.total_expired);
+                println!(
+                    "  • Default TTL           : {} s",
+                    self.s13_cache_engine.default_ttl_secs
+                );
+                println!(
+                    "  • Capacity              : {} entries",
+                    self.s13_cache_engine.max_entries
+                );
+                println!(
+                    "  • Cached Entries        : {}",
+                    self.s13_cache_engine.entries.len()
+                );
+                println!(
+                    "  • Cache Hits            : {}",
+                    self.s13_cache_engine.total_hits
+                );
+                println!(
+                    "  • Cache Misses          : {}",
+                    self.s13_cache_engine.total_misses
+                );
+                println!(
+                    "  • Expired Lookups       : {}",
+                    self.s13_cache_engine.total_expired
+                );
                 for e in &self.s13_cache_engine.entries {
-                    println!("    [IMEI {}] Status: {:?} | Cached at: {} s | Expires at: {} s | Hits: {}",
-                        e.imei, e.status, e.cached_at_secs, e.expires_at_secs, e.hit_count);
+                    println!(
+                        "    [IMEI {}] Status: {:?} | Cached at: {} s | Expires at: {} s | Hits: {}",
+                        e.imei, e.status, e.cached_at_secs, e.expires_at_secs, e.hit_count
+                    );
                 }
             }
             "query" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860123456789012" };
-                let time_s = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1050) } else { 1050 };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860123456789012"
+                };
+                let time_s = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(1050)
+                } else {
+                    1050
+                };
 
                 let res = self.s13_cache_engine.query(imei, time_s);
                 match res {
-                    EirCacheLookupResult::Hit(status) => println!("  🟢 [CACHE HIT] IMEI {}: Status = {:?}", imei, status),
-                    EirCacheLookupResult::Expired { previous_status, expired_secs_ago } => {
-                        println!("  🟡 [CACHE EXPIRED] IMEI {}: Expired {} s ago (Prior Status: {:?})", imei, expired_secs_ago, previous_status);
+                    EirCacheLookupResult::Hit(status) => {
+                        println!("  🟢 [CACHE HIT] IMEI {}: Status = {:?}", imei, status)
                     }
-                    EirCacheLookupResult::Miss => println!("  🔴 [CACHE MISS] IMEI {} not present in local cache.", imei),
+                    EirCacheLookupResult::Expired {
+                        previous_status,
+                        expired_secs_ago,
+                    } => {
+                        println!(
+                            "  🟡 [CACHE EXPIRED] IMEI {}: Expired {} s ago (Prior Status: {:?})",
+                            imei, expired_secs_ago, previous_status
+                        );
+                    }
+                    EirCacheLookupResult::Miss => println!(
+                        "  🔴 [CACHE MISS] IMEI {} not present in local cache.",
+                        imei
+                    ),
                 }
             }
             "insert" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860123456789012" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860123456789012"
+                };
                 let status_str = if args.len() >= 3 { args[2] } else { "white" };
-                let ttl = if args.len() >= 4 { args[3].parse::<u64>().ok() } else { None };
+                let ttl = if args.len() >= 4 {
+                    args[3].parse::<u64>().ok()
+                } else {
+                    None
+                };
 
                 let status = match status_str {
                     "black" | "1" => EirEquipmentStatus::BlackListed,
@@ -19863,14 +21594,26 @@ impl NetworkShell {
                 };
 
                 self.s13_cache_engine.insert(imei, status, 1000, ttl);
-                println!("  [ENTRY INSERTED] IMEI {}: {:?} (TTL: {:?} s)", imei, status, ttl);
+                println!(
+                    "  [ENTRY INSERTED] IMEI {}: {:?} (TTL: {:?} s)",
+                    imei, status, ttl
+                );
             }
             "purge" => {
-                let time_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(2000) } else { 2000 };
+                let time_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(2000)
+                } else {
+                    2000
+                };
                 let purged = self.s13_cache_engine.purge_expired(time_s);
-                println!("  [PURGE COMPLETE] Evicted {} expired entries at t = {} s.", purged, time_s);
+                println!(
+                    "  [PURGE COMPLETE] Evicted {} expired entries at t = {} s.",
+                    purged, time_s
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-cache [status | query <imei> [time_s] | insert <imei> <status> [ttl] | purge]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-cache [status | query <imei> [time_s] | insert <imei> <status> [ttl] | purge]"
+            ),
         }
     }
 
@@ -19878,47 +21621,103 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Unknown Multicast Replication Tree (UMRT) Engine (RFC 7432 / RFC 9251):");
-                println!("  • Local VTEP IP         : {}", self.evpn_umrt_engine.local_vtep_ip);
-                println!("  • Local Ports           : {}", self.evpn_umrt_engine.local_ports.len());
-                println!("  • Remote VTEPs          : {}", self.evpn_umrt_engine.remote_vteps.len());
-                println!("  • Plans Computed        : {}", self.evpn_umrt_engine.total_plans_computed);
-                println!("  • Local Replications    : {}", self.evpn_umrt_engine.total_local_replications);
-                println!("  • Overlay Replications  : {}", self.evpn_umrt_engine.total_overlay_replications);
+                println!(
+                    "EVPN Layer 2 Unknown Multicast Replication Tree (UMRT) Engine (RFC 7432 / RFC 9251):"
+                );
+                println!(
+                    "  • Local VTEP IP         : {}",
+                    self.evpn_umrt_engine.local_vtep_ip
+                );
+                println!(
+                    "  • Local Ports           : {}",
+                    self.evpn_umrt_engine.local_ports.len()
+                );
+                println!(
+                    "  • Remote VTEPs          : {}",
+                    self.evpn_umrt_engine.remote_vteps.len()
+                );
+                println!(
+                    "  • Plans Computed        : {}",
+                    self.evpn_umrt_engine.total_plans_computed
+                );
+                println!(
+                    "  • Local Replications    : {}",
+                    self.evpn_umrt_engine.total_local_replications
+                );
+                println!(
+                    "  • Overlay Replications  : {}",
+                    self.evpn_umrt_engine.total_overlay_replications
+                );
                 for p in &self.evpn_umrt_engine.local_ports {
-                    println!("    [Local Port #{}] VNI: {} | Prune Unknown Mcast: {}", p.port_id, p.vni, p.prune_unknown_mcast);
+                    println!(
+                        "    [Local Port #{}] VNI: {} | Prune Unknown Mcast: {}",
+                        p.port_id, p.vni, p.prune_unknown_mcast
+                    );
                 }
                 for r in &self.evpn_umrt_engine.remote_vteps {
-                    println!("    [Remote VTEP {}] Subscribed VNIs: {:?}", r.vtep_ip, r.subscribed_vnis);
+                    println!(
+                        "    [Remote VTEP {}] Subscribed VNIs: {:?}",
+                        r.vtep_ip, r.subscribed_vnis
+                    );
                 }
             }
             "plan" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
                 let ingress_str = if args.len() >= 3 { args[2] } else { "1" };
-                let mcast_mac_str = if args.len() >= 4 { args[3] } else { "01:00:5E:00:00:FB" };
+                let mcast_mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "01:00:5E:00:00:FB"
+                };
 
-                let mcast_mac = mcast_mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB]));
+                let mcast_mac = mcast_mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x01, 0x00, 0x5E, 0x00, 0x00, 0xFB]));
                 let ingress = if let Ok(port_id) = ingress_str.parse::<u32>() {
                     IngressDomain::LocalPort(port_id)
                 } else {
-                    let remote_ip = ingress_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 2));
+                    let remote_ip = ingress_str
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 2));
                     IngressDomain::OverlayVtep(remote_ip)
                 };
 
-                let plan = self.evpn_umrt_engine.compute_replication_plan(vni, ingress, mcast_mac);
-                println!("  [REPLICATION PLAN COMPUTED] VNI: {} | Ingress: {:?} | MAC: {}", vni, ingress, mcast_mac);
+                let plan = self
+                    .evpn_umrt_engine
+                    .compute_replication_plan(vni, ingress, mcast_mac);
+                println!(
+                    "  [REPLICATION PLAN COMPUTED] VNI: {} | Ingress: {:?} | MAC: {}",
+                    vni, ingress, mcast_mac
+                );
                 println!("    • Local Egress Ports : {:?}", plan.local_egress_ports);
                 println!("    • Remote VTEP Leaves : {:?}", plan.remote_vteps);
             }
             "port" => {
-                let port = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let vni = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(100) } else { 100 };
+                let port = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let vni = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
                 let mode_str = if args.len() >= 4 { args[3] } else { "prune" };
                 let prune = mode_str.eq_ignore_ascii_case("prune");
                 self.evpn_umrt_engine.add_local_port(port, vni, prune);
-                println!("  [PORT CONFIGURED] Port #{} -> VNI {}, Prune: {}", port, vni, prune);
+                println!(
+                    "  [PORT CONFIGURED] Port #{} -> VNI {}, Prune: {}",
+                    port, vni, prune
+                );
             }
-            _ => println!("Unknown subcommand. Usage: evpn-umrt [status | plan <vni> <port|overlay> <mcast_mac> | port <port> <vni> <prune|fwd>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-umrt [status | plan <vni> <port|overlay> <mcast_mac> | port <port> <vni> <prune|fwd>]"
+            ),
         }
     }
 
@@ -19926,52 +21725,130 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U Path RTT-Adaptive Jitter Buffer Engine (3GPP TS 29.281 / TS 23.501):");
-                println!("  • TEID                  : 0x{:08X}", self.gtpu_jitter_buf_engine.teid);
-                println!("  • Expected Next Seq     : {}", self.gtpu_jitter_buf_engine.expected_seq);
-                println!("  • SRTT                  : {} µs", self.gtpu_jitter_buf_engine.srtt_us);
-                println!("  • RTTVAR                : {} µs", self.gtpu_jitter_buf_engine.rttvar_us);
-                println!("  • Target Hold Delay     : {} µs ({:.2} ms)", self.gtpu_jitter_buf_engine.target_hold_delay_us(), (self.gtpu_jitter_buf_engine.target_hold_delay_us() as f64) / 1000.0);
-                println!("  • Current Buffered      : {} packets", self.gtpu_jitter_buf_engine.buffer.len());
-                println!("  • Total Ingress Received: {}", self.gtpu_jitter_buf_engine.total_received);
-                println!("  • Total In-Order Released: {}", self.gtpu_jitter_buf_engine.total_released);
-                println!("  • Total Duplicates      : {}", self.gtpu_jitter_buf_engine.total_duplicates);
-                println!("  • Total Timed-Out Skipped: {}", self.gtpu_jitter_buf_engine.total_timed_out);
+                println!(
+                    "5G GTP-U Path RTT-Adaptive Jitter Buffer Engine (3GPP TS 29.281 / TS 23.501):"
+                );
+                println!(
+                    "  • TEID                  : 0x{:08X}",
+                    self.gtpu_jitter_buf_engine.teid
+                );
+                println!(
+                    "  • Expected Next Seq     : {}",
+                    self.gtpu_jitter_buf_engine.expected_seq
+                );
+                println!(
+                    "  • SRTT                  : {} µs",
+                    self.gtpu_jitter_buf_engine.srtt_us
+                );
+                println!(
+                    "  • RTTVAR                : {} µs",
+                    self.gtpu_jitter_buf_engine.rttvar_us
+                );
+                println!(
+                    "  • Target Hold Delay     : {} µs ({:.2} ms)",
+                    self.gtpu_jitter_buf_engine.target_hold_delay_us(),
+                    (self.gtpu_jitter_buf_engine.target_hold_delay_us() as f64) / 1000.0
+                );
+                println!(
+                    "  • Current Buffered      : {} packets",
+                    self.gtpu_jitter_buf_engine.buffer.len()
+                );
+                println!(
+                    "  • Total Ingress Received: {}",
+                    self.gtpu_jitter_buf_engine.total_received
+                );
+                println!(
+                    "  • Total In-Order Released: {}",
+                    self.gtpu_jitter_buf_engine.total_released
+                );
+                println!(
+                    "  • Total Duplicates      : {}",
+                    self.gtpu_jitter_buf_engine.total_duplicates
+                );
+                println!(
+                    "  • Total Timed-Out Skipped: {}",
+                    self.gtpu_jitter_buf_engine.total_timed_out
+                );
                 for p in &self.gtpu_jitter_buf_engine.buffer {
-                    println!("    [Buffered Pkt] Seq: {} | Arrived at: {} µs", p.seq_num, p.arrival_time_us);
+                    println!(
+                        "    [Buffered Pkt] Seq: {} | Arrived at: {} µs",
+                        p.seq_num, p.arrival_time_us
+                    );
                 }
             }
             "push" => {
-                let seq = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let time_us = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let seq = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let time_us = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                let action = self.gtpu_jitter_buf_engine.push_packet(seq, vec![1, 2, 3], time_us);
+                let action = self
+                    .gtpu_jitter_buf_engine
+                    .push_packet(seq, vec![1, 2, 3], time_us);
                 match action {
                     JitterBufferAction::ReleaseInOrder(pkts) => {
-                        println!("  🟢 [IN-ORDER RELEASE] Released {} contiguous packets: {:?}",
-                            pkts.len(), pkts.iter().map(|p| p.seq_num).collect::<Vec<_>>());
+                        println!(
+                            "  🟢 [IN-ORDER RELEASE] Released {} contiguous packets: {:?}",
+                            pkts.len(),
+                            pkts.iter().map(|p| p.seq_num).collect::<Vec<_>>()
+                        );
                     }
-                    JitterBufferAction::Queued { current_buffered, expected_seq } => {
-                        println!("  🟡 [QUEUED IN JITTER BUFFER] Pkt #{}: Buffered (Total: {} pkts, waiting for Seq #{})",
-                            seq, current_buffered, expected_seq);
+                    JitterBufferAction::Queued {
+                        current_buffered,
+                        expected_seq,
+                    } => {
+                        println!(
+                            "  🟡 [QUEUED IN JITTER BUFFER] Pkt #{}: Buffered (Total: {} pkts, waiting for Seq #{})",
+                            seq, current_buffered, expected_seq
+                        );
                     }
-                    JitterBufferAction::DropDuplicate => println!("  🔴 [DROP DUPLICATE] Pkt #{} is duplicate or obsolete.", seq),
+                    JitterBufferAction::DropDuplicate => println!(
+                        "  🔴 [DROP DUPLICATE] Pkt #{} is duplicate or obsolete.",
+                        seq
+                    ),
                 }
             }
             "flush" => {
-                let time_us = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(30_000) } else { 30_000 };
+                let time_us = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(30_000)
+                } else {
+                    30_000
+                };
                 let flushed = self.gtpu_jitter_buf_engine.flush_expired(time_us);
-                println!("  [FLUSH EXPIRED] Released {} packets after hold delay timeout: {:?}",
-                    flushed.len(), flushed.iter().map(|p| p.seq_num).collect::<Vec<_>>());
+                println!(
+                    "  [FLUSH EXPIRED] Released {} packets after hold delay timeout: {:?}",
+                    flushed.len(),
+                    flushed.iter().map(|p| p.seq_num).collect::<Vec<_>>()
+                );
             }
             "rtt" => {
-                let srtt = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(10_000) } else { 10_000 };
-                let rttvar = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(2_000) } else { 2_000 };
+                let srtt = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(10_000)
+                } else {
+                    10_000
+                };
+                let rttvar = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(2_000)
+                } else {
+                    2_000
+                };
                 self.gtpu_jitter_buf_engine.update_rtt(srtt, rttvar);
-                println!("  [RTT UPDATED] SRTT: {} µs | RTTVAR: {} µs -> Target Hold Delay: {} µs",
-                    srtt, rttvar, self.gtpu_jitter_buf_engine.target_hold_delay_us());
+                println!(
+                    "  [RTT UPDATED] SRTT: {} µs | RTTVAR: {} µs -> Target Hold Delay: {} µs",
+                    srtt,
+                    rttvar,
+                    self.gtpu_jitter_buf_engine.target_hold_delay_us()
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-jitter-buf [status | push <seq> <time_us> | flush <time_us> | rtt <srtt_us> <rttvar_us>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-jitter-buf [status | push <seq> <time_us> | flush <time_us> | rtt <srtt_us> <rttvar_us>]"
+            ),
         }
     }
 
@@ -19980,47 +21857,97 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Cyclic Frame Timestamping & Jitter Analyzer:");
-                println!("  • Monitored Streams     : {}", self.tsn_cqf_jitter_analyzer.streams.len());
-                println!("  • History Log Capacity  : {} records", self.tsn_cqf_jitter_analyzer.max_history_size);
-                println!("  • History Recorded      : {} records", self.tsn_cqf_jitter_analyzer.history.len());
+                println!(
+                    "  • Monitored Streams     : {}",
+                    self.tsn_cqf_jitter_analyzer.streams.len()
+                );
+                println!(
+                    "  • History Log Capacity  : {} records",
+                    self.tsn_cqf_jitter_analyzer.max_history_size
+                );
+                println!(
+                    "  • History Recorded      : {} records",
+                    self.tsn_cqf_jitter_analyzer.history.len()
+                );
                 for s in &self.tsn_cqf_jitter_analyzer.streams {
-                    println!("    [Stream #{}: {}] Max Lat: {} ns | Max Jit: {} ns | Min/Max/Avg Lat: {}/{}/{} ns | Max/Avg Jit: {}/{} ns | Breach Lat: {} / Jit: {}",
-                        s.stream_id, s.name, s.max_allowed_latency_ns, s.max_allowed_jitter_ns,
-                        s.min_latency_ns, s.max_latency_ns, s.avg_latency_ns(),
-                        s.max_jitter_ns, s.avg_jitter_ns(),
-                        s.latency_breach_count, s.jitter_breach_count);
+                    println!(
+                        "    [Stream #{}: {}] Max Lat: {} ns | Max Jit: {} ns | Min/Max/Avg Lat: {}/{}/{} ns | Max/Avg Jit: {}/{} ns | Breach Lat: {} / Jit: {}",
+                        s.stream_id,
+                        s.name,
+                        s.max_allowed_latency_ns,
+                        s.max_allowed_jitter_ns,
+                        s.min_latency_ns,
+                        s.max_latency_ns,
+                        s.avg_latency_ns(),
+                        s.max_jitter_ns,
+                        s.avg_jitter_ns(),
+                        s.latency_breach_count,
+                        s.jitter_breach_count
+                    );
                 }
             }
             "record" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let in_ns = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(10_000) } else { 10_000 };
-                let out_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(60_000) } else { 60_000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let in_ns = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(10_000)
+                } else {
+                    10_000
+                };
+                let out_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(60_000)
+                } else {
+                    60_000
+                };
 
                 let frame_id = self.tsn_cqf_jitter_analyzer.history.len() as u64 + 1;
-                let verdict = self.tsn_cqf_jitter_analyzer.record_frame(frame_id, stream_id, in_ns, out_ns);
+                let verdict = self
+                    .tsn_cqf_jitter_analyzer
+                    .record_frame(frame_id, stream_id, in_ns, out_ns);
                 match verdict {
-                    JitterAnalyzerVerdict::Compliant { latency_ns, jitter_ns } => {
-                        println!("  🟢 [COMPLIANT] Frame #{}: Latency = {} ns, Jitter = {} ns (Within SLA)", frame_id, latency_ns, jitter_ns);
+                    JitterAnalyzerVerdict::Compliant {
+                        latency_ns,
+                        jitter_ns,
+                    } => {
+                        println!(
+                            "  🟢 [COMPLIANT] Frame #{}: Latency = {} ns, Jitter = {} ns (Within SLA)",
+                            frame_id, latency_ns, jitter_ns
+                        );
                     }
-                    JitterAnalyzerVerdict::JitterBreached { jitter_ns, allowed_jitter_ns } => {
-                        println!("  🟡 [JITTER BREACH] Frame #{}: Jitter = {} ns > SLA Threshold ({} ns)!", frame_id, jitter_ns, allowed_jitter_ns);
+                    JitterAnalyzerVerdict::JitterBreached {
+                        jitter_ns,
+                        allowed_jitter_ns,
+                    } => {
+                        println!(
+                            "  🟡 [JITTER BREACH] Frame #{}: Jitter = {} ns > SLA Threshold ({} ns)!",
+                            frame_id, jitter_ns, allowed_jitter_ns
+                        );
                     }
-                    JitterAnalyzerVerdict::LatencyBreached { latency_ns, allowed_latency_ns } => {
-                        println!("  🔴 [LATENCY BREACH] Frame #{}: Latency = {} ns > SLA Deadline ({} ns)!", frame_id, latency_ns, allowed_latency_ns);
+                    JitterAnalyzerVerdict::LatencyBreached {
+                        latency_ns,
+                        allowed_latency_ns,
+                    } => {
+                        println!(
+                            "  🔴 [LATENCY BREACH] Frame #{}: Latency = {} ns > SLA Deadline ({} ns)!",
+                            frame_id, latency_ns, allowed_latency_ns
+                        );
                     }
                 }
             }
             "reset" => {
                 self.tsn_cqf_jitter_analyzer = TsnCqfTimestampJitterEngine::new(100);
-                self.tsn_cqf_jitter_analyzer.register_stream(StreamJitterStats::new(
-                    1,
-                    "Lidar-Sensors",
-                    100_000,
-                    10_000,
-                ));
-                println!("  [ANALYZER RESET] Monitored stream statistics and transit history cleared.");
+                self.tsn_cqf_jitter_analyzer
+                    .register_stream(StreamJitterStats::new(1, "Lidar-Sensors", 100_000, 10_000));
+                println!(
+                    "  [ANALYZER RESET] Monitored stream statistics and transit history cleared."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-analyzer [status | record <stream_id> <in_ns> <out_ns> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-analyzer [status | record <stream_id> <in_ns> <out_ns> | reset]"
+            ),
         }
     }
 
@@ -20028,22 +21955,50 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP Diameter S13 / S13' Bulk Blacklist Push (BBP) Engine (3GPP TS 29.272):");
-                println!("  • Node ID               : {}", self.s13_bulk_engine.node_id);
+                println!(
+                    "3GPP Diameter S13 / S13' Bulk Blacklist Push (BBP) Engine (3GPP TS 29.272):"
+                );
+                println!(
+                    "  • Node ID               : {}",
+                    self.s13_bulk_engine.node_id
+                );
                 println!("  • Realm                 : {}", self.s13_bulk_engine.realm);
-                println!("  • Current Batch Version : {}", self.s13_bulk_engine.current_version);
-                println!("  • Blacklisted IMEIs     : {} items", self.s13_bulk_engine.blacklisted_imeis.len());
-                println!("  • Total BBR Processed   : {}", self.s13_bulk_engine.total_bbr_processed);
-                println!("  • Total Additions       : {}", self.s13_bulk_engine.total_additions);
-                println!("  • Total Removals        : {}", self.s13_bulk_engine.total_removals);
+                println!(
+                    "  • Current Batch Version : {}",
+                    self.s13_bulk_engine.current_version
+                );
+                println!(
+                    "  • Blacklisted IMEIs     : {} items",
+                    self.s13_bulk_engine.blacklisted_imeis.len()
+                );
+                println!(
+                    "  • Total BBR Processed   : {}",
+                    self.s13_bulk_engine.total_bbr_processed
+                );
+                println!(
+                    "  • Total Additions       : {}",
+                    self.s13_bulk_engine.total_additions
+                );
+                println!(
+                    "  • Total Removals        : {}",
+                    self.s13_bulk_engine.total_removals
+                );
                 for imei in &self.s13_bulk_engine.blacklisted_imeis {
                     println!("    [Blacklisted IMEI] {}", imei);
                 }
             }
             "push" => {
-                let version = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(11) } else { 11 };
+                let version = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(11)
+                } else {
+                    11
+                };
                 let action_str = if args.len() >= 3 { args[2] } else { "add" };
-                let imeis_raw = if args.len() >= 4 { args[3] } else { "860000000000003,860000000000004" };
+                let imeis_raw = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "860000000000003,860000000000004"
+                };
 
                 let action = match action_str {
                     "rem" | "remove" => BulkBlacklistAction::Remove,
@@ -20063,19 +22018,33 @@ impl NetworkShell {
                 );
 
                 let bba = self.s13_bulk_engine.process_bbr(&bbr);
-                println!("  [BULK BLACKLIST SYNC APPLIED] Version: {} | Action: {:?} | Items: {} | Result: {:?}",
-                    version, action, imeis_list.len(), bba.result_code);
+                println!(
+                    "  [BULK BLACKLIST SYNC APPLIED] Version: {} | Action: {:?} | Items: {} | Result: {:?}",
+                    version,
+                    action,
+                    imeis_list.len(),
+                    bba.result_code
+                );
             }
             "check" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860000000000001" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860000000000001"
+                };
                 let blacklisted = self.s13_bulk_engine.is_blacklisted(imei);
                 if blacklisted {
-                    println!("  🔴 [BLACKLIST HIT] IMEI {} is present in local EIR blacklist database.", imei);
+                    println!(
+                        "  🔴 [BLACKLIST HIT] IMEI {} is present in local EIR blacklist database.",
+                        imei
+                    );
                 } else {
                     println!("  🟢 [CLEAR] IMEI {} is NOT in local blacklist.", imei);
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-bulk [status | push <version> <add|rem|reset> <imei1,imei2...> | check <imei>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-bulk [status | push <version> <add|rem|reset> <imei1,imei2...> | check <imei>]"
+            ),
         }
     }
 
@@ -20083,47 +22052,125 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Dynamic Host Tracking (DHT) & Silent Host Probing Engine (RFC 7432):");
-                println!("  • Inactivity Timeout    : {} s", self.evpn_dht_engine.inactivity_timeout_secs);
-                println!("  • Max Retries           : {}", self.evpn_dht_engine.max_probe_retries);
-                println!("  • Tracked Hosts         : {}", self.evpn_dht_engine.hosts.len());
-                println!("  • Probes Dispatched     : {}", self.evpn_dht_engine.total_probes_dispatched);
-                println!("  • Withdrawals Triggered : {}", self.evpn_dht_engine.total_withdrawals);
+                println!(
+                    "EVPN Layer 2 Dynamic Host Tracking (DHT) & Silent Host Probing Engine (RFC 7432):"
+                );
+                println!(
+                    "  • Inactivity Timeout    : {} s",
+                    self.evpn_dht_engine.inactivity_timeout_secs
+                );
+                println!(
+                    "  • Max Retries           : {}",
+                    self.evpn_dht_engine.max_probe_retries
+                );
+                println!(
+                    "  • Tracked Hosts         : {}",
+                    self.evpn_dht_engine.hosts.len()
+                );
+                println!(
+                    "  • Probes Dispatched     : {}",
+                    self.evpn_dht_engine.total_probes_dispatched
+                );
+                println!(
+                    "  • Withdrawals Triggered : {}",
+                    self.evpn_dht_engine.total_withdrawals
+                );
                 for h in &self.evpn_dht_engine.hosts {
-                    println!("    [Host VNI: {} | Port: {} | MAC: {} | IP: {}] State: {:?} | Last Seen: {} s | Probes Sent: {}",
-                        h.vni, h.port_id, h.mac, h.ip, h.state, h.last_seen_secs, h.total_probes_sent);
+                    println!(
+                        "    [Host VNI: {} | Port: {} | MAC: {} | IP: {}] State: {:?} | Last Seen: {} s | Probes Sent: {}",
+                        h.vni,
+                        h.port_id,
+                        h.mac,
+                        h.ip,
+                        h.state,
+                        h.last_seen_secs,
+                        h.total_probes_sent
+                    );
                 }
             }
             "touch" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let mac_str = if args.len() >= 4 { args[3] } else { "00:50:56:AA:BB:01" };
-                let ip_str = if args.len() >= 5 { args[4] } else { "10.1.1.10" };
-                let t_s = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(1010) } else { 1010 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let mac_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "00:50:56:AA:BB:01"
+                };
+                let ip_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "10.1.1.10"
+                };
+                let t_s = if args.len() >= 6 {
+                    args[5].parse::<u64>().unwrap_or(1010)
+                } else {
+                    1010
+                };
 
-                let mac = mac_str.parse::<MacAddress>().unwrap_or(MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x01]));
-                let ip = ip_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 1, 1, 10));
+                let mac = mac_str
+                    .parse::<MacAddress>()
+                    .unwrap_or(MacAddress([0x00, 0x50, 0x56, 0xAA, 0xBB, 0x01]));
+                let ip = ip_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 1, 1, 10));
 
                 self.evpn_dht_engine.touch_host(vni, port, mac, ip, t_s);
-                println!("  [HOST TOUCHED/REFRESHED] Host {}:{} (MAC: {}, IP: {}) refreshed at t = {} s.", vni, port, mac, ip, t_s);
+                println!(
+                    "  [HOST TOUCHED/REFRESHED] Host {}:{} (MAC: {}, IP: {}) refreshed at t = {} s.",
+                    vni, port, mac, ip, t_s
+                );
             }
             "tick" => {
-                let current_t = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1040) } else { 1040 };
+                let current_t = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1040)
+                } else {
+                    1040
+                };
                 let actions = self.evpn_dht_engine.tick(current_t);
-                println!("  [DHT TICK EVALUATED] at t = {} s (Actions Triggered: {}):", current_t, actions.len());
+                println!(
+                    "  [DHT TICK EVALUATED] at t = {} s (Actions Triggered: {}):",
+                    current_t,
+                    actions.len()
+                );
                 for a in actions {
                     match a {
                         DhtTickAction::None => println!("    • None"),
-                        DhtTickAction::SendUnicastProbe { vni, port_id, target_mac, target_ip } => {
-                            println!("    🟡 [UNICAST ARP PROBE] VNI: {} | Port: {} | Target: {} ({})", vni, port_id, target_ip, target_mac);
+                        DhtTickAction::SendUnicastProbe {
+                            vni,
+                            port_id,
+                            target_mac,
+                            target_ip,
+                        } => {
+                            println!(
+                                "    🟡 [UNICAST ARP PROBE] VNI: {} | Port: {} | Target: {} ({})",
+                                vni, port_id, target_ip, target_mac
+                            );
                         }
-                        DhtTickAction::WithdrawHost { vni, port_id, mac, ip } => {
-                            println!("    🔴 [WITHDRAW HOST] VNI: {} | Port: {} | Withdrawn Dead Host: {} ({})", vni, port_id, ip, mac);
+                        DhtTickAction::WithdrawHost {
+                            vni,
+                            port_id,
+                            mac,
+                            ip,
+                        } => {
+                            println!(
+                                "    🔴 [WITHDRAW HOST] VNI: {} | Port: {} | Withdrawn Dead Host: {} ({})",
+                                vni, port_id, ip, mac
+                            );
                         }
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-dht [status | touch <vni> <port> <mac> <ip> [t] | tick <current_t>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-dht [status | touch <vni> <port> <mac> <ip> [t] | tick <current_t>]"
+            ),
         }
     }
 
@@ -20131,40 +22178,88 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U Sequence Gap Detection & Fast Retransmit Engine (3GPP TS 29.281 / TS 38.415):");
-                println!("  • TEID                  : 0x{:08X}", self.gtpu_gap_engine.teid);
-                println!("  • Expected Next Seq     : {}", self.gtpu_gap_engine.expected_next_seq);
-                println!("  • Fast Retransmit OOO Thresh: {} pkts", self.gtpu_gap_engine.fast_retransmit_ooo_threshold);
-                println!("  • Pending Sequence Holes: {}", self.gtpu_gap_engine.holes.len());
-                println!("  • Total Holes Detected  : {}", self.gtpu_gap_engine.total_holes_detected);
-                println!("  • Total NACKs Triggered : {}", self.gtpu_gap_engine.total_nacks_triggered);
-                println!("  • Total Holes Healed    : {}", self.gtpu_gap_engine.total_holes_healed);
+                println!(
+                    "5G GTP-U Sequence Gap Detection & Fast Retransmit Engine (3GPP TS 29.281 / TS 38.415):"
+                );
+                println!(
+                    "  • TEID                  : 0x{:08X}",
+                    self.gtpu_gap_engine.teid
+                );
+                println!(
+                    "  • Expected Next Seq     : {}",
+                    self.gtpu_gap_engine.expected_next_seq
+                );
+                println!(
+                    "  • Fast Retransmit OOO Thresh: {} pkts",
+                    self.gtpu_gap_engine.fast_retransmit_ooo_threshold
+                );
+                println!(
+                    "  • Pending Sequence Holes: {}",
+                    self.gtpu_gap_engine.holes.len()
+                );
+                println!(
+                    "  • Total Holes Detected  : {}",
+                    self.gtpu_gap_engine.total_holes_detected
+                );
+                println!(
+                    "  • Total NACKs Triggered : {}",
+                    self.gtpu_gap_engine.total_nacks_triggered
+                );
+                println!(
+                    "  • Total Holes Healed    : {}",
+                    self.gtpu_gap_engine.total_holes_healed
+                );
                 for h in &self.gtpu_gap_engine.holes {
-                    println!("    [Missing Seq #{}] Detected at: #{} | OOO Seen After: {} | NACK Sent: {}",
-                        h.missing_seq, h.detected_at_seq, h.ooo_packets_seen_after, h.nack_sent);
+                    println!(
+                        "    [Missing Seq #{}] Detected at: #{} | OOO Seen After: {} | NACK Sent: {}",
+                        h.missing_seq, h.detected_at_seq, h.ooo_packets_seen_after, h.nack_sent
+                    );
                 }
             }
             "recv" => {
-                let seq = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let seq = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let action = self.gtpu_gap_engine.inspect_sequence(seq);
                 match action {
-                    GapAction::Contiguous => println!("  🟢 [CONTIGUOUS IN-ORDER] Packet #{} processed seamlessly.", seq),
+                    GapAction::Contiguous => println!(
+                        "  🟢 [CONTIGUOUS IN-ORDER] Packet #{} processed seamlessly.",
+                        seq
+                    ),
                     GapAction::NewHoleDetected { missing_seq } => {
-                        println!("  🟡 [HOLE DETECTED] Packet #{}: Gap detected (Missing Seq #{})", seq, missing_seq);
+                        println!(
+                            "  🟡 [HOLE DETECTED] Packet #{}: Gap detected (Missing Seq #{})",
+                            seq, missing_seq
+                        );
                     }
-                    GapAction::TriggerFastRetransmit { missing_seq, ooo_count } => {
-                        println!("  🔴 [FAST RETRANSMIT NACK TRIGGERED] Missing Seq #{}: {} OOO packets seen after gap!", missing_seq, ooo_count);
+                    GapAction::TriggerFastRetransmit {
+                        missing_seq,
+                        ooo_count,
+                    } => {
+                        println!(
+                            "  🔴 [FAST RETRANSMIT NACK TRIGGERED] Missing Seq #{}: {} OOO packets seen after gap!",
+                            missing_seq, ooo_count
+                        );
                     }
                     GapAction::HoleRepaired { repaired_seq } => {
-                        println!("  🟢 [HOLE REPAIRED] Retransmitted Seq #{} successfully healed missing gap.", repaired_seq);
+                        println!(
+                            "  🟢 [HOLE REPAIRED] Retransmitted Seq #{} successfully healed missing gap.",
+                            repaired_seq
+                        );
                     }
                 }
             }
             "reset" => {
                 self.gtpu_gap_engine = GtpuGapRetransmitEngine::new(0x7001, 1, 3);
-                println!("  [GAP ENGINE RESET] TEID 0x00007001 initialized with expected sequence #1.");
+                println!(
+                    "  [GAP ENGINE RESET] TEID 0x00007001 initialized with expected sequence #1."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-gap-retransmit [status | recv <seq> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-gap-retransmit [status | recv <seq> | reset]"
+            ),
         }
     }
 
@@ -20172,44 +22267,107 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Stream Priority Inheritance & Inversion Prevention Engine:");
-                println!("  • Managed Shared Res   : {}", self.tsn_cqf_inherit_engine.resources.len());
-                println!("  • Total Inversion Evts : {}", self.tsn_cqf_inherit_engine.total_inversion_events);
+                println!(
+                    "IEEE 802.1Qch CQF Stream Priority Inheritance & Inversion Prevention Engine:"
+                );
+                println!(
+                    "  • Managed Shared Res   : {}",
+                    self.tsn_cqf_inherit_engine.resources.len()
+                );
+                println!(
+                    "  • Total Inversion Evts : {}",
+                    self.tsn_cqf_inherit_engine.total_inversion_events
+                );
                 for r in &self.tsn_cqf_inherit_engine.resources {
-                    println!("    [Resource #{}] Holder Stream: #{} | Base PCP: {} | Effective PCP: {} | Waiters: {:?} | Inversions Prevented: {}",
-                        r.resource_id, r.holder_stream_id, r.holder_base_pcp, r.effective_pcp, r.waiting_streams, r.total_inversions_prevented);
+                    println!(
+                        "    [Resource #{}] Holder Stream: #{} | Base PCP: {} | Effective PCP: {} | Waiters: {:?} | Inversions Prevented: {}",
+                        r.resource_id,
+                        r.holder_stream_id,
+                        r.holder_base_pcp,
+                        r.effective_pcp,
+                        r.waiting_streams,
+                        r.total_inversions_prevented
+                    );
                 }
             }
             "lock" => {
-                let res_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let stream_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(10) } else { 10 };
-                let pcp = if args.len() >= 4 { args[3].parse::<u8>().unwrap_or(2) } else { 2 };
+                let res_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let stream_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(10)
+                } else {
+                    10
+                };
+                let pcp = if args.len() >= 4 {
+                    args[3].parse::<u8>().unwrap_or(2)
+                } else {
+                    2
+                };
 
-                self.tsn_cqf_inherit_engine.acquire_resource(res_id, stream_id, pcp);
-                println!("  [RESOURCE ACQUIRED] Resource #{} acquired by Stream #{} (Base PCP: {})", res_id, stream_id, pcp);
+                self.tsn_cqf_inherit_engine
+                    .acquire_resource(res_id, stream_id, pcp);
+                println!(
+                    "  [RESOURCE ACQUIRED] Resource #{} acquired by Stream #{} (Base PCP: {})",
+                    res_id, stream_id, pcp
+                );
             }
             "request" => {
-                let res_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let stream_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(20) } else { 20 };
-                let pcp = if args.len() >= 4 { args[3].parse::<u8>().unwrap_or(6) } else { 6 };
+                let res_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let stream_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(20)
+                } else {
+                    20
+                };
+                let pcp = if args.len() >= 4 {
+                    args[3].parse::<u8>().unwrap_or(6)
+                } else {
+                    6
+                };
 
-                let verdict = self.tsn_cqf_inherit_engine.request_resource(res_id, stream_id, pcp);
+                let verdict = self
+                    .tsn_cqf_inherit_engine
+                    .request_resource(res_id, stream_id, pcp);
                 match verdict {
                     PriorityInheritVerdict::BasePriority { pcp } => {
-                        println!("  🟢 [BASE PRIORITY] Stream #{} queued at base PCP {}", stream_id, pcp);
+                        println!(
+                            "  🟢 [BASE PRIORITY] Stream #{} queued at base PCP {}",
+                            stream_id, pcp
+                        );
                     }
-                    PriorityInheritVerdict::Inherited { base_pcp, inherited_pcp, blocking_stream_id } => {
-                        println!("  🟡 [PRIORITY INHERITANCE TRIGGERED] Blocking Stream #{} elevated: PCP {} -> PCP {} to prevent priority inversion!",
-                            blocking_stream_id, base_pcp, inherited_pcp);
+                    PriorityInheritVerdict::Inherited {
+                        base_pcp,
+                        inherited_pcp,
+                        blocking_stream_id,
+                    } => {
+                        println!(
+                            "  🟡 [PRIORITY INHERITANCE TRIGGERED] Blocking Stream #{} elevated: PCP {} -> PCP {} to prevent priority inversion!",
+                            blocking_stream_id, base_pcp, inherited_pcp
+                        );
                     }
                 }
             }
             "release" => {
-                let res_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let res_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let released = self.tsn_cqf_inherit_engine.release_resource(res_id);
-                println!("  [RESOURCE RELEASED] Resource #{} released by Stream {:?}.", res_id, released);
+                println!(
+                    "  [RESOURCE RELEASED] Resource #{} released by Stream {:?}.",
+                    res_id, released
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-inherit [status | lock <res_id> <stream_id> <pcp> | request <res_id> <stream_id> <pcp> | release <res_id>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-inherit [status | lock <res_id> <stream_id> <pcp> | request <res_id> <stream_id> <pcp> | release <res_id>]"
+            ),
         }
     }
 
@@ -20217,20 +22375,51 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP Diameter S13 / S13' Global GSMA IMEI-DB Query Interface (3GPP TS 29.272):");
-                println!("  • Server Host           : {}", self.s13_imeidb_engine.server_host);
-                println!("  • Server Realm          : {}", self.s13_imeidb_engine.server_realm);
-                println!("  • Registered Devices    : {} records", self.s13_imeidb_engine.records.len());
-                println!("  • Total IDR Queries     : {}", self.s13_imeidb_engine.total_queries);
-                println!("  • Clean Device Results  : {}", self.s13_imeidb_engine.total_clean_responses);
-                println!("  • Blocked Device Results: {}", self.s13_imeidb_engine.total_blocked_responses);
+                println!(
+                    "3GPP Diameter S13 / S13' Global GSMA IMEI-DB Query Interface (3GPP TS 29.272):"
+                );
+                println!(
+                    "  • Server Host           : {}",
+                    self.s13_imeidb_engine.server_host
+                );
+                println!(
+                    "  • Server Realm          : {}",
+                    self.s13_imeidb_engine.server_realm
+                );
+                println!(
+                    "  • Registered Devices    : {} records",
+                    self.s13_imeidb_engine.records.len()
+                );
+                println!(
+                    "  • Total IDR Queries     : {}",
+                    self.s13_imeidb_engine.total_queries
+                );
+                println!(
+                    "  • Clean Device Results  : {}",
+                    self.s13_imeidb_engine.total_clean_responses
+                );
+                println!(
+                    "  • Blocked Device Results: {}",
+                    self.s13_imeidb_engine.total_blocked_responses
+                );
                 for r in &self.s13_imeidb_engine.records {
-                    println!("    [IMEI: {} | TAC: {}] Model: {} {} | Status: {:?} | Reporting PLMN: {}",
-                        r.imei, r.tac, r.manufacturer, r.model_name, r.status, r.reporting_carrier_plmn);
+                    println!(
+                        "    [IMEI: {} | TAC: {}] Model: {} {} | Status: {:?} | Reporting PLMN: {}",
+                        r.imei,
+                        r.tac,
+                        r.manufacturer,
+                        r.model_name,
+                        r.status,
+                        r.reporting_carrier_plmn
+                    );
                 }
             }
             "query" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860011112222333" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860011112222333"
+                };
                 let req = S13ImeiDbMessage::new_request(
                     "sess-cli-imeidb",
                     "mme01.epc.mnc001.mcc208.3gppnetwork.org",
@@ -20239,20 +22428,42 @@ impl NetworkShell {
                     imei,
                 );
                 let ans = self.s13_imeidb_engine.process_idr(&req);
-                println!("  [IMEI-DB QUERY RESULT] IMEI: {} (TAC: {}) | Result Code: {}",
-                    imei, ans.tac, ans.result_code);
+                println!(
+                    "  [IMEI-DB QUERY RESULT] IMEI: {} (TAC: {}) | Result Code: {}",
+                    imei, ans.tac, ans.result_code
+                );
                 if let Some(status) = ans.status {
                     match status {
-                        GsmaDeviceStatus::Clean => println!("    🟢 [STATUS: CLEAN] Device permitted on carrier network. Model: {:?}", ans.model_info),
-                        GsmaDeviceStatus::Stolen => println!("    🔴 [STATUS: STOLEN] Device flagged as stolen globally. Model: {:?}", ans.model_info),
-                        GsmaDeviceStatus::ClonedFraud => println!("    🔴 [STATUS: CLONED/FRAUD] Device flagged for IMEI duplication fraud. Model: {:?}", ans.model_info),
-                        GsmaDeviceStatus::RegulatoryBlocked => println!("    🔴 [STATUS: REGULATORY BLOCKED] Device blacklisted by telecommunications authority. Model: {:?}", ans.model_info),
+                        GsmaDeviceStatus::Clean => println!(
+                            "    🟢 [STATUS: CLEAN] Device permitted on carrier network. Model: {:?}",
+                            ans.model_info
+                        ),
+                        GsmaDeviceStatus::Stolen => println!(
+                            "    🔴 [STATUS: STOLEN] Device flagged as stolen globally. Model: {:?}",
+                            ans.model_info
+                        ),
+                        GsmaDeviceStatus::ClonedFraud => println!(
+                            "    🔴 [STATUS: CLONED/FRAUD] Device flagged for IMEI duplication fraud. Model: {:?}",
+                            ans.model_info
+                        ),
+                        GsmaDeviceStatus::RegulatoryBlocked => println!(
+                            "    🔴 [STATUS: REGULATORY BLOCKED] Device blacklisted by telecommunications authority. Model: {:?}",
+                            ans.model_info
+                        ),
                     }
                 }
             }
             "add" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860088889999000" };
-                let model = if args.len() >= 3 { args[2] } else { "Xperia 1 VI" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860088889999000"
+                };
+                let model = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "Xperia 1 VI"
+                };
                 let manuf = if args.len() >= 4 { args[3] } else { "Sony" };
                 let status_str = if args.len() >= 5 { args[4] } else { "stolen" };
                 let plmn = if args.len() >= 6 { args[5] } else { "44010" };
@@ -20264,11 +22475,16 @@ impl NetworkShell {
                     _ => GsmaDeviceStatus::Clean,
                 };
 
-                self.s13_imeidb_engine.register_device(imei, model, manuf, status, plmn);
-                println!("  [DEVICE REGISTERED IN GSMA IMEIDB] IMEI: {} | {} {} | Status: {:?} | PLMN: {}",
-                    imei, manuf, model, status, plmn);
+                self.s13_imeidb_engine
+                    .register_device(imei, model, manuf, status, plmn);
+                println!(
+                    "  [DEVICE REGISTERED IN GSMA IMEIDB] IMEI: {} | {} {} | Status: {:?} | PLMN: {}",
+                    imei, manuf, model, status, plmn
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-imeidb [status | query <imei> | add <imei> <model> <manuf> <status> <plmn>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-imeidb [status | query <imei> | add <imei> <model> <manuf> <status> <plmn>]"
+            ),
         }
     }
 
@@ -20276,66 +22492,184 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Layer 2 Source-Specific Multicast (SSM) Snooping Engine (RFC 7432 / RFC 9251 / RFC 4607):");
-                println!("  • Local VTEP IP         : {}", self.evpn_ssm_engine.local_vtep_ip);
-                println!("  • Channel Timeout       : {} s", self.evpn_ssm_engine.channel_timeout_secs);
-                println!("  • Active (S, G) Channels: {}", self.evpn_ssm_engine.channels.len());
-                println!("  • Total SMET Advertised : {}", self.evpn_ssm_engine.total_smet_advertised);
-                println!("  • Total SMET Withdrawn  : {}", self.evpn_ssm_engine.total_smet_withdrawn);
-                println!("  • Total Pkts Forwarded  : {}", self.evpn_ssm_engine.total_packets_forwarded);
+                println!(
+                    "EVPN Layer 2 Source-Specific Multicast (SSM) Snooping Engine (RFC 7432 / RFC 9251 / RFC 4607):"
+                );
+                println!(
+                    "  • Local VTEP IP         : {}",
+                    self.evpn_ssm_engine.local_vtep_ip
+                );
+                println!(
+                    "  • Channel Timeout       : {} s",
+                    self.evpn_ssm_engine.channel_timeout_secs
+                );
+                println!(
+                    "  • Active (S, G) Channels: {}",
+                    self.evpn_ssm_engine.channels.len()
+                );
+                println!(
+                    "  • Total SMET Advertised : {}",
+                    self.evpn_ssm_engine.total_smet_advertised
+                );
+                println!(
+                    "  • Total SMET Withdrawn  : {}",
+                    self.evpn_ssm_engine.total_smet_withdrawn
+                );
+                println!(
+                    "  • Total Pkts Forwarded  : {}",
+                    self.evpn_ssm_engine.total_packets_forwarded
+                );
                 for c in &self.evpn_ssm_engine.channels {
-                    println!("    [VNI: {} | Channel ({}, {})] Local Ports: {:?} | Remote VTEPs: {:?} | Last Refresh: {} s",
-                        c.vni, c.source_ip, c.group_ip, c.subscribed_ports, c.remote_vteps, c.last_refreshed_secs);
+                    println!(
+                        "    [VNI: {} | Channel ({}, {})] Local Ports: {:?} | Remote VTEPs: {:?} | Last Refresh: {} s",
+                        c.vni,
+                        c.source_ip,
+                        c.group_ip,
+                        c.subscribed_ports,
+                        c.remote_vteps,
+                        c.last_refreshed_secs
+                    );
                 }
             }
             "join" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let grp_str = if args.len() >= 4 { args[3] } else { "232.1.1.1" };
-                let src_str = if args.len() >= 5 { args[4] } else { "192.168.1.100" };
-                let t_s = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(1010) } else { 1010 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let grp_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "232.1.1.1"
+                };
+                let src_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "192.168.1.100"
+                };
+                let t_s = if args.len() >= 6 {
+                    args[5].parse::<u64>().unwrap_or(1010)
+                } else {
+                    1010
+                };
 
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
 
-                let act = self.evpn_ssm_engine.handle_local_join(vni, port, grp, src, t_s);
-                println!("  [LOCAL SSM JOIN] VNI: {} | Port: {} | Channel ({}, {})", vni, port, src, grp);
-                if let Some(SmetRouteAction::AdvertiseSmet { vni, group_ip, source_ip }) = act {
-                    println!("  🟡 [BGP EVPN TYPE-6 SMET ADVERTISED] VNI: {} | Channel ({}, {})", vni, source_ip, group_ip);
+                let act = self
+                    .evpn_ssm_engine
+                    .handle_local_join(vni, port, grp, src, t_s);
+                println!(
+                    "  [LOCAL SSM JOIN] VNI: {} | Port: {} | Channel ({}, {})",
+                    vni, port, src, grp
+                );
+                if let Some(SmetRouteAction::AdvertiseSmet {
+                    vni,
+                    group_ip,
+                    source_ip,
+                }) = act
+                {
+                    println!(
+                        "  🟡 [BGP EVPN TYPE-6 SMET ADVERTISED] VNI: {} | Channel ({}, {})",
+                        vni, source_ip, group_ip
+                    );
                 }
             }
             "leave" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let grp_str = if args.len() >= 4 { args[3] } else { "232.1.1.1" };
-                let src_str = if args.len() >= 5 { args[4] } else { "192.168.1.100" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let grp_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "232.1.1.1"
+                };
+                let src_str = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "192.168.1.100"
+                };
 
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
 
                 let act = self.evpn_ssm_engine.handle_local_leave(vni, port, grp, src);
-                println!("  [LOCAL SSM LEAVE] VNI: {} | Port: {} | Channel ({}, {})", vni, port, src, grp);
-                if let Some(SmetRouteAction::WithdrawSmet { vni, group_ip, source_ip }) = act {
-                    println!("  🔴 [BGP EVPN TYPE-6 SMET WITHDRAWN] VNI: {} | Channel ({}, {})", vni, source_ip, group_ip);
+                println!(
+                    "  [LOCAL SSM LEAVE] VNI: {} | Port: {} | Channel ({}, {})",
+                    vni, port, src, grp
+                );
+                if let Some(SmetRouteAction::WithdrawSmet {
+                    vni,
+                    group_ip,
+                    source_ip,
+                }) = act
+                {
+                    println!(
+                        "  🔴 [BGP EVPN TYPE-6 SMET WITHDRAWN] VNI: {} | Channel ({}, {})",
+                        vni, source_ip, group_ip
+                    );
                 }
             }
             "fwd" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let src_str = if args.len() >= 3 { args[2] } else { "192.168.1.100" };
-                let grp_str = if args.len() >= 4 { args[3] } else { "232.1.1.1" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let src_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "192.168.1.100"
+                };
+                let grp_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "232.1.1.1"
+                };
 
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
 
                 let plan = self.evpn_ssm_engine.evaluate_forwarding(vni, src, grp);
                 if plan.should_drop {
-                    println!("  🔴 [DROP / NO SUBSCRIBER] VNI: {} | Ingress ({}, {}) has no active SSM receivers.", vni, src, grp);
+                    println!(
+                        "  🔴 [DROP / NO SUBSCRIBER] VNI: {} | Ingress ({}, {}) has no active SSM receivers.",
+                        vni, src, grp
+                    );
                 } else {
-                    println!("  🟢 [FORWARD MULTICAST] VNI: {} | Channel ({}, {}) -> Local Ports: {:?} | Remote VTEPs: {:?}",
-                        vni, src, grp, plan.local_ports, plan.remote_vteps);
+                    println!(
+                        "  🟢 [FORWARD MULTICAST] VNI: {} | Channel ({}, {}) -> Local Ports: {:?} | Remote VTEPs: {:?}",
+                        vni, src, grp, plan.local_ports, plan.remote_vteps
+                    );
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-ssm [status | join <vni> <port> <grp_ip> <src_ip> [t] | leave <vni> <port> <grp_ip> <src_ip> | fwd <vni> <src_ip> <grp_ip>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-ssm [status | join <vni> <port> <grp_ip> <src_ip> [t] | leave <vni> <port> <grp_ip> <src_ip> | fwd <vni> <src_ip> <grp_ip>]"
+            ),
         }
     }
 
@@ -20343,40 +22677,89 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("5G GTP-U RTT-Adaptive Packet Duplication Engine (3GPP TS 29.281 / TS 23.501):");
-                println!("  • Primary Access Leg    : Leg #{}", self.gtpu_rtt_dup_engine.primary_leg_id);
-                println!("  • Secondary Access Leg  : Leg #{}", self.gtpu_rtt_dup_engine.secondary_leg_id);
-                println!("  • Max Acceptable SRTT   : {} µs", self.gtpu_rtt_dup_engine.max_acceptable_srtt_us);
-                println!("  • Max Acceptable RTTVAR : {} µs", self.gtpu_rtt_dup_engine.max_acceptable_rttvar_us);
-                println!("  • Current Duplication   : {:?}", self.gtpu_rtt_dup_engine.current_state);
-                println!("  • Consecutive Healthy   : {} samples (Hysteresis: {})",
-                    self.gtpu_rtt_dup_engine.consecutive_healthy_samples, self.gtpu_rtt_dup_engine.recovery_hysteresis_count);
-                println!("  • Total Single Packets  : {}", self.gtpu_rtt_dup_engine.total_single_packets);
-                println!("  • Total Duplicated Pkts : {}", self.gtpu_rtt_dup_engine.total_duplicated_packets);
-                println!("  • Total State Switches  : {}", self.gtpu_rtt_dup_engine.total_state_transitions);
+                println!(
+                    "5G GTP-U RTT-Adaptive Packet Duplication Engine (3GPP TS 29.281 / TS 23.501):"
+                );
+                println!(
+                    "  • Primary Access Leg    : Leg #{}",
+                    self.gtpu_rtt_dup_engine.primary_leg_id
+                );
+                println!(
+                    "  • Secondary Access Leg  : Leg #{}",
+                    self.gtpu_rtt_dup_engine.secondary_leg_id
+                );
+                println!(
+                    "  • Max Acceptable SRTT   : {} µs",
+                    self.gtpu_rtt_dup_engine.max_acceptable_srtt_us
+                );
+                println!(
+                    "  • Max Acceptable RTTVAR : {} µs",
+                    self.gtpu_rtt_dup_engine.max_acceptable_rttvar_us
+                );
+                println!(
+                    "  • Current Duplication   : {:?}",
+                    self.gtpu_rtt_dup_engine.current_state
+                );
+                println!(
+                    "  • Consecutive Healthy   : {} samples (Hysteresis: {})",
+                    self.gtpu_rtt_dup_engine.consecutive_healthy_samples,
+                    self.gtpu_rtt_dup_engine.recovery_hysteresis_count
+                );
+                println!(
+                    "  • Total Single Packets  : {}",
+                    self.gtpu_rtt_dup_engine.total_single_packets
+                );
+                println!(
+                    "  • Total Duplicated Pkts : {}",
+                    self.gtpu_rtt_dup_engine.total_duplicated_packets
+                );
+                println!(
+                    "  • Total State Switches  : {}",
+                    self.gtpu_rtt_dup_engine.total_state_transitions
+                );
             }
             "rtt" => {
-                let srtt = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(25_000) } else { 25_000 };
-                let rttvar = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(6_000) } else { 6_000 };
+                let srtt = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(25_000)
+                } else {
+                    25_000
+                };
+                let rttvar = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(6_000)
+                } else {
+                    6_000
+                };
 
-                self.gtpu_rtt_dup_engine.update_primary_telemetry(srtt, rttvar);
-                println!("  [PRIMARY TELEMETRY UPDATED] SRTT: {} µs | RTTVAR: {} µs -> New State: {:?}",
-                    srtt, rttvar, self.gtpu_rtt_dup_engine.current_state);
+                self.gtpu_rtt_dup_engine
+                    .update_primary_telemetry(srtt, rttvar);
+                println!(
+                    "  [PRIMARY TELEMETRY UPDATED] SRTT: {} µs | RTTVAR: {} µs -> New State: {:?}",
+                    srtt, rttvar, self.gtpu_rtt_dup_engine.current_state
+                );
             }
             "dispatch" => {
                 let decision = self.gtpu_rtt_dup_engine.evaluate_dispatch();
                 match decision {
                     DupDispatchDecision::SinglePrimary => {
-                        println!("  🟢 [SINGLE DISPATCH] Dispatched via Primary Leg #{} only (Optimal link conditions).",
-                            self.gtpu_rtt_dup_engine.primary_leg_id);
+                        println!(
+                            "  🟢 [SINGLE DISPATCH] Dispatched via Primary Leg #{} only (Optimal link conditions).",
+                            self.gtpu_rtt_dup_engine.primary_leg_id
+                        );
                     }
-                    DupDispatchDecision::DuplicateBoth { primary_leg_id, secondary_leg_id } => {
-                        println!("  🟡 [DUPLICATE DISPATCH] Duplicated across Leg #{} (Cellular) and Leg #{} (Wi-Fi) to guarantee URLLC SLA!",
-                            primary_leg_id, secondary_leg_id);
+                    DupDispatchDecision::DuplicateBoth {
+                        primary_leg_id,
+                        secondary_leg_id,
+                    } => {
+                        println!(
+                            "  🟡 [DUPLICATE DISPATCH] Duplicated across Leg #{} (Cellular) and Leg #{} (Wi-Fi) to guarantee URLLC SLA!",
+                            primary_leg_id, secondary_leg_id
+                        );
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-rtt-dup [status | rtt <srtt_us> <rttvar_us> | dispatch]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-rtt-dup [status | rtt <srtt_us> <rttvar_us> | dispatch]"
+            ),
         }
     }
 
@@ -20384,47 +22767,109 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Gate Preemption Interlocking Engine (IEEE 802.1Qbu / 802.3br):");
-                println!("  • Cycle Duration        : {} ns ({} µs)", self.tsn_cqf_preempt_engine.cycle_duration_ns, self.tsn_cqf_preempt_engine.cycle_duration_ns / 1000);
-                println!("  • Link Speed            : {} Gbps", self.tsn_cqf_preempt_engine.link_speed_gbps);
-                println!("  • Preemption Enabled    : {}", self.tsn_cqf_preempt_engine.preemption_enabled);
-                println!("  • Min Fragment Size     : {} bytes", self.tsn_cqf_preempt_engine.min_frag_bytes);
-                println!("  • Express Frames Passed : {}", self.tsn_cqf_preempt_engine.total_express_frames);
-                println!("  • Full Preemptible Pkts : {}", self.tsn_cqf_preempt_engine.total_full_preemptible_frames);
-                println!("  • Preemptions Triggered : {}", self.tsn_cqf_preempt_engine.total_preemptions_triggered);
-                println!("  • Held Frames           : {}", self.tsn_cqf_preempt_engine.total_held_frames);
+                println!(
+                    "IEEE 802.1Qch CQF Gate Preemption Interlocking Engine (IEEE 802.1Qbu / 802.3br):"
+                );
+                println!(
+                    "  • Cycle Duration        : {} ns ({} µs)",
+                    self.tsn_cqf_preempt_engine.cycle_duration_ns,
+                    self.tsn_cqf_preempt_engine.cycle_duration_ns / 1000
+                );
+                println!(
+                    "  • Link Speed            : {} Gbps",
+                    self.tsn_cqf_preempt_engine.link_speed_gbps
+                );
+                println!(
+                    "  • Preemption Enabled    : {}",
+                    self.tsn_cqf_preempt_engine.preemption_enabled
+                );
+                println!(
+                    "  • Min Fragment Size     : {} bytes",
+                    self.tsn_cqf_preempt_engine.min_frag_bytes
+                );
+                println!(
+                    "  • Express Frames Passed : {}",
+                    self.tsn_cqf_preempt_engine.total_express_frames
+                );
+                println!(
+                    "  • Full Preemptible Pkts : {}",
+                    self.tsn_cqf_preempt_engine.total_full_preemptible_frames
+                );
+                println!(
+                    "  • Preemptions Triggered : {}",
+                    self.tsn_cqf_preempt_engine.total_preemptions_triggered
+                );
+                println!(
+                    "  • Held Frames           : {}",
+                    self.tsn_cqf_preempt_engine.total_held_frames
+                );
             }
             "eval" => {
                 let class_str = if args.len() >= 2 { args[1] } else { "preempt" };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(1500) } else { 1500 };
-                let t_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(95_000) } else { 95_000 };
-                let cycle_idx = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(1) } else { 1 };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(1500)
+                } else {
+                    1500
+                };
+                let t_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(95_000)
+                } else {
+                    95_000
+                };
+                let cycle_idx = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(1)
+                } else {
+                    1
+                };
 
                 let class = match class_str {
                     "express" | "exp" | "e" => TsnTrafficClass::Express,
                     _ => TsnTrafficClass::Preemptible,
                 };
 
-                let verdict = self.tsn_cqf_preempt_engine.evaluate_transmission(class, bytes, t_ns, cycle_idx);
+                let verdict = self
+                    .tsn_cqf_preempt_engine
+                    .evaluate_transmission(class, bytes, t_ns, cycle_idx);
                 match verdict {
                     CqfPreemptVerdict::PassExpress { frame_bytes } => {
-                        println!("  🟢 [PASS EXPRESS] {} bytes express CQF frame transmitted unconditionally.", frame_bytes);
+                        println!(
+                            "  🟢 [PASS EXPRESS] {} bytes express CQF frame transmitted unconditionally.",
+                            frame_bytes
+                        );
                     }
-                    CqfPreemptVerdict::TransmitFullPreemptible { frame_bytes, remaining_cycle_ns } => {
-                        println!("  🟢 [TRANSMIT FULL PREEMPTIBLE] {} bytes frame fits completely ({} ns remaining before gate closure).",
-                            frame_bytes, remaining_cycle_ns);
+                    CqfPreemptVerdict::TransmitFullPreemptible {
+                        frame_bytes,
+                        remaining_cycle_ns,
+                    } => {
+                        println!(
+                            "  🟢 [TRANSMIT FULL PREEMPTIBLE] {} bytes frame fits completely ({} ns remaining before gate closure).",
+                            frame_bytes, remaining_cycle_ns
+                        );
                     }
-                    CqfPreemptVerdict::PreemptAndFragment { first_fragment_bytes, remaining_bytes, mpacket_seq } => {
-                        println!("  🟡 [PREEMPT & FRAGMENT] Frame fragmented into mPacket #{} ({} bytes sent now, {} bytes deferred to next cycle).",
-                            mpacket_seq, first_fragment_bytes, remaining_bytes);
+                    CqfPreemptVerdict::PreemptAndFragment {
+                        first_fragment_bytes,
+                        remaining_bytes,
+                        mpacket_seq,
+                    } => {
+                        println!(
+                            "  🟡 [PREEMPT & FRAGMENT] Frame fragmented into mPacket #{} ({} bytes sent now, {} bytes deferred to next cycle).",
+                            mpacket_seq, first_fragment_bytes, remaining_bytes
+                        );
                     }
-                    CqfPreemptVerdict::HoldPreemptible { hold_duration_ns, next_cycle_index } => {
-                        println!("  🔴 [HOLD PREEMPTIBLE] Window too small (< 64B). Held for {} ns until Cycle #{}.",
-                            hold_duration_ns, next_cycle_index);
+                    CqfPreemptVerdict::HoldPreemptible {
+                        hold_duration_ns,
+                        next_cycle_index,
+                    } => {
+                        println!(
+                            "  🔴 [HOLD PREEMPTIBLE] Window too small (< 64B). Held for {} ns until Cycle #{}.",
+                            hold_duration_ns, next_cycle_index
+                        );
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-preempt [status | eval <express|preempt> <bytes> <time_in_cycle_ns> [cycle_idx]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-preempt [status | eval <express|preempt> <bytes> <time_in_cycle_ns> [cycle_idx]]"
+            ),
         }
     }
 
@@ -20432,29 +22877,85 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("IEEE 802.1Qch CQF Stream Redundancy & Dual-Ring Cyclic Alignment Engine:");
-                println!("  • Cycle Duration        : {} ns ({} µs)", self.tsn_cqf_ring_engine.cycle_duration_ns, self.tsn_cqf_ring_engine.cycle_duration_ns / 1000);
-                println!("  • Ring 0 (Clockwise)    : {} hops (Delay: {} cycles | Active: {})",
-                    self.tsn_cqf_ring_engine.ring0_config.hop_count, self.tsn_cqf_ring_engine.ring0_config.cycle_delay, self.tsn_cqf_ring_engine.ring0_config.is_active);
-                println!("  • Ring 1 (Counter-CW)   : {} hops (Delay: {} cycles | Active: {})",
-                    self.tsn_cqf_ring_engine.ring1_config.hop_count, self.tsn_cqf_ring_engine.ring1_config.cycle_delay, self.tsn_cqf_ring_engine.ring1_config.is_active);
-                println!("  • Max Ring Path Delay   : {} cycles", self.tsn_cqf_ring_engine.max_ring_delay());
-                println!("  • Buffered Frames       : {} frames", self.tsn_cqf_ring_engine.held_frames.len());
-                println!("  • Aligned Redundant Pkts: {}", self.tsn_cqf_ring_engine.total_aligned_pairs);
-                println!("  • Single-Ring Passes    : {}", self.tsn_cqf_ring_engine.total_single_ring_frames);
-                println!("  • Stale Duplicate Drops : {}", self.tsn_cqf_ring_engine.total_stale_drops);
+                println!(
+                    "IEEE 802.1Qch CQF Stream Redundancy & Dual-Ring Cyclic Alignment Engine:"
+                );
+                println!(
+                    "  • Cycle Duration        : {} ns ({} µs)",
+                    self.tsn_cqf_ring_engine.cycle_duration_ns,
+                    self.tsn_cqf_ring_engine.cycle_duration_ns / 1000
+                );
+                println!(
+                    "  • Ring 0 (Clockwise)    : {} hops (Delay: {} cycles | Active: {})",
+                    self.tsn_cqf_ring_engine.ring0_config.hop_count,
+                    self.tsn_cqf_ring_engine.ring0_config.cycle_delay,
+                    self.tsn_cqf_ring_engine.ring0_config.is_active
+                );
+                println!(
+                    "  • Ring 1 (Counter-CW)   : {} hops (Delay: {} cycles | Active: {})",
+                    self.tsn_cqf_ring_engine.ring1_config.hop_count,
+                    self.tsn_cqf_ring_engine.ring1_config.cycle_delay,
+                    self.tsn_cqf_ring_engine.ring1_config.is_active
+                );
+                println!(
+                    "  • Max Ring Path Delay   : {} cycles",
+                    self.tsn_cqf_ring_engine.max_ring_delay()
+                );
+                println!(
+                    "  • Buffered Frames       : {} frames",
+                    self.tsn_cqf_ring_engine.held_frames.len()
+                );
+                println!(
+                    "  • Aligned Redundant Pkts: {}",
+                    self.tsn_cqf_ring_engine.total_aligned_pairs
+                );
+                println!(
+                    "  • Single-Ring Passes    : {}",
+                    self.tsn_cqf_ring_engine.total_single_ring_frames
+                );
+                println!(
+                    "  • Stale Duplicate Drops : {}",
+                    self.tsn_cqf_ring_engine.total_stale_drops
+                );
                 for f in &self.tsn_cqf_ring_engine.held_frames {
-                    println!("    [Held: Stream #{} | Seq #{}] Ring: {:?} | Tx Cycle: {} | Ingress Cycle: {} | Size: {}B",
-                        f.stream_id, f.sequence_num, f.ring_id, f.origin_tx_cycle, f.arrival_cycle, f.payload_bytes);
+                    println!(
+                        "    [Held: Stream #{} | Seq #{}] Ring: {:?} | Tx Cycle: {} | Ingress Cycle: {} | Size: {}B",
+                        f.stream_id,
+                        f.sequence_num,
+                        f.ring_id,
+                        f.origin_tx_cycle,
+                        f.arrival_cycle,
+                        f.payload_bytes
+                    );
                 }
             }
             "ingest" => {
                 let ring_str = if args.len() >= 2 { args[1] } else { "ring0" };
-                let stream_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let seq = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(100) } else { 100 };
-                let tx_c = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(10) } else { 10 };
-                let curr_c = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(12) } else { 12 };
-                let bytes = if args.len() >= 7 { args[6].parse::<usize>().unwrap_or(500) } else { 500 };
+                let stream_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let seq = if args.len() >= 4 {
+                    args[3].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let tx_c = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(10)
+                } else {
+                    10
+                };
+                let curr_c = if args.len() >= 6 {
+                    args[5].parse::<u64>().unwrap_or(12)
+                } else {
+                    12
+                };
+                let bytes = if args.len() >= 7 {
+                    args[6].parse::<usize>().unwrap_or(500)
+                } else {
+                    500
+                };
 
                 let ring_id = if ring_str == "ring1" || ring_str == "1" {
                     TsnRingId::Ring1
@@ -20462,32 +22963,70 @@ impl NetworkShell {
                     TsnRingId::Ring0
                 };
 
-                let verdict = self.tsn_cqf_ring_engine.ingest_frame(ring_id, stream_id, seq, tx_c, curr_c, bytes);
+                let verdict = self
+                    .tsn_cqf_ring_engine
+                    .ingest_frame(ring_id, stream_id, seq, tx_c, curr_c, bytes);
                 match verdict {
-                    RingAlignVerdict::HoldForAlignment { stream_id, seq_num, release_cycle } => {
-                        println!("  🟡 [HOLD FOR ALIGNMENT] Stream #{} Seq #{} from {:?}: Buffered until paired Ring 1 frame arrives (Target Release Cycle: #{}).",
-                            stream_id, seq_num, ring_id, release_cycle);
+                    RingAlignVerdict::HoldForAlignment {
+                        stream_id,
+                        seq_num,
+                        release_cycle,
+                    } => {
+                        println!(
+                            "  🟡 [HOLD FOR ALIGNMENT] Stream #{} Seq #{} from {:?}: Buffered until paired Ring 1 frame arrives (Target Release Cycle: #{}).",
+                            stream_id, seq_num, ring_id, release_cycle
+                        );
                     }
-                    RingAlignVerdict::AlignedPairReady { stream_id, seq_num, release_cycle, paired_ring } => {
-                        println!("  🟢 [ALIGNED PAIR READY] Stream #{} Seq #{}: Matched {:?} and {:?}! Dispatched into FRER deduplication at Cycle #{}.",
-                            stream_id, seq_num, ring_id, paired_ring, release_cycle);
+                    RingAlignVerdict::AlignedPairReady {
+                        stream_id,
+                        seq_num,
+                        release_cycle,
+                        paired_ring,
+                    } => {
+                        println!(
+                            "  🟢 [ALIGNED PAIR READY] Stream #{} Seq #{}: Matched {:?} and {:?}! Dispatched into FRER deduplication at Cycle #{}.",
+                            stream_id, seq_num, ring_id, paired_ring, release_cycle
+                        );
                     }
-                    RingAlignVerdict::SingleRingPass { stream_id, seq_num, release_cycle, ring_id } => {
-                        println!("  🟢 [SINGLE-RING PASS] Stream #{} Seq #{}: Partner ring inactive. Forwarded on {:?} at Cycle #{}.",
-                            stream_id, seq_num, ring_id, release_cycle);
+                    RingAlignVerdict::SingleRingPass {
+                        stream_id,
+                        seq_num,
+                        release_cycle,
+                        ring_id,
+                    } => {
+                        println!(
+                            "  🟢 [SINGLE-RING PASS] Stream #{} Seq #{}: Partner ring inactive. Forwarded on {:?} at Cycle #{}.",
+                            stream_id, seq_num, ring_id, release_cycle
+                        );
                     }
-                    RingAlignVerdict::StaleDuplicateDrop { stream_id, seq_num, ring_id } => {
-                        println!("  🔴 [STALE DUPLICATE DROP] Stream #{} Seq #{}: Arrived late on {:?} after target cycle already elapsed.",
-                            stream_id, seq_num, ring_id);
+                    RingAlignVerdict::StaleDuplicateDrop {
+                        stream_id,
+                        seq_num,
+                        ring_id,
+                    } => {
+                        println!(
+                            "  🔴 [STALE DUPLICATE DROP] Stream #{} Seq #{}: Arrived late on {:?} after target cycle already elapsed.",
+                            stream_id, seq_num, ring_id
+                        );
                     }
                 }
             }
             "tick" => {
-                let curr_c = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(15) } else { 15 };
+                let curr_c = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(15)
+                } else {
+                    15
+                };
                 let released = self.tsn_cqf_ring_engine.advance_cycle(curr_c);
-                println!("  [CYCLE TICK #{}] Flushed {} frames whose alignment deadline arrived.", curr_c, released.len());
+                println!(
+                    "  [CYCLE TICK #{}] Flushed {} frames whose alignment deadline arrived.",
+                    curr_c,
+                    released.len()
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-ring-align [status | ingest <ring0|ring1> <stream> <seq> <tx_c> <curr_c> [bytes] | tick <curr_c>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-ring-align [status | ingest <ring0|ring1> <stream> <seq> <tx_c> <curr_c> [bytes] | tick <curr_c>]"
+            ),
         }
     }
 
@@ -20495,52 +23034,114 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP TS 29.272 Diameter S13 / S13' Overload Control & Throttling (RFC 7683 DOIC):");
-                println!("  • EIR Target Host       : {}", self.s13_ocp_engine.server_host);
-                println!("  • Total Ingress Queries : {}", self.s13_ocp_engine.request_counter);
-                println!("  • Total Admitted        : {}", self.s13_ocp_engine.total_admitted);
-                println!("  • Total Throttled       : {}", self.s13_ocp_engine.total_throttled);
-                println!("  • Total Bypassed (Emerg): {}", self.s13_ocp_engine.total_bypassed);
+                println!(
+                    "3GPP TS 29.272 Diameter S13 / S13' Overload Control & Throttling (RFC 7683 DOIC):"
+                );
+                println!(
+                    "  • EIR Target Host       : {}",
+                    self.s13_ocp_engine.server_host
+                );
+                println!(
+                    "  • Total Ingress Queries : {}",
+                    self.s13_ocp_engine.request_counter
+                );
+                println!(
+                    "  • Total Admitted        : {}",
+                    self.s13_ocp_engine.total_admitted
+                );
+                println!(
+                    "  • Total Throttled       : {}",
+                    self.s13_ocp_engine.total_throttled
+                );
+                println!(
+                    "  • Total Bypassed (Emerg): {}",
+                    self.s13_ocp_engine.total_bypassed
+                );
                 if let Some(ref olr) = self.s13_ocp_engine.current_olr {
-                    println!("  • Active OC-OLR Report  : Seq #{} | Type: {:?} | Reduction: {}% | Duration: {} s (Issued at {} s)",
-                        olr.sequence_number, olr.report_type, olr.reduction_percentage, olr.validity_duration_secs, olr.issued_at_secs);
+                    println!(
+                        "  • Active OC-OLR Report  : Seq #{} | Type: {:?} | Reduction: {}% | Duration: {} s (Issued at {} s)",
+                        olr.sequence_number,
+                        olr.report_type,
+                        olr.reduction_percentage,
+                        olr.validity_duration_secs,
+                        olr.issued_at_secs
+                    );
                 } else {
                     println!("  • Active OC-OLR Report  : None (Normal operation - 100% capacity)");
                 }
             }
             "report" => {
-                let seq = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1) } else { 1 };
-                let pct = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(30) } else { 30 };
-                let dur = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(60) } else { 60 };
-                let t_s = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let seq = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let pct = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(30)
+                } else {
+                    30
+                };
+                let dur = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(60)
+                } else {
+                    60
+                };
+                let t_s = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                self.s13_ocp_engine.update_overload_report(seq, OcReportType::Host, pct, dur, t_s);
-                println!("  [OVERLOAD REPORT INGESTED] Seq #{}: Reduction {}% for {} seconds (at {} s).",
-                    seq, pct, dur, t_s);
+                self.s13_ocp_engine
+                    .update_overload_report(seq, OcReportType::Host, pct, dur, t_s);
+                println!(
+                    "  [OVERLOAD REPORT INGESTED] Seq #{}: Reduction {}% for {} seconds (at {} s).",
+                    seq, pct, dur, t_s
+                );
             }
             "eval" => {
-                let emerg = args.get(1).map(|&s| s == "emergency" || s == "true" || s == "1").unwrap_or(false);
-                let t_s = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1010) } else { 1010 };
+                let emerg = args
+                    .get(1)
+                    .map(|&s| s == "emergency" || s == "true" || s == "1")
+                    .unwrap_or(false);
+                let t_s = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(1010)
+                } else {
+                    1010
+                };
 
                 let verdict = self.s13_ocp_engine.evaluate_request(emerg, t_s);
                 match verdict {
                     OcThrottleVerdict::AdmitRequest => {
-                        println!("  🟢 [ADMIT REQUEST] S13 Equipment-Check Request forwarded to EIR server.");
+                        println!(
+                            "  🟢 [ADMIT REQUEST] S13 Equipment-Check Request forwarded to EIR server."
+                        );
                     }
-                    OcThrottleVerdict::ThrottleDrop { reduction_percentage, result_code } => {
-                        println!("  🔴 [THROTTLE DROP] Request dropped locally ({}% reduction active | Result-Code: {} DIAMETER_TOO_BUSY) to protect EIR core!",
-                            reduction_percentage, result_code);
+                    OcThrottleVerdict::ThrottleDrop {
+                        reduction_percentage,
+                        result_code,
+                    } => {
+                        println!(
+                            "  🔴 [THROTTLE DROP] Request dropped locally ({}% reduction active | Result-Code: {} DIAMETER_TOO_BUSY) to protect EIR core!",
+                            reduction_percentage, result_code
+                        );
                     }
                     OcThrottleVerdict::EmergencyBypass => {
-                        println!("  🟢 [EMERGENCY BYPASS] Priority/Emergency session bypassed overload restriction unconditionally.");
+                        println!(
+                            "  🟢 [EMERGENCY BYPASS] Priority/Emergency session bypassed overload restriction unconditionally."
+                        );
                     }
                 }
             }
             "reset" => {
                 self.s13_ocp_engine.current_olr = None;
-                println!("  [OVERLOAD CONTROL RESET] Cleared all active OLR reports. 100% capacity restored.");
+                println!(
+                    "  [OVERLOAD CONTROL RESET] Cleared all active OLR reports. 100% capacity restored."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-ocp [status | report <seq> <pct> <dur_s> [t_s] | eval [emergency] [t_s] | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-ocp [status | report <seq> <pct> <dur_s> [t_s] | eval [emergency] [t_s] | reset]"
+            ),
         }
     }
 
@@ -20548,71 +23149,174 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("EVPN Selective Multicast Underlay Provider P-Tree / PMSI Mapping Engine (RFC 6514 / RFC 9251):");
-                println!("  • Local VTEP IP         : {}", self.evpn_underlay_engine.local_vtep_ip);
-                println!("  • P-Tree Promotion Thresh: {} remote receivers", self.evpn_underlay_engine.ptree_promotion_threshold);
-                println!("  • Active Channel Mappings: {}", self.evpn_underlay_engine.mappings.len());
-                println!("  • IR Unicast Packets    : {}", self.evpn_underlay_engine.total_ir_packets);
-                println!("  • P-Tree Core Packets   : {}", self.evpn_underlay_engine.total_ptree_packets);
-                println!("  • P-Tree Promotions     : {}", self.evpn_underlay_engine.total_ptree_promotions);
-                println!("  • P-Tree Demotions      : {}", self.evpn_underlay_engine.total_ptree_demotions);
+                println!(
+                    "EVPN Selective Multicast Underlay Provider P-Tree / PMSI Mapping Engine (RFC 6514 / RFC 9251):"
+                );
+                println!(
+                    "  • Local VTEP IP         : {}",
+                    self.evpn_underlay_engine.local_vtep_ip
+                );
+                println!(
+                    "  • P-Tree Promotion Thresh: {} remote receivers",
+                    self.evpn_underlay_engine.ptree_promotion_threshold
+                );
+                println!(
+                    "  • Active Channel Mappings: {}",
+                    self.evpn_underlay_engine.mappings.len()
+                );
+                println!(
+                    "  • IR Unicast Packets    : {}",
+                    self.evpn_underlay_engine.total_ir_packets
+                );
+                println!(
+                    "  • P-Tree Core Packets   : {}",
+                    self.evpn_underlay_engine.total_ptree_packets
+                );
+                println!(
+                    "  • P-Tree Promotions     : {}",
+                    self.evpn_underlay_engine.total_ptree_promotions
+                );
+                println!(
+                    "  • P-Tree Demotions      : {}",
+                    self.evpn_underlay_engine.total_ptree_demotions
+                );
                 for m in &self.evpn_underlay_engine.mappings {
-                    println!("    [VNI: {} | Channel ({}, {})] Tunnel: {:?} | Underlay Group: {:?} | Receivers: {:?}",
-                        m.vni, m.overlay_source, m.overlay_group, m.tunnel_type, m.underlay_mcast_group, m.receiver_vteps);
+                    println!(
+                        "    [VNI: {} | Channel ({}, {})] Tunnel: {:?} | Underlay Group: {:?} | Receivers: {:?}",
+                        m.vni,
+                        m.overlay_source,
+                        m.overlay_group,
+                        m.tunnel_type,
+                        m.underlay_mcast_group,
+                        m.receiver_vteps
+                    );
                 }
             }
             "add" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let grp_str = if args.len() >= 3 { args[2] } else { "232.1.1.1" };
-                let src_str = if args.len() >= 4 { args[3] } else { "192.168.1.100" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let grp_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "232.1.1.1"
+                };
+                let src_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "192.168.1.100"
+                };
                 let vtep_str = if args.len() >= 5 { args[4] } else { "10.0.0.3" };
 
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                let vtep = vtep_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 3));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let vtep = vtep_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 3));
 
-                let tunnel = self.evpn_underlay_engine.add_receiver_vtep(vni, grp, src, vtep);
-                println!("  [RECEIVER VTEP ADDED] VNI: {} | Channel ({}, {}) | Remote VTEP: {} -> Tunnel Type: {:?}",
-                    vni, src, grp, vtep, tunnel);
+                let tunnel = self
+                    .evpn_underlay_engine
+                    .add_receiver_vtep(vni, grp, src, vtep);
+                println!(
+                    "  [RECEIVER VTEP ADDED] VNI: {} | Channel ({}, {}) | Remote VTEP: {} -> Tunnel Type: {:?}",
+                    vni, src, grp, vtep, tunnel
+                );
             }
             "rem" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let grp_str = if args.len() >= 3 { args[2] } else { "232.1.1.1" };
-                let src_str = if args.len() >= 4 { args[3] } else { "192.168.1.100" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let grp_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "232.1.1.1"
+                };
+                let src_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "192.168.1.100"
+                };
                 let vtep_str = if args.len() >= 5 { args[4] } else { "10.0.0.3" };
 
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                let vtep = vtep_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 3));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let vtep = vtep_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(10, 0, 0, 3));
 
-                self.evpn_underlay_engine.remove_receiver_vtep(vni, grp, src, vtep);
-                println!("  [RECEIVER VTEP REMOVED] VNI: {} | Channel ({}, {}) | Remote VTEP: {}",
-                    vni, src, grp, vtep);
+                self.evpn_underlay_engine
+                    .remove_receiver_vtep(vni, grp, src, vtep);
+                println!(
+                    "  [RECEIVER VTEP REMOVED] VNI: {} | Channel ({}, {}) | Remote VTEP: {}",
+                    vni, src, grp, vtep
+                );
             }
             "encap" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let src_str = if args.len() >= 3 { args[2] } else { "192.168.1.100" };
-                let grp_str = if args.len() >= 4 { args[3] } else { "232.1.1.1" };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let src_str = if args.len() >= 3 {
+                    args[2]
+                } else {
+                    "192.168.1.100"
+                };
+                let grp_str = if args.len() >= 4 {
+                    args[3]
+                } else {
+                    "232.1.1.1"
+                };
 
-                let src = src_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                let grp = grp_str.parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let src = src_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                let grp = grp_str
+                    .parse::<Ipv4Address>()
+                    .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
 
-                let plan = self.evpn_underlay_engine.evaluate_encapsulation(vni, src, grp);
+                let plan = self
+                    .evpn_underlay_engine
+                    .evaluate_encapsulation(vni, src, grp);
                 match plan {
                     UnderlayEncapsulationPlan::UnicastReplication { destination_vteps } => {
-                        println!("  🟢 [INGRESS REPLICATION (IR)] Overlay ({}, {}) replicated over {} unicast VTEPs: {:?}",
-                            src, grp, destination_vteps.len(), destination_vteps);
+                        println!(
+                            "  🟢 [INGRESS REPLICATION (IR)] Overlay ({}, {}) replicated over {} unicast VTEPs: {:?}",
+                            src,
+                            grp,
+                            destination_vteps.len(),
+                            destination_vteps
+                        );
                     }
                     UnderlayEncapsulationPlan::CoreMulticast { underlay_group } => {
-                        println!("  🟢 [SELECTIVE P-TREE (S-PMSI)] Overlay ({}, {}) encapsulated into Underlay Core Group {} for line-rate replication!",
-                            src, grp, underlay_group);
+                        println!(
+                            "  🟢 [SELECTIVE P-TREE (S-PMSI)] Overlay ({}, {}) encapsulated into Underlay Core Group {} for line-rate replication!",
+                            src, grp, underlay_group
+                        );
                     }
                     UnderlayEncapsulationPlan::DropNoReceivers => {
-                        println!("  🔴 [DROP / NO RECEIVERS] Overlay ({}, {}) has no registered remote leaves.", src, grp);
+                        println!(
+                            "  🔴 [DROP / NO RECEIVERS] Overlay ({}, {}) has no registered remote leaves.",
+                            src, grp
+                        );
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-ssm-underlay [status | add <vni> <grp> <src> <vtep> | rem <vni> <grp> <src> <vtep> | encap <vni> <src> <grp>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-ssm-underlay [status | add <vni> <grp> <src> <vtep> | rem <vni> <grp> <src> <vtep> | encap <vni> <src> <grp>]"
+            ),
         }
     }
 
@@ -20620,65 +23324,146 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP TS 29.281 / TS 23.501 5G GTP-U Flow Re-Anchoring & Migration Engine:");
-                println!("  • TEID                  : 0x{:08X}", self.gtpu_reanchor_engine.teid);
-                println!("  • Active Managed Flows  : {} flows", self.gtpu_reanchor_engine.flows.len());
-                println!("  • Migrations Completed  : {}", self.gtpu_reanchor_engine.total_migrations_completed);
-                println!("  • End Markers Injected  : {}", self.gtpu_reanchor_engine.total_end_markers_sent);
-                println!("  • Total Packets Steered : {}", self.gtpu_reanchor_engine.total_packets_steered);
+                println!(
+                    "3GPP TS 29.281 / TS 23.501 5G GTP-U Flow Re-Anchoring & Migration Engine:"
+                );
+                println!(
+                    "  • TEID                  : 0x{:08X}",
+                    self.gtpu_reanchor_engine.teid
+                );
+                println!(
+                    "  • Active Managed Flows  : {} flows",
+                    self.gtpu_reanchor_engine.flows.len()
+                );
+                println!(
+                    "  • Migrations Completed  : {}",
+                    self.gtpu_reanchor_engine.total_migrations_completed
+                );
+                println!(
+                    "  • End Markers Injected  : {}",
+                    self.gtpu_reanchor_engine.total_end_markers_sent
+                );
+                println!(
+                    "  • Total Packets Steered : {}",
+                    self.gtpu_reanchor_engine.total_packets_steered
+                );
                 for f in &self.gtpu_reanchor_engine.flows {
-                    println!("    [Flow #{}] Leg: #{} -> Target: {:?} | Next Seq: #{} | State: {:?}",
-                        f.flow_id, f.current_leg_id, f.target_leg_id, f.next_seq_num, f.state);
+                    println!(
+                        "    [Flow #{}] Leg: #{} -> Target: {:?} | Next Seq: #{} | State: {:?}",
+                        f.flow_id, f.current_leg_id, f.target_leg_id, f.next_seq_num, f.state
+                    );
                 }
             }
             "reg" => {
-                let flow_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let leg_id = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(1) } else { 1 };
-                let seq = if args.len() >= 4 { args[3].parse::<u32>().unwrap_or(1000) } else { 1000 };
+                let flow_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let leg_id = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let seq = if args.len() >= 4 {
+                    args[3].parse::<u32>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                self.gtpu_reanchor_engine.register_flow(flow_id, leg_id, seq);
-                println!("  [FLOW REGISTERED] Flow #{} assigned to Leg #{} starting at Seq #{}.", flow_id, leg_id, seq);
+                self.gtpu_reanchor_engine
+                    .register_flow(flow_id, leg_id, seq);
+                println!(
+                    "  [FLOW REGISTERED] Flow #{} assigned to Leg #{} starting at Seq #{}.",
+                    flow_id, leg_id, seq
+                );
             }
             "migrate" => {
-                let flow_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let target_leg = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(2) } else { 2 };
+                let flow_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let target_leg = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(2)
+                } else {
+                    2
+                };
 
-                let action = self.gtpu_reanchor_engine.trigger_migration(flow_id, target_leg);
-                if let Some(ReanchorAction::SendEndMarker { source_leg_id, final_seq }) = action {
-                    println!("  🟡 [MIGRATION TRIGGERED] Injected End Marker (Msg 254) on Source Leg #{} (Final Seq: #{}). Target Leg #{} primed.",
-                        source_leg_id, final_seq, target_leg);
+                let action = self
+                    .gtpu_reanchor_engine
+                    .trigger_migration(flow_id, target_leg);
+                if let Some(ReanchorAction::SendEndMarker {
+                    source_leg_id,
+                    final_seq,
+                }) = action
+                {
+                    println!(
+                        "  🟡 [MIGRATION TRIGGERED] Injected End Marker (Msg 254) on Source Leg #{} (Final Seq: #{}). Target Leg #{} primed.",
+                        source_leg_id, final_seq, target_leg
+                    );
                 } else {
                     println!("  🔴 [MIGRATION ERROR] Flow #{} not found.", flow_id);
                 }
             }
             "complete" => {
-                let flow_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                if self.gtpu_reanchor_engine.complete_migration(flow_id) {
-                    println!("  🟢 [MIGRATION COMPLETE] Flow #{} fully activated on target leg. Source leg context torn down.", flow_id);
+                let flow_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
                 } else {
-                    println!("  🔴 [COMPLETE ERROR] Flow #{} not in active migration.", flow_id);
+                    1
+                };
+                if self.gtpu_reanchor_engine.complete_migration(flow_id) {
+                    println!(
+                        "  🟢 [MIGRATION COMPLETE] Flow #{} fully activated on target leg. Source leg context torn down.",
+                        flow_id
+                    );
+                } else {
+                    println!(
+                        "  🔴 [COMPLETE ERROR] Flow #{} not in active migration.",
+                        flow_id
+                    );
                 }
             }
             "dispatch" => {
-                let flow_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
+                let flow_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
                 if let Some(act) = self.gtpu_reanchor_engine.dispatch_packet(flow_id) {
                     match act {
-                        ReanchorAction::ForwardOnLeg { leg_id, assigned_seq } => {
-                            println!("  🟢 [FORWARD PACKET] Flow #{} -> Leg #{} with Sequence #{}.",
-                                flow_id, leg_id, assigned_seq);
+                        ReanchorAction::ForwardOnLeg {
+                            leg_id,
+                            assigned_seq,
+                        } => {
+                            println!(
+                                "  🟢 [FORWARD PACKET] Flow #{} -> Leg #{} with Sequence #{}.",
+                                flow_id, leg_id, assigned_seq
+                            );
                         }
-                        ReanchorAction::SendEndMarker { source_leg_id, final_seq } => {
-                            println!("  🟡 [END MARKER] Sent on Leg #{} (Seq #{}).", source_leg_id, final_seq);
+                        ReanchorAction::SendEndMarker {
+                            source_leg_id,
+                            final_seq,
+                        } => {
+                            println!(
+                                "  🟡 [END MARKER] Sent on Leg #{} (Seq #{}).",
+                                source_leg_id, final_seq
+                            );
                         }
                         ReanchorAction::BufferPendingDrain { target_leg_id } => {
-                            println!("  🟡 [BUFFERED] Awaiting drain before Leg #{}.", target_leg_id);
+                            println!(
+                                "  🟡 [BUFFERED] Awaiting drain before Leg #{}.",
+                                target_leg_id
+                            );
                         }
                     }
                 } else {
                     println!("  🔴 [DISPATCH ERROR] Flow #{} not found.", flow_id);
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-flow-reanchor [status | reg <flow_id> <leg_id> [seq] | migrate <flow_id> <target_leg> | complete <flow_id> | dispatch <flow_id>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-flow-reanchor [status | reg <flow_id> <leg_id> [seq] | migrate <flow_id> <target_leg> | complete <flow_id> | dispatch <flow_id>]"
+            ),
         }
     }
 
@@ -20686,60 +23471,158 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("3GPP TS 29.272 Diameter S13 / S13' Geofencing & Cell-ID Anomaly Detection Engine:");
-                println!("  • Max Plausible Travel Speed: {} km/h", self.s13_geofence_engine.max_travel_speed_kmh);
-                println!("  • Authorized PLMN Networks  : {:?}", self.s13_geofence_engine.allowed_plmns);
-                println!("  • Configured Tracking Areas : {} TACs", self.s13_geofence_engine.tracking_areas.len());
-                println!("  • Device Location Histories : {} active devices", self.s13_geofence_engine.location_history.len());
-                println!("  • Total Location Checks     : {}", self.s13_geofence_engine.total_inspections);
-                println!("  • Legitimate Locations      : {}", self.s13_geofence_engine.total_legitimate);
-                println!("  • Zone/PLMN Violations      : {}", self.s13_geofence_engine.total_zone_violations);
-                println!("  • Impossible Travel Fraud   : {}", self.s13_geofence_engine.total_travel_anomalies);
+                println!(
+                    "3GPP TS 29.272 Diameter S13 / S13' Geofencing & Cell-ID Anomaly Detection Engine:"
+                );
+                println!(
+                    "  • Max Plausible Travel Speed: {} km/h",
+                    self.s13_geofence_engine.max_travel_speed_kmh
+                );
+                println!(
+                    "  • Authorized PLMN Networks  : {:?}",
+                    self.s13_geofence_engine.allowed_plmns
+                );
+                println!(
+                    "  • Configured Tracking Areas : {} TACs",
+                    self.s13_geofence_engine.tracking_areas.len()
+                );
+                println!(
+                    "  • Device Location Histories : {} active devices",
+                    self.s13_geofence_engine.location_history.len()
+                );
+                println!(
+                    "  • Total Location Checks     : {}",
+                    self.s13_geofence_engine.total_inspections
+                );
+                println!(
+                    "  • Legitimate Locations      : {}",
+                    self.s13_geofence_engine.total_legitimate
+                );
+                println!(
+                    "  • Zone/PLMN Violations      : {}",
+                    self.s13_geofence_engine.total_zone_violations
+                );
+                println!(
+                    "  • Impossible Travel Fraud   : {}",
+                    self.s13_geofence_engine.total_travel_anomalies
+                );
                 for ta in &self.s13_geofence_engine.tracking_areas {
-                    println!("    [TAC #{}] PLMN: {} | Coord: ({:.4}°, {:.4}°) | Restricted: {}",
-                        ta.tac, ta.plmn_id,
+                    println!(
+                        "    [TAC #{}] PLMN: {} | Coord: ({:.4}°, {:.4}°) | Restricted: {}",
+                        ta.tac,
+                        ta.plmn_id,
                         (ta.center_coord.lat_microdeg as f64) / 1_000_000.0,
                         (ta.center_coord.lon_microdeg as f64) / 1_000_000.0,
-                        ta.is_restricted);
+                        ta.is_restricted
+                    );
                 }
             }
             "check" => {
-                let imei = if args.len() >= 2 { args[1] } else { "860011112222333" };
-                let tac = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(10) } else { 10 };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "860011112222333"
+                };
+                let tac = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(10)
+                } else {
+                    10
+                };
                 let plmn = if args.len() >= 4 { args[3] } else { "20801" };
-                let t_s = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let t_s = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                let v = self.s13_geofence_engine.inspect_equipment_location(imei, tac, plmn, t_s);
+                let v = self
+                    .s13_geofence_engine
+                    .inspect_equipment_location(imei, tac, plmn, t_s);
                 match v {
-                    GeoVerdict::LegitimateLocation { tac, plmn_id, result_code } => {
-                        println!("  🟢 [DIAMETER_SUCCESS ({})] Device IMEI {} location verified legitimate in TAC #{} (PLMN: {}).",
-                            result_code, imei, tac, plmn_id);
+                    GeoVerdict::LegitimateLocation {
+                        tac,
+                        plmn_id,
+                        result_code,
+                    } => {
+                        println!(
+                            "  🟢 [DIAMETER_SUCCESS ({})] Device IMEI {} location verified legitimate in TAC #{} (PLMN: {}).",
+                            result_code, imei, tac, plmn_id
+                        );
                     }
-                    GeoVerdict::RestrictedZoneViolation { tac, plmn_id, reason, result_code } => {
-                        println!("  🔴 [DIAMETER_AUTHORIZATION_REJECTED ({})] Prohibited zone in TAC #{} (PLMN: {}): {}",
-                            result_code, tac, plmn_id, reason);
+                    GeoVerdict::RestrictedZoneViolation {
+                        tac,
+                        plmn_id,
+                        reason,
+                        result_code,
+                    } => {
+                        println!(
+                            "  🔴 [DIAMETER_AUTHORIZATION_REJECTED ({})] Prohibited zone in TAC #{} (PLMN: {}): {}",
+                            result_code, tac, plmn_id, reason
+                        );
                     }
-                    GeoVerdict::ImpossibleTravelFraud { imei, previous_tac, current_tac, calculated_speed_kmh, max_allowed_speed_kmh, result_code, .. } => {
-                        println!("  🚨 [FRAUD / REJECT ({})] Impossible travel for IMEI {} from TAC #{} to TAC #{}: calculated speed {} km/h exceeds limit {} km/h!",
-                            result_code, imei, previous_tac, current_tac, calculated_speed_kmh, max_allowed_speed_kmh);
+                    GeoVerdict::ImpossibleTravelFraud {
+                        imei,
+                        previous_tac,
+                        current_tac,
+                        calculated_speed_kmh,
+                        max_allowed_speed_kmh,
+                        result_code,
+                        ..
+                    } => {
+                        println!(
+                            "  🚨 [FRAUD / REJECT ({})] Impossible travel for IMEI {} from TAC #{} to TAC #{}: calculated speed {} km/h exceeds limit {} km/h!",
+                            result_code,
+                            imei,
+                            previous_tac,
+                            current_tac,
+                            calculated_speed_kmh,
+                            max_allowed_speed_kmh
+                        );
                     }
-                    GeoVerdict::UnauthorizedPlmn { plmn_id, result_code } => {
-                        println!("  🔴 [UNAUTHORIZED PLMN ({})] PLMN {} is not permitted for this subscriber.", result_code, plmn_id);
+                    GeoVerdict::UnauthorizedPlmn {
+                        plmn_id,
+                        result_code,
+                    } => {
+                        println!(
+                            "  🔴 [UNAUTHORIZED PLMN ({})] PLMN {} is not permitted for this subscriber.",
+                            result_code, plmn_id
+                        );
                     }
                 }
             }
             "add-tac" => {
-                let tac = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(30) } else { 30 };
+                let tac = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(30)
+                } else {
+                    30
+                };
                 let plmn = if args.len() >= 3 { args[2] } else { "20801" };
-                let lat = if args.len() >= 4 { args[3].parse::<i32>().unwrap_or(40_000_000) } else { 40_000_000 };
-                let lon = if args.len() >= 5 { args[4].parse::<i32>().unwrap_or(-74_000_000) } else { -74_000_000 };
-                let restricted = if args.len() >= 6 { args[5] == "true" || args[5] == "1" } else { false };
+                let lat = if args.len() >= 4 {
+                    args[3].parse::<i32>().unwrap_or(40_000_000)
+                } else {
+                    40_000_000
+                };
+                let lon = if args.len() >= 5 {
+                    args[4].parse::<i32>().unwrap_or(-74_000_000)
+                } else {
+                    -74_000_000
+                };
+                let restricted = if args.len() >= 6 {
+                    args[5] == "true" || args[5] == "1"
+                } else {
+                    false
+                };
 
-                self.s13_geofence_engine.register_tracking_area(tac, plmn, lat, lon, restricted);
-                println!("  [TAC REGISTERED] TAC #{} (PLMN: {}) at ({}, {}) Restricted: {}.",
-                    tac, plmn, lat, lon, restricted);
+                self.s13_geofence_engine
+                    .register_tracking_area(tac, plmn, lat, lon, restricted);
+                println!(
+                    "  [TAC REGISTERED] TAC #{} (PLMN: {}) at ({}, {}) Restricted: {}.",
+                    tac, plmn, lat, lon, restricted
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-geofence [status | check <imei> <tac> <plmn> [t_s] | add-tac <tac> <plmn> <lat> <lon> [restricted]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-geofence [status | check <imei> <tac> <plmn> [t_s] | add-tac <tac> <plmn> <lat> <lon> [restricted]]"
+            ),
         }
     }
 
@@ -20747,63 +23630,147 @@ impl NetworkShell {
         let subcmd = args.first().copied().unwrap_or("status");
         match subcmd {
             "status" => {
-                println!("RFC 9251 / RFC 8584 EVPN SSM Designated Router (DR) Election & Querier Sync:");
-                println!("  • Local PE Router IP     : {}", self.evpn_dr_engine.local_pe_ip);
-                println!("  • Local Configured Priority: {}", self.evpn_dr_engine.local_priority);
-                println!("  • Querier Timeout Duration : {} seconds", self.evpn_dr_engine.querier_timeout_secs);
-                println!("  • Total Elections Run      : {}", self.evpn_dr_engine.total_elections);
-                println!("  • Total Failovers Triggered: {}", self.evpn_dr_engine.total_failovers);
-                println!("  • Managed Ethernet Segments: {} segments", self.evpn_dr_engine.segments.len());
+                println!(
+                    "RFC 9251 / RFC 8584 EVPN SSM Designated Router (DR) Election & Querier Sync:"
+                );
+                println!(
+                    "  • Local PE Router IP     : {}",
+                    self.evpn_dr_engine.local_pe_ip
+                );
+                println!(
+                    "  • Local Configured Priority: {}",
+                    self.evpn_dr_engine.local_priority
+                );
+                println!(
+                    "  • Querier Timeout Duration : {} seconds",
+                    self.evpn_dr_engine.querier_timeout_secs
+                );
+                println!(
+                    "  • Total Elections Run      : {}",
+                    self.evpn_dr_engine.total_elections
+                );
+                println!(
+                    "  • Total Failovers Triggered: {}",
+                    self.evpn_dr_engine.total_failovers
+                );
+                println!(
+                    "  • Managed Ethernet Segments: {} segments",
+                    self.evpn_dr_engine.segments.len()
+                );
                 for seg in &self.evpn_dr_engine.segments {
-                    println!("    [Segment ESI: {:02X?}, VNI: {}] Active DR: {:?} (Prio: {}) | Candidates: {}",
-                        seg.esi, seg.vni, seg.current_dr_ip, seg.current_dr_priority, seg.candidates.len());
+                    println!(
+                        "    [Segment ESI: {:02X?}, VNI: {}] Active DR: {:?} (Prio: {}) | Candidates: {}",
+                        seg.esi,
+                        seg.vni,
+                        seg.current_dr_ip,
+                        seg.current_dr_priority,
+                        seg.candidates.len()
+                    );
                     for c in &seg.candidates {
-                        println!("      - PE: {} | Prio: {} | Active: {} | Last Seen: {}s",
-                            c.pe_ip, c.priority, c.is_active, c.last_seen_secs);
+                        println!(
+                            "      - PE: {} | Prio: {} | Active: {} | Last Seen: {}s",
+                            c.pe_ip, c.priority, c.is_active, c.last_seen_secs
+                        );
                     }
                 }
             }
             "elect" => {
-                let vni = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(100) } else { 100 };
+                let vni = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
                 let esi = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99];
                 let res = self.evpn_dr_engine.run_election(esi, vni);
                 match res {
-                    Some(DrElectionVerdict::ElectedAsDr { dr_ip, priority, .. }) => {
-                        println!("  🟢 [LOCAL PE ELECTED AS DR] PE {} (Priority: {}) is the active Multicast DR & IGMP Querier!",
-                            dr_ip, priority);
+                    Some(DrElectionVerdict::ElectedAsDr {
+                        dr_ip, priority, ..
+                    }) => {
+                        println!(
+                            "  🟢 [LOCAL PE ELECTED AS DR] PE {} (Priority: {}) is the active Multicast DR & IGMP Querier!",
+                            dr_ip, priority
+                        );
                     }
-                    Some(DrElectionVerdict::StandbyNonDr { active_dr_ip, active_dr_priority, .. }) => {
-                        println!("  🟡 [STANDBY / NON-DR] Remote PE {} (Priority: {}) won the DR election. Local PE is standby.",
-                            active_dr_ip, active_dr_priority);
+                    Some(DrElectionVerdict::StandbyNonDr {
+                        active_dr_ip,
+                        active_dr_priority,
+                        ..
+                    }) => {
+                        println!(
+                            "  🟡 [STANDBY / NON-DR] Remote PE {} (Priority: {}) won the DR election. Local PE is standby.",
+                            active_dr_ip, active_dr_priority
+                        );
                     }
-                    _ => println!("  🔴 [ELECTION ERROR] Segment not registered or no active candidates."),
+                    _ => println!(
+                        "  🔴 [ELECTION ERROR] Segment not registered or no active candidates."
+                    ),
                 }
             }
             "add-pe" => {
-                let vni = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(100) } else { 100 };
-                let pe_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 2)) } else { Ipv4Address::new(10, 0, 0, 2) };
-                let prio = if args.len() >= 5 { args[4].parse::<u32>().unwrap_or(200) } else { 200 };
-                let t_s = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let vni = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let pe_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 2))
+                } else {
+                    Ipv4Address::new(10, 0, 0, 2)
+                };
+                let prio = if args.len() >= 5 {
+                    args[4].parse::<u32>().unwrap_or(200)
+                } else {
+                    200
+                };
+                let t_s = if args.len() >= 6 {
+                    args[5].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
                 let esi = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99];
-                self.evpn_dr_engine.add_or_update_remote_pe(esi, vni, pe_ip, prio, t_s);
-                println!("  [REMOTE CANDIDATE ADDED] PE: {} Priority: {} on ESI {:02X?}, VNI {}.", pe_ip, prio, esi, vni);
+                self.evpn_dr_engine
+                    .add_or_update_remote_pe(esi, vni, pe_ip, prio, t_s);
+                println!(
+                    "  [REMOTE CANDIDATE ADDED] PE: {} Priority: {} on ESI {:02X?}, VNI {}.",
+                    pe_ip, prio, esi, vni
+                );
             }
             "tick" => {
-                let t_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1100) } else { 1100 };
+                let t_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1100)
+                } else {
+                    1100
+                };
                 let failovers = self.evpn_dr_engine.check_timeouts(t_s);
                 if failovers.is_empty() {
-                    println!("  🟢 [HEARTBEAT OK] All active DR keepalives within {}s window.", self.evpn_dr_engine.querier_timeout_secs);
+                    println!(
+                        "  🟢 [HEARTBEAT OK] All active DR keepalives within {}s window.",
+                        self.evpn_dr_engine.querier_timeout_secs
+                    );
                 } else {
                     for f in failovers {
-                        if let DrElectionVerdict::DrFailoverTriggered { vni, new_dr_ip, new_dr_priority, is_local_elected, .. } = f {
-                            println!("  🚨 [DR FAILOVER TRIGGERED] VNI {}: Previous DR timed out! New DR elected: {} (Prio: {}). Local PE elected: {}",
-                                vni, new_dr_ip, new_dr_priority, is_local_elected);
+                        if let DrElectionVerdict::DrFailoverTriggered {
+                            vni,
+                            new_dr_ip,
+                            new_dr_priority,
+                            is_local_elected,
+                            ..
+                        } = f
+                        {
+                            println!(
+                                "  🚨 [DR FAILOVER TRIGGERED] VNI {}: Previous DR timed out! New DR elected: {} (Prio: {}). Local PE elected: {}",
+                                vni, new_dr_ip, new_dr_priority, is_local_elected
+                            );
                         }
                     }
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-ssm-dr [status | elect <esi_hex> <vni> | add-pe <esi_hex> <vni> <pe_ip> <prio> [t] | tick <t>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-ssm-dr [status | elect <esi_hex> <vni> | add-pe <esi_hex> <vni> <pe_ip> <prio> [t] | tick <t>]"
+            ),
         }
     }
 
@@ -20812,36 +23779,92 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("3GPP TS 29.281 / TS 38.415 5G GTP-U QoS & DSCP/PCP Mapping Engine:");
-                println!("  • Registered 5QI Profiles : {} profiles", self.gtpu_marking_engine.profiles.len());
-                println!("  • QFI-to-5QI Bindings     : {} bindings", self.gtpu_marking_engine.qfi_to_5qi.len());
-                println!("  • Total Packets Marked    : {}", self.gtpu_marking_engine.total_packets_marked);
-                println!("  • Delay-Critical (URLLC)  : {}", self.gtpu_marking_engine.total_delay_critical);
+                println!(
+                    "  • Registered 5QI Profiles : {} profiles",
+                    self.gtpu_marking_engine.profiles.len()
+                );
+                println!(
+                    "  • QFI-to-5QI Bindings     : {} bindings",
+                    self.gtpu_marking_engine.qfi_to_5qi.len()
+                );
+                println!(
+                    "  • Total Packets Marked    : {}",
+                    self.gtpu_marking_engine.total_packets_marked
+                );
+                println!(
+                    "  • Delay-Critical (URLLC)  : {}",
+                    self.gtpu_marking_engine.total_delay_critical
+                );
                 for p in &self.gtpu_marking_engine.profiles {
-                    println!("    [5QI #{:2}] {:?} | DSCP: {:2} (0x{:02X}) | PCP: {} | Delay Budget: {:3}ms | {}",
-                        p.five_qi, p.resource_type, p.default_dscp, p.default_dscp, p.default_pcp, p.packet_delay_budget_ms, p.description);
+                    println!(
+                        "    [5QI #{:2}] {:?} | DSCP: {:2} (0x{:02X}) | PCP: {} | Delay Budget: {:3}ms | {}",
+                        p.five_qi,
+                        p.resource_type,
+                        p.default_dscp,
+                        p.default_dscp,
+                        p.default_pcp,
+                        p.packet_delay_budget_ms,
+                        p.description
+                    );
                 }
             }
             "mark" => {
-                let qfi = if args.len() >= 2 { args[1].parse::<u8>().unwrap_or(1) } else { 1 };
-                let ecn = if args.len() >= 3 { args[2].parse::<u8>().unwrap_or(0) } else { 0 };
+                let qfi = if args.len() >= 2 {
+                    args[1].parse::<u8>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let ecn = if args.len() >= 3 {
+                    args[2].parse::<u8>().unwrap_or(0)
+                } else {
+                    0
+                };
 
                 let res = self.gtpu_marking_engine.evaluate_marking(qfi, ecn);
-                println!("  🟢 [QOS MARKING] QFI #{} -> 5QI #{}: Outer IP DSCP: {} (ToS Byte: 0x{:02X}), Outer 802.1Q PCP: {}, Delay Budget: {}ms, URLLC: {}",
-                    res.qfi, res.five_qi, res.dscp, res.tos_byte, res.pcp, res.delay_budget_ms, res.is_delay_critical);
+                println!(
+                    "  🟢 [QOS MARKING] QFI #{} -> 5QI #{}: Outer IP DSCP: {} (ToS Byte: 0x{:02X}), Outer 802.1Q PCP: {}, Delay Budget: {}ms, URLLC: {}",
+                    res.qfi,
+                    res.five_qi,
+                    res.dscp,
+                    res.tos_byte,
+                    res.pcp,
+                    res.delay_budget_ms,
+                    res.is_delay_critical
+                );
             }
             "bind" => {
-                let qfi = if args.len() >= 2 { args[1].parse::<u8>().unwrap_or(10) } else { 10 };
-                let five_qi = if args.len() >= 3 { args[2].parse::<u32>().unwrap_or(82) } else { 82 };
+                let qfi = if args.len() >= 2 {
+                    args[1].parse::<u8>().unwrap_or(10)
+                } else {
+                    10
+                };
+                let five_qi = if args.len() >= 3 {
+                    args[2].parse::<u32>().unwrap_or(82)
+                } else {
+                    82
+                };
 
                 self.gtpu_marking_engine.bind_qfi(qfi, five_qi);
-                println!("  [QFI BOUND] QFI #{} successfully bound to 5QI #{}.", qfi, five_qi);
+                println!(
+                    "  [QFI BOUND] QFI #{} successfully bound to 5QI #{}.",
+                    qfi, five_qi
+                );
             }
             "infer" => {
-                let dscp = if args.len() >= 2 { args[1].parse::<u8>().unwrap_or(46) } else { 46 };
+                let dscp = if args.len() >= 2 {
+                    args[1].parse::<u8>().unwrap_or(46)
+                } else {
+                    46
+                };
                 let five_qi = self.gtpu_marking_engine.infer_5qi_from_dscp(dscp);
-                println!("  [INFERRED 5QI] Outer DSCP {} (0x{:02X}) maps to likely 5QI #{}.", dscp, dscp, five_qi);
+                println!(
+                    "  [INFERRED 5QI] Outer DSCP {} (0x{:02X}) maps to likely 5QI #{}.",
+                    dscp, dscp, five_qi
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-qos-marking [status | mark <qfi> [ecn] | bind <qfi> <5qi> | infer <dscp>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-qos-marking [status | mark <qfi> [ecn] | bind <qfi> <5qi> | infer <dscp>]"
+            ),
         }
     }
 
@@ -20850,71 +23873,188 @@ impl NetworkShell {
         match subcmd {
             "status" => {
                 println!("IEEE 802.1Qch CQF Time-Slot Dynamic Bandwidth Reservation Engine:");
-                println!("  • Cycle Duration          : {} ns", self.tsn_cqf_slot_engine.cycle_duration_ns);
-                println!("  • Configured Time Slots   : {} slots", self.tsn_cqf_slot_engine.slots.len());
-                println!("  • Active Reservations     : {} streams", self.tsn_cqf_slot_engine.reservations.len());
-                println!("  • Total Admitted Streams  : {}", self.tsn_cqf_slot_engine.total_admitted);
-                println!("  • Total Rejected Streams  : {}", self.tsn_cqf_slot_engine.total_rejected);
-                println!("  • Conforming Bytes        : {} bytes", self.tsn_cqf_slot_engine.total_conforming_bytes);
-                println!("  • Dropped / Exceeded Bytes: {} bytes", self.tsn_cqf_slot_engine.total_dropped_bytes);
-                println!("  • Timing Violations       : {}", self.tsn_cqf_slot_engine.total_timing_violations);
+                println!(
+                    "  • Cycle Duration          : {} ns",
+                    self.tsn_cqf_slot_engine.cycle_duration_ns
+                );
+                println!(
+                    "  • Configured Time Slots   : {} slots",
+                    self.tsn_cqf_slot_engine.slots.len()
+                );
+                println!(
+                    "  • Active Reservations     : {} streams",
+                    self.tsn_cqf_slot_engine.reservations.len()
+                );
+                println!(
+                    "  • Total Admitted Streams  : {}",
+                    self.tsn_cqf_slot_engine.total_admitted
+                );
+                println!(
+                    "  • Total Rejected Streams  : {}",
+                    self.tsn_cqf_slot_engine.total_rejected
+                );
+                println!(
+                    "  • Conforming Bytes        : {} bytes",
+                    self.tsn_cqf_slot_engine.total_conforming_bytes
+                );
+                println!(
+                    "  • Dropped / Exceeded Bytes: {} bytes",
+                    self.tsn_cqf_slot_engine.total_dropped_bytes
+                );
+                println!(
+                    "  • Timing Violations       : {}",
+                    self.tsn_cqf_slot_engine.total_timing_violations
+                );
                 for slot in &self.tsn_cqf_slot_engine.slots {
-                    println!("    [Slot #{}] Start: {} ns, Duration: {} ns | Allocated: {}/{} B | Streams: {}",
-                        slot.slot_index, slot.start_offset_ns, slot.duration_ns, slot.allocated_bytes, slot.max_capacity_bytes, slot.assigned_streams);
+                    println!(
+                        "    [Slot #{}] Start: {} ns, Duration: {} ns | Allocated: {}/{} B | Streams: {}",
+                        slot.slot_index,
+                        slot.start_offset_ns,
+                        slot.duration_ns,
+                        slot.allocated_bytes,
+                        slot.max_capacity_bytes,
+                        slot.assigned_streams
+                    );
                 }
             }
             "reserve" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let slot = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(0) } else { 0 };
-                let bytes = if args.len() >= 4 { args[3].parse::<usize>().unwrap_or(1200) } else { 1200 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let slot = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(0)
+                } else {
+                    0
+                };
+                let bytes = if args.len() >= 4 {
+                    args[3].parse::<usize>().unwrap_or(1200)
+                } else {
+                    1200
+                };
 
-                let v = self.tsn_cqf_slot_engine.request_reservation(stream_id, slot, bytes);
+                let v = self
+                    .tsn_cqf_slot_engine
+                    .request_reservation(stream_id, slot, bytes);
                 match v {
-                    SlotAdmissionVerdict::Admitted { stream_id, slot_index, reserved_bytes, slot_start_ns, slot_end_ns } => {
-                        println!("  🟢 [ADMISSION GRANTED] Stream #{} admitted in Slot #{} ({}..{} ns) with quota {} B/cycle.",
-                            stream_id, slot_index, slot_start_ns, slot_end_ns, reserved_bytes);
+                    SlotAdmissionVerdict::Admitted {
+                        stream_id,
+                        slot_index,
+                        reserved_bytes,
+                        slot_start_ns,
+                        slot_end_ns,
+                    } => {
+                        println!(
+                            "  🟢 [ADMISSION GRANTED] Stream #{} admitted in Slot #{} ({}..{} ns) with quota {} B/cycle.",
+                            stream_id, slot_index, slot_start_ns, slot_end_ns, reserved_bytes
+                        );
                     }
-                    SlotAdmissionVerdict::RejectedSlotFull { stream_id, slot_index, requested_bytes, available_bytes } => {
-                        println!("  🔴 [ADMISSION REJECTED - SLOT FULL] Stream #{} requested {} B in Slot #{} but only {} B available.",
-                            stream_id, requested_bytes, slot_index, available_bytes);
+                    SlotAdmissionVerdict::RejectedSlotFull {
+                        stream_id,
+                        slot_index,
+                        requested_bytes,
+                        available_bytes,
+                    } => {
+                        println!(
+                            "  🔴 [ADMISSION REJECTED - SLOT FULL] Stream #{} requested {} B in Slot #{} but only {} B available.",
+                            stream_id, requested_bytes, slot_index, available_bytes
+                        );
                     }
-                    SlotAdmissionVerdict::RejectedInvalidSlot { slot_index, max_slots, .. } => {
-                        println!("  🔴 [INVALID SLOT] Requested slot #{} exceeds max configured slots ({}).", slot_index, max_slots);
+                    SlotAdmissionVerdict::RejectedInvalidSlot {
+                        slot_index,
+                        max_slots,
+                        ..
+                    } => {
+                        println!(
+                            "  🔴 [INVALID SLOT] Requested slot #{} exceeds max configured slots ({}).",
+                            slot_index, max_slots
+                        );
                     }
                     SlotAdmissionVerdict::RejectedDuplicateStream { stream_id } => {
-                        println!("  🔴 [DUPLICATE STREAM] Stream #{} already has an active slot reservation.", stream_id);
+                        println!(
+                            "  🔴 [DUPLICATE STREAM] Stream #{} already has an active slot reservation.",
+                            stream_id
+                        );
                     }
                 }
             }
             "eval" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(500) } else { 500 };
-                let time_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(30_000) } else { 30_000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(500)
+                } else {
+                    500
+                };
+                let time_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(30_000)
+                } else {
+                    30_000
+                };
 
-                let verdict = self.tsn_cqf_slot_engine.evaluate_transmission(stream_id, bytes, time_ns);
+                let verdict = self
+                    .tsn_cqf_slot_engine
+                    .evaluate_transmission(stream_id, bytes, time_ns);
                 match verdict {
-                    SlotTransmissionVerdict::TransmitWithinSlot { stream_id, slot_index, frame_bytes, remaining_slot_quota } => {
-                        println!("  🟢 [TRANSMIT OK] Frame {} B for Stream #{} conforming in Slot #{} (Remaining quota: {} B).",
-                            frame_bytes, stream_id, slot_index, remaining_slot_quota);
+                    SlotTransmissionVerdict::TransmitWithinSlot {
+                        stream_id,
+                        slot_index,
+                        frame_bytes,
+                        remaining_slot_quota,
+                    } => {
+                        println!(
+                            "  🟢 [TRANSMIT OK] Frame {} B for Stream #{} conforming in Slot #{} (Remaining quota: {} B).",
+                            frame_bytes, stream_id, slot_index, remaining_slot_quota
+                        );
                     }
-                    SlotTransmissionVerdict::LateSlotViolation { stream_id, slot_index, time_in_cycle_ns, expected_start_ns, expected_end_ns } => {
-                        println!("  🚨 [TIMING VIOLATION] Stream #{} transmitted at {} ns outside Slot #{} window ({}..{} ns).",
-                            stream_id, time_in_cycle_ns, slot_index, expected_start_ns, expected_end_ns);
+                    SlotTransmissionVerdict::LateSlotViolation {
+                        stream_id,
+                        slot_index,
+                        time_in_cycle_ns,
+                        expected_start_ns,
+                        expected_end_ns,
+                    } => {
+                        println!(
+                            "  🚨 [TIMING VIOLATION] Stream #{} transmitted at {} ns outside Slot #{} window ({}..{} ns).",
+                            stream_id,
+                            time_in_cycle_ns,
+                            slot_index,
+                            expected_start_ns,
+                            expected_end_ns
+                        );
                     }
-                    SlotTransmissionVerdict::QuotaExceededDrop { stream_id, slot_index, frame_bytes, remaining_slot_quota } => {
-                        println!("  🔴 [QUOTA EXCEEDED] Frame {} B for Stream #{} exceeds remaining quota {} B in Slot #{}.",
-                            frame_bytes, stream_id, remaining_slot_quota, slot_index);
+                    SlotTransmissionVerdict::QuotaExceededDrop {
+                        stream_id,
+                        slot_index,
+                        frame_bytes,
+                        remaining_slot_quota,
+                    } => {
+                        println!(
+                            "  🔴 [QUOTA EXCEEDED] Frame {} B for Stream #{} exceeds remaining quota {} B in Slot #{}.",
+                            frame_bytes, stream_id, remaining_slot_quota, slot_index
+                        );
                     }
                     SlotTransmissionVerdict::UnreservedStreamDrop { stream_id } => {
-                        println!("  🔴 [UNRESERVED DROP] Stream #{} has no registered CQF slot reservation.", stream_id);
+                        println!(
+                            "  🔴 [UNRESERVED DROP] Stream #{} has no registered CQF slot reservation.",
+                            stream_id
+                        );
                     }
                 }
             }
             "reset" => {
                 self.tsn_cqf_slot_engine.reset();
-                println!("  [SLOT ENGINE RESET] All CQF slot allocations and stream reservations cleared.");
+                println!(
+                    "  [SLOT ENGINE RESET] All CQF slot allocations and stream reservations cleared."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-slot [status | reserve <stream_id> <slot> <bytes> | eval <stream_id> <bytes> <time_ns> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-slot [status | reserve <stream_id> <slot> <bytes> | eval <stream_id> <bytes> <time_ns> | reset]"
+            ),
         }
     }
 
@@ -20923,62 +24063,142 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== IEEE 802.1Qch CQF Cyclic Frame Replication & FRER Status ===");
-                println!("  • Cycle Duration          : {} ns", self.tsn_cqf_frer_engine.cycle_duration_ns);
-                println!("  • Active Ingress Streams  : {}", self.tsn_cqf_frer_engine.ingress_generators.len());
-                println!("  • Active Egress Recoveries: {}", self.tsn_cqf_frer_engine.egress_recoveries.len());
-                println!("  • Total Replicated Frames : {}", self.tsn_cqf_frer_engine.total_replicated_frames);
-                println!("  • Eliminated Duplicates   : {}", self.tsn_cqf_frer_engine.total_eliminated_duplicates);
-                println!("  • Delivered Frames        : {}", self.tsn_cqf_frer_engine.total_delivered_frames);
-                println!("  • Out-of-Window Drops     : {}", self.tsn_cqf_frer_engine.total_out_of_window_drops);
+                println!(
+                    "  • Cycle Duration          : {} ns",
+                    self.tsn_cqf_frer_engine.cycle_duration_ns
+                );
+                println!(
+                    "  • Active Ingress Streams  : {}",
+                    self.tsn_cqf_frer_engine.ingress_generators.len()
+                );
+                println!(
+                    "  • Active Egress Recoveries: {}",
+                    self.tsn_cqf_frer_engine.egress_recoveries.len()
+                );
+                println!(
+                    "  • Total Replicated Frames : {}",
+                    self.tsn_cqf_frer_engine.total_replicated_frames
+                );
+                println!(
+                    "  • Eliminated Duplicates   : {}",
+                    self.tsn_cqf_frer_engine.total_eliminated_duplicates
+                );
+                println!(
+                    "  • Delivered Frames        : {}",
+                    self.tsn_cqf_frer_engine.total_delivered_frames
+                );
+                println!(
+                    "  • Out-of-Window Drops     : {}",
+                    self.tsn_cqf_frer_engine.total_out_of_window_drops
+                );
                 for generator in &self.tsn_cqf_frer_engine.ingress_generators {
-                    println!("    [Ingress Stream #{}] Next Seq: {}, Active: {}", generator.stream_id, generator.next_sequence_number, generator.active);
+                    println!(
+                        "    [Ingress Stream #{}] Next Seq: {}, Active: {}",
+                        generator.stream_id, generator.next_sequence_number, generator.active
+                    );
                 }
                 for rec in &self.tsn_cqf_frer_engine.egress_recoveries {
-                    println!("    [Egress Stream #{}] Highest Seq: {}, Window Mask: 0x{:08X} | Accepted: {}, Discarded: {}",
-                        rec.stream_id, rec.highest_sequence_number, rec.history_window_mask, rec.packets_accepted, rec.packets_discarded);
+                    println!(
+                        "    [Egress Stream #{}] Highest Seq: {}, Window Mask: 0x{:08X} | Accepted: {}, Discarded: {}",
+                        rec.stream_id,
+                        rec.highest_sequence_number,
+                        rec.history_window_mask,
+                        rec.packets_accepted,
+                        rec.packets_discarded
+                    );
                 }
             }
             "repl" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                self.tsn_cqf_frer_engine.register_stream(stream_id);
-                if let Some((rtag, path_a, path_b)) = self.tsn_cqf_frer_engine.replicate_frame(stream_id, 0x0800) {
-                    println!("  🟢 [REPLICATION SUCCESS] Stream #{} generated R-TAG Seq #{} onto {:?} and {:?}.",
-                        stream_id, rtag.sequence_number, path_a, path_b);
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
                 } else {
-                    println!("  🔴 [REPLICATION FAILED] Stream #{} not active.", stream_id);
+                    1
+                };
+                self.tsn_cqf_frer_engine.register_stream(stream_id);
+                if let Some((rtag, path_a, path_b)) =
+                    self.tsn_cqf_frer_engine.replicate_frame(stream_id, 0x0800)
+                {
+                    println!(
+                        "  🟢 [REPLICATION SUCCESS] Stream #{} generated R-TAG Seq #{} onto {:?} and {:?}.",
+                        stream_id, rtag.sequence_number, path_a, path_b
+                    );
+                } else {
+                    println!(
+                        "  🔴 [REPLICATION FAILED] Stream #{} not active.",
+                        stream_id
+                    );
                 }
             }
             "egress" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let seq = if args.len() >= 3 { args[2].parse::<u16>().unwrap_or(1) } else { 1 };
-                let cycle = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(10) } else { 10 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let seq = if args.len() >= 3 {
+                    args[2].parse::<u16>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let cycle = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(10)
+                } else {
+                    10
+                };
                 let path = if args.len() >= 5 && args[4].to_lowercase().contains("b") {
                     ReplicationPath::PathB
                 } else {
                     ReplicationPath::PathA
                 };
 
-                let verdict = self.tsn_cqf_frer_engine.process_egress_frame(stream_id, seq, cycle, path);
+                let verdict = self
+                    .tsn_cqf_frer_engine
+                    .process_egress_frame(stream_id, seq, cycle, path);
                 match verdict {
-                    FrerEliminationVerdict::Delivered { stream_id, sequence_number, arrival_cycle, source_path } => {
-                        println!("  🟢 [FRAME DELIVERED] Stream #{} Seq #{} from {:?} accepted at cycle {}.",
-                            stream_id, sequence_number, source_path, arrival_cycle);
+                    FrerEliminationVerdict::Delivered {
+                        stream_id,
+                        sequence_number,
+                        arrival_cycle,
+                        source_path,
+                    } => {
+                        println!(
+                            "  🟢 [FRAME DELIVERED] Stream #{} Seq #{} from {:?} accepted at cycle {}.",
+                            stream_id, sequence_number, source_path, arrival_cycle
+                        );
                     }
-                    FrerEliminationVerdict::EliminatedDuplicate { stream_id, sequence_number, arrival_cycle, source_path } => {
-                        println!("  🟡 [DUPLICATE ELIMINATED] Stream #{} Seq #{} from {:?} discarded at cycle {}.",
-                            stream_id, sequence_number, source_path, arrival_cycle);
+                    FrerEliminationVerdict::EliminatedDuplicate {
+                        stream_id,
+                        sequence_number,
+                        arrival_cycle,
+                        source_path,
+                    } => {
+                        println!(
+                            "  🟡 [DUPLICATE ELIMINATED] Stream #{} Seq #{} from {:?} discarded at cycle {}.",
+                            stream_id, sequence_number, source_path, arrival_cycle
+                        );
                     }
-                    FrerEliminationVerdict::OutOfWindowDrop { stream_id, sequence_number, arrival_cycle, source_path } => {
-                        println!("  🔴 [OUT OF WINDOW DROP] Stream #{} Seq #{} from {:?} dropped at cycle {}.",
-                            stream_id, sequence_number, source_path, arrival_cycle);
+                    FrerEliminationVerdict::OutOfWindowDrop {
+                        stream_id,
+                        sequence_number,
+                        arrival_cycle,
+                        source_path,
+                    } => {
+                        println!(
+                            "  🔴 [OUT OF WINDOW DROP] Stream #{} Seq #{} from {:?} dropped at cycle {}.",
+                            stream_id, sequence_number, source_path, arrival_cycle
+                        );
                     }
                 }
             }
             "reset" => {
                 self.tsn_cqf_frer_engine.reset();
-                println!("  [FRER ENGINE RESET] All replication generators and recovery histories cleared.");
+                println!(
+                    "  [FRER ENGINE RESET] All replication generators and recovery histories cleared."
+                );
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-frer [status | repl <stream_id> | egress <stream_id> <seq> <cycle> <path_a|path_b> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-frer [status | repl <stream_id> | egress <stream_id> <seq> <cycle> <path_a|path_b> | reset]"
+            ),
         }
     }
 
@@ -20987,46 +24207,108 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== 3GPP Diameter S13 Hardware IMEI-SV Tamper Validation Status ===");
-                println!("  • Total Validations       : {}", self.s13_tamper_engine.total_validations);
-                println!("  • Valid 15-digit IMEIs    : {}", self.s13_tamper_engine.total_valid_imeis);
-                println!("  • Valid 16-digit IMEI-SVs : {}", self.s13_tamper_engine.total_valid_imeisv);
-                println!("  • Luhn Checksum Failures  : {}", self.s13_tamper_engine.total_luhn_failures);
-                println!("  • Tampered / Cloned Drops : {}", self.s13_tamper_engine.total_tampered_cloned);
+                println!(
+                    "  • Total Validations       : {}",
+                    self.s13_tamper_engine.total_validations
+                );
+                println!(
+                    "  • Valid 15-digit IMEIs    : {}",
+                    self.s13_tamper_engine.total_valid_imeis
+                );
+                println!(
+                    "  • Valid 16-digit IMEI-SVs : {}",
+                    self.s13_tamper_engine.total_valid_imeisv
+                );
+                println!(
+                    "  • Luhn Checksum Failures  : {}",
+                    self.s13_tamper_engine.total_luhn_failures
+                );
+                println!(
+                    "  • Tampered / Cloned Drops : {}",
+                    self.s13_tamper_engine.total_tampered_cloned
+                );
                 println!("  • Configured Manufacturer Profiles:");
                 for prof in &self.s13_tamper_engine.manufacturer_profiles {
-                    println!("    - TAC Prefix '{}' -> {} (SVN {}..{})",
-                        prof.tac_prefix, prof.manufacturer, prof.min_allowed_svn, prof.max_allowed_svn);
+                    println!(
+                        "    - TAC Prefix '{}' -> {} (SVN {}..{})",
+                        prof.tac_prefix,
+                        prof.manufacturer,
+                        prof.min_allowed_svn,
+                        prof.max_allowed_svn
+                    );
                 }
             }
             "check" => {
-                let input = if args.len() >= 2 { args[1] } else { "353918001234567" };
+                let input = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "353918001234567"
+                };
                 let v = self.s13_tamper_engine.validate_equipment_id(input);
                 match v {
-                    ImeiValidationVerdict::ValidImei { imei, tac, snr, check_digit } => {
-                        println!("  🟢 [VALID IMEI] ID: {} | TAC: {}, SNR: {}, Luhn CD: {}", imei, tac, snr, check_digit);
+                    ImeiValidationVerdict::ValidImei {
+                        imei,
+                        tac,
+                        snr,
+                        check_digit,
+                    } => {
+                        println!(
+                            "  🟢 [VALID IMEI] ID: {} | TAC: {}, SNR: {}, Luhn CD: {}",
+                            imei, tac, snr, check_digit
+                        );
                     }
-                    ImeiValidationVerdict::ValidImeiSv { imei_sv, tac, snr, svn } => {
-                        println!("  🟢 [VALID IMEI-SV] ID: {} | TAC: {}, SNR: {}, SVN: {}", imei_sv, tac, snr, svn);
+                    ImeiValidationVerdict::ValidImeiSv {
+                        imei_sv,
+                        tac,
+                        snr,
+                        svn,
+                    } => {
+                        println!(
+                            "  🟢 [VALID IMEI-SV] ID: {} | TAC: {}, SNR: {}, SVN: {}",
+                            imei_sv, tac, snr, svn
+                        );
                     }
-                    ImeiValidationVerdict::LuhnChecksumFailed { imei, expected_cd, actual_cd } => {
-                        println!("  🔴 [LUHN CHECKSUM FAILED] IMEI: {} (Expected CD: {}, Provided: {})", imei, expected_cd, actual_cd);
+                    ImeiValidationVerdict::LuhnChecksumFailed {
+                        imei,
+                        expected_cd,
+                        actual_cd,
+                    } => {
+                        println!(
+                            "  🔴 [LUHN CHECKSUM FAILED] IMEI: {} (Expected CD: {}, Provided: {})",
+                            imei, expected_cd, actual_cd
+                        );
                     }
                     ImeiValidationVerdict::HardwareTamperedCloned { imei, reason } => {
-                        println!("  🚨 [HARDWARE TAMPER/CLONE DETECTED] IMEI: {} | Reason: {}", imei, reason);
+                        println!(
+                            "  🚨 [HARDWARE TAMPER/CLONE DETECTED] IMEI: {} | Reason: {}",
+                            imei, reason
+                        );
                     }
                     ImeiValidationVerdict::InvalidLength { input, length } => {
-                        println!("  🔴 [INVALID LENGTH] '{}' has invalid length {} (Expected 15 or 16).", input, length);
+                        println!(
+                            "  🔴 [INVALID LENGTH] '{}' has invalid length {} (Expected 15 or 16).",
+                            input, length
+                        );
                     }
                     ImeiValidationVerdict::InvalidCharacters { input } => {
-                        println!("  🔴 [INVALID CHARACTERS] '{}' contains non-decimal characters.", input);
+                        println!(
+                            "  🔴 [INVALID CHARACTERS] '{}' contains non-decimal characters.",
+                            input
+                        );
                     }
                 }
             }
             "luhn" => {
-                let payload = if args.len() >= 2 { args[1] } else { "35391800123456" };
+                let payload = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "35391800123456"
+                };
                 if let Some(cd) = S13ImeiTamperEngine::calculate_luhn_check_digit(payload) {
-                    println!("  [LUHN DIGIT COMPUTED] Payload: '{}' -> Check Digit: {} (Full IMEI: {}{})",
-                        payload, cd, payload, cd);
+                    println!(
+                        "  [LUHN DIGIT COMPUTED] Payload: '{}' -> Check Digit: {} (Full IMEI: {}{})",
+                        payload, cd, payload, cd
+                    );
                 } else {
                     println!("  🔴 [COMPUTATION ERROR] Payload must be exactly 14 decimal digits.");
                 }
@@ -21035,13 +24317,16 @@ impl NetworkShell {
                 if args.len() >= 3 {
                     let tac = args[1];
                     let manuf = args[2];
-                    self.s13_tamper_engine.add_manufacturer_profile(tac, manuf, 1, 99);
+                    self.s13_tamper_engine
+                        .add_manufacturer_profile(tac, manuf, 1, 99);
                     println!("  [PROFILE REGISTERED] TAC '{}' -> {}", tac, manuf);
                 } else {
                     println!("Usage: diameter-s13-tamper add-prof <tac_prefix> <manufacturer>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-tamper [status | check <imei_or_imeisv> | luhn <payload_14> | add-prof <tac> <manuf>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-tamper [status | check <imei_or_imeisv> | luhn <payload_14> | add-prof <tac> <manuf>]"
+            ),
         }
     }
 
@@ -21050,43 +24335,125 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== EVPN SSM Source Active (SA) Route Synchronization Status ===");
-                println!("  • Local Router IP         : {}", self.evpn_sa_engine.local_router_ip);
-                println!("  • Inactivity Timeout      : {}s", self.evpn_sa_engine.source_inactivity_timeout_secs);
-                println!("  • Active Sources Tracked  : {}", self.evpn_sa_engine.active_sources.len());
-                println!("  • Sources Discovered      : {}", self.evpn_sa_engine.total_sources_discovered);
-                println!("  • SA Routes Advertised    : {}", self.evpn_sa_engine.total_sa_routes_advertised);
-                println!("  • SA Routes Withdrawn     : {}", self.evpn_sa_engine.total_sa_routes_withdrawn);
-                println!("  • Traffic Refreshes       : {}", self.evpn_sa_engine.total_traffic_refreshes);
+                println!(
+                    "  • Local Router IP         : {}",
+                    self.evpn_sa_engine.local_router_ip
+                );
+                println!(
+                    "  • Inactivity Timeout      : {}s",
+                    self.evpn_sa_engine.source_inactivity_timeout_secs
+                );
+                println!(
+                    "  • Active Sources Tracked  : {}",
+                    self.evpn_sa_engine.active_sources.len()
+                );
+                println!(
+                    "  • Sources Discovered      : {}",
+                    self.evpn_sa_engine.total_sources_discovered
+                );
+                println!(
+                    "  • SA Routes Advertised    : {}",
+                    self.evpn_sa_engine.total_sa_routes_advertised
+                );
+                println!(
+                    "  • SA Routes Withdrawn     : {}",
+                    self.evpn_sa_engine.total_sa_routes_withdrawn
+                );
+                println!(
+                    "  • Traffic Refreshes       : {}",
+                    self.evpn_sa_engine.total_traffic_refreshes
+                );
                 for src in &self.evpn_sa_engine.active_sources {
-                    println!("    [VNI {} Channel ({}, {})] Origin: {}, ESI: {:?}, Packets: {}, Advertised: {}",
-                        src.vni, src.source_ip, src.group_ip, src.originator_router_ip, src.esi, src.packet_count, src.is_advertised);
+                    println!(
+                        "    [VNI {} Channel ({}, {})] Origin: {}, ESI: {:?}, Packets: {}, Advertised: {}",
+                        src.vni,
+                        src.source_ip,
+                        src.group_ip,
+                        src.originator_router_ip,
+                        src.esi,
+                        src.packet_count,
+                        src.is_advertised
+                    );
                 }
             }
             "traffic" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let src_ip = if args.len() >= 3 { args[2].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 50)) } else { Ipv4Address::new(192, 168, 1, 50) };
-                let grp_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let t_s = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let src_ip = if args.len() >= 3 {
+                    args[2]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 50))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 50)
+                };
+                let grp_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let t_s = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
                 let esi = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99];
 
-                let verdict = self.evpn_sa_engine.record_source_traffic(vni, esi, src_ip, grp_ip, t_s);
+                let verdict = self
+                    .evpn_sa_engine
+                    .record_source_traffic(vni, esi, src_ip, grp_ip, t_s);
                 match verdict {
                     SourceActiveVerdict::AdvertiseSourceActive { route } => {
-                        println!("  📢 [SA ROUTE ADVERTISED] VNI {} Channel ({}, {}) Originator: {}",
-                            route.vni, route.source_ip, route.group_ip, route.originator_router_ip);
+                        println!(
+                            "  📢 [SA ROUTE ADVERTISED] VNI {} Channel ({}, {}) Originator: {}",
+                            route.vni, route.source_ip, route.group_ip, route.originator_router_ip
+                        );
                     }
-                    SourceActiveVerdict::SourceRefreshed { vni, source_ip, group_ip, last_seen_secs } => {
-                        println!("  🔄 [SOURCE REFRESHED] VNI {} Channel ({}, {}) active at t = {}s.",
-                            vni, source_ip, group_ip, last_seen_secs);
+                    SourceActiveVerdict::SourceRefreshed {
+                        vni,
+                        source_ip,
+                        group_ip,
+                        last_seen_secs,
+                    } => {
+                        println!(
+                            "  🔄 [SOURCE REFRESHED] VNI {} Channel ({}, {}) active at t = {}s.",
+                            vni, source_ip, group_ip, last_seen_secs
+                        );
                     }
                     _ => {}
                 }
             }
             "learn" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let src_ip = if args.len() >= 3 { args[2].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 50)) } else { Ipv4Address::new(192, 168, 1, 50) };
-                let grp_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let pe_ip = if args.len() >= 5 { args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 2)) } else { Ipv4Address::new(10, 0, 0, 2) };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let src_ip = if args.len() >= 3 {
+                    args[2]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 50))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 50)
+                };
+                let grp_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let pe_ip = if args.len() >= 5 {
+                    args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 2))
+                } else {
+                    Ipv4Address::new(10, 0, 0, 2)
+                };
                 let esi = [0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99];
 
                 let route = EvpnSourceActiveRoute {
@@ -21097,36 +24464,77 @@ impl NetworkShell {
                     originator_router_ip: pe_ip,
                 };
                 self.evpn_sa_engine.learn_remote_sa_route(route, 1000);
-                println!("  [REMOTE SA ROUTE LEARNED] VNI {} Channel ({}, {}) from PE {}", vni, src_ip, grp_ip, pe_ip);
+                println!(
+                    "  [REMOTE SA ROUTE LEARNED] VNI {} Channel ({}, {}) from PE {}",
+                    vni, src_ip, grp_ip, pe_ip
+                );
             }
             "tick" => {
-                let t_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1200) } else { 1200 };
+                let t_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1200)
+                } else {
+                    1200
+                };
                 let withdrawals = self.evpn_sa_engine.check_aging(t_s);
                 if withdrawals.is_empty() {
-                    println!("  [AGING CHECK] All active sources remain fresh at t = {}s.", t_s);
+                    println!(
+                        "  [AGING CHECK] All active sources remain fresh at t = {}s.",
+                        t_s
+                    );
                 } else {
                     for w in withdrawals {
                         if let SourceActiveVerdict::WithdrawSourceActive { route, reason } = w {
-                            println!("  🗑️ [SA ROUTE WITHDRAWN] VNI {} Channel ({}, {}) | Reason: {}",
-                                route.vni, route.source_ip, route.group_ip, reason);
+                            println!(
+                                "  🗑️ [SA ROUTE WITHDRAWN] VNI {} Channel ({}, {}) | Reason: {}",
+                                route.vni, route.source_ip, route.group_ip, reason
+                            );
                         }
                     }
                 }
             }
             "query" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let src_ip = if args.len() >= 3 { args[2].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100)) } else { Ipv4Address::new(192, 168, 1, 100) };
-                let grp_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let loc = self.evpn_sa_engine.query_source_location(vni, src_ip, grp_ip, 1050);
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let src_ip = if args.len() >= 3 {
+                    args[2]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 100)
+                };
+                let grp_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let loc = self
+                    .evpn_sa_engine
+                    .query_source_location(vni, src_ip, grp_ip, 1050);
                 match loc {
-                    SourceActiveVerdict::ActiveSourceLocated { originator_router_ip, esi, uptime_secs } => {
-                        println!("  📍 [SOURCE LOCATED] Resides on PE {} (ESI: {:?}, Uptime: {}s).",
-                            originator_router_ip, esi, uptime_secs);
+                    SourceActiveVerdict::ActiveSourceLocated {
+                        originator_router_ip,
+                        esi,
+                        uptime_secs,
+                    } => {
+                        println!(
+                            "  📍 [SOURCE LOCATED] Resides on PE {} (ESI: {:?}, Uptime: {}s).",
+                            originator_router_ip, esi, uptime_secs
+                        );
                     }
-                    _ => println!("  🔴 [SOURCE NOT FOUND] No active SA route found for channel ({}, {}).", src_ip, grp_ip),
+                    _ => println!(
+                        "  🔴 [SOURCE NOT FOUND] No active SA route found for channel ({}, {}).",
+                        src_ip, grp_ip
+                    ),
                 }
             }
-            _ => println!("Unknown subcommand. Usage: evpn-ssm-sa [status | traffic <vni> <src_ip> <grp_ip> [esi_hex] [t_s] | learn <vni> <src_ip> <grp_ip> <pe_ip> | tick <t_s> | query <vni> <src_ip> <grp_ip>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-ssm-sa [status | traffic <vni> <src_ip> <grp_ip> [esi_hex] [t_s] | learn <vni> <src_ip> <grp_ip> <pe_ip> | tick <t_s> | query <vni> <src_ip> <grp_ip>]"
+            ),
         }
     }
 
@@ -21134,44 +24542,100 @@ impl NetworkShell {
         let sub = if args.is_empty() { "status" } else { args[0] };
         match sub {
             "status" => {
-                println!("=== 3GPP 5G-to-4G Bearer ID (EBI) to QoS Flow (QFI) Translation Status ===");
-                println!("  • Default EBI             : {}", self.gtpu_bearer_map_engine.default_ebi);
-                println!("  • Default Tunnel TEID     : 0x{:08X}", self.gtpu_bearer_map_engine.default_tunnel_teid);
-                println!("  • Registered Bearer Maps  : {}", self.gtpu_bearer_map_engine.bindings.len());
-                println!("  • Total Translations      : {}", self.gtpu_bearer_map_engine.total_translations);
-                println!("  • QFI to EBI Lookups      : {}", self.gtpu_bearer_map_engine.total_qfi_to_ebi);
-                println!("  • EBI to QFI Lookups      : {}", self.gtpu_bearer_map_engine.total_ebi_to_qfi);
-                println!("  • Fallback to Default     : {}", self.gtpu_bearer_map_engine.total_fallbacks);
+                println!(
+                    "=== 3GPP 5G-to-4G Bearer ID (EBI) to QoS Flow (QFI) Translation Status ==="
+                );
+                println!(
+                    "  • Default EBI             : {}",
+                    self.gtpu_bearer_map_engine.default_ebi
+                );
+                println!(
+                    "  • Default Tunnel TEID     : 0x{:08X}",
+                    self.gtpu_bearer_map_engine.default_tunnel_teid
+                );
+                println!(
+                    "  • Registered Bearer Maps  : {}",
+                    self.gtpu_bearer_map_engine.bindings.len()
+                );
+                println!(
+                    "  • Total Translations      : {}",
+                    self.gtpu_bearer_map_engine.total_translations
+                );
+                println!(
+                    "  • QFI to EBI Lookups      : {}",
+                    self.gtpu_bearer_map_engine.total_qfi_to_ebi
+                );
+                println!(
+                    "  • EBI to QFI Lookups      : {}",
+                    self.gtpu_bearer_map_engine.total_ebi_to_qfi
+                );
+                println!(
+                    "  • Fallback to Default     : {}",
+                    self.gtpu_bearer_map_engine.total_fallbacks
+                );
                 for b in &self.gtpu_bearer_map_engine.bindings {
-                    println!("    [EPS Bearer EBI #{}] QCI: {}, Mapped QFIs: {:?}, Default: {}, TEID: 0x{:08X}",
-                        b.ebi, b.qci, b.mapped_qfis, b.is_default_bearer, b.tunnel_teid);
+                    println!(
+                        "    [EPS Bearer EBI #{}] QCI: {}, Mapped QFIs: {:?}, Default: {}, TEID: 0x{:08X}",
+                        b.ebi, b.qci, b.mapped_qfis, b.is_default_bearer, b.tunnel_teid
+                    );
                 }
             }
             "map-qfi" => {
-                let qfi = if args.len() >= 2 { args[1].parse::<u8>().unwrap_or(1) } else { 1 };
+                let qfi = if args.len() >= 2 {
+                    args[1].parse::<u8>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let verdict = self.gtpu_bearer_map_engine.translate_qfi_to_ebi(qfi);
                 match verdict {
-                    BearerFlowTranslationVerdict::QfiToEbiMapped { qfi, ebi, qci, tunnel_teid } => {
-                        println!("  🟢 [QFI MAPPED] 5G QFI #{} -> 4G EPS Bearer EBI #{} (QCI {}, TEID 0x{:08X}).",
-                            qfi, ebi, qci, tunnel_teid);
+                    BearerFlowTranslationVerdict::QfiToEbiMapped {
+                        qfi,
+                        ebi,
+                        qci,
+                        tunnel_teid,
+                    } => {
+                        println!(
+                            "  🟢 [QFI MAPPED] 5G QFI #{} -> 4G EPS Bearer EBI #{} (QCI {}, TEID 0x{:08X}).",
+                            qfi, ebi, qci, tunnel_teid
+                        );
                     }
-                    BearerFlowTranslationVerdict::UnmappedQfiFallback { qfi, fallback_ebi, fallback_teid } => {
-                        println!("  🟡 [UNMAPPED FALLBACK] 5G QFI #{} falls back to Default Bearer EBI #{} (TEID 0x{:08X}).",
-                            qfi, fallback_ebi, fallback_teid);
+                    BearerFlowTranslationVerdict::UnmappedQfiFallback {
+                        qfi,
+                        fallback_ebi,
+                        fallback_teid,
+                    } => {
+                        println!(
+                            "  🟡 [UNMAPPED FALLBACK] 5G QFI #{} falls back to Default Bearer EBI #{} (TEID 0x{:08X}).",
+                            qfi, fallback_ebi, fallback_teid
+                        );
                     }
                     _ => {}
                 }
             }
             "resolve-ebi" => {
-                let ebi = if args.len() >= 2 { args[1].parse::<u8>().unwrap_or(5) } else { 5 };
+                let ebi = if args.len() >= 2 {
+                    args[1].parse::<u8>().unwrap_or(5)
+                } else {
+                    5
+                };
                 let verdict = self.gtpu_bearer_map_engine.resolve_ebi_to_qfi(ebi);
                 match verdict {
-                    BearerFlowTranslationVerdict::EbiToQfiResolved { ebi, default_qfi, all_mapped_qfis, tunnel_teid } => {
-                        println!("  🟢 [EBI RESOLVED] 4G Bearer EBI #{} (TEID 0x{:08X}) -> Primary QFI #{}, All QFIs: {:?}.",
-                            ebi, tunnel_teid, default_qfi, all_mapped_qfis);
+                    BearerFlowTranslationVerdict::EbiToQfiResolved {
+                        ebi,
+                        default_qfi,
+                        all_mapped_qfis,
+                        tunnel_teid,
+                    } => {
+                        println!(
+                            "  🟢 [EBI RESOLVED] 4G Bearer EBI #{} (TEID 0x{:08X}) -> Primary QFI #{}, All QFIs: {:?}.",
+                            ebi, tunnel_teid, default_qfi, all_mapped_qfis
+                        );
                     }
                     BearerFlowTranslationVerdict::BearerNotFound { ebi } => {
-                        println!("  🔴 [BEARER NOT FOUND] EPS Bearer EBI #{} is not configured.", ebi);
+                        println!(
+                            "  🔴 [BEARER NOT FOUND] EPS Bearer EBI #{} is not configured.",
+                            ebi
+                        );
                     }
                     _ => {}
                 }
@@ -21180,20 +24644,28 @@ impl NetworkShell {
                 if args.len() >= 5 {
                     let ebi = args[1].parse::<u8>().unwrap_or(8);
                     let qci = args[2].parse::<u8>().unwrap_or(9);
-                    let qfis: Vec<u8> = args[3].split(',').filter_map(|s| s.parse::<u8>().ok()).collect();
+                    let qfis: Vec<u8> = args[3]
+                        .split(',')
+                        .filter_map(|s| s.parse::<u8>().ok())
+                        .collect();
                     let teid = if args[4].starts_with("0x") {
                         u32::from_str_radix(&args[4][2..], 16).unwrap_or(0x10005)
                     } else {
                         args[4].parse::<u32>().unwrap_or(0x10005)
                     };
-                    self.gtpu_bearer_map_engine.register_bearer_binding(ebi, qci, &qfis, false, teid);
-                    println!("  [BEARER BINDING REGISTERED] EBI #{} (QCI {}) -> QFIs {:?} on TEID 0x{:08X}",
-                        ebi, qci, qfis, teid);
+                    self.gtpu_bearer_map_engine
+                        .register_bearer_binding(ebi, qci, &qfis, false, teid);
+                    println!(
+                        "  [BEARER BINDING REGISTERED] EBI #{} (QCI {}) -> QFIs {:?} on TEID 0x{:08X}",
+                        ebi, qci, qfis, teid
+                    );
                 } else {
                     println!("Usage: gtpu-bearer-map bind <ebi> <qci> <qfi1,qfi2...> <teid>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-bearer-map [status | map-qfi <qfi> | resolve-ebi <ebi> | bind <ebi> <qci> <qfi1,qfi2...> <teid>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-bearer-map [status | map-qfi <qfi> | resolve-ebi <ebi> | bind <ebi> <qci> <qfi1,qfi2...> <teid>]"
+            ),
         }
     }
 
@@ -21202,47 +24674,125 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== IEEE 802.1Qch CQF Cyclic Burst Absorption & Leaky Bucket Shaper ===");
-                println!("  • Cycle Duration          : {} ns", self.tsn_cqf_burst_engine.cycle_duration_ns);
-                println!("  • Max Cycle Queue Capacity: {} bytes", self.tsn_cqf_burst_engine.max_cycle_queue_capacity_bytes);
-                println!("  • Current Cycle Index     : #{}", self.tsn_cqf_burst_engine.current_cycle_index);
-                println!("  • Odd Queue Occupancy     : {} bytes", self.tsn_cqf_burst_engine.cycle_queue_odd_bytes);
-                println!("  • Even Queue Occupancy    : {} bytes", self.tsn_cqf_burst_engine.cycle_queue_even_bytes);
-                println!("  • Registered Streams      : {}", self.tsn_cqf_burst_engine.streams.len());
-                println!("  • Conforming Ingress      : {} frames", self.tsn_cqf_burst_engine.total_conforming_frames);
-                println!("  • Absorbed / Buffered     : {} frames", self.tsn_cqf_burst_engine.total_absorbed_frames);
-                println!("  • Dropped (Overflow/Unreg): {} frames", self.tsn_cqf_burst_engine.total_dropped_frames);
-                println!("  • Drained from Buffer     : {} frames", self.tsn_cqf_burst_engine.total_drained_frames);
+                println!(
+                    "  • Cycle Duration          : {} ns",
+                    self.tsn_cqf_burst_engine.cycle_duration_ns
+                );
+                println!(
+                    "  • Max Cycle Queue Capacity: {} bytes",
+                    self.tsn_cqf_burst_engine.max_cycle_queue_capacity_bytes
+                );
+                println!(
+                    "  • Current Cycle Index     : #{}",
+                    self.tsn_cqf_burst_engine.current_cycle_index
+                );
+                println!(
+                    "  • Odd Queue Occupancy     : {} bytes",
+                    self.tsn_cqf_burst_engine.cycle_queue_odd_bytes
+                );
+                println!(
+                    "  • Even Queue Occupancy    : {} bytes",
+                    self.tsn_cqf_burst_engine.cycle_queue_even_bytes
+                );
+                println!(
+                    "  • Registered Streams      : {}",
+                    self.tsn_cqf_burst_engine.streams.len()
+                );
+                println!(
+                    "  • Conforming Ingress      : {} frames",
+                    self.tsn_cqf_burst_engine.total_conforming_frames
+                );
+                println!(
+                    "  • Absorbed / Buffered     : {} frames",
+                    self.tsn_cqf_burst_engine.total_absorbed_frames
+                );
+                println!(
+                    "  • Dropped (Overflow/Unreg): {} frames",
+                    self.tsn_cqf_burst_engine.total_dropped_frames
+                );
+                println!(
+                    "  • Drained from Buffer     : {} frames",
+                    self.tsn_cqf_burst_engine.total_drained_frames
+                );
                 for s in &self.tsn_cqf_burst_engine.streams {
-                    println!("    [Stream #{}] CIR: {} bps, CBS: {} B, PBS: {} B, Tokens: {} B, Buffered: {} / {} B",
-                        s.stream_id, s.committed_rate_bps, s.committed_burst_size_bytes, s.peak_burst_size_bytes, s.current_tokens_bytes, s.currently_buffered_bytes, s.burst_buffer_capacity_bytes);
+                    println!(
+                        "    [Stream #{}] CIR: {} bps, CBS: {} B, PBS: {} B, Tokens: {} B, Buffered: {} / {} B",
+                        s.stream_id,
+                        s.committed_rate_bps,
+                        s.committed_burst_size_bytes,
+                        s.peak_burst_size_bytes,
+                        s.current_tokens_bytes,
+                        s.currently_buffered_bytes,
+                        s.burst_buffer_capacity_bytes
+                    );
                 }
             }
             "ingest" => {
-                let stream_id = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(1) } else { 1 };
-                let frame_bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(1500) } else { 1500 };
-                let time_ns = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(10_000) } else { 10_000 };
+                let stream_id = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let frame_bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(1500)
+                } else {
+                    1500
+                };
+                let time_ns = if args.len() >= 4 {
+                    args[3].parse::<u64>().unwrap_or(10_000)
+                } else {
+                    10_000
+                };
 
-                let verdict = self.tsn_cqf_burst_engine.ingest_frame(stream_id, frame_bytes, time_ns);
+                let verdict =
+                    self.tsn_cqf_burst_engine
+                        .ingest_frame(stream_id, frame_bytes, time_ns);
                 match verdict {
-                    BurstAbsorbVerdict::ConformingIngress { stream_id, frame_bytes, target_cycle, queue_depth_bytes } => {
-                        println!("  🟢 [CONFORMING INGRESS] Stream #{} ({} B) scheduled in Cycle #{} (Queue Depth: {} B).",
-                            stream_id, frame_bytes, target_cycle, queue_depth_bytes);
+                    BurstAbsorbVerdict::ConformingIngress {
+                        stream_id,
+                        frame_bytes,
+                        target_cycle,
+                        queue_depth_bytes,
+                    } => {
+                        println!(
+                            "  🟢 [CONFORMING INGRESS] Stream #{} ({} B) scheduled in Cycle #{} (Queue Depth: {} B).",
+                            stream_id, frame_bytes, target_cycle, queue_depth_bytes
+                        );
                     }
-                    BurstAbsorbVerdict::BurstAbsorbedBuffered { stream_id, frame_bytes, scheduled_cycle, buffer_occupancy_bytes } => {
-                        println!("  🟡 [BURST ABSORBED] Stream #{} ({} B) absorbed into buffer (Occupancy: {} B) -> Delayed to Cycle #{}.",
-                            stream_id, frame_bytes, buffer_occupancy_bytes, scheduled_cycle);
+                    BurstAbsorbVerdict::BurstAbsorbedBuffered {
+                        stream_id,
+                        frame_bytes,
+                        scheduled_cycle,
+                        buffer_occupancy_bytes,
+                    } => {
+                        println!(
+                            "  🟡 [BURST ABSORBED] Stream #{} ({} B) absorbed into buffer (Occupancy: {} B) -> Delayed to Cycle #{}.",
+                            stream_id, frame_bytes, buffer_occupancy_bytes, scheduled_cycle
+                        );
                     }
-                    BurstAbsorbVerdict::NonConformingBurstDrop { stream_id, frame_bytes, reason } => {
-                        println!("  🔴 [FRAME DROPPED] Stream #{} ({} B) rejected | Reason: {}",
-                            stream_id, frame_bytes, reason);
+                    BurstAbsorbVerdict::NonConformingBurstDrop {
+                        stream_id,
+                        frame_bytes,
+                        reason,
+                    } => {
+                        println!(
+                            "  🔴 [FRAME DROPPED] Stream #{} ({} B) rejected | Reason: {}",
+                            stream_id, frame_bytes, reason
+                        );
                     }
                 }
             }
             "drain" => {
-                let cycle = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1) } else { 1 };
+                let cycle = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1)
+                } else {
+                    1
+                };
                 let drained = self.tsn_cqf_burst_engine.tick_cycle_drain(cycle);
-                println!("  🔄 [CYCLE DRAIN TICK] Advanced to Cycle #{}: Drained {} bytes from active transmission queue.",
-                    cycle, drained);
+                println!(
+                    "  🔄 [CYCLE DRAIN TICK] Advanced to Cycle #{}: Drained {} bytes from active transmission queue.",
+                    cycle, drained
+                );
             }
             "reg" => {
                 if args.len() >= 6 {
@@ -21251,18 +24801,25 @@ impl NetworkShell {
                     let cbs = args[3].parse::<usize>().unwrap_or(2000);
                     let pbs = args[4].parse::<usize>().unwrap_or(4000);
                     let buf_cap = args[5].parse::<usize>().unwrap_or(5000);
-                    self.tsn_cqf_burst_engine.register_stream(stream_id, rate_bps, cbs, pbs, buf_cap);
-                    println!("  [STREAM REGISTERED] Stream #{}: CIR {} bps, CBS {} B, PBS {} B, Buffer Cap {} B",
-                        stream_id, rate_bps, cbs, pbs, buf_cap);
+                    self.tsn_cqf_burst_engine
+                        .register_stream(stream_id, rate_bps, cbs, pbs, buf_cap);
+                    println!(
+                        "  [STREAM REGISTERED] Stream #{}: CIR {} bps, CBS {} B, PBS {} B, Buffer Cap {} B",
+                        stream_id, rate_bps, cbs, pbs, buf_cap
+                    );
                 } else {
-                    println!("Usage: tsn-cqf-burst reg <stream_id> <rate_bps> <cbs> <pbs> <buf_cap>");
+                    println!(
+                        "Usage: tsn-cqf-burst reg <stream_id> <rate_bps> <cbs> <pbs> <buf_cap>"
+                    );
                 }
             }
             "reset" => {
                 self.tsn_cqf_burst_engine.reset();
                 println!("  [TSN CQF BURST ENGINE RESET]");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-burst [status | ingest <stream_id> <bytes> <time_ns> | drain <cycle> | reg <stream_id> <rate_bps> <cbs> <pbs> <buf_cap> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-burst [status | ingest <stream_id> <bytes> <time_ns> | drain <cycle> | reg <stream_id> <rate_bps> <cbs> <pbs> <buf_cap> | reset]"
+            ),
         }
     }
 
@@ -21270,40 +24827,97 @@ impl NetworkShell {
         let sub = if args.is_empty() { "status" } else { args[0] };
         match sub {
             "status" => {
-                println!("=== 3GPP TS 29.272 Diameter S13 Roaming TAC Country Code Mismatch Engine ===");
-                println!("  • Total Validations       : {}", self.s13_roam_engine.total_validations);
-                println!("  • Domestic Conformant     : {}", self.s13_roam_engine.total_domestic_passes);
-                println!("  • Authorized Roaming      : {}", self.s13_roam_engine.total_authorized_roaming);
-                println!("  • Suspicious Mismatches   : {}", self.s13_roam_engine.total_suspicious_mismatches);
-                println!("  • Blocked / Sanctioned    : {}", self.s13_roam_engine.total_blocked_roamers);
-                println!("  • Blacklisted Countries   : {:?}", self.s13_roam_engine.blacklisted_origin_countries);
-                println!("  • Configured TAC Mappings : {}", self.s13_roam_engine.country_mappings.len());
+                println!(
+                    "=== 3GPP TS 29.272 Diameter S13 Roaming TAC Country Code Mismatch Engine ==="
+                );
+                println!(
+                    "  • Total Validations       : {}",
+                    self.s13_roam_engine.total_validations
+                );
+                println!(
+                    "  • Domestic Conformant     : {}",
+                    self.s13_roam_engine.total_domestic_passes
+                );
+                println!(
+                    "  • Authorized Roaming      : {}",
+                    self.s13_roam_engine.total_authorized_roaming
+                );
+                println!(
+                    "  • Suspicious Mismatches   : {}",
+                    self.s13_roam_engine.total_suspicious_mismatches
+                );
+                println!(
+                    "  • Blocked / Sanctioned    : {}",
+                    self.s13_roam_engine.total_blocked_roamers
+                );
+                println!(
+                    "  • Blacklisted Countries   : {:?}",
+                    self.s13_roam_engine.blacklisted_origin_countries
+                );
+                println!(
+                    "  • Configured TAC Mappings : {}",
+                    self.s13_roam_engine.country_mappings.len()
+                );
                 for m in &self.s13_roam_engine.country_mappings {
-                    println!("    [Prefix {}] Country: {}, MCC: {}, Risk: {}/100",
-                        m.tac_prefix, m.allocated_country_iso, m.allocated_mcc, m.risk_weight);
+                    println!(
+                        "    [Prefix {}] Country: {}, MCC: {}, Risk: {}/100",
+                        m.tac_prefix, m.allocated_country_iso, m.allocated_mcc, m.risk_weight
+                    );
                 }
             }
             "eval" => {
-                let imei = if args.len() >= 2 { args[1] } else { "353918001234567" };
+                let imei = if args.len() >= 2 {
+                    args[1]
+                } else {
+                    "353918001234567"
+                };
                 let plmn = if args.len() >= 3 { args[2] } else { "20801" };
 
                 let verdict = self.s13_roam_engine.evaluate_roaming_equipment(imei, plmn);
                 match verdict {
-                    RoamingValidationVerdict::DomesticConformant { imei, tac, serving_mcc } => {
-                        println!("  🟢 [DOMESTIC CONFORMANT] IMEI {} (TAC {}) operates in Home Country (MCC {}).",
-                            imei, tac, serving_mcc);
+                    RoamingValidationVerdict::DomesticConformant {
+                        imei,
+                        tac,
+                        serving_mcc,
+                    } => {
+                        println!(
+                            "  🟢 [DOMESTIC CONFORMANT] IMEI {} (TAC {}) operates in Home Country (MCC {}).",
+                            imei, tac, serving_mcc
+                        );
                     }
-                    RoamingValidationVerdict::AuthorizedInternationalRoaming { imei, tac, tac_origin_country, serving_mcc } => {
-                        println!("  🔵 [AUTHORIZED ROAMING] IMEI {} (TAC {}) from Country {} admitted on Visited MCC {}.",
-                            imei, tac, tac_origin_country, serving_mcc);
+                    RoamingValidationVerdict::AuthorizedInternationalRoaming {
+                        imei,
+                        tac,
+                        tac_origin_country,
+                        serving_mcc,
+                    } => {
+                        println!(
+                            "  🔵 [AUTHORIZED ROAMING] IMEI {} (TAC {}) from Country {} admitted on Visited MCC {}.",
+                            imei, tac, tac_origin_country, serving_mcc
+                        );
                     }
-                    RoamingValidationVerdict::SuspiciousCountryMismatch { imei, tac, tac_origin_country, serving_mcc, risk_score } => {
-                        println!("  🟡 [SUSPICIOUS MISMATCH] IMEI {} (TAC {}) origin {} on MCC {} | Risk Score: {}/100.",
-                            imei, tac, tac_origin_country, serving_mcc, risk_score);
+                    RoamingValidationVerdict::SuspiciousCountryMismatch {
+                        imei,
+                        tac,
+                        tac_origin_country,
+                        serving_mcc,
+                        risk_score,
+                    } => {
+                        println!(
+                            "  🟡 [SUSPICIOUS MISMATCH] IMEI {} (TAC {}) origin {} on MCC {} | Risk Score: {}/100.",
+                            imei, tac, tac_origin_country, serving_mcc, risk_score
+                        );
                     }
-                    RoamingValidationVerdict::BlacklistedCountryBlocked { imei, tac, tac_origin_country, serving_mcc } => {
-                        println!("  🔴 [BLACKLISTED BLOCKED] IMEI {} (TAC {}) from Sanctioned Origin {} blocked on MCC {}.",
-                            imei, tac, tac_origin_country, serving_mcc);
+                    RoamingValidationVerdict::BlacklistedCountryBlocked {
+                        imei,
+                        tac,
+                        tac_origin_country,
+                        serving_mcc,
+                    } => {
+                        println!(
+                            "  🔴 [BLACKLISTED BLOCKED] IMEI {} (TAC {}) from Sanctioned Origin {} blocked on MCC {}.",
+                            imei, tac, tac_origin_country, serving_mcc
+                        );
                     }
                     RoamingValidationVerdict::InvalidImeiFormat { input } => {
                         println!("  ⚠️ [INVALID FORMAT] Invalid IMEI format: '{}'", input);
@@ -21316,8 +24930,12 @@ impl NetworkShell {
                     let iso = args[2];
                     let mcc = args[3];
                     let risk = args[4].parse::<u8>().unwrap_or(20);
-                    self.s13_roam_engine.add_tac_country_mapping(prefix, iso, mcc, risk);
-                    println!("  [TAC MAPPING ADDED] Prefix {} -> {} (MCC {}, Risk {})", prefix, iso, mcc, risk);
+                    self.s13_roam_engine
+                        .add_tac_country_mapping(prefix, iso, mcc, risk);
+                    println!(
+                        "  [TAC MAPPING ADDED] Prefix {} -> {} (MCC {}, Risk {})",
+                        prefix, iso, mcc, risk
+                    );
                 } else {
                     println!("Usage: diameter-s13-roam add-map <prefix> <iso> <mcc> <risk>");
                 }
@@ -21330,7 +24948,9 @@ impl NetworkShell {
                     println!("Usage: diameter-s13-roam blacklist <country_iso>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-roam [status | eval <imei> <plmn> | add-map <prefix> <iso> <mcc> <risk> | blacklist <iso>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-roam [status | eval <imei> <plmn> | add-map <prefix> <iso> <mcc> <risk> | blacklist <iso>]"
+            ),
         }
     }
 
@@ -21338,88 +24958,253 @@ impl NetworkShell {
         let sub = if args.is_empty() { "status" } else { args[0] };
         match sub {
             "status" => {
-                println!("=== EVPN Layer 2 Multicast IGMPv3/MLDv2 Explicit Tracking & Fast Leave ===");
-                println!("  • Subscriber Timeout      : {} s", self.evpn_explicit_track_engine.subscriber_timeout_secs);
-                println!("  • Membership Reports Rx   : {}", self.evpn_explicit_track_engine.total_reports_processed);
-                println!("  • Group Leaves Rx         : {}", self.evpn_explicit_track_engine.total_leaves_processed);
-                println!("  • Fast Leaves Triggered   : {}", self.evpn_explicit_track_engine.total_fast_leaves);
-                println!("  • SMET Route Advertised   : {}", self.evpn_explicit_track_engine.total_smet_advertisements);
-                println!("  • SMET Route Withdrawn    : {}", self.evpn_explicit_track_engine.total_smet_withdrawals);
-                println!("  • Active Port Channels    : {}", self.evpn_explicit_track_engine.channels.len());
+                println!(
+                    "=== EVPN Layer 2 Multicast IGMPv3/MLDv2 Explicit Tracking & Fast Leave ==="
+                );
+                println!(
+                    "  • Subscriber Timeout      : {} s",
+                    self.evpn_explicit_track_engine.subscriber_timeout_secs
+                );
+                println!(
+                    "  • Membership Reports Rx   : {}",
+                    self.evpn_explicit_track_engine.total_reports_processed
+                );
+                println!(
+                    "  • Group Leaves Rx         : {}",
+                    self.evpn_explicit_track_engine.total_leaves_processed
+                );
+                println!(
+                    "  • Fast Leaves Triggered   : {}",
+                    self.evpn_explicit_track_engine.total_fast_leaves
+                );
+                println!(
+                    "  • SMET Route Advertised   : {}",
+                    self.evpn_explicit_track_engine.total_smet_advertisements
+                );
+                println!(
+                    "  • SMET Route Withdrawn    : {}",
+                    self.evpn_explicit_track_engine.total_smet_withdrawals
+                );
+                println!(
+                    "  • Active Port Channels    : {}",
+                    self.evpn_explicit_track_engine.channels.len()
+                );
                 for c in &self.evpn_explicit_track_engine.channels {
-                    println!("    [VNI {} Port #{} Channel ({}, {})] Forwarding: {}, Subscribers: {}",
-                        c.vni, c.port_id, c.source_ip, c.group_ip, c.is_forwarding, c.subscribers.len());
+                    println!(
+                        "    [VNI {} Port #{} Channel ({}, {})] Forwarding: {}, Subscribers: {}",
+                        c.vni,
+                        c.port_id,
+                        c.source_ip,
+                        c.group_ip,
+                        c.is_forwarding,
+                        c.subscribers.len()
+                    );
                     for s in &c.subscribers {
-                        println!("      -> Host: {} (Last Report: {}s)", s.host_ip, s.last_report_secs);
+                        println!(
+                            "      -> Host: {} (Last Report: {}s)",
+                            s.host_ip, s.last_report_secs
+                        );
                     }
                 }
             }
             "join" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port_id = if args.len() >= 3 { args[2].parse::<u16>().unwrap_or(1) } else { 1 };
-                let src_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100)) } else { Ipv4Address::new(192, 168, 1, 100) };
-                let grp_ip = if args.len() >= 5 { args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let host_ip = if args.len() >= 6 { args[5].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 10)) } else { Ipv4Address::new(10, 0, 0, 10) };
-                let t_s = if args.len() >= 7 { args[6].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port_id = if args.len() >= 3 {
+                    args[2].parse::<u16>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let src_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 100)
+                };
+                let grp_ip = if args.len() >= 5 {
+                    args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let host_ip = if args.len() >= 6 {
+                    args[5]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 10))
+                } else {
+                    Ipv4Address::new(10, 0, 0, 10)
+                };
+                let t_s = if args.len() >= 7 {
+                    args[6].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                let verdict = self.evpn_explicit_track_engine.process_membership_report(vni, port_id, src_ip, grp_ip, host_ip, t_s);
+                let verdict = self
+                    .evpn_explicit_track_engine
+                    .process_membership_report(vni, port_id, src_ip, grp_ip, host_ip, t_s);
                 match verdict {
-                    ExplicitTrackingVerdict::SubscriberAdded { vni, port_id, host_ip, total_subscribers, smet_advertise, .. } => {
-                        println!("  🟢 [SUBSCRIBER JOINED] Host {} joined VNI {} Port #{} (Total: {}). SMET Advertise: {}",
-                            host_ip, vni, port_id, total_subscribers, smet_advertise);
+                    ExplicitTrackingVerdict::SubscriberAdded {
+                        vni,
+                        port_id,
+                        host_ip,
+                        total_subscribers,
+                        smet_advertise,
+                        ..
+                    } => {
+                        println!(
+                            "  🟢 [SUBSCRIBER JOINED] Host {} joined VNI {} Port #{} (Total: {}). SMET Advertise: {}",
+                            host_ip, vni, port_id, total_subscribers, smet_advertise
+                        );
                     }
-                    ExplicitTrackingVerdict::SubscriberRefreshed { host_ip, vni, port_id, .. } => {
-                        println!("  🔄 [SUBSCRIBER REFRESHED] Host {} refreshed membership on VNI {} Port #{}.",
-                            host_ip, vni, port_id);
+                    ExplicitTrackingVerdict::SubscriberRefreshed {
+                        host_ip,
+                        vni,
+                        port_id,
+                        ..
+                    } => {
+                        println!(
+                            "  🔄 [SUBSCRIBER REFRESHED] Host {} refreshed membership on VNI {} Port #{}.",
+                            host_ip, vni, port_id
+                        );
                     }
                     _ => {}
                 }
             }
             "leave" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port_id = if args.len() >= 3 { args[2].parse::<u16>().unwrap_or(1) } else { 1 };
-                let src_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100)) } else { Ipv4Address::new(192, 168, 1, 100) };
-                let grp_ip = if args.len() >= 5 { args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let host_ip = if args.len() >= 6 { args[5].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 10)) } else { Ipv4Address::new(10, 0, 0, 10) };
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port_id = if args.len() >= 3 {
+                    args[2].parse::<u16>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let src_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 100)
+                };
+                let grp_ip = if args.len() >= 5 {
+                    args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let host_ip = if args.len() >= 6 {
+                    args[5]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 10))
+                } else {
+                    Ipv4Address::new(10, 0, 0, 10)
+                };
 
-                let verdict = self.evpn_explicit_track_engine.process_leave_group(vni, port_id, src_ip, grp_ip, host_ip);
+                let verdict = self
+                    .evpn_explicit_track_engine
+                    .process_leave_group(vni, port_id, src_ip, grp_ip, host_ip);
                 match verdict {
-                    ExplicitTrackingVerdict::FastLeavePruned { vni, port_id, leaving_host, smet_withdraw, .. } => {
-                        println!("  ⚡ [FAST LEAVE PRUNED] Last host {} left VNI {} Port #{}: Port Pruned immediately (SMET Withdraw: {}).",
-                            leaving_host, vni, port_id, smet_withdraw);
+                    ExplicitTrackingVerdict::FastLeavePruned {
+                        vni,
+                        port_id,
+                        leaving_host,
+                        smet_withdraw,
+                        ..
+                    } => {
+                        println!(
+                            "  ⚡ [FAST LEAVE PRUNED] Last host {} left VNI {} Port #{}: Port Pruned immediately (SMET Withdraw: {}).",
+                            leaving_host, vni, port_id, smet_withdraw
+                        );
                     }
-                    ExplicitTrackingVerdict::SubscriberRemovedRemainingActive { vni, port_id, leaving_host, remaining_subscribers, .. } => {
-                        println!("  🟡 [SUBSCRIBER LEFT] Host {} left VNI {} Port #{}, but {} other subscriber(s) remain active.",
-                            leaving_host, vni, port_id, remaining_subscribers);
+                    ExplicitTrackingVerdict::SubscriberRemovedRemainingActive {
+                        vni,
+                        port_id,
+                        leaving_host,
+                        remaining_subscribers,
+                        ..
+                    } => {
+                        println!(
+                            "  🟡 [SUBSCRIBER LEFT] Host {} left VNI {} Port #{}, but {} other subscriber(s) remain active.",
+                            leaving_host, vni, port_id, remaining_subscribers
+                        );
                     }
                     ExplicitTrackingVerdict::ChannelNotFound { vni, port_id, .. } => {
-                        println!("  🔴 [CHANNEL NOT FOUND] VNI {} Port #{} has no active subscription.", vni, port_id);
+                        println!(
+                            "  🔴 [CHANNEL NOT FOUND] VNI {} Port #{} has no active subscription.",
+                            vni, port_id
+                        );
                     }
                     _ => {}
                 }
             }
             "tick" => {
-                let t_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1300) } else { 1300 };
+                let t_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1300)
+                } else {
+                    1300
+                };
                 let timeouts = self.evpn_explicit_track_engine.check_subscriber_aging(t_s);
                 if timeouts.is_empty() {
-                    println!("  [AGING CHECK] All host subscriptions active at t = {}s.", t_s);
+                    println!(
+                        "  [AGING CHECK] All host subscriptions active at t = {}s.",
+                        t_s
+                    );
                 } else {
                     for t in timeouts {
                         if let ExplicitTrackingVerdict::FastLeavePruned { vni, port_id, .. } = t {
-                            println!("  🗑️ [SUBSCRIBER TIMEOUT] VNI {} Port #{} timed out and was pruned.", vni, port_id);
+                            println!(
+                                "  🗑️ [SUBSCRIBER TIMEOUT] VNI {} Port #{} timed out and was pruned.",
+                                vni, port_id
+                            );
                         }
                     }
                 }
             }
             "query" => {
-                let vni = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(100) } else { 100 };
-                let port_id = if args.len() >= 3 { args[2].parse::<u16>().unwrap_or(1) } else { 1 };
-                let src_ip = if args.len() >= 4 { args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100)) } else { Ipv4Address::new(192, 168, 1, 100) };
-                let grp_ip = if args.len() >= 5 { args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1)) } else { Ipv4Address::new(232, 1, 1, 1) };
-                let fwd = self.evpn_explicit_track_engine.is_port_forwarding(vni, port_id, src_ip, grp_ip);
-                println!("  [PORT STATUS] VNI {} Port #{} ({}, {}) -> Forwarding: {}", vni, port_id, src_ip, grp_ip, fwd);
+                let vni = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(100)
+                } else {
+                    100
+                };
+                let port_id = if args.len() >= 3 {
+                    args[2].parse::<u16>().unwrap_or(1)
+                } else {
+                    1
+                };
+                let src_ip = if args.len() >= 4 {
+                    args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100))
+                } else {
+                    Ipv4Address::new(192, 168, 1, 100)
+                };
+                let grp_ip = if args.len() >= 5 {
+                    args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1))
+                } else {
+                    Ipv4Address::new(232, 1, 1, 1)
+                };
+                let fwd = self
+                    .evpn_explicit_track_engine
+                    .is_port_forwarding(vni, port_id, src_ip, grp_ip);
+                println!(
+                    "  [PORT STATUS] VNI {} Port #{} ({}, {}) -> Forwarding: {}",
+                    vni, port_id, src_ip, grp_ip, fwd
+                );
             }
-            _ => println!("Unknown subcommand. Usage: evpn-explicit-track [status | join <vni> <port> <src_ip> <grp_ip> <host_ip> [t_s] | leave <vni> <port> <src_ip> <grp_ip> <host_ip> | tick <t_s> | query <vni> <port> <src_ip> <grp_ip>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-explicit-track [status | join <vni> <port> <src_ip> <grp_ip> <host_ip> [t_s] | leave <vni> <port> <src_ip> <grp_ip> <host_ip> | tick <t_s> | query <vni> <port> <src_ip> <grp_ip>]"
+            ),
         }
     }
 
@@ -21428,20 +25213,45 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== 3GPP 5G GTP-U Network Instance & Multi-Tenancy DNN Demux Engine ===");
-                println!("  • Total Packets Demuxed   : {}", self.gtpu_demux_engine.total_packets_demuxed);
-                println!("  • Total Bytes Demuxed     : {} bytes", self.gtpu_demux_engine.total_bytes_demuxed);
-                println!("  • Unmapped TEID Drops     : {}", self.gtpu_demux_engine.total_unmapped_teid_drops);
-                println!("  • Rate-Limited Drops      : {}", self.gtpu_demux_engine.total_rate_limited_drops);
-                println!("  • Security Violations     : {}", self.gtpu_demux_engine.total_security_violations);
-                println!("  • Configured DNN Profiles : {}", self.gtpu_demux_engine.dnn_profiles.len());
+                println!(
+                    "  • Total Packets Demuxed   : {}",
+                    self.gtpu_demux_engine.total_packets_demuxed
+                );
+                println!(
+                    "  • Total Bytes Demuxed     : {} bytes",
+                    self.gtpu_demux_engine.total_bytes_demuxed
+                );
+                println!(
+                    "  • Unmapped TEID Drops     : {}",
+                    self.gtpu_demux_engine.total_unmapped_teid_drops
+                );
+                println!(
+                    "  • Rate-Limited Drops      : {}",
+                    self.gtpu_demux_engine.total_rate_limited_drops
+                );
+                println!(
+                    "  • Security Violations     : {}",
+                    self.gtpu_demux_engine.total_security_violations
+                );
+                println!(
+                    "  • Configured DNN Profiles : {}",
+                    self.gtpu_demux_engine.dnn_profiles.len()
+                );
                 for d in &self.gtpu_demux_engine.dnn_profiles {
-                    println!("    [DNN '{}'] VRF #{}, Network Instance ID: {}, Max BW: {} bps",
-                        d.dnn_name, d.vrf_id, d.network_instance_id, d.max_bandwidth_bps);
+                    println!(
+                        "    [DNN '{}'] VRF #{}, Network Instance ID: {}, Max BW: {} bps",
+                        d.dnn_name, d.vrf_id, d.network_instance_id, d.max_bandwidth_bps
+                    );
                 }
-                println!("  • Active TEID Bindings    : {}", self.gtpu_demux_engine.teid_bindings.len());
+                println!(
+                    "  • Active TEID Bindings    : {}",
+                    self.gtpu_demux_engine.teid_bindings.len()
+                );
                 for b in &self.gtpu_demux_engine.teid_bindings {
-                    println!("    [TEID 0x{:08X}] DNN: '{}', QFI: #{}, Active: {}",
-                        b.teid, b.dnn_name, b.qfi, b.active);
+                    println!(
+                        "    [TEID 0x{:08X}] DNN: '{}', QFI: #{}, Active: {}",
+                        b.teid, b.dnn_name, b.qfi, b.active
+                    );
                 }
             }
             "demux" => {
@@ -21454,25 +25264,56 @@ impl NetworkShell {
                 } else {
                     0x10001
                 };
-                let bytes = if args.len() >= 3 { args[2].parse::<usize>().unwrap_or(1400) } else { 1400 };
+                let bytes = if args.len() >= 3 {
+                    args[2].parse::<usize>().unwrap_or(1400)
+                } else {
+                    1400
+                };
                 let claimed_dnn = if args.len() >= 4 { Some(args[3]) } else { None };
 
-                let verdict = self.gtpu_demux_engine.demux_packet(teid, bytes, claimed_dnn);
+                let verdict = self
+                    .gtpu_demux_engine
+                    .demux_packet(teid, bytes, claimed_dnn);
                 match verdict {
-                    NetworkInstanceDemuxVerdict::RoutedToTenantVrf { teid, dnn_name, vrf_id, network_instance_id, qfi, payload_bytes } => {
-                        println!("  🟢 [ROUTED TO TENANT] TEID 0x{:08X} ({} B) -> VRF #{} / Network Instance {} (DNN '{}', QFI #{}).",
-                            teid, payload_bytes, vrf_id, network_instance_id, dnn_name, qfi);
+                    NetworkInstanceDemuxVerdict::RoutedToTenantVrf {
+                        teid,
+                        dnn_name,
+                        vrf_id,
+                        network_instance_id,
+                        qfi,
+                        payload_bytes,
+                    } => {
+                        println!(
+                            "  🟢 [ROUTED TO TENANT] TEID 0x{:08X} ({} B) -> VRF #{} / Network Instance {} (DNN '{}', QFI #{}).",
+                            teid, payload_bytes, vrf_id, network_instance_id, dnn_name, qfi
+                        );
                     }
-                    NetworkInstanceDemuxVerdict::RateLimitedTenantDrop { teid, dnn_name, vrf_id, payload_bytes } => {
-                        println!("  🟡 [RATE LIMITED] TEID 0x{:08X} ({} B) dropped: exceeded DNN '{}' bandwidth in VRF #{}.",
-                            teid, payload_bytes, dnn_name, vrf_id);
+                    NetworkInstanceDemuxVerdict::RateLimitedTenantDrop {
+                        teid,
+                        dnn_name,
+                        vrf_id,
+                        payload_bytes,
+                    } => {
+                        println!(
+                            "  🟡 [RATE LIMITED] TEID 0x{:08X} ({} B) dropped: exceeded DNN '{}' bandwidth in VRF #{}.",
+                            teid, payload_bytes, dnn_name, vrf_id
+                        );
                     }
                     NetworkInstanceDemuxVerdict::UnmappedTeidDrop { teid } => {
-                        println!("  🔴 [UNMAPPED TEID] TEID 0x{:08X} dropped: no active DNN binding.", teid);
+                        println!(
+                            "  🔴 [UNMAPPED TEID] TEID 0x{:08X} dropped: no active DNN binding.",
+                            teid
+                        );
                     }
-                    NetworkInstanceDemuxVerdict::SecurityViolationTenantMismatch { teid, expected_dnn, injected_dnn } => {
-                        println!("  🚨 [SECURITY VIOLATION] TEID 0x{:08X} expected DNN '{}', but packet claimed '{}'!",
-                            teid, expected_dnn, injected_dnn);
+                    NetworkInstanceDemuxVerdict::SecurityViolationTenantMismatch {
+                        teid,
+                        expected_dnn,
+                        injected_dnn,
+                    } => {
+                        println!(
+                            "  🚨 [SECURITY VIOLATION] TEID 0x{:08X} expected DNN '{}', but packet claimed '{}'!",
+                            teid, expected_dnn, injected_dnn
+                        );
                     }
                 }
             }
@@ -21486,7 +25327,10 @@ impl NetworkShell {
                     let dnn = args[2];
                     let qfi = args[3].parse::<u8>().unwrap_or(9);
                     self.gtpu_demux_engine.bind_teid_to_dnn(teid, dnn, qfi);
-                    println!("  [TEID BOUND] TEID 0x{:08X} -> DNN '{}' (QFI #{})", teid, dnn, qfi);
+                    println!(
+                        "  [TEID BOUND] TEID 0x{:08X} -> DNN '{}' (QFI #{})",
+                        teid, dnn, qfi
+                    );
                 } else {
                     println!("Usage: gtpu-dnn-demux bind <teid> <dnn> <qfi>");
                 }
@@ -21497,14 +25341,19 @@ impl NetworkShell {
                     let vrf_id = args[2].parse::<u32>().unwrap_or(1);
                     let net_inst = args[3].parse::<u32>().unwrap_or(1001);
                     let max_bw = args[4].parse::<u64>().unwrap_or(1_000_000_000);
-                    self.gtpu_demux_engine.register_dnn_profile(dnn, vrf_id, net_inst, max_bw);
-                    println!("  [DNN REGISTERED] DNN '{}' -> VRF #{}, NetInstance {}, Max BW {} bps",
-                        dnn, vrf_id, net_inst, max_bw);
+                    self.gtpu_demux_engine
+                        .register_dnn_profile(dnn, vrf_id, net_inst, max_bw);
+                    println!(
+                        "  [DNN REGISTERED] DNN '{}' -> VRF #{}, NetInstance {}, Max BW {} bps",
+                        dnn, vrf_id, net_inst, max_bw
+                    );
                 } else {
                     println!("Usage: gtpu-dnn-demux reg-dnn <dnn> <vrf_id> <net_inst> <max_bw>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-dnn-demux [status | demux <teid> <bytes> [claimed_dnn] | bind <teid> <dnn> <qfi> | reg-dnn <dnn> <vrf_id> <net_inst> <max_bw>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-dnn-demux [status | demux <teid> <bytes> [claimed_dnn] | bind <teid> <dnn> <qfi> | reg-dnn <dnn> <vrf_id> <net_inst> <max_bw>]"
+            ),
         }
     }
 
@@ -21513,45 +25362,104 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== IEEE 802.1Qch CQF Dual-Plane Redundancy & Coordination Engine ===");
-                println!("  Cycle Duration:       {} ns", self.tsn_cqf_dual_plane_engine.cycle_duration_ns);
-                println!("  Redundancy Mode:      {:?}", self.tsn_cqf_dual_plane_engine.mode);
-                println!("  Active Plane:         {}", self.tsn_cqf_dual_plane_engine.active_plane);
-                println!("  Plane A State:        {:?} (Health: {}/100, Tx: {} pkts, Overruns: {}, Drops: {})",
+                println!(
+                    "  Cycle Duration:       {} ns",
+                    self.tsn_cqf_dual_plane_engine.cycle_duration_ns
+                );
+                println!(
+                    "  Redundancy Mode:      {:?}",
+                    self.tsn_cqf_dual_plane_engine.mode
+                );
+                println!(
+                    "  Active Plane:         {}",
+                    self.tsn_cqf_dual_plane_engine.active_plane
+                );
+                println!(
+                    "  Plane A State:        {:?} (Health: {}/100, Tx: {} pkts, Overruns: {}, Drops: {})",
                     self.tsn_cqf_dual_plane_engine.plane_a_state,
                     self.tsn_cqf_dual_plane_engine.plane_a_metrics.health_score,
                     self.tsn_cqf_dual_plane_engine.plane_a_metrics.tx_frames,
-                    self.tsn_cqf_dual_plane_engine.plane_a_metrics.cycle_overruns,
-                    self.tsn_cqf_dual_plane_engine.plane_a_metrics.consecutive_drops);
-                println!("  Plane B State:        {:?} (Health: {}/100, Tx: {} pkts, Overruns: {}, Drops: {})",
+                    self.tsn_cqf_dual_plane_engine
+                        .plane_a_metrics
+                        .cycle_overruns,
+                    self.tsn_cqf_dual_plane_engine
+                        .plane_a_metrics
+                        .consecutive_drops
+                );
+                println!(
+                    "  Plane B State:        {:?} (Health: {}/100, Tx: {} pkts, Overruns: {}, Drops: {})",
                     self.tsn_cqf_dual_plane_engine.plane_b_state,
                     self.tsn_cqf_dual_plane_engine.plane_b_metrics.health_score,
                     self.tsn_cqf_dual_plane_engine.plane_b_metrics.tx_frames,
-                    self.tsn_cqf_dual_plane_engine.plane_b_metrics.cycle_overruns,
-                    self.tsn_cqf_dual_plane_engine.plane_b_metrics.consecutive_drops);
-                println!("  Total Dispatches:     {}", self.tsn_cqf_dual_plane_engine.total_dispatches);
-                println!("  Total Failovers:      {}", self.tsn_cqf_dual_plane_engine.total_failovers);
-                println!("  Total Drops:          {}", self.tsn_cqf_dual_plane_engine.total_drops);
+                    self.tsn_cqf_dual_plane_engine
+                        .plane_b_metrics
+                        .cycle_overruns,
+                    self.tsn_cqf_dual_plane_engine
+                        .plane_b_metrics
+                        .consecutive_drops
+                );
+                println!(
+                    "  Total Dispatches:     {}",
+                    self.tsn_cqf_dual_plane_engine.total_dispatches
+                );
+                println!(
+                    "  Total Failovers:      {}",
+                    self.tsn_cqf_dual_plane_engine.total_failovers
+                );
+                println!(
+                    "  Total Drops:          {}",
+                    self.tsn_cqf_dual_plane_engine.total_drops
+                );
             }
             "dispatch" => {
                 if args.len() >= 4 {
                     let stream_id = args[1].parse::<u32>().unwrap_or(1);
                     let bytes = args[2].parse::<usize>().unwrap_or(1500);
                     let time_ns = args[3].parse::<u64>().unwrap_or(10_000);
-                    let verdict = self.tsn_cqf_dual_plane_engine.dispatch_frame(stream_id, bytes, time_ns);
+                    let verdict = self
+                        .tsn_cqf_dual_plane_engine
+                        .dispatch_frame(stream_id, bytes, time_ns);
                     match verdict {
-                        DualPlaneDispatchVerdict::ForwardSinglePlane { plane, target_cycle, frame_bytes } => {
-                            println!("  🟢 [FORWARD SINGLE PLANE] {} B forwarded on {} at Cycle #{}.", frame_bytes, plane, target_cycle);
+                        DualPlaneDispatchVerdict::ForwardSinglePlane {
+                            plane,
+                            target_cycle,
+                            frame_bytes,
+                        } => {
+                            println!(
+                                "  🟢 [FORWARD SINGLE PLANE] {} B forwarded on {} at Cycle #{}.",
+                                frame_bytes, plane, target_cycle
+                            );
                         }
-                        DualPlaneDispatchVerdict::ForwardReplicatedBothPlanes { cycle_a, cycle_b, frame_bytes } => {
-                            println!("  🟢 [DUAL ACTIVE REPLICATED] {} B forwarded in parallel on Plane-A (C#{}) and Plane-B (C#{}).",
-                                frame_bytes, cycle_a, cycle_b);
+                        DualPlaneDispatchVerdict::ForwardReplicatedBothPlanes {
+                            cycle_a,
+                            cycle_b,
+                            frame_bytes,
+                        } => {
+                            println!(
+                                "  🟢 [DUAL ACTIVE REPLICATED] {} B forwarded in parallel on Plane-A (C#{}) and Plane-B (C#{}).",
+                                frame_bytes, cycle_a, cycle_b
+                            );
                         }
-                        DualPlaneDispatchVerdict::FailoverTriggeredAndForwarded { from_plane, to_plane, reason, target_cycle, frame_bytes } => {
-                            println!("  ⚡ [FAILOVER TRIGGERED] Switchover from {} to {} ({}) -> Forwarded {} B at Cycle #{}.",
-                                from_plane, to_plane, reason, frame_bytes, target_cycle);
+                        DualPlaneDispatchVerdict::FailoverTriggeredAndForwarded {
+                            from_plane,
+                            to_plane,
+                            reason,
+                            target_cycle,
+                            frame_bytes,
+                        } => {
+                            println!(
+                                "  ⚡ [FAILOVER TRIGGERED] Switchover from {} to {} ({}) -> Forwarded {} B at Cycle #{}.",
+                                from_plane, to_plane, reason, frame_bytes, target_cycle
+                            );
                         }
-                        DualPlaneDispatchVerdict::AllPlanesFailedDrop { stream_id, frame_bytes } => {
-                            println!("  🔴 [ALL PLANES FAILED] Stream #{} ({} B) dropped: both Plane A and Plane B are down!", stream_id, frame_bytes);
+                        DualPlaneDispatchVerdict::AllPlanesFailedDrop {
+                            stream_id,
+                            frame_bytes,
+                        } => {
+                            println!(
+                                "  🔴 [ALL PLANES FAILED] Stream #{} ({} B) dropped: both Plane A and Plane B are down!",
+                                stream_id, frame_bytes
+                            );
                         }
                     }
                 } else {
@@ -21562,11 +25470,13 @@ impl NetworkShell {
                 if args.len() >= 2 {
                     match args[1] {
                         "active_standby" | "standby" => {
-                            self.tsn_cqf_dual_plane_engine.set_mode(DualPlaneMode::ActiveStandby);
+                            self.tsn_cqf_dual_plane_engine
+                                .set_mode(DualPlaneMode::ActiveStandby);
                             println!("  [MODE UPDATED] Switched to ActiveStandby mode.");
                         }
                         "dual_active" | "replicated" => {
-                            self.tsn_cqf_dual_plane_engine.set_mode(DualPlaneMode::DualActiveReplication);
+                            self.tsn_cqf_dual_plane_engine
+                                .set_mode(DualPlaneMode::DualActiveReplication);
                             println!("  [MODE UPDATED] Switched to DualActiveReplication mode.");
                         }
                         _ => println!("Unknown mode. Choose 'active_standby' or 'dual_active'."),
@@ -21584,18 +25494,25 @@ impl NetworkShell {
                     let overruns = args[2].parse::<u64>().unwrap_or(0);
                     let drops = args[3].parse::<u32>().unwrap_or(0);
                     let health = args[4].parse::<u8>().unwrap_or(100);
-                    self.tsn_cqf_dual_plane_engine.update_plane_telemetry(plane, overruns, drops, health);
-                    println!("  [TELEMETRY UPDATED] {} -> Health: {}/100, Overruns: {}, Drops: {}",
-                        plane, health, overruns, drops);
+                    self.tsn_cqf_dual_plane_engine
+                        .update_plane_telemetry(plane, overruns, drops, health);
+                    println!(
+                        "  [TELEMETRY UPDATED] {} -> Health: {}/100, Overruns: {}, Drops: {}",
+                        plane, health, overruns, drops
+                    );
                 } else {
-                    println!("Usage: tsn-cqf-plane tele <plane_a|plane_b> <overruns> <drops> <health_0_to_100>");
+                    println!(
+                        "Usage: tsn-cqf-plane tele <plane_a|plane_b> <overruns> <drops> <health_0_to_100>"
+                    );
                 }
             }
             "reset" => {
                 self.tsn_cqf_dual_plane_engine.reset();
                 println!("  [RESET] TSN CQF Dual-Plane Redundancy Engine reset to defaults.");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-plane [status | dispatch <stream> <bytes> <time_ns> | mode <active_standby|dual_active> | tele <plane_a|plane_b> <overruns> <drops> <health> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-plane [status | dispatch <stream> <bytes> <time_ns> | mode <active_standby|dual_active> | tele <plane_a|plane_b> <overruns> <drops> <health> | reset]"
+            ),
         }
     }
 
@@ -21604,16 +25521,37 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== 3GPP TS 29.272 Diameter S13 ESCN Notification & Audit Engine ===");
-                println!("  EIR Realm:             {}", self.s13_escn_engine.eir_realm);
-                println!("  Subscribed MMEs:       {:?}", self.s13_escn_engine.subscribed_mmes);
-                println!("  Registered Devices:    {}", self.s13_escn_engine.device_statuses.len());
+                println!(
+                    "  EIR Realm:             {}",
+                    self.s13_escn_engine.eir_realm
+                );
+                println!(
+                    "  Subscribed MMEs:       {:?}",
+                    self.s13_escn_engine.subscribed_mmes
+                );
+                println!(
+                    "  Registered Devices:    {}",
+                    self.s13_escn_engine.device_statuses.len()
+                );
                 for (imei, status) in &self.s13_escn_engine.device_statuses {
                     println!("    - IMEI {}: {:?}", imei, status);
                 }
-                println!("  Notifications Pushed:  {}", self.s13_escn_engine.total_notifications_generated);
-                println!("  Notifications Acked:   {}", self.s13_escn_engine.total_notifications_acked);
-                println!("  Total Audits Run:      {}", self.s13_escn_engine.total_audits_performed);
-                println!("  Discrepancies Fixed:   {}", self.s13_escn_engine.total_discrepancies_fixed);
+                println!(
+                    "  Notifications Pushed:  {}",
+                    self.s13_escn_engine.total_notifications_generated
+                );
+                println!(
+                    "  Notifications Acked:   {}",
+                    self.s13_escn_engine.total_notifications_acked
+                );
+                println!(
+                    "  Total Audits Run:      {}",
+                    self.s13_escn_engine.total_audits_performed
+                );
+                println!(
+                    "  Discrepancies Fixed:   {}",
+                    self.s13_escn_engine.total_discrepancies_fixed
+                );
             }
             "update" => {
                 if args.len() >= 4 {
@@ -21630,28 +25568,48 @@ impl NetworkShell {
                     } else {
                         1000
                     };
-                    let v = self.s13_escn_engine.update_equipment_status(imei, status, reason, ts);
+                    let v = self
+                        .s13_escn_engine
+                        .update_equipment_status(imei, status, reason, ts);
                     match v {
-                        EscnVerdict::StatusChangedNotificationsQueued { imei, old_status, new_status, notified_mme_count } => {
-                            println!("  🔔 [ESCN NOTIFICATION PUSHED] IMEI {} status changed from {:?} to {:?} -> Queued to {} MME(s).",
-                                imei, old_status, new_status, notified_mme_count);
+                        EscnVerdict::StatusChangedNotificationsQueued {
+                            imei,
+                            old_status,
+                            new_status,
+                            notified_mme_count,
+                        } => {
+                            println!(
+                                "  🔔 [ESCN NOTIFICATION PUSHED] IMEI {} status changed from {:?} to {:?} -> Queued to {} MME(s).",
+                                imei, old_status, new_status, notified_mme_count
+                            );
                         }
                         EscnVerdict::StatusUnchangedIgnored { imei, status } => {
-                            println!("  ℹ️ [STATUS UNCHANGED] IMEI {} is already {:?}.", imei, status);
+                            println!(
+                                "  ℹ️ [STATUS UNCHANGED] IMEI {} is already {:?}.",
+                                imei, status
+                            );
                         }
                         EscnVerdict::InvalidImeiRejected { input } => {
-                            println!("  🔴 [INVALID IMEI] Input '{}' is not a valid 14-16 digit numeric identifier.", input);
+                            println!(
+                                "  🔴 [INVALID IMEI] Input '{}' is not a valid 14-16 digit numeric identifier.",
+                                input
+                            );
                         }
                     }
                 } else {
-                    println!("Usage: diameter-s13-escn update <imei> <white|gray|black> <reason> [timestamp_secs]");
+                    println!(
+                        "Usage: diameter-s13-escn update <imei> <white|gray|black> <reason> [timestamp_secs]"
+                    );
                 }
             }
             "sub" => {
                 if args.len() >= 2 {
                     let realm = args[1];
                     self.s13_escn_engine.subscribe_mme(realm);
-                    println!("  [MME SUBSCRIBED] MME Realm '{}' subscribed to ESCN events.", realm);
+                    println!(
+                        "  [MME SUBSCRIBED] MME Realm '{}' subscribed to ESCN events.",
+                        realm
+                    );
                 } else {
                     println!("Usage: diameter-s13-escn sub <mme_realm>");
                 }
@@ -21669,10 +25627,19 @@ impl NetworkShell {
                 if args.len() >= 3 {
                     let imei = args[1];
                     let mme_realm = args[2];
-                    if self.s13_escn_engine.acknowledge_notification(imei, mme_realm) {
-                        println!("  🟢 [ESCN ACKNOWLEDGED] Notification for IMEI {} acked by {}.", imei, mme_realm);
+                    if self
+                        .s13_escn_engine
+                        .acknowledge_notification(imei, mme_realm)
+                    {
+                        println!(
+                            "  🟢 [ESCN ACKNOWLEDGED] Notification for IMEI {} acked by {}.",
+                            imei, mme_realm
+                        );
                     } else {
-                        println!("  🟡 [ACK NOT FOUND] No pending notification for IMEI {} from {}.", imei, mme_realm);
+                        println!(
+                            "  🟡 [ACK NOT FOUND] No pending notification for IMEI {} from {}.",
+                            imei, mme_realm
+                        );
                     }
                 } else {
                     println!("Usage: diameter-s13-escn ack <imei> <mme_realm>");
@@ -21692,17 +25659,27 @@ impl NetworkShell {
                     let res = self.s13_escn_engine.audit_edge_cache(mme_realm, &batch);
                     for item in res {
                         if item.synchronized {
-                            println!("  🟢 [AUDIT SYNC] IMEI {}: In sync ({:?}).", item.imei, item.eir_authoritative_status);
+                            println!(
+                                "  🟢 [AUDIT SYNC] IMEI {}: In sync ({:?}).",
+                                item.imei, item.eir_authoritative_status
+                            );
                         } else {
-                            println!("  🚨 [AUDIT DISCREPANCY] IMEI {}: Cached {:?} vs Central EIR {:?} -> {}",
-                                item.imei, item.edge_cached_status, item.eir_authoritative_status, item.action_taken);
+                            println!(
+                                "  🚨 [AUDIT DISCREPANCY] IMEI {}: Cached {:?} vs Central EIR {:?} -> {}",
+                                item.imei,
+                                item.edge_cached_status,
+                                item.eir_authoritative_status,
+                                item.action_taken
+                            );
                         }
                     }
                 } else {
                     println!("Usage: diameter-s13-escn audit <mme_realm> <imei> <cached_status>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-escn [status | update <imei> <white|gray|black> <reason> [t_s] | sub <mme_realm> | unsub <mme_realm> | ack <imei> <mme_realm> | audit <mme_realm> <imei> <status>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-escn [status | update <imei> <white|gray|black> <reason> [t_s] | sub <mme_realm> | unsub <mme_realm> | ack <imei> <mme_realm> | audit <mme_realm> <imei> <status>]"
+            ),
         }
     }
 
@@ -21711,79 +25688,192 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== EVPN IGMPv3/MLDv2 Join Suppression & Proxy Reporting Engine ===");
-                println!("  Active Channels:       {}", self.evpn_join_suppress_engine.channels.len());
+                println!(
+                    "  Active Channels:       {}",
+                    self.evpn_join_suppress_engine.channels.len()
+                );
                 for ch in &self.evpn_join_suppress_engine.channels {
-                    println!("    - VNI {} Port {}: ({}, {}) -> {} subscriber(s) (Proxy Advertised: {})",
-                        ch.vni, ch.port_id, ch.source_ip, ch.group_ip, ch.subscribers.len(), ch.is_proxy_advertised);
+                    println!(
+                        "    - VNI {} Port {}: ({}, {}) -> {} subscriber(s) (Proxy Advertised: {})",
+                        ch.vni,
+                        ch.port_id,
+                        ch.source_ip,
+                        ch.group_ip,
+                        ch.subscribers.len(),
+                        ch.is_proxy_advertised
+                    );
                 }
-                println!("  Total Joins Recv:      {}", self.evpn_join_suppress_engine.total_joins_received);
-                println!("  Total Joins Suppressed:{}", self.evpn_join_suppress_engine.total_joins_suppressed);
-                println!("  Total Leaves Recv:     {}", self.evpn_join_suppress_engine.total_leaves_received);
-                println!("  Total Proxy Joins:     {}", self.evpn_join_suppress_engine.total_proxy_joins_sent);
-                println!("  Total Proxy Leaves:    {}", self.evpn_join_suppress_engine.total_proxy_leaves_sent);
+                println!(
+                    "  Total Joins Recv:      {}",
+                    self.evpn_join_suppress_engine.total_joins_received
+                );
+                println!(
+                    "  Total Joins Suppressed:{}",
+                    self.evpn_join_suppress_engine.total_joins_suppressed
+                );
+                println!(
+                    "  Total Leaves Recv:     {}",
+                    self.evpn_join_suppress_engine.total_leaves_received
+                );
+                println!(
+                    "  Total Proxy Joins:     {}",
+                    self.evpn_join_suppress_engine.total_proxy_joins_sent
+                );
+                println!(
+                    "  Total Proxy Leaves:    {}",
+                    self.evpn_join_suppress_engine.total_proxy_leaves_sent
+                );
             }
             "join" => {
                 if args.len() >= 6 {
                     let vni = args[1].parse::<u32>().unwrap_or(100);
                     let port_id = args[2].parse::<u16>().unwrap_or(1);
-                    let src = args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                    let grp = args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                    let host = args[5].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
-                    let v = self.evpn_join_suppress_engine.process_join(vni, port_id, src, grp, host);
+                    let src = args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                    let grp = args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                    let host = args[5]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 1));
+                    let v = self
+                        .evpn_join_suppress_engine
+                        .process_join(vni, port_id, src, grp, host);
                     match v {
-                        JoinSuppressVerdict::FirstSubscriberProxyJoin { vni, port_id, source_ip, group_ip, joining_host } => {
-                            println!("  🚀 [FIRST SUBSCRIBER PROXY JOIN] Host {} joined ({}, {}) on VNI {} Port #{} -> Dispatched upstream EVPN Type 6 SMET.",
-                                joining_host, source_ip, group_ip, vni, port_id);
+                        JoinSuppressVerdict::FirstSubscriberProxyJoin {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                            joining_host,
+                        } => {
+                            println!(
+                                "  🚀 [FIRST SUBSCRIBER PROXY JOIN] Host {} joined ({}, {}) on VNI {} Port #{} -> Dispatched upstream EVPN Type 6 SMET.",
+                                joining_host, source_ip, group_ip, vni, port_id
+                            );
                         }
-                        JoinSuppressVerdict::DuplicateJoinSuppressed { vni, port_id, source_ip, group_ip, joining_host, active_subscriber_count } => {
-                            println!("  🛡️ [JOIN SUPPRESSED] Host {} joined existing channel ({}, {}) on VNI {} Port #{} (Total: {}) -> Upstream join suppressed.",
-                                joining_host, source_ip, group_ip, vni, port_id, active_subscriber_count);
+                        JoinSuppressVerdict::DuplicateJoinSuppressed {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                            joining_host,
+                            active_subscriber_count,
+                        } => {
+                            println!(
+                                "  🛡️ [JOIN SUPPRESSED] Host {} joined existing channel ({}, {}) on VNI {} Port #{} (Total: {}) -> Upstream join suppressed.",
+                                joining_host,
+                                source_ip,
+                                group_ip,
+                                vni,
+                                port_id,
+                                active_subscriber_count
+                            );
                         }
-                        JoinSuppressVerdict::MembershipRefreshedSuppressed { vni, port_id, source_ip, group_ip, host_ip } => {
-                            println!("  🔄 [MEMBERSHIP REFRESHED] Host {} refreshed ({}, {}) on VNI {} Port #{} -> Suppressed.",
-                                host_ip, source_ip, group_ip, vni, port_id);
+                        JoinSuppressVerdict::MembershipRefreshedSuppressed {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                            host_ip,
+                        } => {
+                            println!(
+                                "  🔄 [MEMBERSHIP REFRESHED] Host {} refreshed ({}, {}) on VNI {} Port #{} -> Suppressed.",
+                                host_ip, source_ip, group_ip, vni, port_id
+                            );
                         }
                         _ => {}
                     }
                 } else {
-                    println!("Usage: evpn-join-suppress join <vni> <port> <src_ip> <grp_ip> <host_ip>");
+                    println!(
+                        "Usage: evpn-join-suppress join <vni> <port> <src_ip> <grp_ip> <host_ip>"
+                    );
                 }
             }
             "leave" => {
                 if args.len() >= 6 {
                     let vni = args[1].parse::<u32>().unwrap_or(100);
                     let port_id = args[2].parse::<u16>().unwrap_or(1);
-                    let src = args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                    let grp = args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                    let host = args[5].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(10, 0, 0, 1));
-                    let v = self.evpn_join_suppress_engine.process_leave(vni, port_id, src, grp, host);
+                    let src = args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                    let grp = args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                    let host = args[5]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(10, 0, 0, 1));
+                    let v = self
+                        .evpn_join_suppress_engine
+                        .process_leave(vni, port_id, src, grp, host);
                     match v {
-                        JoinSuppressVerdict::SubscriberLeftChannelRemainsActive { vni, port_id, source_ip, group_ip, leaving_host, remaining_subscribers } => {
-                            println!("  👥 [SUBSCRIBER LEFT - ACTIVE] Host {} left ({}, {}) on VNI {} Port #{} -> {} subscriber(s) remaining (Upstream leave suppressed).",
-                                leaving_host, source_ip, group_ip, vni, port_id, remaining_subscribers);
+                        JoinSuppressVerdict::SubscriberLeftChannelRemainsActive {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                            leaving_host,
+                            remaining_subscribers,
+                        } => {
+                            println!(
+                                "  👥 [SUBSCRIBER LEFT - ACTIVE] Host {} left ({}, {}) on VNI {} Port #{} -> {} subscriber(s) remaining (Upstream leave suppressed).",
+                                leaving_host,
+                                source_ip,
+                                group_ip,
+                                vni,
+                                port_id,
+                                remaining_subscribers
+                            );
                         }
-                        JoinSuppressVerdict::LastSubscriberProxyLeave { vni, port_id, source_ip, group_ip, leaving_host } => {
-                            println!("  🧹 [LAST SUBSCRIBER PROXY LEAVE] Host {} left ({}, {}) on VNI {} Port #{} -> Channel empty, dispatched upstream EVPN SMET Withdrawal.",
-                                leaving_host, source_ip, group_ip, vni, port_id);
+                        JoinSuppressVerdict::LastSubscriberProxyLeave {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                            leaving_host,
+                        } => {
+                            println!(
+                                "  🧹 [LAST SUBSCRIBER PROXY LEAVE] Host {} left ({}, {}) on VNI {} Port #{} -> Channel empty, dispatched upstream EVPN SMET Withdrawal.",
+                                leaving_host, source_ip, group_ip, vni, port_id
+                            );
                         }
-                        JoinSuppressVerdict::ChannelNotFound { vni, port_id, source_ip, group_ip } => {
-                            println!("  🟡 [NOT FOUND] Channel ({}, {}) on VNI {} Port #{} was not subscribed.", source_ip, group_ip, vni, port_id);
+                        JoinSuppressVerdict::ChannelNotFound {
+                            vni,
+                            port_id,
+                            source_ip,
+                            group_ip,
+                        } => {
+                            println!(
+                                "  🟡 [NOT FOUND] Channel ({}, {}) on VNI {} Port #{} was not subscribed.",
+                                source_ip, group_ip, vni, port_id
+                            );
                         }
                         _ => {}
                     }
                 } else {
-                    println!("Usage: evpn-join-suppress leave <vni> <port> <src_ip> <grp_ip> <host_ip>");
+                    println!(
+                        "Usage: evpn-join-suppress leave <vni> <port> <src_ip> <grp_ip> <host_ip>"
+                    );
                 }
             }
             "check" => {
                 if args.len() >= 5 {
                     let vni = args[1].parse::<u32>().unwrap_or(100);
                     let port_id = args[2].parse::<u16>().unwrap_or(1);
-                    let src = args[3].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(192, 168, 1, 100));
-                    let grp = args[4].parse::<Ipv4Address>().unwrap_or(Ipv4Address::new(232, 1, 1, 1));
-                    let is_active = self.evpn_join_suppress_engine.is_proxy_joined(vni, port_id, src, grp);
-                    println!("  [PROXY STATUS] Channel ({}, {}) on VNI {} Port #{}: Active Upstream = {}",
-                        src, grp, vni, port_id, is_active);
+                    let src = args[3]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(192, 168, 1, 100));
+                    let grp = args[4]
+                        .parse::<Ipv4Address>()
+                        .unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                    let is_active = self
+                        .evpn_join_suppress_engine
+                        .is_proxy_joined(vni, port_id, src, grp);
+                    println!(
+                        "  [PROXY STATUS] Channel ({}, {}) on VNI {} Port #{}: Active Upstream = {}",
+                        src, grp, vni, port_id, is_active
+                    );
                 } else {
                     println!("Usage: evpn-join-suppress check <vni> <port> <src_ip> <grp_ip>");
                 }
@@ -21792,7 +25882,9 @@ impl NetworkShell {
                 self.evpn_join_suppress_engine.clear();
                 println!("  [CLEARED] All channels cleared in EVPN Join Suppression Engine.");
             }
-            _ => println!("Unknown subcommand. Usage: evpn-join-suppress [status | join <vni> <port> <src_ip> <grp_ip> <host_ip> | leave <vni> <port> <src_ip> <grp_ip> <host_ip> | check <vni> <port> <src_ip> <grp_ip> | clear]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-join-suppress [status | join <vni> <port> <src_ip> <grp_ip> <host_ip> | leave <vni> <port> <src_ip> <grp_ip> <host_ip> | check <vni> <port> <src_ip> <grp_ip> | clear]"
+            ),
         }
     }
 
@@ -21801,49 +25893,115 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== 5G GTP-U Sequence Reordering Buffer & Early Flush Engine ===");
-                println!("  Window Size:           {}", self.gtpu_reorder_flush_engine.window_size);
-                println!("  Max Hold Timeout:      {} us", self.gtpu_reorder_flush_engine.max_hold_timeout_us);
-                println!("  Next Expected Seq:     {}", self.gtpu_reorder_flush_engine.next_expected_seq);
-                println!("  Buffered Packets:      {}", self.gtpu_reorder_flush_engine.buffer.len());
+                println!(
+                    "  Window Size:           {}",
+                    self.gtpu_reorder_flush_engine.window_size
+                );
+                println!(
+                    "  Max Hold Timeout:      {} us",
+                    self.gtpu_reorder_flush_engine.max_hold_timeout_us
+                );
+                println!(
+                    "  Next Expected Seq:     {}",
+                    self.gtpu_reorder_flush_engine.next_expected_seq
+                );
+                println!(
+                    "  Buffered Packets:      {}",
+                    self.gtpu_reorder_flush_engine.buffer.len()
+                );
                 for p in &self.gtpu_reorder_flush_engine.buffer {
-                    println!("    - Seq #{}: {} B (arrived at {} us)", p.seq_number, p.payload_bytes, p.arrival_time_us);
+                    println!(
+                        "    - Seq #{}: {} B (arrived at {} us)",
+                        p.seq_number, p.payload_bytes, p.arrival_time_us
+                    );
                 }
-                println!("  Total Received:        {}", self.gtpu_reorder_flush_engine.total_received);
-                println!("  Total In-Order:        {}", self.gtpu_reorder_flush_engine.total_in_order_emitted);
-                println!("  Total Buffered:        {}", self.gtpu_reorder_flush_engine.total_buffered);
-                println!("  Total Flushed on Gap:  {}", self.gtpu_reorder_flush_engine.total_flushed_on_gap);
-                println!("  Stale / Dups Dropped:  {}", self.gtpu_reorder_flush_engine.total_stale_drops);
-                println!("  Window Overflow Drops: {}", self.gtpu_reorder_flush_engine.total_overflow_drops);
+                println!(
+                    "  Total Received:        {}",
+                    self.gtpu_reorder_flush_engine.total_received
+                );
+                println!(
+                    "  Total In-Order:        {}",
+                    self.gtpu_reorder_flush_engine.total_in_order_emitted
+                );
+                println!(
+                    "  Total Buffered:        {}",
+                    self.gtpu_reorder_flush_engine.total_buffered
+                );
+                println!(
+                    "  Total Flushed on Gap:  {}",
+                    self.gtpu_reorder_flush_engine.total_flushed_on_gap
+                );
+                println!(
+                    "  Stale / Dups Dropped:  {}",
+                    self.gtpu_reorder_flush_engine.total_stale_drops
+                );
+                println!(
+                    "  Window Overflow Drops: {}",
+                    self.gtpu_reorder_flush_engine.total_overflow_drops
+                );
             }
             "ingest" => {
                 if args.len() >= 4 {
                     let seq = args[1].parse::<u32>().unwrap_or(1);
                     let bytes = args[2].parse::<usize>().unwrap_or(1400);
                     let time_us = args[3].parse::<u64>().unwrap_or(1000);
-                    let v = self.gtpu_reorder_flush_engine.ingest_packet(seq, bytes, time_us);
+                    let v = self
+                        .gtpu_reorder_flush_engine
+                        .ingest_packet(seq, bytes, time_us);
                     match v {
-                        GtpuReorderFlushVerdict::InOrderPacketEmitted { seq_number, payload_bytes } => {
-                            println!("  🟢 [IN-ORDER FORWARDED] Seq #{} ({} B) forwarded immediately (Next expected: #{}).",
-                                seq_number, payload_bytes, self.gtpu_reorder_flush_engine.next_expected_seq);
+                        GtpuReorderFlushVerdict::InOrderPacketEmitted {
+                            seq_number,
+                            payload_bytes,
+                        } => {
+                            println!(
+                                "  🟢 [IN-ORDER FORWARDED] Seq #{} ({} B) forwarded immediately (Next expected: #{}).",
+                                seq_number,
+                                payload_bytes,
+                                self.gtpu_reorder_flush_engine.next_expected_seq
+                            );
                         }
-                        GtpuReorderFlushVerdict::PacketBuffered { seq_number, buffer_depth, next_expected_seq } => {
-                            println!("  🟡 [BUFFERED OUT-OF-ORDER] Seq #{} buffered (Depth: {}, Waiting for #{}).",
-                                seq_number, buffer_depth, next_expected_seq);
+                        GtpuReorderFlushVerdict::PacketBuffered {
+                            seq_number,
+                            buffer_depth,
+                            next_expected_seq,
+                        } => {
+                            println!(
+                                "  🟡 [BUFFERED OUT-OF-ORDER] Seq #{} buffered (Depth: {}, Waiting for #{}).",
+                                seq_number, buffer_depth, next_expected_seq
+                            );
                         }
-                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush { skipped_seq_count, new_expected_seq, flushed_packets } => {
-                            println!("  🚀 [CONSECUTIVE FLUSH] Ingested packet allowed flushing {} consecutive packet(s) (Skipped: {}, Next expected: #{}).",
-                                flushed_packets.len(), skipped_seq_count, new_expected_seq);
+                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush {
+                            skipped_seq_count,
+                            new_expected_seq,
+                            flushed_packets,
+                        } => {
+                            println!(
+                                "  🚀 [CONSECUTIVE FLUSH] Ingested packet allowed flushing {} consecutive packet(s) (Skipped: {}, Next expected: #{}).",
+                                flushed_packets.len(),
+                                skipped_seq_count,
+                                new_expected_seq
+                            );
                             for (s, b) in flushed_packets {
                                 println!("    -> Emitted Seq #{}: {} B", s, b);
                             }
                         }
-                        GtpuReorderFlushVerdict::DuplicateOrStaleDrop { seq_number, next_expected_seq } => {
-                            println!("  🔴 [STALE / DUPLICATE DROP] Seq #{} dropped: older than next expected #{}.",
-                                seq_number, next_expected_seq);
+                        GtpuReorderFlushVerdict::DuplicateOrStaleDrop {
+                            seq_number,
+                            next_expected_seq,
+                        } => {
+                            println!(
+                                "  🔴 [STALE / DUPLICATE DROP] Seq #{} dropped: older than next expected #{}.",
+                                seq_number, next_expected_seq
+                            );
                         }
-                        GtpuReorderFlushVerdict::WindowOverflowDrop { seq_number, max_allowed_seq } => {
-                            println!("  🔴 [WINDOW OVERFLOW DROP] Seq #{} dropped: exceeds max reordering window limit #{}.",
-                                seq_number, max_allowed_seq);
+                        GtpuReorderFlushVerdict::WindowOverflowDrop {
+                            seq_number,
+                            max_allowed_seq,
+                        } => {
+                            println!(
+                                "  🔴 [WINDOW OVERFLOW DROP] Seq #{} dropped: exceeds max reordering window limit #{}.",
+                                seq_number, max_allowed_seq
+                            );
                         }
                         GtpuReorderFlushVerdict::NoTimeoutFlush => {}
                     }
@@ -21856,14 +26014,26 @@ impl NetworkShell {
                     let dead_seq = args[1].parse::<u32>().unwrap_or(1);
                     let v = self.gtpu_reorder_flush_engine.notify_gap_dropped(dead_seq);
                     match v {
-                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush { skipped_seq_count, new_expected_seq, flushed_packets } => {
-                            println!("  ⚡ [EARLY FLUSH TRIGGERED] Missing Seq #{} marked dead (Skipped: {} seq) -> Flushed {} buffered packet(s) (Next expected: #{}).",
-                                dead_seq, skipped_seq_count, flushed_packets.len(), new_expected_seq);
+                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush {
+                            skipped_seq_count,
+                            new_expected_seq,
+                            flushed_packets,
+                        } => {
+                            println!(
+                                "  ⚡ [EARLY FLUSH TRIGGERED] Missing Seq #{} marked dead (Skipped: {} seq) -> Flushed {} buffered packet(s) (Next expected: #{}).",
+                                dead_seq,
+                                skipped_seq_count,
+                                flushed_packets.len(),
+                                new_expected_seq
+                            );
                             for (s, b) in flushed_packets {
                                 println!("    -> Emitted Seq #{}: {} B", s, b);
                             }
                         }
-                        _ => println!("  ℹ️ [NO FLUSH] No buffered packets were ready to be flushed for dead Seq #{}.", dead_seq),
+                        _ => println!(
+                            "  ℹ️ [NO FLUSH] No buffered packets were ready to be flushed for dead Seq #{}.",
+                            dead_seq
+                        ),
                     }
                 } else {
                     println!("Usage: gtpu-reorder-flush dead <dead_seq>");
@@ -21874,16 +26044,26 @@ impl NetworkShell {
                     let curr_time_us = args[1].parse::<u64>().unwrap_or(100_000);
                     let v = self.gtpu_reorder_flush_engine.check_timeouts(curr_time_us);
                     match v {
-                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush { skipped_seq_count, new_expected_seq, flushed_packets } => {
-                            println!("  ⏰ [TIMEOUT FLUSH] Hold timer expired (Skipped: {} seq) -> Flushed {} buffered packet(s) (Next expected: #{}).",
-                                skipped_seq_count, flushed_packets.len(), new_expected_seq);
+                        GtpuReorderFlushVerdict::GapSkippedEarlyFlush {
+                            skipped_seq_count,
+                            new_expected_seq,
+                            flushed_packets,
+                        } => {
+                            println!(
+                                "  ⏰ [TIMEOUT FLUSH] Hold timer expired (Skipped: {} seq) -> Flushed {} buffered packet(s) (Next expected: #{}).",
+                                skipped_seq_count,
+                                flushed_packets.len(),
+                                new_expected_seq
+                            );
                             for (s, b) in flushed_packets {
                                 println!("    -> Emitted Seq #{}: {} B", s, b);
                             }
                         }
                         GtpuReorderFlushVerdict::NoTimeoutFlush => {
-                            println!("  ℹ️ [NO TIMEOUT] No packets exceeded the {} us hold timeout.",
-                                self.gtpu_reorder_flush_engine.max_hold_timeout_us);
+                            println!(
+                                "  ℹ️ [NO TIMEOUT] No packets exceeded the {} us hold timeout.",
+                                self.gtpu_reorder_flush_engine.max_hold_timeout_us
+                            );
                         }
                         _ => {}
                     }
@@ -21898,9 +26078,14 @@ impl NetworkShell {
                     1
                 };
                 self.gtpu_reorder_flush_engine.reset(start_seq);
-                println!("  [RESET] GTP-U Reordering Buffer reset to start sequence #{}.", start_seq);
+                println!(
+                    "  [RESET] GTP-U Reordering Buffer reset to start sequence #{}.",
+                    start_seq
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-reorder-flush [status | ingest <seq> <bytes> <time_us> | dead <dead_seq> | timeout <curr_time_us> | reset [start_seq]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-reorder-flush [status | ingest <seq> <bytes> <time_us> | dead <dead_seq> | timeout <curr_time_us> | reset [start_seq]]"
+            ),
         }
     }
 
@@ -21909,13 +26094,34 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== IEEE 802.1Qch CQF Dynamic Path Splicing Engine Status ===");
-                println!("  Cycle Duration: {} ns", self.tsn_cqf_path_splice_engine.cycle_duration_ns);
-                println!("  Active Sessions: {}", self.tsn_cqf_path_splice_engine.sessions.len());
-                println!("  Total Splices Executed: {}", self.tsn_cqf_path_splice_engine.total_splices_executed);
-                println!("  Total Frames Routed: {}", self.tsn_cqf_path_splice_engine.total_frames_routed);
+                println!(
+                    "  Cycle Duration: {} ns",
+                    self.tsn_cqf_path_splice_engine.cycle_duration_ns
+                );
+                println!(
+                    "  Active Sessions: {}",
+                    self.tsn_cqf_path_splice_engine.sessions.len()
+                );
+                println!(
+                    "  Total Splices Executed: {}",
+                    self.tsn_cqf_path_splice_engine.total_splices_executed
+                );
+                println!(
+                    "  Total Frames Routed: {}",
+                    self.tsn_cqf_path_splice_engine.total_frames_routed
+                );
                 for s in &self.tsn_cqf_path_splice_engine.sessions {
-                    println!("  - Stream #{}: State={:?}, SwitchCycle={}, PrimaryHops={}, AltHops={}, PhaseDelta={} ns, PriFrames={}, AltFrames={}",
-                        s.stream_id, s.state, s.switchover_cycle, s.primary_path.len(), s.alternate_path.len(), s.phase_delta_ns, s.frames_on_primary, s.frames_on_alternate);
+                    println!(
+                        "  - Stream #{}: State={:?}, SwitchCycle={}, PrimaryHops={}, AltHops={}, PhaseDelta={} ns, PriFrames={}, AltFrames={}",
+                        s.stream_id,
+                        s.state,
+                        s.switchover_cycle,
+                        s.primary_path.len(),
+                        s.alternate_path.len(),
+                        s.phase_delta_ns,
+                        s.frames_on_primary,
+                        s.frames_on_alternate
+                    );
                 }
             }
             "reg" => {
@@ -21931,8 +26137,12 @@ impl NetworkShell {
                             cycle_offset: i as u32,
                         });
                     }
-                    self.tsn_cqf_path_splice_engine.register_stream(stream_id, hops);
-                    println!("  [REGISTER] Stream #{} registered with {} primary hops.", stream_id, hops_count);
+                    self.tsn_cqf_path_splice_engine
+                        .register_stream(stream_id, hops);
+                    println!(
+                        "  [REGISTER] Stream #{} registered with {} primary hops.",
+                        stream_id, hops_count
+                    );
                 } else {
                     println!("Usage: tsn-cqf-splice reg <stream_id> <hops_count>");
                 }
@@ -21952,11 +26162,19 @@ impl NetworkShell {
                             cycle_offset: i as u32,
                         });
                     }
-                    let v = self.tsn_cqf_path_splice_engine.request_splice(stream_id, alt_hops, cur_c, lead_c);
+                    let v = self
+                        .tsn_cqf_path_splice_engine
+                        .request_splice(stream_id, alt_hops, cur_c, lead_c);
                     match v {
-                        PathSpliceVerdict::SpliceScheduled { stream_id, switchover_cycle, phase_delta_ns } => {
-                            println!("  [SPLICE SCHEDULED] Stream #{}: Switchover scheduled at cycle #{}, Phase delta: {} ns",
-                                stream_id, switchover_cycle, phase_delta_ns);
+                        PathSpliceVerdict::SpliceScheduled {
+                            stream_id,
+                            switchover_cycle,
+                            phase_delta_ns,
+                        } => {
+                            println!(
+                                "  [SPLICE SCHEDULED] Stream #{}: Switchover scheduled at cycle #{}, Phase delta: {} ns",
+                                stream_id, switchover_cycle, phase_delta_ns
+                            );
                         }
                         PathSpliceVerdict::StreamNotFound { stream_id } => {
                             println!("  ⚠️ Stream #{} not found.", stream_id);
@@ -21964,21 +26182,39 @@ impl NetworkShell {
                         _ => {}
                     }
                 } else {
-                    println!("Usage: tsn-cqf-splice req <stream_id> <alt_hops_count> <current_cycle> <lead_time_cycles>");
+                    println!(
+                        "Usage: tsn-cqf-splice req <stream_id> <alt_hops_count> <current_cycle> <lead_time_cycles>"
+                    );
                 }
             }
             "route" => {
                 if args.len() >= 3 {
                     let stream_id = args[1].parse::<u32>().unwrap_or(1);
                     let cycle = args[2].parse::<u64>().unwrap_or(0);
-                    let v = self.tsn_cqf_path_splice_engine.route_frame(stream_id, cycle);
+                    let v = self
+                        .tsn_cqf_path_splice_engine
+                        .route_frame(stream_id, cycle);
                     match v {
-                        PathSpliceVerdict::FrameRoutedPrimary { stream_id, cycle_idx, hop_count } => {
-                            println!("  [PRIMARY ROUTED] Stream #{}: Cycle #{} -> Primary Path (Hops: {})", stream_id, cycle_idx, hop_count);
+                        PathSpliceVerdict::FrameRoutedPrimary {
+                            stream_id,
+                            cycle_idx,
+                            hop_count,
+                        } => {
+                            println!(
+                                "  [PRIMARY ROUTED] Stream #{}: Cycle #{} -> Primary Path (Hops: {})",
+                                stream_id, cycle_idx, hop_count
+                            );
                         }
-                        PathSpliceVerdict::FrameRoutedAlternate { stream_id, cycle_idx, hop_count, phase_adjusted_ns } => {
-                            println!("  [ALTERNATE ROUTED] Stream #{}: Cycle #{} -> Alternate Path (Hops: {}, Phase Offset: {} ns)",
-                                stream_id, cycle_idx, hop_count, phase_adjusted_ns);
+                        PathSpliceVerdict::FrameRoutedAlternate {
+                            stream_id,
+                            cycle_idx,
+                            hop_count,
+                            phase_adjusted_ns,
+                        } => {
+                            println!(
+                                "  [ALTERNATE ROUTED] Stream #{}: Cycle #{} -> Alternate Path (Hops: {}, Phase Offset: {} ns)",
+                                stream_id, cycle_idx, hop_count, phase_adjusted_ns
+                            );
                         }
                         PathSpliceVerdict::StreamNotFound { stream_id } => {
                             println!("  ⚠️ Stream #{} not found.", stream_id);
@@ -21994,9 +26230,15 @@ impl NetworkShell {
                     let stream_id = args[1].parse::<u32>().unwrap_or(1);
                     let v = self.tsn_cqf_path_splice_engine.complete_splice(stream_id);
                     match v {
-                        PathSpliceVerdict::SpliceCompleted { stream_id, total_primary, total_alternate } => {
-                            println!("  [COMPLETED] Stream #{} splice finalized. Primary frames: {}, Alternate frames: {}",
-                                stream_id, total_primary, total_alternate);
+                        PathSpliceVerdict::SpliceCompleted {
+                            stream_id,
+                            total_primary,
+                            total_alternate,
+                        } => {
+                            println!(
+                                "  [COMPLETED] Stream #{} splice finalized. Primary frames: {}, Alternate frames: {}",
+                                stream_id, total_primary, total_alternate
+                            );
                         }
                         PathSpliceVerdict::StreamNotFound { stream_id } => {
                             println!("  ⚠️ Stream #{} not found.", stream_id);
@@ -22011,7 +26253,9 @@ impl NetworkShell {
                 self.tsn_cqf_path_splice_engine.reset();
                 println!("  [RESET] TSN CQF Path Splicing engine reset.");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-splice [status | reg <stream> <hops> | req <stream> <alt_hops> <cur_c> <lead_c> | route <stream> <c> | comp <stream> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-splice [status | reg <stream> <hops> | req <stream> <alt_hops> <cur_c> <lead_c> | route <stream> <c> | comp <stream> | reset]"
+            ),
         }
     }
 
@@ -22020,15 +26264,45 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== 3GPP Diameter S13 Emergency Exemption Engine Status ===");
-                println!("  Default Exemption Duration: {} s", self.s13_exempt_engine.default_emergency_duration_secs);
-                println!("  Equipment DB Entries: {}", self.s13_exempt_engine.equipment_db.len());
-                println!("  Active Exemption Sessions: {}", self.s13_exempt_engine.sessions.iter().filter(|s| s.is_active).count());
-                println!("  Total Exemptions Granted: {}", self.s13_exempt_engine.total_exemptions_granted);
-                println!("  Total Blocked Calls: {}", self.s13_exempt_engine.total_blocked_calls);
-                println!("  Total Standard Calls: {}", self.s13_exempt_engine.total_standard_calls);
+                println!(
+                    "  Default Exemption Duration: {} s",
+                    self.s13_exempt_engine.default_emergency_duration_secs
+                );
+                println!(
+                    "  Equipment DB Entries: {}",
+                    self.s13_exempt_engine.equipment_db.len()
+                );
+                println!(
+                    "  Active Exemption Sessions: {}",
+                    self.s13_exempt_engine
+                        .sessions
+                        .iter()
+                        .filter(|s| s.is_active)
+                        .count()
+                );
+                println!(
+                    "  Total Exemptions Granted: {}",
+                    self.s13_exempt_engine.total_exemptions_granted
+                );
+                println!(
+                    "  Total Blocked Calls: {}",
+                    self.s13_exempt_engine.total_blocked_calls
+                );
+                println!(
+                    "  Total Standard Calls: {}",
+                    self.s13_exempt_engine.total_standard_calls
+                );
                 for s in &self.s13_exempt_engine.sessions {
-                    println!("  - Session #{}: IMEI={}, Type={:?}, APN={}, Active={}, GrantedAt={} s, MaxDur={} s",
-                        s.session_id, s.imei, s.call_type, s.apn, s.is_active, s.granted_at_secs, s.max_duration_secs);
+                    println!(
+                        "  - Session #{}: IMEI={}, Type={:?}, APN={}, Active={}, GrantedAt={} s, MaxDur={} s",
+                        s.session_id,
+                        s.imei,
+                        s.call_type,
+                        s.apn,
+                        s.is_active,
+                        s.granted_at_secs,
+                        s.max_duration_secs
+                    );
                 }
             }
             "eval" => {
@@ -22037,7 +26311,9 @@ impl NetworkShell {
                     let is_emergency = args[2] == "true" || args[2] == "1" || args[2] == "yes";
                     let call_type = if args.len() >= 4 {
                         match args[3].to_lowercase().as_str() {
-                            "ecall_auto" | "auto" | "crash" => Some(EmergencyCallType::ECallAutomaticCrash),
+                            "ecall_auto" | "auto" | "crash" => {
+                                Some(EmergencyCallType::ECallAutomaticCrash)
+                            }
                             "ecall_manual" | "manual" => Some(EmergencyCallType::ECallManual),
                             "test" => Some(EmergencyCallType::TestEmergency),
                             _ => Some(EmergencyCallType::Voice112_911),
@@ -22046,26 +26322,56 @@ impl NetworkShell {
                         Some(EmergencyCallType::Voice112_911)
                     };
                     let apn = if args.len() >= 5 { args[4] } else { "sos" };
-                    let t_s = if args.len() >= 6 { args[5].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                    let t_s = if args.len() >= 6 {
+                        args[5].parse::<u64>().unwrap_or(1000)
+                    } else {
+                        1000
+                    };
 
-                    let v = self.s13_exempt_engine.evaluate_access(imei, is_emergency, call_type, apn, t_s);
+                    let v = self.s13_exempt_engine.evaluate_access(
+                        imei,
+                        is_emergency,
+                        call_type,
+                        apn,
+                        t_s,
+                    );
                     match v {
                         EmergencyExemptionVerdict::StandardAccessAllowed { imei, status } => {
-                            println!("  [ALLOWED] Standard access granted for IMEI {} (Status: {:?}).", imei, status);
+                            println!(
+                                "  [ALLOWED] Standard access granted for IMEI {} (Status: {:?}).",
+                                imei, status
+                            );
                         }
-                        EmergencyExemptionVerdict::EmergencyExemptionGranted { imei, original_status, call_type, session_id, permitted_apn } => {
-                            println!("  🚨 [EMERGENCY EXEMPTION GRANTED] IMEI {}: Original status {:?}, Type: {:?}, Session #{}, Restricted APN: {}",
-                                imei, original_status, call_type, session_id, permitted_apn);
+                        EmergencyExemptionVerdict::EmergencyExemptionGranted {
+                            imei,
+                            original_status,
+                            call_type,
+                            session_id,
+                            permitted_apn,
+                        } => {
+                            println!(
+                                "  🚨 [EMERGENCY EXEMPTION GRANTED] IMEI {}: Original status {:?}, Type: {:?}, Session #{}, Restricted APN: {}",
+                                imei, original_status, call_type, session_id, permitted_apn
+                            );
                         }
-                        EmergencyExemptionVerdict::NonEmergencyBlocked { imei, status, reason } => {
-                            println!("  ⛔ [BLOCKED] IMEI {} blocked. Status: {:?}, Reason: {}", imei, status, reason);
+                        EmergencyExemptionVerdict::NonEmergencyBlocked {
+                            imei,
+                            status,
+                            reason,
+                        } => {
+                            println!(
+                                "  ⛔ [BLOCKED] IMEI {} blocked. Status: {:?}, Reason: {}",
+                                imei, status, reason
+                            );
                         }
                         EmergencyExemptionVerdict::MalformedImeiRejected { input } => {
                             println!("  ⚠️ [REJECTED] Malformed IMEI format: '{}'", input);
                         }
                     }
                 } else {
-                    println!("Usage: diameter-s13-exempt eval <imei> <is_emerg: true|false> [call_type: voice|crash|manual|test] [apn] [time_s]");
+                    println!(
+                        "Usage: diameter-s13-exempt eval <imei> <is_emerg: true|false> [call_type: voice|crash|manual|test] [apn] [time_s]"
+                    );
                 }
             }
             "set" => {
@@ -22084,9 +26390,16 @@ impl NetworkShell {
                 }
             }
             "sweep" => {
-                let t_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(5000) } else { 5000 };
+                let t_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(5000)
+                } else {
+                    5000
+                };
                 let expired = self.s13_exempt_engine.sweep_expired(t_s);
-                println!("  [SWEEP] Swept expired sessions at time {} s. Expired: {}.", t_s, expired);
+                println!(
+                    "  [SWEEP] Swept expired sessions at time {} s. Expired: {}.",
+                    t_s, expired
+                );
             }
             "term" => {
                 if args.len() >= 2 {
@@ -22100,7 +26413,9 @@ impl NetworkShell {
                     println!("Usage: diameter-s13-exempt term <session_id>");
                 }
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-exempt [status | eval <imei> <is_emerg> [type] [apn] [t_s] | set <imei> <white|gray|black> | sweep [t_s] | term <id>]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-exempt [status | eval <imei> <is_emerg> [type] [apn] [t_s] | set <imei> <white|gray|black> | sweep [t_s] | term <id>]"
+            ),
         }
     }
 
@@ -22109,23 +26424,57 @@ impl NetworkShell {
         match sub {
             "status" => {
                 println!("=== EVPN IGMP Querier Election Engine Status ===");
-                println!("  Local PE IP: {}", self.evpn_querier_election_engine.local_ip);
-                println!("  Query Interval: {} s", self.evpn_querier_election_engine.query_interval_s);
-                println!("  Query Response Interval: {} s", self.evpn_querier_election_engine.query_response_interval_s);
-                println!("  Other Querier Present Timeout: {} s", self.evpn_querier_election_engine.other_querier_present_timeout_s);
-                println!("  Startup Query Count: {}", self.evpn_querier_election_engine.startup_query_count);
-                println!("  Active VNI Instances: {}", self.evpn_querier_election_engine.instances.len());
+                println!(
+                    "  Local PE IP: {}",
+                    self.evpn_querier_election_engine.local_ip
+                );
+                println!(
+                    "  Query Interval: {} s",
+                    self.evpn_querier_election_engine.query_interval_s
+                );
+                println!(
+                    "  Query Response Interval: {} s",
+                    self.evpn_querier_election_engine.query_response_interval_s
+                );
+                println!(
+                    "  Other Querier Present Timeout: {} s",
+                    self.evpn_querier_election_engine
+                        .other_querier_present_timeout_s
+                );
+                println!(
+                    "  Startup Query Count: {}",
+                    self.evpn_querier_election_engine.startup_query_count
+                );
+                println!(
+                    "  Active VNI Instances: {}",
+                    self.evpn_querier_election_engine.instances.len()
+                );
                 for inst in &self.evpn_querier_election_engine.instances {
-                    println!("  - VNI {}: Role={:?}, ActiveQuerierIP={}, Sent={}, Rcvd={}, Failovers={}, StartupLeft={}",
-                        inst.vni, inst.role, inst.active_querier_ip, inst.total_queries_sent, inst.total_queries_received, inst.total_failovers, inst.startup_queries_left);
+                    println!(
+                        "  - VNI {}: Role={:?}, ActiveQuerierIP={}, Sent={}, Rcvd={}, Failovers={}, StartupLeft={}",
+                        inst.vni,
+                        inst.role,
+                        inst.active_querier_ip,
+                        inst.total_queries_sent,
+                        inst.total_queries_received,
+                        inst.total_failovers,
+                        inst.startup_queries_left
+                    );
                 }
             }
             "reg" => {
                 if args.len() >= 2 {
                     let vni = args[1].parse::<u32>().unwrap_or(100);
-                    let t_s = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                    let t_s = if args.len() >= 3 {
+                        args[2].parse::<u64>().unwrap_or(1000)
+                    } else {
+                        1000
+                    };
                     self.evpn_querier_election_engine.register_vni(vni, t_s);
-                    println!("  [REGISTER] VNI {} registered for querier election at time {} s.", vni, t_s);
+                    println!(
+                        "  [REGISTER] VNI {} registered for querier election at time {} s.",
+                        vni, t_s
+                    );
                 } else {
                     println!("Usage: evpn-querier-elect reg <vni> [time_s]");
                 }
@@ -22140,15 +26489,34 @@ impl NetworkShell {
                             return;
                         }
                     };
-                    let t_s = if args.len() >= 4 { args[3].parse::<u64>().unwrap_or(1000) } else { 1000 };
-                    let v = self.evpn_querier_election_engine.process_rx_query(vni, peer_ip, t_s);
+                    let t_s = if args.len() >= 4 {
+                        args[3].parse::<u64>().unwrap_or(1000)
+                    } else {
+                        1000
+                    };
+                    let v = self
+                        .evpn_querier_election_engine
+                        .process_rx_query(vni, peer_ip, t_s);
                     match v {
-                        QuerierVerdict::BecameActiveQuerier { vni, local_ip, reason } => {
-                            println!("  [ACTIVE QUERIER] VNI {}: Local IP {} is Active Querier. Reason: {}", vni, local_ip, reason);
+                        QuerierVerdict::BecameActiveQuerier {
+                            vni,
+                            local_ip,
+                            reason,
+                        } => {
+                            println!(
+                                "  [ACTIVE QUERIER] VNI {}: Local IP {} is Active Querier. Reason: {}",
+                                vni, local_ip, reason
+                            );
                         }
-                        QuerierVerdict::ElectedNonQuerier { vni, active_querier_ip, other_querier_expiry_s } => {
-                            println!("  [NON-QUERIER] VNI {}: Peer {} elected Active Querier. Other-Querier timer armed until {} s.",
-                                vni, active_querier_ip, other_querier_expiry_s);
+                        QuerierVerdict::ElectedNonQuerier {
+                            vni,
+                            active_querier_ip,
+                            other_querier_expiry_s,
+                        } => {
+                            println!(
+                                "  [NON-QUERIER] VNI {}: Peer {} elected Active Querier. Other-Querier timer armed until {} s.",
+                                vni, active_querier_ip, other_querier_expiry_s
+                            );
                         }
                         QuerierVerdict::VniNotFound { vni } => {
                             println!("  ⚠️ VNI {} not found.", vni);
@@ -22160,18 +26528,32 @@ impl NetworkShell {
                 }
             }
             "tick" => {
-                let t_s = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1100) } else { 1100 };
+                let t_s = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1100)
+                } else {
+                    1100
+                };
                 let verdicts = self.evpn_querier_election_engine.tick(t_s);
                 if verdicts.is_empty() {
                     println!("  ℹ️ No querier events at time {} s.", t_s);
                 } else {
                     for v in verdicts {
                         match v {
-                            QuerierVerdict::QueryDispatched { vni, querier_ip, is_startup } => {
-                                println!("  📢 [QUERY DISPATCHED] VNI {}: General Query sent by {} (Startup: {})", vni, querier_ip, is_startup);
+                            QuerierVerdict::QueryDispatched {
+                                vni,
+                                querier_ip,
+                                is_startup,
+                            } => {
+                                println!(
+                                    "  📢 [QUERY DISPATCHED] VNI {}: General Query sent by {} (Startup: {})",
+                                    vni, querier_ip, is_startup
+                                );
                             }
                             QuerierVerdict::FailoverToActiveQuerier { vni, local_ip } => {
-                                println!("  ⚡ [FAILOVER] VNI {}: Other Querier timed out! Local PE {} resumed Active Querier role.", vni, local_ip);
+                                println!(
+                                    "  ⚡ [FAILOVER] VNI {}: Other Querier timed out! Local PE {} resumed Active Querier role.",
+                                    vni, local_ip
+                                );
                             }
                             _ => {}
                         }
@@ -22182,7 +26564,9 @@ impl NetworkShell {
                 self.evpn_querier_election_engine.reset();
                 println!("  [RESET] EVPN Querier Election engine reset.");
             }
-            _ => println!("Unknown subcommand. Usage: evpn-querier-elect [status | reg <vni> [t_s] | rx-query <vni> <peer_ip> [t_s] | tick [t_s] | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-querier-elect [status | reg <vni> [t_s] | rx-query <vni> <peer_ip> [t_s] | tick [t_s] | reset]"
+            ),
         }
     }
 
@@ -22192,36 +26576,82 @@ impl NetworkShell {
             "status" => {
                 println!("=== 5G GTP-U Sequence Hole & Proactive NACK Engine Status ===");
                 println!("  TEID: 0x{:08X}", self.gtpu_hole_nack_engine.teid);
-                println!("  Highest Seq Seen: {}", self.gtpu_hole_nack_engine.highest_seq_seen);
+                println!(
+                    "  Highest Seq Seen: {}",
+                    self.gtpu_hole_nack_engine.highest_seq_seen
+                );
                 println!("  Active Holes: {}", self.gtpu_hole_nack_engine.holes.len());
-                println!("  Total Packets Ingested: {}", self.gtpu_hole_nack_engine.total_packets_ingested);
-                println!("  Total Holes Detected: {}", self.gtpu_hole_nack_engine.total_holes_detected);
-                println!("  Total Holes Recovered: {}", self.gtpu_hole_nack_engine.total_holes_recovered);
-                println!("  Total NACKs Generated: {}", self.gtpu_hole_nack_engine.total_nacks_generated);
+                println!(
+                    "  Total Packets Ingested: {}",
+                    self.gtpu_hole_nack_engine.total_packets_ingested
+                );
+                println!(
+                    "  Total Holes Detected: {}",
+                    self.gtpu_hole_nack_engine.total_holes_detected
+                );
+                println!(
+                    "  Total Holes Recovered: {}",
+                    self.gtpu_hole_nack_engine.total_holes_recovered
+                );
+                println!(
+                    "  Total NACKs Generated: {}",
+                    self.gtpu_hole_nack_engine.total_nacks_generated
+                );
                 for h in &self.gtpu_hole_nack_engine.holes {
-                    println!("  - Hole [{} ..= {}]: DetectedAt={} us, NackCount={}",
-                        h.start_seq, h.end_seq, h.detected_at_us, h.nack_sent_count);
+                    println!(
+                        "  - Hole [{} ..= {}]: DetectedAt={} us, NackCount={}",
+                        h.start_seq, h.end_seq, h.detected_at_us, h.nack_sent_count
+                    );
                 }
             }
             "ingest" => {
                 if args.len() >= 2 {
                     let seq = args[1].parse::<u32>().unwrap_or(1);
-                    let t_us = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                    let t_us = if args.len() >= 3 {
+                        args[2].parse::<u64>().unwrap_or(1000)
+                    } else {
+                        1000
+                    };
                     let v = self.gtpu_hole_nack_engine.ingest_packet(seq, t_us);
                     match v {
                         HoleNackVerdict::InOrderPacket { teid, seq_number } => {
-                            println!("  [IN-ORDER] TEID 0x{:08X}: Packet Seq #{} arrived in order.", teid, seq_number);
+                            println!(
+                                "  [IN-ORDER] TEID 0x{:08X}: Packet Seq #{} arrived in order.",
+                                teid, seq_number
+                            );
                         }
-                        HoleNackVerdict::HoleDetectedAndNackGenerated { teid, missing_start, missing_end, nack_report } => {
-                            println!("  ⚠️ [HOLE DETECTED] TEID 0x{:08X}: Missing sequence range [{} ..= {}].", teid, missing_start, missing_end);
-                            println!("    -> Generated NACK: Base missing #{}, Count: {}, Bitmask: 0x{:016X}",
-                                nack_report.base_missing_seq, nack_report.count, nack_report.bitmask);
+                        HoleNackVerdict::HoleDetectedAndNackGenerated {
+                            teid,
+                            missing_start,
+                            missing_end,
+                            nack_report,
+                        } => {
+                            println!(
+                                "  ⚠️ [HOLE DETECTED] TEID 0x{:08X}: Missing sequence range [{} ..= {}].",
+                                teid, missing_start, missing_end
+                            );
+                            println!(
+                                "    -> Generated NACK: Base missing #{}, Count: {}, Bitmask: 0x{:016X}",
+                                nack_report.base_missing_seq,
+                                nack_report.count,
+                                nack_report.bitmask
+                            );
                         }
-                        HoleNackVerdict::HoleFilled { teid, seq_number, remaining_holes } => {
-                            println!("  ✅ [HOLE FILLED] TEID 0x{:08X}: Missing Seq #{} received! (Remaining holes: {})", teid, seq_number, remaining_holes);
+                        HoleNackVerdict::HoleFilled {
+                            teid,
+                            seq_number,
+                            remaining_holes,
+                        } => {
+                            println!(
+                                "  ✅ [HOLE FILLED] TEID 0x{:08X}: Missing Seq #{} received! (Remaining holes: {})",
+                                teid, seq_number, remaining_holes
+                            );
                         }
                         HoleNackVerdict::StaleOrDuplicatePacket { teid, seq_number } => {
-                            println!("  ℹ️ [DUPLICATE] TEID 0x{:08X}: Seq #{} is stale/duplicate.", teid, seq_number);
+                            println!(
+                                "  ℹ️ [DUPLICATE] TEID 0x{:08X}: Seq #{} is stale/duplicate.",
+                                teid, seq_number
+                            );
                         }
                     }
                 } else {
@@ -22229,45 +26659,100 @@ impl NetworkShell {
                 }
             }
             "retrans" => {
-                let t_us = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(200_000) } else { 200_000 };
+                let t_us = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(200_000)
+                } else {
+                    200_000
+                };
                 let reports = self.gtpu_hole_nack_engine.check_retransmit_nacks(t_us);
                 if reports.is_empty() {
                     println!("  ℹ️ No retransmit NACKs required at time {} us.", t_us);
                 } else {
-                    println!("  [RETRANSMIT NACKS] Generated {} proactive NACK reports at time {} us:", reports.len(), t_us);
+                    println!(
+                        "  [RETRANSMIT NACKS] Generated {} proactive NACK reports at time {} us:",
+                        reports.len(),
+                        t_us
+                    );
                     for r in reports {
-                        println!("    -> TEID 0x{:08X}: Missing Base #{}, Count {}, Bitmask: 0x{:016X}",
-                            r.teid, r.base_missing_seq, r.count, r.bitmask);
+                        println!(
+                            "    -> TEID 0x{:08X}: Missing Base #{}, Count {}, Bitmask: 0x{:016X}",
+                            r.teid, r.base_missing_seq, r.count, r.bitmask
+                        );
                     }
                 }
             }
             "reset" => {
-                let seq = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(0) } else { 0 };
+                let seq = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(0)
+                } else {
+                    0
+                };
                 self.gtpu_hole_nack_engine.reset(seq);
-                println!("  [RESET] GTP-U Hole & NACK engine reset (Initial seq: {}).", seq);
+                println!(
+                    "  [RESET] GTP-U Hole & NACK engine reset (Initial seq: {}).",
+                    seq
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-hole-nack [status | ingest <seq> [t_us] | retrans [t_us] | reset [seq]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-hole-nack [status | ingest <seq> [t_us] | retrans [t_us] | reset [seq]]"
+            ),
         }
     }
 
     fn cmd_tsn_cqf_reassembly(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("IEEE 802.1Qch/802.1Qbu Frame Fragment Reassembly Engine Status:");
-            println!("  Cycle Duration       : {} ns", self.tsn_cqf_reassembly_engine.cycle_duration_ns);
-            println!("  Reassembly Timeout   : {} ns", self.tsn_cqf_reassembly_engine.max_reassembly_timeout_ns);
-            println!("  Max Buffer per Frame : {} bytes", self.tsn_cqf_reassembly_engine.max_buffer_bytes_per_frame);
-            println!("  Active In-Flight Buf : {}", self.tsn_cqf_reassembly_engine.buffers.len());
-            println!("  Total Ingested Frags : {}", self.tsn_cqf_reassembly_engine.total_fragments_ingested);
-            println!("  Total Reassembled    : {}", self.tsn_cqf_reassembly_engine.total_frames_reassembled);
-            println!("  CRC Corruptions      : {}", self.tsn_cqf_reassembly_engine.total_crc_errors);
-            println!("  Sequence Mismatches  : {}", self.tsn_cqf_reassembly_engine.total_seq_errors);
-            println!("  Timeouts Evicted     : {}", self.tsn_cqf_reassembly_engine.total_timeouts);
-            println!("  Buffer Overflows     : {}", self.tsn_cqf_reassembly_engine.total_overflows);
+            println!(
+                "  Cycle Duration       : {} ns",
+                self.tsn_cqf_reassembly_engine.cycle_duration_ns
+            );
+            println!(
+                "  Reassembly Timeout   : {} ns",
+                self.tsn_cqf_reassembly_engine.max_reassembly_timeout_ns
+            );
+            println!(
+                "  Max Buffer per Frame : {} bytes",
+                self.tsn_cqf_reassembly_engine.max_buffer_bytes_per_frame
+            );
+            println!(
+                "  Active In-Flight Buf : {}",
+                self.tsn_cqf_reassembly_engine.buffers.len()
+            );
+            println!(
+                "  Total Ingested Frags : {}",
+                self.tsn_cqf_reassembly_engine.total_fragments_ingested
+            );
+            println!(
+                "  Total Reassembled    : {}",
+                self.tsn_cqf_reassembly_engine.total_frames_reassembled
+            );
+            println!(
+                "  CRC Corruptions      : {}",
+                self.tsn_cqf_reassembly_engine.total_crc_errors
+            );
+            println!(
+                "  Sequence Mismatches  : {}",
+                self.tsn_cqf_reassembly_engine.total_seq_errors
+            );
+            println!(
+                "  Timeouts Evicted     : {}",
+                self.tsn_cqf_reassembly_engine.total_timeouts
+            );
+            println!(
+                "  Buffer Overflows     : {}",
+                self.tsn_cqf_reassembly_engine.total_overflows
+            );
             if !self.tsn_cqf_reassembly_engine.buffers.is_empty() {
                 println!("  Active Reassembly Buffers:");
                 for b in &self.tsn_cqf_reassembly_engine.buffers {
-                    println!("    -> Stream #{}, Frame #{}: NextSeq #{}, Accumulated {}B, TargetCycle #{}",
-                        b.stream_id, b.frame_id, b.next_expected_seq, b.accumulated_bytes, b.target_cycle);
+                    println!(
+                        "    -> Stream #{}, Frame #{}: NextSeq #{}, Accumulated {}B, TargetCycle #{}",
+                        b.stream_id,
+                        b.frame_id,
+                        b.next_expected_seq,
+                        b.accumulated_bytes,
+                        b.target_cycle
+                    );
                 }
             }
             return;
@@ -22276,7 +26761,9 @@ impl NetworkShell {
         match args[0] {
             "ingest" => {
                 if args.len() < 6 {
-                    println!("Usage: tsn-cqf-reassembly ingest <stream_id> <frame_id> <frag_seq> <is_last:true|false> <bytes> [time_ns] [crc_ok:true|false]");
+                    println!(
+                        "Usage: tsn-cqf-reassembly ingest <stream_id> <frame_id> <frag_seq> <is_last:true|false> <bytes> [time_ns] [crc_ok:true|false]"
+                    );
                     return;
                 }
                 let stream_id = args[1].parse::<u32>().unwrap_or(1);
@@ -22284,8 +26771,16 @@ impl NetworkShell {
                 let fragment_seq = args[3].parse::<u16>().unwrap_or(0);
                 let is_last = args[4].parse::<bool>().unwrap_or(true);
                 let payload_bytes = args[5].parse::<usize>().unwrap_or(64);
-                let timestamp_ns = if args.len() >= 7 { args[6].parse::<u64>().unwrap_or(1000) } else { 1000 };
-                let crc_valid = if args.len() >= 8 { args[7].parse::<bool>().unwrap_or(true) } else { true };
+                let timestamp_ns = if args.len() >= 7 {
+                    args[6].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
+                let crc_valid = if args.len() >= 8 {
+                    args[7].parse::<bool>().unwrap_or(true)
+                } else {
+                    true
+                };
 
                 let frag = TsnFragment {
                     stream_id,
@@ -22299,42 +26794,101 @@ impl NetworkShell {
 
                 let verdict = self.tsn_cqf_reassembly_engine.ingest_fragment(frag);
                 match verdict {
-                    FrameReassemblyVerdict::FragmentBuffered { stream_id, frame_id, fragment_seq, accumulated_bytes } => {
-                        println!("  [BUFFERED] Stream #{}, Frame #{}: Fragment #{} accepted (Total accumulated: {}B).",
-                            stream_id, frame_id, fragment_seq, accumulated_bytes);
+                    FrameReassemblyVerdict::FragmentBuffered {
+                        stream_id,
+                        frame_id,
+                        fragment_seq,
+                        accumulated_bytes,
+                    } => {
+                        println!(
+                            "  [BUFFERED] Stream #{}, Frame #{}: Fragment #{} accepted (Total accumulated: {}B).",
+                            stream_id, frame_id, fragment_seq, accumulated_bytes
+                        );
                     }
-                    FrameReassemblyVerdict::FrameReassembledAndScheduled { stream_id, frame_id, total_bytes, target_cycle } => {
-                        println!("  [REASSEMBLED] Stream #{}, Frame #{}: Frame fully reassembled ({}B), scheduled for CQF Cycle #{}.",
-                            stream_id, frame_id, total_bytes, target_cycle);
+                    FrameReassemblyVerdict::FrameReassembledAndScheduled {
+                        stream_id,
+                        frame_id,
+                        total_bytes,
+                        target_cycle,
+                    } => {
+                        println!(
+                            "  [REASSEMBLED] Stream #{}, Frame #{}: Frame fully reassembled ({}B), scheduled for CQF Cycle #{}.",
+                            stream_id, frame_id, total_bytes, target_cycle
+                        );
                     }
-                    FrameReassemblyVerdict::SequenceMismatchDropped { stream_id, frame_id, expected_seq, received_seq } => {
-                        println!("  [SEQ MISMATCH DROP] Stream #{}, Frame #{}: Expected fragment #{}, got #{}.",
-                            stream_id, frame_id, expected_seq, received_seq);
+                    FrameReassemblyVerdict::SequenceMismatchDropped {
+                        stream_id,
+                        frame_id,
+                        expected_seq,
+                        received_seq,
+                    } => {
+                        println!(
+                            "  [SEQ MISMATCH DROP] Stream #{}, Frame #{}: Expected fragment #{}, got #{}.",
+                            stream_id, frame_id, expected_seq, received_seq
+                        );
                     }
-                    FrameReassemblyVerdict::CrcErrorDropped { stream_id, frame_id, fragment_seq } => {
-                        println!("  [CRC ERROR DROP] Stream #{}, Frame #{}: Corrupted fragment #{}.",
-                            stream_id, frame_id, fragment_seq);
+                    FrameReassemblyVerdict::CrcErrorDropped {
+                        stream_id,
+                        frame_id,
+                        fragment_seq,
+                    } => {
+                        println!(
+                            "  [CRC ERROR DROP] Stream #{}, Frame #{}: Corrupted fragment #{}.",
+                            stream_id, frame_id, fragment_seq
+                        );
                     }
-                    FrameReassemblyVerdict::BufferOverflowDropped { stream_id, frame_id, attempted_bytes, max_capacity } => {
-                        println!("  [OVERFLOW DROP] Stream #{}, Frame #{}: Size {}B exceeds buffer capacity {}B.",
-                            stream_id, frame_id, attempted_bytes, max_capacity);
+                    FrameReassemblyVerdict::BufferOverflowDropped {
+                        stream_id,
+                        frame_id,
+                        attempted_bytes,
+                        max_capacity,
+                    } => {
+                        println!(
+                            "  [OVERFLOW DROP] Stream #{}, Frame #{}: Size {}B exceeds buffer capacity {}B.",
+                            stream_id, frame_id, attempted_bytes, max_capacity
+                        );
                     }
-                    FrameReassemblyVerdict::TimeoutFlushed { stream_id, frame_id, dropped_bytes } => {
-                        println!("  [TIMEOUT FLUSH] Stream #{}, Frame #{}: Dropped {}B due to reassembly timeout.",
-                            stream_id, frame_id, dropped_bytes);
+                    FrameReassemblyVerdict::TimeoutFlushed {
+                        stream_id,
+                        frame_id,
+                        dropped_bytes,
+                    } => {
+                        println!(
+                            "  [TIMEOUT FLUSH] Stream #{}, Frame #{}: Dropped {}B due to reassembly timeout.",
+                            stream_id, frame_id, dropped_bytes
+                        );
                     }
                 }
             }
             "sweep" => {
-                let t_ns = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(10_000_000) } else { 10_000_000 };
+                let t_ns = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(10_000_000)
+                } else {
+                    10_000_000
+                };
                 let flushed = self.tsn_cqf_reassembly_engine.sweep_timeouts(t_ns);
                 if flushed.is_empty() {
-                    println!("  [SWEEP] No expired reassembly buffers at time {} ns.", t_ns);
+                    println!(
+                        "  [SWEEP] No expired reassembly buffers at time {} ns.",
+                        t_ns
+                    );
                 } else {
-                    println!("  [SWEEP] Flushed {} expired buffers at time {} ns:", flushed.len(), t_ns);
+                    println!(
+                        "  [SWEEP] Flushed {} expired buffers at time {} ns:",
+                        flushed.len(),
+                        t_ns
+                    );
                     for f in flushed {
-                        if let FrameReassemblyVerdict::TimeoutFlushed { stream_id, frame_id, dropped_bytes } = f {
-                            println!("    -> Stream #{}, Frame #{}: Evicted {} bytes", stream_id, frame_id, dropped_bytes);
+                        if let FrameReassemblyVerdict::TimeoutFlushed {
+                            stream_id,
+                            frame_id,
+                            dropped_bytes,
+                        } = f
+                        {
+                            println!(
+                                "    -> Stream #{}, Frame #{}: Evicted {} bytes",
+                                stream_id, frame_id, dropped_bytes
+                            );
                         }
                     }
                 }
@@ -22349,23 +26903,42 @@ impl NetworkShell {
                 self.tsn_cqf_reassembly_engine.total_overflows = 0;
                 println!("  [RESET] TSN CQF frame reassembly engine reset.");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-reassembly [status | ingest <stream> <frame> <frag_seq> <is_last> <bytes> [time_ns] [crc_ok] | sweep [time_ns] | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-reassembly [status | ingest <stream> <frame> <frag_seq> <is_last> <bytes> [time_ns] [crc_ok] | sweep [time_ns] | reset]"
+            ),
         }
     }
 
     fn cmd_diameter_s13_range(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("3GPP TS 29.272 Diameter S13 TAC / IMEI Range Engine Status:");
-            println!("  Registered TAC Rules : {}", self.s13_imei_range_engine.rules.len());
-            println!("  Total Queries        : {}", self.s13_imei_range_engine.total_queries);
-            println!("  Range Matches        : {}", self.s13_imei_range_engine.total_range_matches);
-            println!("  Default Matches      : {}", self.s13_imei_range_engine.total_default_matches);
-            println!("  Invalid Queries      : {}", self.s13_imei_range_engine.total_invalid_queries);
+            println!(
+                "  Registered TAC Rules : {}",
+                self.s13_imei_range_engine.rules.len()
+            );
+            println!(
+                "  Total Queries        : {}",
+                self.s13_imei_range_engine.total_queries
+            );
+            println!(
+                "  Range Matches        : {}",
+                self.s13_imei_range_engine.total_range_matches
+            );
+            println!(
+                "  Default Matches      : {}",
+                self.s13_imei_range_engine.total_default_matches
+            );
+            println!(
+                "  Invalid Queries      : {}",
+                self.s13_imei_range_engine.total_invalid_queries
+            );
             if !self.s13_imei_range_engine.rules.is_empty() {
                 println!("  Active TAC Range Rules:");
                 for r in &self.s13_imei_range_engine.rules {
-                    println!("    -> TAC Range [{:08} - {:08}] => Status: {:?}, Prio: {}, Desc: \"{}\"",
-                        r.start_tac, r.end_tac, r.status, r.priority, r.description);
+                    println!(
+                        "    -> TAC Range [{:08} - {:08}] => Status: {:?}, Prio: {}, Desc: \"{}\"",
+                        r.start_tac, r.end_tac, r.status, r.priority, r.description
+                    );
                 }
             }
             return;
@@ -22380,66 +26953,119 @@ impl NetworkShell {
                 let imei = args[1];
                 let verdict = self.s13_imei_range_engine.evaluate_imei(imei);
                 match verdict {
-                    ImeiRangeVerdict::RangeMatched { imei, tac, status, description, priority } => {
-                        println!("  [RANGE MATCH] IMEI {}: TAC {:08} -> Status: {:?} (Prio: {}, Rule: \"{}\")",
-                            imei, tac, status, priority, description);
+                    ImeiRangeVerdict::RangeMatched {
+                        imei,
+                        tac,
+                        status,
+                        description,
+                        priority,
+                    } => {
+                        println!(
+                            "  [RANGE MATCH] IMEI {}: TAC {:08} -> Status: {:?} (Prio: {}, Rule: \"{}\")",
+                            imei, tac, status, priority, description
+                        );
                     }
                     ImeiRangeVerdict::DefaultWhiteListed { imei, tac } => {
-                        println!("  [DEFAULT ALLOW] IMEI {}: TAC {:08} -> Status: WhiteListed (No range match).",
-                            imei, tac);
+                        println!(
+                            "  [DEFAULT ALLOW] IMEI {}: TAC {:08} -> Status: WhiteListed (No range match).",
+                            imei, tac
+                        );
                     }
                     ImeiRangeVerdict::InvalidImeiFormat { input } => {
-                        println!("  [INVALID FORMAT] Input \"{}\" is not a valid decimal IMEI/IMEISV (minimum 8 digits).",
-                            input);
+                        println!(
+                            "  [INVALID FORMAT] Input \"{}\" is not a valid decimal IMEI/IMEISV (minimum 8 digits).",
+                            input
+                        );
                     }
                 }
             }
             "add" => {
                 if args.len() < 5 {
-                    println!("Usage: diameter-s13-range add <start_tac> <end_tac> <white|gray|black> <desc> [prio]");
+                    println!(
+                        "Usage: diameter-s13-range add <start_tac> <end_tac> <white|gray|black> <desc> [prio]"
+                    );
                     return;
                 }
                 let start_tac = args[1].parse::<u64>().unwrap_or(0);
                 let end_tac = args[2].parse::<u64>().unwrap_or(0);
                 let status = match args[3].to_lowercase().as_str() {
                     "black" | "blacklist" | "blacklisted" => S13EquipmentStatus::BlackListed,
-                    "gray" | "graylist" | "graylisted" | "greylist" => S13EquipmentStatus::GrayListed,
+                    "gray" | "graylist" | "graylisted" | "greylist" => {
+                        S13EquipmentStatus::GrayListed
+                    }
                     _ => S13EquipmentStatus::WhiteListed,
                 };
                 let desc = args[4];
-                let prio = if args.len() >= 6 { args[5].parse::<u32>().unwrap_or(50) } else { 50 };
+                let prio = if args.len() >= 6 {
+                    args[5].parse::<u32>().unwrap_or(50)
+                } else {
+                    50
+                };
 
-                self.s13_imei_range_engine.add_rule(start_tac, end_tac, status, desc, prio);
-                println!("  [RULE ADDED] TAC Range [{:08} - {:08}] -> Status: {:?}, Prio: {}, Desc: \"{}\"",
-                    start_tac, end_tac, status, prio, desc);
+                self.s13_imei_range_engine
+                    .add_rule(start_tac, end_tac, status, desc, prio);
+                println!(
+                    "  [RULE ADDED] TAC Range [{:08} - {:08}] -> Status: {:?}, Prio: {}, Desc: \"{}\"",
+                    start_tac, end_tac, status, prio, desc
+                );
             }
             "clear" => {
                 self.s13_imei_range_engine.clear_rules();
                 self.s13_imei_range_engine.reset_stats();
                 println!("  [CLEAR] All TAC range rules cleared.");
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-range [status | eval <imei> | add <start_tac> <end_tac> <white|gray|black> <desc> [prio] | clear]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-range [status | eval <imei> | add <start_tac> <end_tac> <white|gray|black> <desc> [prio] | clear]"
+            ),
         }
     }
 
     fn cmd_evpn_snoop_filter(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("EVPN IGMP/MLD Snooping Boundary Filter & CAC Engine Status:");
-            println!("  Max Channels per Port: {}", self.evpn_snooping_filter_engine.max_channels_per_port);
-            println!("  Total ACL Rules      : {}", self.evpn_snooping_filter_engine.rules.len());
-            println!("  Active Subscriptions : {}", self.evpn_snooping_filter_engine.active_subscriptions.len());
-            println!("  Total Joins Evaluated: {}", self.evpn_snooping_filter_engine.total_joins_evaluated);
-            println!("  Joins Permitted      : {}", self.evpn_snooping_filter_engine.total_joins_permitted);
-            println!("  Joins Denied (ACL)   : {}", self.evpn_snooping_filter_engine.total_joins_denied_acl);
-            println!("  Joins Denied (CAC)   : {}", self.evpn_snooping_filter_engine.total_joins_denied_cac_limit);
+            println!(
+                "  Max Channels per Port: {}",
+                self.evpn_snooping_filter_engine.max_channels_per_port
+            );
+            println!(
+                "  Total ACL Rules      : {}",
+                self.evpn_snooping_filter_engine.rules.len()
+            );
+            println!(
+                "  Active Subscriptions : {}",
+                self.evpn_snooping_filter_engine.active_subscriptions.len()
+            );
+            println!(
+                "  Total Joins Evaluated: {}",
+                self.evpn_snooping_filter_engine.total_joins_evaluated
+            );
+            println!(
+                "  Joins Permitted      : {}",
+                self.evpn_snooping_filter_engine.total_joins_permitted
+            );
+            println!(
+                "  Joins Denied (ACL)   : {}",
+                self.evpn_snooping_filter_engine.total_joins_denied_acl
+            );
+            println!(
+                "  Joins Denied (CAC)   : {}",
+                self.evpn_snooping_filter_engine
+                    .total_joins_denied_cac_limit
+            );
             if !self.evpn_snooping_filter_engine.rules.is_empty() {
                 println!("  Multicast Boundary ACL Rules:");
                 for r in &self.evpn_snooping_filter_engine.rules {
-                    println!("    -> VNI {}, Port {}: Range [{} - {}] => Action: {:?}, Desc: \"{}\"",
-                        r.vni, r.port_id, r.group_start, r.group_end, r.action, r.description);
+                    println!(
+                        "    -> VNI {}, Port {}: Range [{} - {}] => Action: {:?}, Desc: \"{}\"",
+                        r.vni, r.port_id, r.group_start, r.group_end, r.action, r.description
+                    );
                 }
             }
-            if !self.evpn_snooping_filter_engine.active_subscriptions.is_empty() {
+            if !self
+                .evpn_snooping_filter_engine
+                .active_subscriptions
+                .is_empty()
+            {
                 println!("  Active Group Subscriptions:");
                 for (v, p, g) in &self.evpn_snooping_filter_engine.active_subscriptions {
                     println!("    -> VNI {}, Port {}: Subscribed Group {}", v, p, g);
@@ -22451,30 +27077,64 @@ impl NetworkShell {
         match args[0] {
             "check" | "join" => {
                 if args.len() < 4 {
-                    println!("Usage: evpn-snoop-filter {} <vni> <port_id> <group_ip>", args[0]);
+                    println!(
+                        "Usage: evpn-snoop-filter {} <vni> <port_id> <group_ip>",
+                        args[0]
+                    );
                     return;
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(100);
                 let port_id = args[2].parse::<u32>().unwrap_or(1);
-                let group_ip = Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let group_ip =
+                    Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(232, 1, 1, 1));
 
-                let verdict = self.evpn_snooping_filter_engine.evaluate_join(vni, port_id, group_ip);
+                let verdict = self
+                    .evpn_snooping_filter_engine
+                    .evaluate_join(vni, port_id, group_ip);
                 match verdict {
-                    McastFilterVerdict::JoinPermitted { vni, port_id, group_ip, current_active_channels } => {
-                        println!("  [JOIN PERMITTED] VNI {}, Port {}: Group {} approved (Active channels: {}).",
-                            vni, port_id, group_ip, current_active_channels);
+                    McastFilterVerdict::JoinPermitted {
+                        vni,
+                        port_id,
+                        group_ip,
+                        current_active_channels,
+                    } => {
+                        println!(
+                            "  [JOIN PERMITTED] VNI {}, Port {}: Group {} approved (Active channels: {}).",
+                            vni, port_id, group_ip, current_active_channels
+                        );
                     }
-                    McastFilterVerdict::JoinDeniedByAcl { vni, port_id, group_ip, reason } => {
-                        println!("  [DENIED ACL] VNI {}, Port {}: Group {} blocked by boundary ACL (\"{}\").",
-                            vni, port_id, group_ip, reason);
+                    McastFilterVerdict::JoinDeniedByAcl {
+                        vni,
+                        port_id,
+                        group_ip,
+                        reason,
+                    } => {
+                        println!(
+                            "  [DENIED ACL] VNI {}, Port {}: Group {} blocked by boundary ACL (\"{}\").",
+                            vni, port_id, group_ip, reason
+                        );
                     }
-                    McastFilterVerdict::JoinDeniedCacLimitReached { vni, port_id, group_ip, max_limit } => {
-                        println!("  [DENIED CAC LIMIT] VNI {}, Port {}: Group {} rejected (Port reached CAC limit {}).",
-                            vni, port_id, group_ip, max_limit);
+                    McastFilterVerdict::JoinDeniedCacLimitReached {
+                        vni,
+                        port_id,
+                        group_ip,
+                        max_limit,
+                    } => {
+                        println!(
+                            "  [DENIED CAC LIMIT] VNI {}, Port {}: Group {} rejected (Port reached CAC limit {}).",
+                            vni, port_id, group_ip, max_limit
+                        );
                     }
-                    McastFilterVerdict::ChannelLeft { vni, port_id, group_ip, remaining_channels } => {
-                        println!("  [CHANNEL LEFT] VNI {}, Port {}: Group {} departed (Remaining: {}).",
-                            vni, port_id, group_ip, remaining_channels);
+                    McastFilterVerdict::ChannelLeft {
+                        vni,
+                        port_id,
+                        group_ip,
+                        remaining_channels,
+                    } => {
+                        println!(
+                            "  [CHANNEL LEFT] VNI {}, Port {}: Group {} departed (Remaining: {}).",
+                            vni, port_id, group_ip, remaining_channels
+                        );
                     }
                 }
             }
@@ -22485,58 +27145,109 @@ impl NetworkShell {
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(100);
                 let port_id = args[2].parse::<u32>().unwrap_or(1);
-                let group_ip = Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(232, 1, 1, 1));
+                let group_ip =
+                    Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(232, 1, 1, 1));
 
-                let verdict = self.evpn_snooping_filter_engine.leave_channel(vni, port_id, group_ip);
-                if let McastFilterVerdict::ChannelLeft { vni, port_id, group_ip, remaining_channels } = verdict {
-                    println!("  [LEAVE SUCCESS] VNI {}, Port {}: Group {} left (Remaining active: {}).",
-                        vni, port_id, group_ip, remaining_channels);
+                let verdict = self
+                    .evpn_snooping_filter_engine
+                    .leave_channel(vni, port_id, group_ip);
+                if let McastFilterVerdict::ChannelLeft {
+                    vni,
+                    port_id,
+                    group_ip,
+                    remaining_channels,
+                } = verdict
+                {
+                    println!(
+                        "  [LEAVE SUCCESS] VNI {}, Port {}: Group {} left (Remaining active: {}).",
+                        vni, port_id, group_ip, remaining_channels
+                    );
                 }
             }
             "add" => {
                 if args.len() < 6 {
-                    println!("Usage: evpn-snoop-filter add <vni> <port_id> <start_ip> <end_ip> <permit|deny> [desc]");
+                    println!(
+                        "Usage: evpn-snoop-filter add <vni> <port_id> <start_ip> <end_ip> <permit|deny> [desc]"
+                    );
                     return;
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(0);
                 let port_id = args[2].parse::<u32>().unwrap_or(0);
-                let start_ip = Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(224, 0, 0, 0));
-                let end_ip = Ipv4Address::from_str(args[4]).unwrap_or(Ipv4Address::new(239, 255, 255, 255));
+                let start_ip =
+                    Ipv4Address::from_str(args[3]).unwrap_or(Ipv4Address::new(224, 0, 0, 0));
+                let end_ip =
+                    Ipv4Address::from_str(args[4]).unwrap_or(Ipv4Address::new(239, 255, 255, 255));
                 let action = if args[5].eq_ignore_ascii_case("deny") {
                     McastAclAction::Deny
                 } else {
                     McastAclAction::Permit
                 };
-                let desc = if args.len() >= 7 { args[6] } else { "Admin configured rule" };
+                let desc = if args.len() >= 7 {
+                    args[6]
+                } else {
+                    "Admin configured rule"
+                };
 
-                self.evpn_snooping_filter_engine.add_rule(vni, port_id, start_ip, end_ip, action, desc);
-                println!("  [RULE ADDED] VNI {}, Port {}: Range [{} - {}] -> Action: {:?}, Desc: \"{}\"",
-                    vni, port_id, start_ip, end_ip, action, desc);
+                self.evpn_snooping_filter_engine
+                    .add_rule(vni, port_id, start_ip, end_ip, action, desc);
+                println!(
+                    "  [RULE ADDED] VNI {}, Port {}: Range [{} - {}] -> Action: {:?}, Desc: \"{}\"",
+                    vni, port_id, start_ip, end_ip, action, desc
+                );
             }
             "clear" => {
                 self.evpn_snooping_filter_engine.rules.clear();
-                self.evpn_snooping_filter_engine.active_subscriptions.clear();
+                self.evpn_snooping_filter_engine
+                    .active_subscriptions
+                    .clear();
                 self.evpn_snooping_filter_engine.total_joins_evaluated = 0;
                 self.evpn_snooping_filter_engine.total_joins_permitted = 0;
                 self.evpn_snooping_filter_engine.total_joins_denied_acl = 0;
-                self.evpn_snooping_filter_engine.total_joins_denied_cac_limit = 0;
+                self.evpn_snooping_filter_engine
+                    .total_joins_denied_cac_limit = 0;
                 println!("  [CLEAR] Multicast snooping filters and subscriptions cleared.");
             }
-            _ => println!("Unknown subcommand. Usage: evpn-snoop-filter [status | check <vni> <port> <grp_ip> | join <vni> <port> <grp_ip> | leave <vni> <port> <grp_ip> | add <vni> <port> <start_ip> <end_ip> <permit|deny> [desc] | clear]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-snoop-filter [status | check <vni> <port> <grp_ip> | join <vni> <port> <grp_ip> | leave <vni> <port> <grp_ip> | add <vni> <port> <start_ip> <end_ip> <permit|deny> [desc] | clear]"
+            ),
         }
     }
 
     fn cmd_gtpu_sliding_ack(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("5G GTP-U Reliable Transport Sliding Window ACK / SACK Engine Status:");
-            println!("  Session TEID         : 0x{:08X}", self.gtpu_sliding_window_ack_engine.teid);
-            println!("  Window Size          : {}", self.gtpu_sliding_window_ack_engine.window_size);
-            println!("  Cumulative In-Order  : #{}", self.gtpu_sliding_window_ack_engine.cumulative_ack);
-            println!("  Highest Seq Seen     : #{}", self.gtpu_sliding_window_ack_engine.highest_seq_seen);
-            println!("  Out-of-Order Packets : {}", self.gtpu_sliding_window_ack_engine.received_ooo_seqs.len());
-            println!("  Total Packets Rcvd   : {}", self.gtpu_sliding_window_ack_engine.total_packets_received);
-            println!("  Total ACKs Generated : {}", self.gtpu_sliding_window_ack_engine.total_acks_generated);
-            println!("  Duplicate Packets    : {}", self.gtpu_sliding_window_ack_engine.total_duplicate_packets);
+            println!(
+                "  Session TEID         : 0x{:08X}",
+                self.gtpu_sliding_window_ack_engine.teid
+            );
+            println!(
+                "  Window Size          : {}",
+                self.gtpu_sliding_window_ack_engine.window_size
+            );
+            println!(
+                "  Cumulative In-Order  : #{}",
+                self.gtpu_sliding_window_ack_engine.cumulative_ack
+            );
+            println!(
+                "  Highest Seq Seen     : #{}",
+                self.gtpu_sliding_window_ack_engine.highest_seq_seen
+            );
+            println!(
+                "  Out-of-Order Packets : {}",
+                self.gtpu_sliding_window_ack_engine.received_ooo_seqs.len()
+            );
+            println!(
+                "  Total Packets Rcvd   : {}",
+                self.gtpu_sliding_window_ack_engine.total_packets_received
+            );
+            println!(
+                "  Total ACKs Generated : {}",
+                self.gtpu_sliding_window_ack_engine.total_acks_generated
+            );
+            println!(
+                "  Duplicate Packets    : {}",
+                self.gtpu_sliding_window_ack_engine.total_duplicate_packets
+            );
             let sack_blocks = self.gtpu_sliding_window_ack_engine.compute_sack_blocks();
             if !sack_blocks.is_empty() {
                 println!("  Active SACK Blocks:");
@@ -22556,66 +27267,142 @@ impl NetworkShell {
                 let seq = args[1].parse::<u32>().unwrap_or(1);
                 let verdict = self.gtpu_sliding_window_ack_engine.ingest_packet(seq);
                 match verdict {
-                    SlidingWindowAckVerdict::PacketAckedInOrder { teid, seq_number, cumulative_ack } => {
-                        println!("  [IN-ORDER ACK] TEID 0x{:08X}: Seq #{} accepted in order. Cumulative ACK advanced to #{}.",
-                            teid, seq_number, cumulative_ack);
+                    SlidingWindowAckVerdict::PacketAckedInOrder {
+                        teid,
+                        seq_number,
+                        cumulative_ack,
+                    } => {
+                        println!(
+                            "  [IN-ORDER ACK] TEID 0x{:08X}: Seq #{} accepted in order. Cumulative ACK advanced to #{}.",
+                            teid, seq_number, cumulative_ack
+                        );
                     }
-                    SlidingWindowAckVerdict::OutOfOrderSackGenerated { teid, received_seq, cumulative_ack, sack_blocks } => {
-                        println!("  [OOO SACK GENERATED] TEID 0x{:08X}: Seq #{} received out-of-order! Cumulative ACK: #{}, SACK Blocks: {:?}",
-                            teid, received_seq, cumulative_ack, sack_blocks);
+                    SlidingWindowAckVerdict::OutOfOrderSackGenerated {
+                        teid,
+                        received_seq,
+                        cumulative_ack,
+                        sack_blocks,
+                    } => {
+                        println!(
+                            "  [OOO SACK GENERATED] TEID 0x{:08X}: Seq #{} received out-of-order! Cumulative ACK: #{}, SACK Blocks: {:?}",
+                            teid, received_seq, cumulative_ack, sack_blocks
+                        );
                     }
-                    SlidingWindowAckVerdict::DuplicatePacketIgnored { teid, seq_number, cumulative_ack } => {
-                        println!("  [DUPLICATE IGNORED] TEID 0x{:08X}: Duplicate packet seq #{} ignored (Cumulative ACK: #{}).",
-                            teid, seq_number, cumulative_ack);
+                    SlidingWindowAckVerdict::DuplicatePacketIgnored {
+                        teid,
+                        seq_number,
+                        cumulative_ack,
+                    } => {
+                        println!(
+                            "  [DUPLICATE IGNORED] TEID 0x{:08X}: Duplicate packet seq #{} ignored (Cumulative ACK: #{}).",
+                            teid, seq_number, cumulative_ack
+                        );
                     }
                 }
             }
             "report" => {
-                let t_us = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(1000) } else { 1000 };
-                let report = self.gtpu_sliding_window_ack_engine.generate_ack_report(t_us);
-                println!("  [GTP-U ACK REPORT] Timestamp: {} us | TEID: 0x{:08X} | Cumulative ACK: #{}",
-                    report.timestamp_us, report.teid, report.cumulative_ack);
+                let t_us = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
+                let report = self
+                    .gtpu_sliding_window_ack_engine
+                    .generate_ack_report(t_us);
+                println!(
+                    "  [GTP-U ACK REPORT] Timestamp: {} us | TEID: 0x{:08X} | Cumulative ACK: #{}",
+                    report.timestamp_us, report.teid, report.cumulative_ack
+                );
                 if report.sack_blocks.is_empty() {
                     println!("    -> No SACK gap blocks present.");
                 } else {
-                    println!("    -> SACK Discontiguous Blocks ({} total):", report.sack_blocks.len());
+                    println!(
+                        "    -> SACK Discontiguous Blocks ({} total):",
+                        report.sack_blocks.len()
+                    );
                     for b in &report.sack_blocks {
-                        println!("       * Block [Seq #{} .. Seq #{}]", b.start_seq, b.end_seq);
+                        println!(
+                            "       * Block [Seq #{} .. Seq #{}]",
+                            b.start_seq, b.end_seq
+                        );
                     }
                 }
             }
             "reset" => {
-                let seq = if args.len() >= 2 { args[1].parse::<u32>().unwrap_or(0) } else { 0 };
+                let seq = if args.len() >= 2 {
+                    args[1].parse::<u32>().unwrap_or(0)
+                } else {
+                    0
+                };
                 self.gtpu_sliding_window_ack_engine.cumulative_ack = seq;
                 self.gtpu_sliding_window_ack_engine.highest_seq_seen = seq;
-                self.gtpu_sliding_window_ack_engine.received_ooo_seqs.clear();
+                self.gtpu_sliding_window_ack_engine
+                    .received_ooo_seqs
+                    .clear();
                 self.gtpu_sliding_window_ack_engine.total_packets_received = 0;
                 self.gtpu_sliding_window_ack_engine.total_acks_generated = 0;
                 self.gtpu_sliding_window_ack_engine.total_duplicate_packets = 0;
-                println!("  [RESET] 5G GTP-U Sliding Window ACK engine reset (Base seq: #{}).", seq);
+                println!(
+                    "  [RESET] 5G GTP-U Sliding Window ACK engine reset (Base seq: #{}).",
+                    seq
+                );
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-sliding-ack [status | ingest <seq> | report [t_us] | reset [seq]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-sliding-ack [status | ingest <seq> | report [t_us] | reset [seq]]"
+            ),
         }
     }
 
     fn cmd_tsn_cqf_max_sdu(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("=== IEEE 802.1Qch / 802.1Qci Max-SDU Size Enforcer & Truncator ===");
-            println!("  Cycle Duration       : {} ns", self.tsn_cqf_max_sdu_engine.cycle_duration_ns);
-            println!("  Default Max-SDU      : {} bytes", self.tsn_cqf_max_sdu_engine.default_max_sdu);
-            println!("  Configured Rules     : {}", self.tsn_cqf_max_sdu_engine.rules.len());
-            println!("  Total Frames Checked : {}", self.tsn_cqf_max_sdu_engine.total_frames_inspected);
-            println!("  Conforming Frames    : {}", self.tsn_cqf_max_sdu_engine.total_conforming_frames);
-            println!("  Truncated Frames     : {}", self.tsn_cqf_max_sdu_engine.total_truncated_frames);
-            println!("  Dropped Oversized    : {}", self.tsn_cqf_max_sdu_engine.total_dropped_frames);
-            println!("  Alert/Passed Frames  : {}", self.tsn_cqf_max_sdu_engine.total_alert_frames);
-            println!("  Total Bytes Inspected: {} B", self.tsn_cqf_max_sdu_engine.total_bytes_inspected);
-            println!("  Total Bytes Forwarded: {} B", self.tsn_cqf_max_sdu_engine.total_bytes_forwarded);
+            println!(
+                "  Cycle Duration       : {} ns",
+                self.tsn_cqf_max_sdu_engine.cycle_duration_ns
+            );
+            println!(
+                "  Default Max-SDU      : {} bytes",
+                self.tsn_cqf_max_sdu_engine.default_max_sdu
+            );
+            println!(
+                "  Configured Rules     : {}",
+                self.tsn_cqf_max_sdu_engine.rules.len()
+            );
+            println!(
+                "  Total Frames Checked : {}",
+                self.tsn_cqf_max_sdu_engine.total_frames_inspected
+            );
+            println!(
+                "  Conforming Frames    : {}",
+                self.tsn_cqf_max_sdu_engine.total_conforming_frames
+            );
+            println!(
+                "  Truncated Frames     : {}",
+                self.tsn_cqf_max_sdu_engine.total_truncated_frames
+            );
+            println!(
+                "  Dropped Oversized    : {}",
+                self.tsn_cqf_max_sdu_engine.total_dropped_frames
+            );
+            println!(
+                "  Alert/Passed Frames  : {}",
+                self.tsn_cqf_max_sdu_engine.total_alert_frames
+            );
+            println!(
+                "  Total Bytes Inspected: {} B",
+                self.tsn_cqf_max_sdu_engine.total_bytes_inspected
+            );
+            println!(
+                "  Total Bytes Forwarded: {} B",
+                self.tsn_cqf_max_sdu_engine.total_bytes_forwarded
+            );
             if !self.tsn_cqf_max_sdu_engine.rules.is_empty() {
                 println!("  Active Max-SDU Stream Rules:");
                 for r in &self.tsn_cqf_max_sdu_engine.rules {
-                    println!("    -> Stream {}: Max {} B, Action: {:?}, Desc: \"{}\"",
-                        r.stream_id, r.max_sdu_bytes, r.action, r.description);
+                    println!(
+                        "    -> Stream {}: Max {} B, Action: {:?}, Desc: \"{}\"",
+                        r.stream_id, r.max_sdu_bytes, r.action, r.description
+                    );
                 }
             }
             return;
@@ -22624,37 +27411,83 @@ impl NetworkShell {
         match args[0] {
             "enforce" => {
                 if args.len() < 4 {
-                    println!("Usage: tsn-cqf-max-sdu enforce <stream_id> <frame_id> <bytes> [time_ns]");
+                    println!(
+                        "Usage: tsn-cqf-max-sdu enforce <stream_id> <frame_id> <bytes> [time_ns]"
+                    );
                     return;
                 }
                 let stream_id = args[1].parse::<u32>().unwrap_or(1);
                 let frame_id = args[2].parse::<u32>().unwrap_or(100);
                 let bytes = args[3].parse::<usize>().unwrap_or(500);
-                let time_ns = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(0) } else { 0 };
+                let time_ns = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(0)
+                } else {
+                    0
+                };
 
-                let (verdict, forwarded) = self.tsn_cqf_max_sdu_engine.enforce_frame(stream_id, frame_id, bytes, time_ns);
+                let (verdict, forwarded) = self
+                    .tsn_cqf_max_sdu_engine
+                    .enforce_frame(stream_id, frame_id, bytes, time_ns);
                 match verdict {
-                    MaxSduVerdict::Conforming { stream_id, frame_id, frame_bytes, cycle_idx } => {
-                        println!("  [CONFORMING] Stream {}, Frame #{}: {} B conforms to Max-SDU (Cycle #{}, Fwd: {} B).",
-                            stream_id, frame_id, frame_bytes, cycle_idx, forwarded);
+                    MaxSduVerdict::Conforming {
+                        stream_id,
+                        frame_id,
+                        frame_bytes,
+                        cycle_idx,
+                    } => {
+                        println!(
+                            "  [CONFORMING] Stream {}, Frame #{}: {} B conforms to Max-SDU (Cycle #{}, Fwd: {} B).",
+                            stream_id, frame_id, frame_bytes, cycle_idx, forwarded
+                        );
                     }
-                    MaxSduVerdict::Truncated { stream_id, frame_id, original_bytes, truncated_bytes, cycle_idx } => {
-                        println!("  [TRUNCATED] Stream {}, Frame #{}: {} B truncated down to {} B (Cycle #{}, Fwd: {} B).",
-                            stream_id, frame_id, original_bytes, truncated_bytes, cycle_idx, forwarded);
+                    MaxSduVerdict::Truncated {
+                        stream_id,
+                        frame_id,
+                        original_bytes,
+                        truncated_bytes,
+                        cycle_idx,
+                    } => {
+                        println!(
+                            "  [TRUNCATED] Stream {}, Frame #{}: {} B truncated down to {} B (Cycle #{}, Fwd: {} B).",
+                            stream_id,
+                            frame_id,
+                            original_bytes,
+                            truncated_bytes,
+                            cycle_idx,
+                            forwarded
+                        );
                     }
-                    MaxSduVerdict::DroppedOversized { stream_id, frame_id, attempted_bytes, max_allowed, cycle_idx } => {
-                        println!("  [DROPPED OVERSIZED] Stream {}, Frame #{}: {} B exceeded Max-SDU limit {} B (Cycle #{}, Dropped).",
-                            stream_id, frame_id, attempted_bytes, max_allowed, cycle_idx);
+                    MaxSduVerdict::DroppedOversized {
+                        stream_id,
+                        frame_id,
+                        attempted_bytes,
+                        max_allowed,
+                        cycle_idx,
+                    } => {
+                        println!(
+                            "  [DROPPED OVERSIZED] Stream {}, Frame #{}: {} B exceeded Max-SDU limit {} B (Cycle #{}, Dropped).",
+                            stream_id, frame_id, attempted_bytes, max_allowed, cycle_idx
+                        );
                     }
-                    MaxSduVerdict::AlertPass { stream_id, frame_id, frame_bytes, max_allowed, cycle_idx } => {
-                        println!("  [ALERT PASS] Stream {}, Frame #{}: {} B exceeded Max-SDU limit {} B but passed with alert (Cycle #{}, Fwd: {} B).",
-                            stream_id, frame_id, frame_bytes, max_allowed, cycle_idx, forwarded);
+                    MaxSduVerdict::AlertPass {
+                        stream_id,
+                        frame_id,
+                        frame_bytes,
+                        max_allowed,
+                        cycle_idx,
+                    } => {
+                        println!(
+                            "  [ALERT PASS] Stream {}, Frame #{}: {} B exceeded Max-SDU limit {} B but passed with alert (Cycle #{}, Fwd: {} B).",
+                            stream_id, frame_id, frame_bytes, max_allowed, cycle_idx, forwarded
+                        );
                     }
                 }
             }
             "add-rule" | "add" => {
                 if args.len() < 4 {
-                    println!("Usage: tsn-cqf-max-sdu add-rule <stream_id> <max_sdu_bytes> <drop|trunc|alert> [desc]");
+                    println!(
+                        "Usage: tsn-cqf-max-sdu add-rule <stream_id> <max_sdu_bytes> <drop|trunc|alert> [desc]"
+                    );
                     return;
                 }
                 let stream_id = args[1].parse::<u32>().unwrap_or(1);
@@ -22664,33 +27497,70 @@ impl NetworkShell {
                     "alert" | "pass" => MaxSduAction::PassWithAlert,
                     _ => MaxSduAction::DropOversized,
                 };
-                let desc = if args.len() >= 5 { args[4] } else { "Custom Stream Max-SDU Rule" };
-                self.tsn_cqf_max_sdu_engine.add_rule(stream_id, max_sdu, action, desc);
-                println!("  [RULE CONFIGURED] Stream {}: Max-SDU = {} B, Action = {:?}, Desc = \"{}\"",
-                    stream_id, max_sdu, action, desc);
+                let desc = if args.len() >= 5 {
+                    args[4]
+                } else {
+                    "Custom Stream Max-SDU Rule"
+                };
+                self.tsn_cqf_max_sdu_engine
+                    .add_rule(stream_id, max_sdu, action, desc);
+                println!(
+                    "  [RULE CONFIGURED] Stream {}: Max-SDU = {} B, Action = {:?}, Desc = \"{}\"",
+                    stream_id, max_sdu, action, desc
+                );
             }
             "reset" => {
                 self.tsn_cqf_max_sdu_engine.reset();
                 println!("  [RESET] TSN CQF Max-SDU Enforcer engine reset.");
             }
-            _ => println!("Unknown subcommand. Usage: tsn-cqf-max-sdu [status | enforce <stream> <frame> <bytes> [t_ns] | add-rule <stream> <max_sdu> <drop|trunc|alert> [desc] | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: tsn-cqf-max-sdu [status | enforce <stream> <frame> <bytes> [t_ns] | add-rule <stream> <max_sdu> <drop|trunc|alert> [desc] | reset]"
+            ),
         }
     }
 
     fn cmd_diameter_s13_lease(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
             println!("=== 3GPP TS 29.272 Diameter S13 TAC Whitelist & Lease Expiry Engine ===");
-            println!("  Active Leases Total  : {}", self.s13_whitelist_lease_engine.leases.len());
-            println!("  Total Queries        : {}", self.s13_whitelist_lease_engine.total_queries);
-            println!("  Active Lease Matches : {}", self.s13_whitelist_lease_engine.total_active_matches);
-            println!("  Grace Period Matches : {}", self.s13_whitelist_lease_engine.total_grace_matches);
-            println!("  Expired Fallbacks    : {}", self.s13_whitelist_lease_engine.total_expired_fallbacks);
-            println!("  Default Matches      : {}", self.s13_whitelist_lease_engine.total_default_matches);
+            println!(
+                "  Active Leases Total  : {}",
+                self.s13_whitelist_lease_engine.leases.len()
+            );
+            println!(
+                "  Total Queries        : {}",
+                self.s13_whitelist_lease_engine.total_queries
+            );
+            println!(
+                "  Active Lease Matches : {}",
+                self.s13_whitelist_lease_engine.total_active_matches
+            );
+            println!(
+                "  Grace Period Matches : {}",
+                self.s13_whitelist_lease_engine.total_grace_matches
+            );
+            println!(
+                "  Expired Fallbacks    : {}",
+                self.s13_whitelist_lease_engine.total_expired_fallbacks
+            );
+            println!(
+                "  Default Matches      : {}",
+                self.s13_whitelist_lease_engine.total_default_matches
+            );
             if !self.s13_whitelist_lease_engine.leases.is_empty() {
                 println!("  Configured Leases:");
                 for l in &self.s13_whitelist_lease_engine.leases {
-                    println!("    -> Lease #{}: TAC [{:08} - {:08}], Granted @ {}s, Dur: {}s, Grace: {}s, Revoked: {}, Fallback: {:?}, Desc: \"{}\"",
-                        l.lease_id, l.start_tac, l.end_tac, l.granted_at_s, l.duration_s, l.grace_period_s, l.is_revoked, l.fallback_status, l.description);
+                    println!(
+                        "    -> Lease #{}: TAC [{:08} - {:08}], Granted @ {}s, Dur: {}s, Grace: {}s, Revoked: {}, Fallback: {:?}, Desc: \"{}\"",
+                        l.lease_id,
+                        l.start_tac,
+                        l.end_tac,
+                        l.granted_at_s,
+                        l.duration_s,
+                        l.grace_period_s,
+                        l.is_revoked,
+                        l.fallback_status,
+                        l.description
+                    );
                 }
             }
             return;
@@ -22703,40 +27573,84 @@ impl NetworkShell {
                     return;
                 }
                 let imei = args[1];
-                let cur_time = if args.len() >= 3 { args[2].parse::<u64>().unwrap_or(1000) } else { 1000 };
+                let cur_time = if args.len() >= 3 {
+                    args[2].parse::<u64>().unwrap_or(1000)
+                } else {
+                    1000
+                };
 
-                let verdict = self.s13_whitelist_lease_engine.evaluate_imei(imei, cur_time);
+                let verdict = self
+                    .s13_whitelist_lease_engine
+                    .evaluate_imei(imei, cur_time);
                 match verdict {
-                    LeaseVerdict::LeaseActive { lease_id, imei, tac, remaining_s, status } => {
-                        println!("  [LEASE ACTIVE] IMEI {} (TAC {:08}): Lease #{} active ({}s remaining) -> Status: {:?}.",
-                            imei, tac, lease_id, remaining_s, status);
+                    LeaseVerdict::LeaseActive {
+                        lease_id,
+                        imei,
+                        tac,
+                        remaining_s,
+                        status,
+                    } => {
+                        println!(
+                            "  [LEASE ACTIVE] IMEI {} (TAC {:08}): Lease #{} active ({}s remaining) -> Status: {:?}.",
+                            imei, tac, lease_id, remaining_s, status
+                        );
                     }
-                    LeaseVerdict::LeaseInGracePeriod { lease_id, imei, tac, grace_remaining_s, status } => {
-                        println!("  [LEASE GRACE PERIOD] IMEI {} (TAC {:08}): Lease #{} in grace period ({}s remaining) -> Status: {:?}.",
-                            imei, tac, lease_id, grace_remaining_s, status);
+                    LeaseVerdict::LeaseInGracePeriod {
+                        lease_id,
+                        imei,
+                        tac,
+                        grace_remaining_s,
+                        status,
+                    } => {
+                        println!(
+                            "  [LEASE GRACE PERIOD] IMEI {} (TAC {:08}): Lease #{} in grace period ({}s remaining) -> Status: {:?}.",
+                            imei, tac, lease_id, grace_remaining_s, status
+                        );
                     }
-                    LeaseVerdict::LeaseExpiredFallback { lease_id, imei, tac, fallback_status } => {
-                        println!("  [LEASE EXPIRED FALLBACK] IMEI {} (TAC {:08}): Lease #{} expired -> Applied fallback status: {:?}.",
-                            imei, tac, lease_id, fallback_status);
+                    LeaseVerdict::LeaseExpiredFallback {
+                        lease_id,
+                        imei,
+                        tac,
+                        fallback_status,
+                    } => {
+                        println!(
+                            "  [LEASE EXPIRED FALLBACK] IMEI {} (TAC {:08}): Lease #{} expired -> Applied fallback status: {:?}.",
+                            imei, tac, lease_id, fallback_status
+                        );
                     }
-                    LeaseVerdict::NoLeaseFound { imei, tac, default_status } => {
-                        println!("  [NO LEASE] IMEI {} (TAC {:08}): No temporary lease found -> Default status: {:?}.",
-                            imei, tac, default_status);
+                    LeaseVerdict::NoLeaseFound {
+                        imei,
+                        tac,
+                        default_status,
+                    } => {
+                        println!(
+                            "  [NO LEASE] IMEI {} (TAC {:08}): No temporary lease found -> Default status: {:?}.",
+                            imei, tac, default_status
+                        );
                     }
                     LeaseVerdict::InvalidImeiFormat { input } => {
-                        println!("  [INVALID IMEI] Invalid IMEI format provided: \"{}\"", input);
+                        println!(
+                            "  [INVALID IMEI] Invalid IMEI format provided: \"{}\"",
+                            input
+                        );
                     }
                 }
             }
             "grant" => {
                 if args.len() < 4 {
-                    println!("Usage: diameter-s13-lease grant <start_tac> <end_tac> <duration_s> [grace_s] [white|gray|black] [desc]");
+                    println!(
+                        "Usage: diameter-s13-lease grant <start_tac> <end_tac> <duration_s> [grace_s] [white|gray|black] [desc]"
+                    );
                     return;
                 }
                 let start_tac = args[1].parse::<u64>().unwrap_or(0);
                 let end_tac = args[2].parse::<u64>().unwrap_or(0);
                 let dur_s = args[3].parse::<u64>().unwrap_or(3600);
-                let grace_s = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(300) } else { 300 };
+                let grace_s = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(300)
+                } else {
+                    300
+                };
                 let fallback = if args.len() >= 6 {
                     match args[5].to_lowercase().as_str() {
                         "white" | "whitelist" => S13EquipmentStatus::WhiteListed,
@@ -22746,13 +27660,19 @@ impl NetworkShell {
                 } else {
                     S13EquipmentStatus::BlackListed
                 };
-                let desc = if args.len() >= 7 { args[6] } else { "Temporary Equipment Lease" };
+                let desc = if args.len() >= 7 {
+                    args[6]
+                } else {
+                    "Temporary Equipment Lease"
+                };
 
-                let lease_id = self.s13_whitelist_lease_engine.grant_lease(
-                    start_tac, end_tac, 1000, dur_s, grace_s, fallback, desc,
+                let lease_id = self
+                    .s13_whitelist_lease_engine
+                    .grant_lease(start_tac, end_tac, 1000, dur_s, grace_s, fallback, desc);
+                println!(
+                    "  [LEASE GRANTED] Created Lease #{} for TAC [{:08} - {:08}], Duration: {}s, Grace: {}s, Fallback: {:?}, Desc: \"{}\"",
+                    lease_id, start_tac, end_tac, dur_s, grace_s, fallback, desc
                 );
-                println!("  [LEASE GRANTED] Created Lease #{} for TAC [{:08} - {:08}], Duration: {}s, Grace: {}s, Fallback: {:?}, Desc: \"{}\"",
-                    lease_id, start_tac, end_tac, dur_s, grace_s, fallback, desc);
             }
             "renew" => {
                 if args.len() < 3 {
@@ -22764,7 +27684,10 @@ impl NetworkShell {
                 if self.s13_whitelist_lease_engine.renew_lease(lease_id, ext) {
                     println!("  [RENEWED] Lease #{} extended by +{}s.", lease_id, ext);
                 } else {
-                    println!("  [ERROR] Lease #{} not found or already revoked.", lease_id);
+                    println!(
+                        "  [ERROR] Lease #{} not found or already revoked.",
+                        lease_id
+                    );
                 }
             }
             "revoke" => {
@@ -22780,30 +27703,77 @@ impl NetworkShell {
                 }
             }
             "sweep" => {
-                let cur_time = if args.len() >= 2 { args[1].parse::<u64>().unwrap_or(10000) } else { 10000 };
-                let expired = self.s13_whitelist_lease_engine.sweep_expired_leases(cur_time);
-                println!("  [SWEEP EXPIRED] Found {} expired leases at t={}s: {:?}", expired.len(), cur_time, expired);
+                let cur_time = if args.len() >= 2 {
+                    args[1].parse::<u64>().unwrap_or(10000)
+                } else {
+                    10000
+                };
+                let expired = self
+                    .s13_whitelist_lease_engine
+                    .sweep_expired_leases(cur_time);
+                println!(
+                    "  [SWEEP EXPIRED] Found {} expired leases at t={}s: {:?}",
+                    expired.len(),
+                    cur_time,
+                    expired
+                );
             }
-            _ => println!("Unknown subcommand. Usage: diameter-s13-lease [status | eval <imei> [t_s] | grant <start_tac> <end_tac> <dur_s> [grace_s] [fallback] [desc] | renew <id> <dur_s> | revoke <id> | sweep [t_s]]"),
+            _ => println!(
+                "Unknown subcommand. Usage: diameter-s13-lease [status | eval <imei> [t_s] | grant <start_tac> <end_tac> <dur_s> [grace_s] [fallback] [desc] | renew <id> <dur_s> | revoke <id> | sweep [t_s]]"
+            ),
         }
     }
 
     fn cmd_evpn_mcast_policer(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
-            println!("=== EVPN IGMP/MLD Multicast Control Message Rate Limiter & Storm Policer ===");
-            println!("  Default Rate         : {} pps", self.evpn_mcast_rate_policer.default_rate_pps);
-            println!("  Default Burst        : {} pkts", self.evpn_mcast_rate_policer.default_burst_pkts);
-            println!("  Active Port Buckets  : {}", self.evpn_mcast_rate_policer.buckets.len());
-            println!("  Total Msgs Evaluated : {}", self.evpn_mcast_rate_policer.total_messages_evaluated);
-            println!("  Conforming Messages  : {}", self.evpn_mcast_rate_policer.total_conforming_messages);
-            println!("  Rate-Limited Drops   : {}", self.evpn_mcast_rate_policer.total_rate_limited_drops);
-            println!("  Quarantined Drops    : {}", self.evpn_mcast_rate_policer.total_quarantined_drops);
-            println!("  Penalty-Box Triggers : {}", self.evpn_mcast_rate_policer.total_penalty_box_triggers);
+            println!(
+                "=== EVPN IGMP/MLD Multicast Control Message Rate Limiter & Storm Policer ==="
+            );
+            println!(
+                "  Default Rate         : {} pps",
+                self.evpn_mcast_rate_policer.default_rate_pps
+            );
+            println!(
+                "  Default Burst        : {} pkts",
+                self.evpn_mcast_rate_policer.default_burst_pkts
+            );
+            println!(
+                "  Active Port Buckets  : {}",
+                self.evpn_mcast_rate_policer.buckets.len()
+            );
+            println!(
+                "  Total Msgs Evaluated : {}",
+                self.evpn_mcast_rate_policer.total_messages_evaluated
+            );
+            println!(
+                "  Conforming Messages  : {}",
+                self.evpn_mcast_rate_policer.total_conforming_messages
+            );
+            println!(
+                "  Rate-Limited Drops   : {}",
+                self.evpn_mcast_rate_policer.total_rate_limited_drops
+            );
+            println!(
+                "  Quarantined Drops    : {}",
+                self.evpn_mcast_rate_policer.total_quarantined_drops
+            );
+            println!(
+                "  Penalty-Box Triggers : {}",
+                self.evpn_mcast_rate_policer.total_penalty_box_triggers
+            );
             if !self.evpn_mcast_rate_policer.buckets.is_empty() {
                 println!("  Configured Port Policies:");
                 for b in &self.evpn_mcast_rate_policer.buckets {
-                    println!("    -> VNI {}, Port {}: Committed {} pps, Burst: {}, Tokens: {:.1}, ConsecDrops: {}, Quarantined: {:?}",
-                        b.vni, b.port_id, b.committed_rate_pps, b.burst_tolerance_pkts, b.tokens, b.consecutive_drops, b.quarantined_until_us);
+                    println!(
+                        "    -> VNI {}, Port {}: Committed {} pps, Burst: {}, Tokens: {:.1}, ConsecDrops: {}, Quarantined: {:?}",
+                        b.vni,
+                        b.port_id,
+                        b.committed_rate_pps,
+                        b.burst_tolerance_pkts,
+                        b.tokens,
+                        b.consecutive_drops,
+                        b.quarantined_until_us
+                    );
                 }
             }
             return;
@@ -22812,7 +27782,9 @@ impl NetworkShell {
         match args[0] {
             "police" => {
                 if args.len() < 4 {
-                    println!("Usage: evpn-mcast-policer police <vni> <port_id> <query|v2-report|v3-report|leave> [timestamp_us]");
+                    println!(
+                        "Usage: evpn-mcast-policer police <vni> <port_id> <query|v2-report|v3-report|leave> [timestamp_us]"
+                    );
                     return;
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(100);
@@ -22825,39 +27797,79 @@ impl NetworkShell {
                     "mld-done" => IgmpMessageType::MldDone,
                     _ => IgmpMessageType::MembershipQuery,
                 };
-                let t_us = if args.len() >= 5 { args[4].parse::<u64>().unwrap_or(0) } else { 0 };
+                let t_us = if args.len() >= 5 {
+                    args[4].parse::<u64>().unwrap_or(0)
+                } else {
+                    0
+                };
 
-                let verdict = self.evpn_mcast_rate_policer.police_message(vni, port_id, msg_type, t_us);
+                let verdict = self
+                    .evpn_mcast_rate_policer
+                    .police_message(vni, port_id, msg_type, t_us);
                 match verdict {
-                    IgmpPolicerVerdict::Conforming { vni, port_id, msg_type, remaining_tokens } => {
-                        println!("  [CONFORMING] VNI {}, Port {}: {:?} permitted (Remaining tokens: {}).",
-                            vni, port_id, msg_type, remaining_tokens);
+                    IgmpPolicerVerdict::Conforming {
+                        vni,
+                        port_id,
+                        msg_type,
+                        remaining_tokens,
+                    } => {
+                        println!(
+                            "  [CONFORMING] VNI {}, Port {}: {:?} permitted (Remaining tokens: {}).",
+                            vni, port_id, msg_type, remaining_tokens
+                        );
                     }
-                    IgmpPolicerVerdict::RateLimitedDropped { vni, port_id, msg_type, drop_count } => {
-                        println!("  [RATE-LIMITED DROP] VNI {}, Port {}: {:?} dropped (Consecutive drop #{})!",
-                            vni, port_id, msg_type, drop_count);
+                    IgmpPolicerVerdict::RateLimitedDropped {
+                        vni,
+                        port_id,
+                        msg_type,
+                        drop_count,
+                    } => {
+                        println!(
+                            "  [RATE-LIMITED DROP] VNI {}, Port {}: {:?} dropped (Consecutive drop #{})!",
+                            vni, port_id, msg_type, drop_count
+                        );
                     }
-                    IgmpPolicerVerdict::QuarantinedInPenaltyBox { vni, port_id, msg_type, remaining_quarantine_us } => {
-                        println!("  [QUARANTINED PENALTY BOX] VNI {}, Port {}: {:?} dropped (Quarantine active: {} us remaining)!",
-                            vni, port_id, msg_type, remaining_quarantine_us);
+                    IgmpPolicerVerdict::QuarantinedInPenaltyBox {
+                        vni,
+                        port_id,
+                        msg_type,
+                        remaining_quarantine_us,
+                    } => {
+                        println!(
+                            "  [QUARANTINED PENALTY BOX] VNI {}, Port {}: {:?} dropped (Quarantine active: {} us remaining)!",
+                            vni, port_id, msg_type, remaining_quarantine_us
+                        );
                     }
                 }
             }
             "set" => {
                 if args.len() < 5 {
-                    println!("Usage: evpn-mcast-policer set <vni> <port_id> <rate_pps> <burst_pkts> [penalty_threshold] [quarantine_duration_us]");
+                    println!(
+                        "Usage: evpn-mcast-policer set <vni> <port_id> <rate_pps> <burst_pkts> [penalty_threshold] [quarantine_duration_us]"
+                    );
                     return;
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(100);
                 let port_id = args[2].parse::<u32>().unwrap_or(1);
                 let pps = args[3].parse::<u32>().unwrap_or(50);
                 let burst = args[4].parse::<u32>().unwrap_or(10);
-                let thresh = if args.len() >= 6 { args[5].parse::<u32>().unwrap_or(5) } else { 5 };
-                let quar_us = if args.len() >= 7 { args[6].parse::<u64>().unwrap_or(5_000_000) } else { 5_000_000 };
+                let thresh = if args.len() >= 6 {
+                    args[5].parse::<u32>().unwrap_or(5)
+                } else {
+                    5
+                };
+                let quar_us = if args.len() >= 7 {
+                    args[6].parse::<u64>().unwrap_or(5_000_000)
+                } else {
+                    5_000_000
+                };
 
-                self.evpn_mcast_rate_policer.set_port_policy(vni, port_id, pps, burst, thresh, quar_us);
-                println!("  [POLICY CONFIGURED] VNI {}, Port {}: Rate: {} pps, Burst: {}, Penalty Threshold: {}, Quarantine: {} us",
-                    vni, port_id, pps, burst, thresh, quar_us);
+                self.evpn_mcast_rate_policer
+                    .set_port_policy(vni, port_id, pps, burst, thresh, quar_us);
+                println!(
+                    "  [POLICY CONFIGURED] VNI {}, Port {}: Rate: {} pps, Burst: {}, Penalty Threshold: {}, Quarantine: {} us",
+                    vni, port_id, pps, burst, thresh, quar_us
+                );
             }
             "release" => {
                 if args.len() < 3 {
@@ -22866,8 +27878,14 @@ impl NetworkShell {
                 }
                 let vni = args[1].parse::<u32>().unwrap_or(100);
                 let port_id = args[2].parse::<u32>().unwrap_or(1);
-                if self.evpn_mcast_rate_policer.release_penalty_box(vni, port_id) {
-                    println!("  [RELEASED] VNI {}, Port {} penalty box quarantine cleared.", vni, port_id);
+                if self
+                    .evpn_mcast_rate_policer
+                    .release_penalty_box(vni, port_id)
+                {
+                    println!(
+                        "  [RELEASED] VNI {}, Port {} penalty box quarantine cleared.",
+                        vni, port_id
+                    );
                 } else {
                     println!("  [ERROR] Port {} on VNI {} not found.", port_id, vni);
                 }
@@ -22876,18 +27894,36 @@ impl NetworkShell {
                 self.evpn_mcast_rate_policer.reset();
                 println!("  [RESET] EVPN IGMP Rate Limit Policer reset.");
             }
-            _ => println!("Unknown subcommand. Usage: evpn-mcast-policer [status | police <vni> <port> <query|v2-report|v3-report|leave> [t_us] | set <vni> <port> <pps> <burst> [thresh] [quar_us] | release <vni> <port> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: evpn-mcast-policer [status | police <vni> <port> <query|v2-report|v3-report|leave> [t_us] | set <vni> <port> <pps> <burst> [thresh] [quar_us] | release <vni> <port> | reset]"
+            ),
         }
     }
 
     fn cmd_gtpu_flow_entropy(&mut self, args: &[&str]) {
         if args.is_empty() || args[0] == "status" {
-            println!("=== 3GPP TS 29.281 / RFC 6437 5G GTP-U Outer IPv6 Flow Label Entropy Engine ===");
-            println!("  Active Algorithm     : {:?}", self.gtpu_flow_entropy_engine.algorithm);
-            println!("  ECMP Buckets         : {}", self.gtpu_flow_entropy_engine.ecmp_buckets);
-            println!("  Total Computations   : {}", self.gtpu_flow_entropy_engine.total_computations);
+            println!(
+                "=== 3GPP TS 29.281 / RFC 6437 5G GTP-U Outer IPv6 Flow Label Entropy Engine ==="
+            );
+            println!(
+                "  Active Algorithm     : {:?}",
+                self.gtpu_flow_entropy_engine.algorithm
+            );
+            println!(
+                "  ECMP Buckets         : {}",
+                self.gtpu_flow_entropy_engine.ecmp_buckets
+            );
+            println!(
+                "  Total Computations   : {}",
+                self.gtpu_flow_entropy_engine.total_computations
+            );
             println!("  ECMP Bucket Distribution:");
-            for (idx, count) in self.gtpu_flow_entropy_engine.bucket_counts.iter().enumerate() {
+            for (idx, count) in self
+                .gtpu_flow_entropy_engine
+                .bucket_counts
+                .iter()
+                .enumerate()
+            {
                 println!("    -> Bucket {:02}: {} packets", idx, count);
             }
             return;
@@ -22896,11 +27932,14 @@ impl NetworkShell {
         match args[0] {
             "hash" | "compute" => {
                 if args.len() < 8 {
-                    println!("Usage: gtpu-flow-entropy hash <src_ip> <dst_ip> <src_port> <dst_port> <protocol> <teid> <qfi>");
+                    println!(
+                        "Usage: gtpu-flow-entropy hash <src_ip> <dst_ip> <src_port> <dst_port> <protocol> <teid> <qfi>"
+                    );
                     return;
                 }
                 let s_ip = Ipv4Address::from_str(args[1]).unwrap_or(Ipv4Address::new(10, 0, 0, 1));
-                let d_ip = Ipv4Address::from_str(args[2]).unwrap_or(Ipv4Address::new(192, 168, 1, 1));
+                let d_ip =
+                    Ipv4Address::from_str(args[2]).unwrap_or(Ipv4Address::new(192, 168, 1, 1));
                 let s_port = args[3].parse::<u16>().unwrap_or(54321);
                 let d_port = args[4].parse::<u16>().unwrap_or(443);
                 let proto = args[5].parse::<u8>().unwrap_or(6);
@@ -22911,21 +27950,19 @@ impl NetworkShell {
                 };
                 let qfi = args[7].parse::<u8>().unwrap_or(9);
 
-                let tuple = InnerPacketTuple::new(
-                    s_ip.0,
-                    d_ip.0,
-                    s_port,
-                    d_port,
-                    proto,
-                    teid,
-                    qfi,
-                );
+                let tuple = InnerPacketTuple::new(s_ip.0, d_ip.0, s_port, d_port, proto, teid, qfi);
 
                 let verdict = self.gtpu_flow_entropy_engine.compute_flow_label(&tuple);
                 println!("  [FLOW LABEL COMPUTED] Algorithm: {:?}", verdict.algorithm);
-                println!("    -> Inner 5-Tuple   : {}:{} -> {}:{} (Proto {})", s_ip, s_port, d_ip, d_port, proto);
+                println!(
+                    "    -> Inner 5-Tuple   : {}:{} -> {}:{} (Proto {})",
+                    s_ip, s_port, d_ip, d_port, proto
+                );
                 println!("    -> 5G Session      : TEID 0x{:08X}, QFI {}", teid, qfi);
-                println!("    -> IPv6 Flow Label : 0x{:05X} (20-bit: {})", verdict.flow_label_20bit, verdict.flow_label_20bit);
+                println!(
+                    "    -> IPv6 Flow Label : 0x{:05X} (20-bit: {})",
+                    verdict.flow_label_20bit, verdict.flow_label_20bit
+                );
                 println!("    -> Full Hash       : 0x{:08X}", verdict.inner_hash);
                 println!("    -> Assigned ECMP   : Bucket #{}", verdict.ecmp_bin);
             }
@@ -22939,7 +27976,10 @@ impl NetworkShell {
                     "jenkins" | "lookup3" => FlowLabelAlgorithm::JenkinsEntropy,
                     _ => FlowLabelAlgorithm::Fnv1aEntropy,
                 };
-                println!("  [ALGORITHM CHANGED] Active Flow Label algorithm set to: {:?}", self.gtpu_flow_entropy_engine.algorithm);
+                println!(
+                    "  [ALGORITHM CHANGED] Active Flow Label algorithm set to: {:?}",
+                    self.gtpu_flow_entropy_engine.algorithm
+                );
             }
             "buckets" => {
                 if args.len() < 2 {
@@ -22955,7 +27995,9 @@ impl NetworkShell {
                 self.gtpu_flow_entropy_engine.reset();
                 println!("  [RESET] 5G GTP-U Flow Label Entropy engine reset.");
             }
-            _ => println!("Unknown subcommand. Usage: gtpu-flow-entropy [status | hash <s_ip> <d_ip> <s_port> <d_port> <proto> <teid> <qfi> | algo <fnv1a|crc32|jenkins> | buckets <n> | reset]"),
+            _ => println!(
+                "Unknown subcommand. Usage: gtpu-flow-entropy [status | hash <s_ip> <d_ip> <s_port> <d_port> <proto> <teid> <qfi> | algo <fnv1a|crc32|jenkins> | buckets <n> | reset]"
+            ),
         }
     }
 }

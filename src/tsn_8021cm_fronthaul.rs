@@ -188,7 +188,10 @@ impl Ieee8021CmEngine {
     }
 
     /// Evaluates the end-to-end path against IEEE 802.1CM profile bounds for a traffic class.
-    pub fn evaluate_fronthaul_path(&self, traffic_class: EcpriTrafficClass) -> FronthaulPathEvaluation {
+    pub fn evaluate_fronthaul_path(
+        &self,
+        traffic_class: EcpriTrafficClass,
+    ) -> FronthaulPathEvaluation {
         let is_express = traffic_class.is_express_traffic();
 
         let mut total_owtd: u64 = 0;
@@ -226,7 +229,11 @@ impl Ieee8021CmEngine {
     }
 
     /// Validates whether an incoming eCPRI message type and VLAN PCP priority match IEEE 802.1CM requirements.
-    pub fn validate_ecpri_mapping(&self, msg_type: u8, pcp: u8) -> Result<EcpriTrafficClass, &'static str> {
+    pub fn validate_ecpri_mapping(
+        &self,
+        msg_type: u8,
+        pcp: u8,
+    ) -> Result<EcpriTrafficClass, &'static str> {
         let class = match msg_type {
             0 => {
                 if pcp >= 7 {

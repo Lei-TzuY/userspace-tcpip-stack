@@ -210,7 +210,8 @@ mod tests {
 
     #[test]
     fn test_geneve_ecn_ingress_normal_and_compat() {
-        let pipeline_normal = GeneveEcnPipeline::new(GeneveEcnMode::Normal, DiffServTunnelMode::Uniform);
+        let pipeline_normal =
+            GeneveEcnPipeline::new(GeneveEcnMode::Normal, DiffServTunnelMode::Uniform);
 
         // IPv4 packet with DSCP EF (46) and ECN ECT(0) (2) -> ToS = (46 << 2) | 2 = 186 (0xBA)
         let mut ip_pkt = vec![0x45, 0xBA, 0, 20, 0, 0, 0, 0, 64, 6, 0, 0];
@@ -231,7 +232,10 @@ mod tests {
 
     #[test]
     fn test_geneve_ecn_egress_combining_rules_and_ce_drop() {
-        let pipeline = GeneveEcnPipeline::new(GeneveEcnMode::Normal, DiffServTunnelMode::Pipe { tunnel_dscp: 0 });
+        let pipeline = GeneveEcnPipeline::new(
+            GeneveEcnMode::Normal,
+            DiffServTunnelMode::Pipe { tunnel_dscp: 0 },
+        );
 
         // 1. Inner ECT(0) (2), Outer CE (3) -> Combined to Inner CE (3)
         let mut ip_ect0 = vec![0x45, 0x02, 0, 20, 0, 0, 0, 0, 64, 6, 0, 0];
@@ -241,7 +245,11 @@ mod tests {
         let outer_ce_tos = 0b11; // CE
         let res1 = pipeline.decapsulate_and_combine_ecn(outer_ce_tos, ip_ect0);
         match res1 {
-            EcnDecapResult::Admitted { final_ecn, inner_packet, .. } => {
+            EcnDecapResult::Admitted {
+                final_ecn,
+                inner_packet,
+                ..
+            } => {
                 assert_eq!(final_ecn, EcnCodepoint::Ce);
                 assert_eq!(inner_packet[1] & 0b11, 0b11);
             }

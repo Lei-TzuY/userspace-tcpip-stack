@@ -11,7 +11,7 @@ fn test_evpn_umrt_pruning_lifecycle() {
 
     // Local access ports
     engine.add_local_port(1, vni, false); // Host A
-    engine.add_local_port(2, vni, true);  // Host B (Pruned unknown multicast)
+    engine.add_local_port(2, vni, true); // Host B (Pruned unknown multicast)
     engine.add_local_port(3, vni, false); // Host C
     engine.add_local_port(4, 999, false); // Host D (Different VNI)
 
@@ -29,7 +29,8 @@ fn test_evpn_umrt_pruning_lifecycle() {
     assert_eq!(plan1.remote_vteps, vec![remote_vtep_1]); // Only remote_vtep_1 is subscribed to VNI 300
 
     // 2. Frame arrives from Overlay VTEP 1
-    let plan2 = engine.compute_replication_plan(vni, IngressDomain::OverlayVtep(remote_vtep_1), mcast_mac);
+    let plan2 =
+        engine.compute_replication_plan(vni, IngressDomain::OverlayVtep(remote_vtep_1), mcast_mac);
     assert_eq!(plan2.local_egress_ports, vec![1, 3]); // Replicates to all non-pruned local ports in VNI 300
     assert!(plan2.remote_vteps.is_empty()); // Split-horizon: No reflection back to overlay core
 }

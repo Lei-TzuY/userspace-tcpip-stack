@@ -83,7 +83,11 @@ impl EvpnIpAntiSpoofEngine {
 
     /// Set trust mode for a physical/logical port.
     pub fn set_port_trust_mode(&mut self, port_id: u32, mode: PortTrustMode) {
-        if let Some(pos) = self.port_trust_modes.iter().position(|(p, _)| *p == port_id) {
+        if let Some(pos) = self
+            .port_trust_modes
+            .iter()
+            .position(|(p, _)| *p == port_id)
+        {
             self.port_trust_modes[pos].1 = mode;
         } else {
             self.port_trust_modes.push((port_id, mode));
@@ -114,7 +118,11 @@ impl EvpnIpAntiSpoofEngine {
 
     /// Remove a binding by VNI and IP.
     pub fn remove_binding(&mut self, vni: u32, ip: Ipv4Address) -> bool {
-        if let Some(pos) = self.bindings.iter().position(|b| b.vni == vni && b.ip == ip) {
+        if let Some(pos) = self
+            .bindings
+            .iter()
+            .position(|b| b.vni == vni && b.ip == ip)
+        {
             self.bindings.remove(pos);
             true
         } else {
@@ -139,7 +147,10 @@ impl EvpnIpAntiSpoofEngine {
         }
 
         // Search for matching binding in VNI
-        let matching_ip_binding = self.bindings.iter().find(|b| b.vni == vni && b.ip == src_ip);
+        let matching_ip_binding = self
+            .bindings
+            .iter()
+            .find(|b| b.vni == vni && b.ip == src_ip);
 
         match matching_ip_binding {
             Some(b) => {

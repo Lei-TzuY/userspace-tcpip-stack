@@ -271,8 +271,15 @@ impl TsnCqfDualPlaneEngine {
                         let reason = if active_state == PlaneState::Failed {
                             format!("Primary {} completely failed (Health 0)", old_plane)
                         } else {
-                            format!("Primary {} degraded below threshold (Score {})", old_plane,
-                                if old_plane == TsnPlane::PlaneA { self.plane_a_metrics.health_score } else { self.plane_b_metrics.health_score })
+                            format!(
+                                "Primary {} degraded below threshold (Score {})",
+                                old_plane,
+                                if old_plane == TsnPlane::PlaneA {
+                                    self.plane_a_metrics.health_score
+                                } else {
+                                    self.plane_b_metrics.health_score
+                                }
+                            )
                         };
 
                         return DualPlaneDispatchVerdict::FailoverTriggeredAndForwarded {

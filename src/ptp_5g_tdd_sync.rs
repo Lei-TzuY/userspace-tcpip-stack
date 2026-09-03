@@ -39,10 +39,16 @@ impl NrTddSyncCategory {
         match self {
             NrTddSyncCategory::BasicTddCellSync => "3GPP Basic TDD Cell Phase Synchronization",
             NrTddSyncCategory::MimoTransmission => "3GPP MIMO Transmission (TAE <= 65ns)",
-            NrTddSyncCategory::IntraBandContiguousCa => "3GPP Intra-Band Contiguous CA (TAE <= 260ns)",
-            NrTddSyncCategory::IntraBandNonContiguousCa => "3GPP Intra-Band Non-Contiguous CA (TAE <= 3000ns)",
+            NrTddSyncCategory::IntraBandContiguousCa => {
+                "3GPP Intra-Band Contiguous CA (TAE <= 260ns)"
+            }
+            NrTddSyncCategory::IntraBandNonContiguousCa => {
+                "3GPP Intra-Band Non-Contiguous CA (TAE <= 3000ns)"
+            }
             NrTddSyncCategory::InterBandCa => "3GPP Inter-Band CA (TAE <= 3000ns)",
-            NrTddSyncCategory::CoordinatedMultipoint => "3GPP CoMP / Distributed MIMO (Relative <= 260ns)",
+            NrTddSyncCategory::CoordinatedMultipoint => {
+                "3GPP CoMP / Distributed MIMO (Relative <= 260ns)"
+            }
         }
     }
 }
@@ -57,7 +63,12 @@ pub struct AntennaPortMeasurement {
 }
 
 impl AntennaPortMeasurement {
-    pub fn new(port_id: u32, antenna_group: u8, carrier_freq_mhz: f64, measured_te_ns: i64) -> Self {
+    pub fn new(
+        port_id: u32,
+        antenna_group: u8,
+        carrier_freq_mhz: f64,
+        measured_te_ns: i64,
+    ) -> Self {
         Self {
             port_id,
             antenna_group,
@@ -158,7 +169,11 @@ impl NrTddSyncEngine {
 
     /// Ingests an antenna port measurement sample into the engine.
     pub fn add_measurement(&mut self, m: AntennaPortMeasurement) {
-        if let Some(pos) = self.measurements.iter().position(|p| p.port_id == m.port_id) {
+        if let Some(pos) = self
+            .measurements
+            .iter()
+            .position(|p| p.port_id == m.port_id)
+        {
             self.measurements[pos] = m;
         } else {
             self.measurements.push(m);
@@ -257,13 +272,22 @@ impl NrTddSyncEngine {
 
     /// Evaluates Relative Cell Phase Synchronization between any two antenna ports in the network
     /// (e.g. adjacent cells in basic TDD <= 3000 ns, or CoMP <= 260 ns).
-    pub fn evaluate_inter_cell_phase_sync(&self, max_relative_limit_ns: i64) -> Result<(), (u32, u32, i64)> {
+    pub fn evaluate_inter_cell_phase_sync(
+        &self,
+        max_relative_limit_ns: i64,
+    ) -> Result<(), (u32, u32, i64)> {
         let n = self.measurements.len();
         for i in 0..n {
             for j in (i + 1)..n {
-                let diff = (self.measurements[i].measured_te_ns - self.measurements[j].measured_te_ns).abs();
+                let diff = (self.measurements[i].measured_te_ns
+                    - self.measurements[j].measured_te_ns)
+                    .abs();
                 if diff > max_relative_limit_ns {
-                    return Err((self.measurements[i].port_id, self.measurements[j].port_id, diff));
+                    return Err((
+                        self.measurements[i].port_id,
+                        self.measurements[j].port_id,
+                        diff,
+                    ));
                 }
             }
         }
