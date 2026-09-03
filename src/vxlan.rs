@@ -71,7 +71,8 @@ impl VxlanHeader {
 
     pub fn serialize(&self) -> [u8; 8] {
         let mut b = [0u8; 8];
-        b[0] = self.flags;
+        // RFC 7348 requires the I bit on and all other flag bits zero on transmission.
+        b[0] = VXLAN_FLAG_VNI_VALID;
         b[4] = ((self.vni >> 16) & 0xFF) as u8;
         b[5] = ((self.vni >> 8) & 0xFF) as u8;
         b[6] = (self.vni & 0xFF) as u8;
@@ -125,6 +126,16 @@ mod tests {
 
         let parsed = VxlanHeader::parse(&raw).unwrap();
         assert_eq!(parsed.vni, 100500);
+    }
+
+    #[test]
+    fn test_vxlan_serializer_clears_reserved_flag_bits() {
+        let mut hdr = VxlanHeader::new(42).unwrap();
+        hdr.flags = 0xFF;
+
+        let raw = hdr.serialize();
+
+        assert_eq!(raw[0], VXLAN_FLAG_VNI_VALID);
     }
 
     #[test]
