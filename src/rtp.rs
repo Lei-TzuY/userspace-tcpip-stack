@@ -289,6 +289,7 @@ impl RtcpSenderReport {
     pub fn parse(data: &[u8]) -> Option<Self> {
         if data.len() < 28
             || data[0] >> 6 != 2
+            || data[0] & 0x20 != 0
             || data[0] & 0x1F != 0
             || data[1] != RTCP_PT_SR
             || u16::from_be_bytes([data[2], data[3]]) != 6
@@ -417,6 +418,8 @@ mod tests {
         let parsed = RtcpSenderReport::parse(&raw).unwrap();
 
         assert_eq!(parsed.ssrc, 0x11223344);
+        assert_eq!(parsed.ntp_timestamp, 0xE584123400000000);
+        assert_eq!(parsed.rtp_timestamp, 160000);
         assert_eq!(parsed.packet_count, 50);
         assert_eq!(parsed.octet_count, 8000);
     }
@@ -435,6 +438,15 @@ mod tests {
         let sr = RtcpSenderReport::build(0x11223344, 0xE584123400000000, 160000, 50, 8000);
         let mut raw = sr.serialize();
         raw[0] = (1 << 6) | (raw[0] & 0x3F);
+
+        assert_eq!(RtcpSenderReport::parse(&raw), None);
+    }
+
+    #[test]
+    fn test_rtcp_sender_report_rejects_padding() {
+        let sr = RtcpSenderReport::build(0x11223344, 0xE584123400000000, 160000, 50, 8000);
+        let mut raw = sr.serialize();
+        raw[0] |= 0x20;
 
         assert_eq!(RtcpSenderReport::parse(&raw), None);
     }
