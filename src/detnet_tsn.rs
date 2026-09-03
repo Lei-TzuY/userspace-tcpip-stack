@@ -217,7 +217,9 @@ impl DetNetTsnGateway {
         let rtag = match DetNetRTagHeader::parse(&tsn_frame[16..22]) {
             Some(r) => r,
             None => {
-                return DetNetTsnForwardResult::InvalidFrame("Missing or invalid R-TAG".to_string());
+                return DetNetTsnForwardResult::InvalidFrame(
+                    "Missing or invalid R-TAG".to_string(),
+                );
             }
         };
 

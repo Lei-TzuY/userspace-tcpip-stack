@@ -105,7 +105,9 @@ impl Srv6EndDt6Router {
                 let vrf = match vrf_id {
                     Some(v) => v,
                     None => {
-                        return EndDt6ForwardVerdict::Drop("Missing VRF ID for End.DT6".to_string());
+                        return EndDt6ForwardVerdict::Drop(
+                            "Missing VRF ID for End.DT6".to_string(),
+                        );
                     }
                 };
 
