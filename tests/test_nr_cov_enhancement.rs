@@ -206,12 +206,16 @@ fn test_error_formatting_and_display() {
     assert!(err_ul.to_string().contains("No valid uplink symbols"));
 
     let err_tboms = CovEnhError::TbomsInvalidSlotCount(7);
-    assert!(err_tboms
-        .to_string()
-        .contains("TBoMS requires 2, 4, 8, or 16 slots"));
+    assert!(
+        err_tboms
+            .to_string()
+            .contains("TBoMS requires 2, 4, 8, or 16 slots")
+    );
 
     let err_tdd = CovEnhError::EmptyTddPattern;
-    assert!(err_tdd
-        .to_string()
-        .contains("TDD slot configuration pattern cannot be empty"));
+    assert!(
+        err_tdd
+            .to_string()
+            .contains("TDD slot configuration pattern cannot be empty")
+    );
 }

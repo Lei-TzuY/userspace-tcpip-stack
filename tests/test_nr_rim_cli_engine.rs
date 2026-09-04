@@ -196,15 +196,19 @@ fn test_error_formatting_and_display() {
         available: 50,
         required: 100,
     };
-    assert!(err_samp
-        .to_string()
-        .contains("Insufficient samples for correlation"));
+    assert!(
+        err_samp
+            .to_string()
+            .contains("Insufficient samples for correlation")
+    );
 
     let err_rate = RimCliError::InvalidSamplingRate(-1.0);
     assert!(err_rate.to_string().contains("Invalid sampling rate"));
 
     let err_th = RimCliError::CorrelationThresholdOutOfRange(1.5);
-    assert!(err_th
-        .to_string()
-        .contains("Correlation threshold 1.500 out of range"));
+    assert!(
+        err_th
+            .to_string()
+            .contains("Correlation threshold 1.500 out of range")
+    );
 }

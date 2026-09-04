@@ -1,8 +1,8 @@
 //! Integration tests for 3GPP Rel-17 5G NR Random Access Channel (RACH) Procedure Engine.
 
 use toy_tcpip::nr_rach_5g::{
-    bi_to_delay_ms, MacRarPayload, Msg2RarMessage, Msg4ContentionResolution, MsgBResponse,
-    NrRachEngine, PrachOccasion, RachCause, RachConfig, RachFailureReason, RachState, RachType,
+    MacRarPayload, Msg2RarMessage, Msg4ContentionResolution, MsgBResponse, NrRachEngine,
+    PrachOccasion, RachCause, RachConfig, RachFailureReason, RachState, RachType, bi_to_delay_ms,
 };
 
 #[test]

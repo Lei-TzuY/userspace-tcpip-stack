@@ -375,14 +375,15 @@ impl ChoEngine {
     }
 
     /// Advance time by `delta_ms` and evaluate all candidate condition state machines.
-    /// Returns the ID of the first candidate whose Time-To-Trigger duration is satisfied.
+    /// Returns the strongest candidate whose Time-To-Trigger duration becomes satisfied,
+    /// breaking equal-measurement ties by the lowest conditional reconfiguration ID.
     pub fn step_time(&mut self, delta_ms: u32) -> Option<u8> {
         let spcell_filtered = match self.spcell_filter.value() {
             Some(v) => v,
             None => return None,
         };
 
-        let mut triggered_cond_id = None;
+        let mut triggered_candidate: Option<(u8, f64)> = None;
 
         for candidate in self.candidates.values_mut() {
             // Check validity expiration
@@ -415,6 +416,7 @@ impl ChoEngine {
                 .condition
                 .evaluate_entering(spcell_filtered, neighbor_filtered)
             {
+                let mut condition_became_met = false;
                 match &mut candidate.state {
                     CandidateState::Configured => {
                         candidate.state = CandidateState::TttActive {
@@ -423,21 +425,32 @@ impl ChoEngine {
                         self.metrics.ttt_activations += 1;
                         if delta_ms >= candidate.time_to_trigger_ms {
                             candidate.state = CandidateState::ConditionMet;
-                            if triggered_cond_id.is_none() {
-                                triggered_cond_id = Some(candidate.cond_reconfig_id);
-                            }
+                            condition_became_met = true;
                         }
                     }
                     CandidateState::TttActive { elapsed_ms } => {
                         *elapsed_ms = elapsed_ms.saturating_add(delta_ms);
                         if *elapsed_ms >= candidate.time_to_trigger_ms {
                             candidate.state = CandidateState::ConditionMet;
-                            if triggered_cond_id.is_none() {
-                                triggered_cond_id = Some(candidate.cond_reconfig_id);
-                            }
+                            condition_became_met = true;
                         }
                     }
                     _ => {}
+                }
+
+                if condition_became_met {
+                    let cond_id = candidate.cond_reconfig_id;
+                    let should_select = match triggered_candidate {
+                        None => true,
+                        Some((selected_id, selected_measurement)) => {
+                            neighbor_filtered > selected_measurement
+                                || (neighbor_filtered == selected_measurement
+                                    && cond_id < selected_id)
+                        }
+                    };
+                    if should_select {
+                        triggered_candidate = Some((cond_id, neighbor_filtered));
+                    }
                 }
             } else if candidate
                 .condition
@@ -450,7 +463,7 @@ impl ChoEngine {
             }
         }
 
-        triggered_cond_id
+        triggered_candidate.map(|(cond_id, _)| cond_id)
     }
 
     /// Autonomous execution of Conditional Handover / CPC to the selected candidate cell.

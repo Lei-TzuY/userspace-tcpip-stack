@@ -112,7 +112,7 @@ fn test_lte_mbsfn_subframe_reservation() {
     // Symbol 0 has 4 REs punctured (for cell_id=0, ports 0 and 1 CRS)
     assert_eq!(mask_sf1.punctured_re_count, 4);
     assert_eq!(mask_sf1.usable_re_count, 168 - 4); // 164 usable REs!
-                                                   // Symbols 4, 7, 8, 11 are now fully usable for 5G NR PDSCH
+    // Symbols 4, 7, 8, 11 are now fully usable for 5G NR PDSCH
     assert!(mask_sf1.is_re_usable(4, 0));
     assert!(mask_sf1.is_re_usable(7, 0));
     assert!(mask_sf1.is_re_usable(11, 0));

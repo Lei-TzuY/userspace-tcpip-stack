@@ -324,11 +324,7 @@ impl DapsPowerManager {
 
     #[inline]
     fn mw_to_dbm(mw: f64) -> f64 {
-        if mw <= 1e-6 {
-            -60.0
-        } else {
-            10.0 * mw.log10()
-        }
+        if mw <= 1e-6 { -60.0 } else { 10.0 * mw.log10() }
     }
 
     /// Arbitrates and allocates transmit power for overlapping Source and Target UL slots.

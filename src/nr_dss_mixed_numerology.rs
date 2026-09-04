@@ -75,7 +75,10 @@ impl fmt::Display for DssMixedError {
                 limit,
                 requested,
             } => {
-                write!(f, "PDCCH blind decoding budget exceeded at slot {slot}: requested {requested} > limit {limit}")
+                write!(
+                    f,
+                    "PDCCH blind decoding budget exceeded at slot {slot}: requested {requested} > limit {limit}"
+                )
             }
         }
     }

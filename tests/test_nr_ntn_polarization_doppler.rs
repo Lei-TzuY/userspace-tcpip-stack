@@ -67,7 +67,7 @@ fn test_leo_orbital_kinematics_and_doppler_limits() {
     let (v_r_app, dop_app) = leo_s.doppler_at_ground_distance(-1_000_000.0);
     assert!(v_r_app < 0.0);
     assert!(dop_app > 0.0); // Blue-shifted (positive Doppler)
-                            // S-band maximum Doppler is bounded within 50 kHz
+    // S-band maximum Doppler is bounded within 50 kHz
     assert!(dop_app < 50_000.0);
 
     // 600 km LEO, Ka-band (20.0 GHz) -> 10x higher Doppler
@@ -162,9 +162,11 @@ fn test_error_formatting_and_display() {
     assert!(err_ar.to_string().contains("Invalid axial ratio"));
 
     let err_alt = NtnPolarizationError::InvalidAltitude(-100.0);
-    assert!(err_alt
-        .to_string()
-        .contains("Invalid satellite orbital altitude"));
+    assert!(
+        err_alt
+            .to_string()
+            .contains("Invalid satellite orbital altitude")
+    );
 
     let err_fc = NtnPolarizationError::InvalidCarrierFrequency(0.0);
     assert!(err_fc.to_string().contains("Invalid carrier frequency"));
@@ -177,7 +179,9 @@ fn test_error_formatting_and_display() {
         scs_hz: 15_000.0,
         ratio: 0.0166,
     };
-    assert!(err_orth
-        .to_string()
-        .contains("Residual Doppler 250.0 Hz exceeds"));
+    assert!(
+        err_orth
+            .to_string()
+            .contains("Residual Doppler 250.0 Hz exceeds")
+    );
 }

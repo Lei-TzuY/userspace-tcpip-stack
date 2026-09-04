@@ -92,7 +92,7 @@ fn test_nr_rrc_inactive_rna_evaluation_and_periodic_update() {
     engine.ue_t380_remaining_minutes = 3;
     assert_eq!(engine.ue_tick_minute(), None); // 2 min left
     assert_eq!(engine.ue_tick_minute(), None); // 1 min left
-                                               // 3rd minute expires -> triggers periodic RNA update!
+    // 3rd minute expires -> triggers periodic RNA update!
     assert_eq!(
         engine.ue_tick_minute(),
         Some(InactiveResumeCause::RnaUpdate)

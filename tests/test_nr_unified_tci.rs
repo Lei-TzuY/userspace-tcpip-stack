@@ -3,8 +3,9 @@
 //! Conforms to 3GPP TS 38.214, TS 38.213, TS 38.321, and TS 38.331.
 
 use toy_tcpip::nr_unified_tci::{
-    BeamSwitchState, MTrpTransmissionMode, QclInfo, QclType, ReferenceSignal, TciDirectionMode,
-    TrpChannelCondition, TrpId, UnifiedTciEngine, UnifiedTciMacCe, UnifiedTciState, MAX_TCI_STATES,
+    BeamSwitchState, MAX_TCI_STATES, MTrpTransmissionMode, QclInfo, QclType, ReferenceSignal,
+    TciDirectionMode, TrpChannelCondition, TrpId, UnifiedTciEngine, UnifiedTciMacCe,
+    UnifiedTciState,
 };
 
 #[test]

@@ -959,7 +959,7 @@ impl MobileIabEngine {
             _ => {
                 return Err(MobileIabError::MigrationError(
                     "Cannot execute handover without target donor preparation".to_string(),
-                ))
+                ));
             }
         };
 
@@ -989,7 +989,7 @@ impl MobileIabEngine {
             _ => {
                 return Err(MobileIabError::MigrationError(
                     "Cannot complete handover while not in MtHandoverExecuting state".to_string(),
-                ))
+                ));
             }
         };
 

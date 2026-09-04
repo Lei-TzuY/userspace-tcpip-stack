@@ -2,7 +2,7 @@
 //! 5G-TSN Time-Sensitive Communication (TSC) Virtual Bridge & NW-TT / DS-TT Engine.
 
 use toy_tcpip::ethernet::MacAddress;
-use toy_tcpip::ptp::{PtpHeader, PTP_MSG_SYNC};
+use toy_tcpip::ptp::{PTP_MSG_SYNC, PtpHeader};
 use toy_tcpip::tsn_5g_bridge::{
     DsTtEngine, NwTtEngine, TscTrafficDirection, Tsn5gBridgeEngine, TsnBridgeId, TsnPortConfig,
     TsnPortState, TsnPortType,

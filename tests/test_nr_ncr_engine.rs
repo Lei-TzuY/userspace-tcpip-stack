@@ -188,31 +188,39 @@ fn test_error_formatting_and_display() {
         requested_db: 45.0,
         max_db: 40.0,
     };
-    assert!(err_gain
-        .to_string()
-        .contains("Requested RF gain 45.0 dB exceeds maximum capability 40.0 dB"));
+    assert!(
+        err_gain
+            .to_string()
+            .contains("Requested RF gain 45.0 dB exceeds maximum capability 40.0 dB")
+    );
 
     let err_beam = NcrError::InvalidBeamId {
         beam_id: 65,
         max: 63,
     };
-    assert!(err_beam
-        .to_string()
-        .contains("Beam ID 65 exceeds maximum allowable 63"));
+    assert!(
+        err_beam
+            .to_string()
+            .contains("Beam ID 65 exceeds maximum allowable 63")
+    );
 
     let err_guard = NcrError::GuardTimeViolation {
         symbol_idx: 4,
         elapsed_us: 5.0,
         required_us: 15.0,
     };
-    assert!(err_guard
-        .to_string()
-        .contains("without satisfying guard time"));
+    assert!(
+        err_guard
+            .to_string()
+            .contains("without satisfying guard time")
+    );
 
     let err_sci = NcrError::NoSciScheduledForSlot(3);
-    assert!(err_sci
-        .to_string()
-        .contains("No Side Control Information (SCI) scheduled for slot 3"));
+    assert!(
+        err_sci
+            .to_string()
+            .contains("No Side Control Information (SCI) scheduled for slot 3")
+    );
 
     let err_sym = NcrError::InvalidSymbolIndex(15);
     assert!(err_sym.to_string().contains("Invalid symbol index 15"));

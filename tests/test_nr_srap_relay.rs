@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP TS 38.351 Rel-17 & Rel-18 Sidelink Relay Adaptation Protocol (SRAP).
 
 use toy_tcpip::nr_srap_relay::{
-    SrapBearerMapping, SrapBearerMappingTable, SrapControlPdu, SrapControlPduType, SrapDataHeader,
-    SrapDataPdu, SrapEntity, SrapError, SrapFlowControlManager, SrapMultiHopRouter, SrapRole,
-    SrapRouteEntry, SRAP_DEFAULT_MAX_HOPS, SRAP_MAX_BEARER_ID,
+    SRAP_DEFAULT_MAX_HOPS, SRAP_MAX_BEARER_ID, SrapBearerMapping, SrapBearerMappingTable,
+    SrapControlPdu, SrapControlPduType, SrapDataHeader, SrapDataPdu, SrapEntity, SrapError,
+    SrapFlowControlManager, SrapMultiHopRouter, SrapRole, SrapRouteEntry,
 };
 
 #[test]

@@ -3,7 +3,7 @@
 //! Conforms to 3GPP TS 38.323 §5.14, §6.2.3, §6.3.8, and TS 38.331.
 
 use toy_tcpip::nr_udc_engine::{
-    compute_udc_crc4, UdcBufferSize, UdcConfig, UdcEngine, UdcFeedbackPdu, UdcHeader,
+    UdcBufferSize, UdcConfig, UdcEngine, UdcFeedbackPdu, UdcHeader, compute_udc_crc4,
 };
 
 #[test]

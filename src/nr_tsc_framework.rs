@@ -60,7 +60,10 @@ impl fmt::Display for TscError {
                 stream_id,
                 capacity,
             } => {
-                write!(f, "Hold-and-Forward buffer overflow for stream {stream_id} (capacity: {capacity})")
+                write!(
+                    f,
+                    "Hold-and-Forward buffer overflow for stream {stream_id} (capacity: {capacity})"
+                )
             }
             TscError::PacketTooLate {
                 stream_id,

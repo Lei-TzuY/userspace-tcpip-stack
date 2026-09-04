@@ -1,10 +1,10 @@
 //! Integration tests for 3GPP TS 29.518 / TS 23.501 / TS 23.502 Rel-17 5G AMF Service-Based Engine.
 
 use toy_tcpip::amf_sbi_5g::{
-    derive_k_amf, derive_k_gnb, derive_k_nas, AmfError, AmfEventType, AmfSbiEngine, CmState,
-    ContextTransferReason, Guami, N1N2MessageTransferRequest, N1N2MessageTransferStatus,
-    NasCipheringAlgorithm, NasIntegrityAlgorithm, NrCgi, PlmnId, RegistrationCommitStatus, RmState,
-    Snssai, Tai, UeContextTransferRequest,
+    AmfError, AmfEventType, AmfSbiEngine, CmState, ContextTransferReason, Guami,
+    N1N2MessageTransferRequest, N1N2MessageTransferStatus, NasCipheringAlgorithm,
+    NasIntegrityAlgorithm, NrCgi, PlmnId, RegistrationCommitStatus, RmState, Snssai, Tai,
+    UeContextTransferRequest, derive_k_amf, derive_k_gnb, derive_k_nas,
 };
 
 #[test]
@@ -164,9 +164,11 @@ fn test_amf_ue_context_transfer_inter_amf() {
 
     // Verify Source AMF purged UE context
     assert!(!source_amf.ue_contexts.contains_key(supi));
-    assert!(!source_amf
-        .guti_to_supi
-        .contains_key(&guti.to_formatted_string()));
+    assert!(
+        !source_amf
+            .guti_to_supi
+            .contains_key(&guti.to_formatted_string())
+    );
 
     // Negative test: invalid token rejected
     let new_guti = source_amf.register_ue(
@@ -334,39 +336,45 @@ fn test_amf_event_exposure_subscriptions_and_notifications() {
     );
 
     // Initial registration event notification
-    assert!(amf
-        .dispatched_notifications
-        .iter()
-        .any(|n| n.event_type == AmfEventType::RegistrationStateChange));
+    assert!(
+        amf.dispatched_notifications
+            .iter()
+            .any(|n| n.event_type == AmfEventType::RegistrationStateChange)
+    );
 
     // 3. UE transitions to CM-IDLE
     amf.set_ue_cm_idle(supi, 5010).unwrap();
-    assert!(amf
-        .dispatched_notifications
-        .iter()
-        .any(|n| n.event_type == AmfEventType::ReachabilityState && n.details == "CM-IDLE"));
+    assert!(
+        amf.dispatched_notifications
+            .iter()
+            .any(|n| n.event_type == AmfEventType::ReachabilityState && n.details == "CM-IDLE")
+    );
 
     // 4. UE moves into Area of Interest (TAC 0x000050)
     amf.update_ue_location(supi, NrCgi::new(plmn, 0x02), Tai::new(plmn, 0x000050), 5020)
         .unwrap();
 
-    assert!(amf
-        .dispatched_notifications
-        .iter()
-        .any(|n| n.event_type == AmfEventType::LocationReport));
-    assert!(amf
-        .dispatched_notifications
-        .iter()
-        .any(|n| n.event_type == AmfEventType::PresenceInAoI && n.details.contains("IN_AREA")));
+    assert!(
+        amf.dispatched_notifications
+            .iter()
+            .any(|n| n.event_type == AmfEventType::LocationReport)
+    );
+    assert!(
+        amf.dispatched_notifications
+            .iter()
+            .any(|n| n.event_type == AmfEventType::PresenceInAoI && n.details.contains("IN_AREA"))
+    );
 
     // 5. UE moves out of Area of Interest to TAC 0x000060
     amf.update_ue_location(supi, NrCgi::new(plmn, 0x03), Tai::new(plmn, 0x000060), 5030)
         .unwrap();
 
-    assert!(amf
-        .dispatched_notifications
-        .iter()
-        .any(|n| n.event_type == AmfEventType::PresenceInAoI && n.details.contains("OUT_OF_AREA")));
+    assert!(
+        amf.dispatched_notifications
+            .iter()
+            .any(|n| n.event_type == AmfEventType::PresenceInAoI
+                && n.details.contains("OUT_OF_AREA"))
+    );
 
     // 6. Unsubscribe
     amf.unsubscribe_event(&sub_id).unwrap();
