@@ -1,11 +1,14 @@
-//! 3GPP TS 33.501 Section 6.6 / TS 23.501 Section 5.10.3 / TS 38.323 Release 17 5G User Plane Integrity Protection (UPIP) Engine.
+//! 5G User Plane Integrity Protection (UPIP) negotiation/state model.
 //!
-//! Implements 5G NR User Plane Security & Integrity Verification:
-//! - User Plane Integrity Protection (UPIP) Policy Negotiation (Required, Preferred, NotNeeded)
-//! - Maximum Data Rate Enforcement for UPIP (64 kbps vs Full Rate)
-//! - 32-bit MAC-I (Message Authentication Code for Integrity) calculation and verification
-//! - Rolling 32-bit PDCP COUNT (HFN + SN) tracking with Replay Protection Window
-//! - Real-time tampering detection, packet drop, and integrity failure security alerts
+//! This module models UPIP policy, data-rate capability, PDCP COUNT state, and
+//! replay-window metadata. It does **not** implement the 3GPP NIA1 (SNOW 3G),
+//! NIA2 (AES-CMAC), or NIA3 (ZUC) integrity algorithms. Those algorithm values
+//! are retained only so negotiation/configuration can represent them; selecting
+//! any of them fails closed with [`UpipError::UnsupportedIntegrityAlgorithm`].
+//!
+//! NIA0 is the only executable algorithm today and provides no integrity
+//! protection. A `Required` policy therefore also fails closed when paired with
+//! NIA0. This keeps the API's security claims aligned with executable behavior.
 
 use std::collections::HashMap;
 
@@ -28,7 +31,11 @@ pub enum MaxDataRatePerUe {
     FullRate,
 }
 
-/// 3GPP NR Integrity Protection Algorithm (TS 33.501 Annex D).
+/// 3GPP NR integrity-algorithm identifier used during negotiation.
+///
+/// Only `Nia0Null` is executable in this crate. NIA1/NIA2/NIA3 are represented
+/// for protocol/state modelling but are rejected until conformant algorithms
+/// are implemented.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpIntegrityAlgorithm {
     Nia0Null,
@@ -41,23 +48,30 @@ pub enum UpIntegrityAlgorithm {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UpSecurityContext {
     pub session_id: String,
-    pub k_up_int: [u8; 16], // 128-bit User Plane Integrity Key (K_UPint)
+    pub k_up_int: [u8; 16],
     pub algorithm: UpIntegrityAlgorithm,
     pub policy: UpIntegrityPolicy,
     pub max_rate: MaxDataRatePerUe,
     pub bearer_id: u8,
-    pub uplink_count: u32,   // 32-bit rolling PDCP COUNT
-    pub downlink_count: u32, // 32-bit rolling PDCP COUNT
+    pub uplink_count: u32,
+    pub downlink_count: u32,
     pub replay_window_bottom: u32,
     pub replay_window_size: u32,
     pub packets_protected: u64,
     pub integrity_failures: u64,
 }
 
-/// UPIP Error Types.
+/// UPIP error types.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UpipError {
     SessionNotFound,
+    /// A negotiated 3GPP integrity algorithm has no conformant implementation.
+    UnsupportedIntegrityAlgorithm {
+        algorithm: UpIntegrityAlgorithm,
+    },
+    /// The requested policy requires integrity, but the selected executable
+    /// algorithm (currently only NIA0) cannot provide it.
+    IntegrityProtectionUnavailable,
     PacketTooShortForMaci,
     ReplayDetected {
         received_count: u32,
@@ -70,56 +84,31 @@ pub enum UpipError {
     DataRateLimitExceeded,
 }
 
-// ---------------------------------------------------------------------------
-// Pure Rust 3GPP MAC-I Computation Helper (TS 33.501 / TS 38.323)
-// ---------------------------------------------------------------------------
-
-/// Compute 32-bit MAC-I over: Key || COUNT || BearerID || Direction || Payload.
-/// Implements standard cryptographically sound keyed digest (RFC 2104 / 3GPP CMAC construction).
-pub fn compute_mac_i(
-    k_up_int: &[u8; 16],
-    count: u32,
-    bearer_id: u8,
-    direction_uplink: bool,
-    payload: &[u8],
-) -> u32 {
-    let mut h: u64 = 0xcbf29ce484222325; // FNV offset basis
-    const PRIME: u64 = 0x100000001b3;
-
-    // Key mixing
-    for b in k_up_int {
-        h ^= *b as u64;
-        h = h.wrapping_mul(PRIME);
+fn validate_security_choice(
+    algorithm: UpIntegrityAlgorithm,
+    policy: UpIntegrityPolicy,
+) -> Result<(), UpipError> {
+    match algorithm {
+        UpIntegrityAlgorithm::Nia0Null => {
+            if policy == UpIntegrityPolicy::Required {
+                Err(UpipError::IntegrityProtectionUnavailable)
+            } else {
+                Ok(())
+            }
+        }
+        UpIntegrityAlgorithm::Nia1Snow3G
+        | UpIntegrityAlgorithm::Nia2AesCmac
+        | UpIntegrityAlgorithm::Nia3Zuc => {
+            Err(UpipError::UnsupportedIntegrityAlgorithm { algorithm })
+        }
     }
-
-    // COUNT (32 bits)
-    for b in &count.to_be_bytes() {
-        h ^= *b as u64;
-        h = h.wrapping_mul(PRIME);
-    }
-
-    // Bearer ID & Direction (0 for uplink, 1 for downlink)
-    h ^= bearer_id as u64;
-    h = h.wrapping_mul(PRIME);
-    h ^= if direction_uplink { 0x00 } else { 0x01 };
-    h = h.wrapping_mul(PRIME);
-
-    // Payload mixing
-    for b in payload {
-        h ^= *b as u64;
-        h = h.wrapping_mul(PRIME);
-    }
-
-    // Fold 64-bit state into 32-bit MAC-I
-    let mac_i = ((h >> 32) ^ (h & 0xFFFFFFFF)) as u32;
-    mac_i
 }
 
 // ---------------------------------------------------------------------------
 // Top-Level 5G UPIP Engine
 // ---------------------------------------------------------------------------
 
-/// 5G User Plane Integrity Protection (UPIP) Engine.
+/// 5G User Plane Integrity Protection negotiation/state engine.
 pub struct UpipEngine {
     pub engine_id: String,
     pub contexts: HashMap<String, UpSecurityContext>,
@@ -134,7 +123,10 @@ impl UpipEngine {
         }
     }
 
-    /// Provision or negotiate a User Plane Security Context for a PDU Session.
+    /// Provision a User Plane Security Context.
+    ///
+    /// Unsupported NIA algorithms and policy/algorithm combinations that cannot
+    /// satisfy required integrity are rejected before state is installed.
     pub fn create_security_context(
         &mut self,
         session_id: &str,
@@ -143,7 +135,9 @@ impl UpipEngine {
         policy: UpIntegrityPolicy,
         max_rate: MaxDataRatePerUe,
         bearer_id: u8,
-    ) {
+    ) -> Result<(), UpipError> {
+        validate_security_choice(algorithm, policy)?;
+
         let ctx = UpSecurityContext {
             session_id: session_id.to_string(),
             k_up_int,
@@ -160,9 +154,13 @@ impl UpipEngine {
         };
 
         self.contexts.insert(session_id.to_string(), ctx);
+        Ok(())
     }
 
-    /// Protect a Downlink user packet by calculating and appending a 4-byte MAC-I.
+    /// Process a downlink packet under the negotiated security context.
+    ///
+    /// NIA0 is pass-through. Unsupported or insufficient security choices fail
+    /// closed, including contexts inserted directly through the public map.
     pub fn protect_downlink_packet(
         &mut self,
         session_id: &str,
@@ -173,27 +171,14 @@ impl UpipEngine {
             .get_mut(session_id)
             .ok_or(UpipError::SessionNotFound)?;
 
-        // If policy is NotNeeded or Algorithm is Nia0Null, return packet unchanged
-        if ctx.policy == UpIntegrityPolicy::NotNeeded
-            || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null
-        {
-            return Ok(user_pdu.to_vec());
-        }
-
-        let count = ctx.downlink_count;
-        ctx.downlink_count = ctx.downlink_count.wrapping_add(1);
-
-        let mac_i = compute_mac_i(&ctx.k_up_int, count, ctx.bearer_id, false, user_pdu);
-
-        let mut protected_pdu = Vec::with_capacity(user_pdu.len() + 4);
-        protected_pdu.extend_from_slice(user_pdu);
-        protected_pdu.extend_from_slice(&mac_i.to_be_bytes());
-
-        ctx.packets_protected += 1;
-        Ok(protected_pdu)
+        validate_security_choice(ctx.algorithm, ctx.policy)?;
+        Ok(user_pdu.to_vec())
     }
 
-    /// Verify an Inbound Uplink packet: validates replay protection and checks MAC-I.
+    /// Process an inbound uplink packet under the negotiated security context.
+    ///
+    /// NIA0 is pass-through. No MAC-I verification is claimed or performed
+    /// until a conformant non-null NIA implementation exists.
     pub fn verify_uplink_packet(
         &mut self,
         session_id: &str,
@@ -204,55 +189,8 @@ impl UpipEngine {
             .get_mut(session_id)
             .ok_or(UpipError::SessionNotFound)?;
 
-        if ctx.policy == UpIntegrityPolicy::NotNeeded
-            || ctx.algorithm == UpIntegrityAlgorithm::Nia0Null
-        {
-            return Ok(received_pdu.to_vec());
-        }
-
-        if received_pdu.len() < 4 {
-            return Err(UpipError::PacketTooShortForMaci);
-        }
-
-        let payload_len = received_pdu.len() - 4;
-        let payload = &received_pdu[..payload_len];
-        let observed_maci = u32::from_be_bytes([
-            received_pdu[payload_len],
-            received_pdu[payload_len + 1],
-            received_pdu[payload_len + 2],
-            received_pdu[payload_len + 3],
-        ]);
-
-        let count = ctx.uplink_count;
-
-        // Replay Protection Check
-        if count < ctx.replay_window_bottom {
-            return Err(UpipError::ReplayDetected {
-                received_count: count,
-                window_bottom: ctx.replay_window_bottom,
-            });
-        }
-
-        // Calculate expected MAC-I
-        let expected_maci = compute_mac_i(&ctx.k_up_int, count, ctx.bearer_id, true, payload);
-
-        // Constant-time comparison
-        if observed_maci != expected_maci {
-            ctx.integrity_failures += 1;
-            return Err(UpipError::IntegrityVerificationFailed {
-                expected_maci,
-                observed_maci,
-            });
-        }
-
-        // Integrity verified! Advance COUNT and slide replay window
-        ctx.uplink_count = ctx.uplink_count.wrapping_add(1);
-        if ctx.uplink_count > ctx.replay_window_size {
-            ctx.replay_window_bottom = ctx.uplink_count - ctx.replay_window_size;
-        }
-        ctx.packets_protected += 1;
-
-        Ok(payload.to_vec())
+        validate_security_choice(ctx.algorithm, ctx.policy)?;
+        Ok(received_pdu.to_vec())
     }
 
     /// Terminate security context.
