@@ -237,12 +237,16 @@ fn test_nr_cell_reselection_high_priority_inter_freq() {
     let neighbors = vec![cand_meas];
 
     // High priority reselection occurs regardless of serving cell quality!
-    assert!(engine
-        .evaluate_reselection(&serving_meas, &sparams, &neighbors, &neighbor_sparams, 10)
-        .is_none());
-    assert!(engine
-        .evaluate_reselection(&serving_meas, &sparams, &neighbors, &neighbor_sparams, 11)
-        .is_none());
+    assert!(
+        engine
+            .evaluate_reselection(&serving_meas, &sparams, &neighbors, &neighbor_sparams, 10)
+            .is_none()
+    );
+    assert!(
+        engine
+            .evaluate_reselection(&serving_meas, &sparams, &neighbors, &neighbor_sparams, 11)
+            .is_none()
+    );
 
     let decision = engine
         .evaluate_reselection(&serving_meas, &sparams, &neighbors, &neighbor_sparams, 12)
@@ -313,24 +317,28 @@ fn test_nr_cell_reselection_low_priority_inter_freq() {
         q_qual_meas: -10,
         q_offset_cell: 0,
     };
-    assert!(engine
-        .evaluate_reselection(
-            &serving_meas_ok,
-            &sparams,
-            &neighbors,
-            &neighbor_sparams,
-            10
-        )
-        .is_none());
-    assert!(engine
-        .evaluate_reselection(
-            &serving_meas_ok,
-            &sparams,
-            &neighbors,
-            &neighbor_sparams,
-            15
-        )
-        .is_none());
+    assert!(
+        engine
+            .evaluate_reselection(
+                &serving_meas_ok,
+                &sparams,
+                &neighbors,
+                &neighbor_sparams,
+                10
+            )
+            .is_none()
+    );
+    assert!(
+        engine
+            .evaluate_reselection(
+                &serving_meas_ok,
+                &sparams,
+                &neighbors,
+                &neighbor_sparams,
+                15
+            )
+            .is_none()
+    );
 
     // Case B: Serving cell deteriorates below 8 dB (RSRP = -115 dBm -> S_rxlev = 5 dB < 8 dB)
     let serving_meas_poor = CellMeasurement {
@@ -340,24 +348,28 @@ fn test_nr_cell_reselection_low_priority_inter_freq() {
         q_offset_cell: 0,
     };
 
-    assert!(engine
-        .evaluate_reselection(
-            &serving_meas_poor,
-            &sparams,
-            &neighbors,
-            &neighbor_sparams,
-            20
-        )
-        .is_none());
-    assert!(engine
-        .evaluate_reselection(
-            &serving_meas_poor,
-            &sparams,
-            &neighbors,
-            &neighbor_sparams,
-            21
-        )
-        .is_none());
+    assert!(
+        engine
+            .evaluate_reselection(
+                &serving_meas_poor,
+                &sparams,
+                &neighbors,
+                &neighbor_sparams,
+                20
+            )
+            .is_none()
+    );
+    assert!(
+        engine
+            .evaluate_reselection(
+                &serving_meas_poor,
+                &sparams,
+                &neighbors,
+                &neighbor_sparams,
+                21
+            )
+            .is_none()
+    );
 
     let decision = engine
         .evaluate_reselection(

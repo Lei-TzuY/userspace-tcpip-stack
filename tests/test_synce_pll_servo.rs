@@ -1,8 +1,8 @@
 //! Integration tests for ITU-T G.8262 / G.8262.1 SyncE EEC & eEEC Phase-Locked Loop (PLL) Servo & Wander Filter Engine.
 
 use toy_tcpip::synce_pll_servo::{
-    EecProfile, OscillatorGrade, SyncEClockState, SyncEError, SyncEPllConfig, SyncEPllServo,
-    WanderAuditor, MAX_WANDER_HISTORY_SAMPLES,
+    EecProfile, MAX_WANDER_HISTORY_SAMPLES, OscillatorGrade, SyncEClockState, SyncEError,
+    SyncEPllConfig, SyncEPllServo, WanderAuditor,
 };
 
 #[test]

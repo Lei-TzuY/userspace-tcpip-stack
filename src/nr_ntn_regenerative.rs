@@ -962,7 +962,7 @@ impl NtnRegenerativeEngine {
             None => {
                 return ForwardingDecision::Drop {
                     reason: format!("Satellite '{}' not found", current_sat_id),
-                }
+                };
             }
         };
 

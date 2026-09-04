@@ -1,9 +1,9 @@
 //! Integration test suite for ITU-T G.8273.2 Class D Enhanced Telecom Boundary Clock Engine.
 
 use toy_tcpip::ptp_telecom_class_d::{
-    ClassDPhaseServo, ClassDTimeErrorFilter, FiberAsymmetryModel, HoldoverPredictor,
-    PtpClockClassTier, PtpTelecomClassDManager, SubNanoPtpSample, CLASS_D_MAX_CTE_PS,
-    CLASS_D_MAX_DTE_PS, CLASS_D_MAX_TE_PS,
+    CLASS_D_MAX_CTE_PS, CLASS_D_MAX_DTE_PS, CLASS_D_MAX_TE_PS, ClassDPhaseServo,
+    ClassDTimeErrorFilter, FiberAsymmetryModel, HoldoverPredictor, PtpClockClassTier,
+    PtpTelecomClassDManager, SubNanoPtpSample,
 };
 
 #[test]

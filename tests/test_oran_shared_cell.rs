@@ -311,7 +311,9 @@ fn test_shared_cell_error_display() {
         available: 0,
         required: 1,
     };
-    assert!(err_branches
-        .to_string()
-        .contains("Insufficient O-RU branches"));
+    assert!(
+        err_branches
+            .to_string()
+            .contains("Insufficient O-RU branches")
+    );
 }

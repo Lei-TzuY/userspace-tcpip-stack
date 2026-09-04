@@ -253,9 +253,11 @@ fn test_error_handling_and_parameter_validation() {
         incident_dbm: -25.0,
         threshold_dbm: -20.0,
     };
-    assert!(err_power
-        .to_string()
-        .contains("Incident RF power -25.0 dBm"));
+    assert!(
+        err_power
+            .to_string()
+            .contains("Incident RF power -25.0 dBm")
+    );
 
     let err_crc = AmbientIotError::CrcMismatch {
         computed: 0x1234,

@@ -1,11 +1,11 @@
 //! Integration tests for 3GPP Rel-17 RedCap HD-FDD & Relaxed RRM Engine.
 
-use toy_tcpip::nr_redcap_hdfdd::{
-    ChannelAllocation, HdChannelType, HdDirection, HdFddScheduler, HdFddType, RedCapHdFddError,
-    RelaxedRrmCriteria, RelaxedRrmState, ResolutionReason, RrmRelaxationEvaluator,
-    SwitchingGuardConfig, NR_SYMBOLS_PER_SLOT,
-};
 use toy_tcpip::REDCAP_SYMBOLS_PER_SLOT;
+use toy_tcpip::nr_redcap_hdfdd::{
+    ChannelAllocation, HdChannelType, HdDirection, HdFddScheduler, HdFddType, NR_SYMBOLS_PER_SLOT,
+    RedCapHdFddError, RelaxedRrmCriteria, RelaxedRrmState, ResolutionReason,
+    RrmRelaxationEvaluator, SwitchingGuardConfig,
+};
 
 #[test]
 fn test_switching_guard_validation_and_config() {

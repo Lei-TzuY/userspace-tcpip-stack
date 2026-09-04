@@ -108,9 +108,11 @@ fn test_esm_rpc_lifecycle_and_transition_latencies() {
     // 1. Attempt to sleep primary carrier -> must error!
     let err_primary = esm.rpc_activate_energy_saving(EnergySavingMode::CarrierSleep, Some(0), None);
     assert!(err_primary.is_err());
-    assert!(err_primary
-        .unwrap_err()
-        .contains("Cannot sleep primary coverage carrier"));
+    assert!(
+        err_primary
+            .unwrap_err()
+            .contains("Cannot sleep primary coverage carrier")
+    );
 
     // 2. Attempt invalid TRX count (e.g. 128 > 64) -> must error!
     let err_trx = esm.rpc_activate_energy_saving(EnergySavingMode::TxArraySleep, None, Some(128));

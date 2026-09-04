@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-18 5G-Advanced Network Energy Savings (NES).
 
 use toy_tcpip::nr_nes_energy_savings::{
-    BaseStationPowerModel, CellDtxDrxPattern, NesError, NesSleepLevel, NrNesEngine,
-    SpatialMimoConfig, SsbAdaptationConfig, NES_DEFAULT_MAX_MIMO_ANTENNAS,
-    NES_DEFAULT_MAX_SSB_BEAMS_FR1, NES_SYMBOLS_PER_SLOT,
+    BaseStationPowerModel, CellDtxDrxPattern, NES_DEFAULT_MAX_MIMO_ANTENNAS,
+    NES_DEFAULT_MAX_SSB_BEAMS_FR1, NES_SYMBOLS_PER_SLOT, NesError, NesSleepLevel, NrNesEngine,
+    SpatialMimoConfig, SsbAdaptationConfig,
 };
 
 #[test]

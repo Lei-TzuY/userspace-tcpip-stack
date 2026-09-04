@@ -1,8 +1,8 @@
 //! Integration tests for 3GPP Rel-17 5G NR NTN HARQ & Autonomous TA Tracking Engine.
 
 use toy_tcpip::nr_ntn_harq::{
-    NtnHarqEngine, NtnHarqError, NtnHarqProcessState, NtnSib19Config, SatelliteOrbitType,
-    DEFAULT_TA_STEP_THRESHOLD_US,
+    DEFAULT_TA_STEP_THRESHOLD_US, NtnHarqEngine, NtnHarqError, NtnHarqProcessState, NtnSib19Config,
+    SatelliteOrbitType,
 };
 
 fn create_mock_leo_sib19() -> NtnSib19Config {

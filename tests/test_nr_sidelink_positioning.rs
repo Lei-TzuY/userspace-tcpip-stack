@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-17/18 5G NR Sidelink Positioning & Direct Ranging Engine.
 
 use toy_tcpip::nr_sidelink_positioning::{
-    GoldSequenceGenerator, SlAnchorUe, SlAoAMeasurement, SlCombSize, SlKinematicTracker,
-    SlMultilaterationSolver, SlPositioningError, SlPrsConfig, SlRangingSession, SlRttMeasurement,
-    SlSessionState, SPEED_OF_LIGHT_M_S,
+    GoldSequenceGenerator, SPEED_OF_LIGHT_M_S, SlAnchorUe, SlAoAMeasurement, SlCombSize,
+    SlKinematicTracker, SlMultilaterationSolver, SlPositioningError, SlPrsConfig, SlRangingSession,
+    SlRttMeasurement, SlSessionState,
 };
 
 #[test]

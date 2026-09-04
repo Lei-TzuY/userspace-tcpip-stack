@@ -13,9 +13,10 @@ fn test_user_management_authentication_and_lockout() {
     let now = 1_700_000_000u64;
 
     // 1. Add operator user
-    assert!(mgr
-        .add_user("operator1", "SecurePass@123", UserRole::Operator, 42)
-        .is_ok());
+    assert!(
+        mgr.add_user("operator1", "SecurePass@123", UserRole::Operator, 42)
+            .is_ok()
+    );
 
     // 2. Successful authentication
     let auth_result = mgr.authenticate_user("operator1", "SecurePass@123", "192.168.1.50", now);
@@ -172,9 +173,10 @@ fn test_x509_certificate_lifecycle_and_expiry_warning() {
     );
 
     // 4. Revoke root-ca-01
-    assert!(mgr
-        .revoke_certificate("root-ca-01", "192.168.1.1", now)
-        .is_ok());
+    assert!(
+        mgr.revoke_certificate("root-ca-01", "192.168.1.1", now)
+            .is_ok()
+    );
     assert_eq!(
         mgr.validate_certificate("root-ca-01", now),
         Err("Certificate is revoked")

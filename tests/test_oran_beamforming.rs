@@ -2,8 +2,8 @@
 
 use std::f64::consts::PI;
 use toy_tcpip::oran_beamforming::{
-    compute_steering_vector, AntennaArrayConfig, AntennaPolarization, ArrayTopology, ComplexNumber,
-    MuMimoPrecoder, OranBeamformingEngine, SpatialAngle,
+    AntennaArrayConfig, AntennaPolarization, ArrayTopology, ComplexNumber, MuMimoPrecoder,
+    OranBeamformingEngine, SpatialAngle, compute_steering_vector,
 };
 use toy_tcpip::oran_cplane_ext::{BfwCompressionMethod, SectionExtension1, SectionExtension2};
 

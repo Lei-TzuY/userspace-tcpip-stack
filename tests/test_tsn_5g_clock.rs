@@ -1,10 +1,10 @@
 //! Integration tests for 3GPP Rel-17 5G-TSN Time-Synchronization Service Function (TSCTF).
 
-use toy_tcpip::ptp::{PtpHeader, PTP_MSG_SYNC};
+use toy_tcpip::ptp::{PTP_MSG_SYNC, PtpHeader};
 use toy_tcpip::tsn_5g_clock::{
-    ClockDomainType, ReferenceTimeInfo, SyncDirection, TimeErrorBudget, TsctfEngine, TsctfError,
-    TsctfSession, WorkingClockModel, DEFAULT_INDUSTRIAL_TSN_BUDGET_NS,
-    STRICT_MOTION_CONTROL_BUDGET_NS,
+    ClockDomainType, DEFAULT_INDUSTRIAL_TSN_BUDGET_NS, ReferenceTimeInfo,
+    STRICT_MOTION_CONTROL_BUDGET_NS, SyncDirection, TimeErrorBudget, TsctfEngine, TsctfError,
+    TsctfSession, WorkingClockModel,
 };
 
 #[test]

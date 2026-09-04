@@ -1,7 +1,7 @@
 //! Integration tests for 3GPP Rel-17 5G UPF Downlink Data Buffering Engine.
 
 use std::net::Ipv4Addr;
-use toy_tcpip::upf_buffering_5g::{derive_ppi, BarConfig, BufferDropPolicy, UpfBufferingEngine};
+use toy_tcpip::upf_buffering_5g::{BarConfig, BufferDropPolicy, UpfBufferingEngine, derive_ppi};
 
 #[test]
 fn test_upf_buffering_and_ddn_emission() {
