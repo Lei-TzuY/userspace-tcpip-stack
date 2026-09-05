@@ -75,6 +75,8 @@ pub enum NtnError {
     SatelliteNotFound,
     InvalidCarrierFrequency,
     InvalidSubcarrierSpacing,
+    InvalidGeometry,
+    ComputationOutOfRange,
 }
 
 // ---------------------------------------------------------------------------
@@ -109,17 +111,30 @@ impl NtnEngine {
         carrier_freq_hz: f64,
         subcarrier_spacing_khz: u32,
     ) -> Result<NtnLinkMetrics, NtnError> {
-        if carrier_freq_hz <= 0.0 {
+        if !carrier_freq_hz.is_finite() || carrier_freq_hz <= 0.0 {
             return Err(NtnError::InvalidCarrierFrequency);
         }
-        if subcarrier_spacing_khz == 0 {
-            return Err(NtnError::InvalidSubcarrierSpacing);
-        }
+
+        let slot_duration_ms = match subcarrier_spacing_khz {
+            15 => 1.0,
+            30 => 0.5,
+            60 => 0.25,
+            120 => 0.125,
+            240 => 0.0625,
+            _ => return Err(NtnError::InvalidSubcarrierSpacing),
+        };
 
         let sat = self
             .satellites
             .get(sat_id)
             .ok_or(NtnError::SatelliteNotFound)?;
+
+        if !sat.position_ecef_m.iter().all(|v| v.is_finite())
+            || !sat.velocity_ecef_mps.iter().all(|v| v.is_finite())
+            || !ue_pos.position_ecef_m.iter().all(|v| v.is_finite())
+        {
+            return Err(NtnError::InvalidGeometry);
+        }
 
         // 1. Calculate Slant Range Vector R = P_sat - P_ue
         let rx = sat.position_ecef_m[0] - ue_pos.position_ecef_m[0];
@@ -127,6 +142,12 @@ impl NtnEngine {
         let rz = sat.position_ecef_m[2] - ue_pos.position_ecef_m[2];
 
         let slant_range_m = (rx * rx + ry * ry + rz * rz).sqrt();
+        if !slant_range_m.is_finite() {
+            return Err(NtnError::ComputationOutOfRange);
+        }
+        if slant_range_m <= f64::EPSILON {
+            return Err(NtnError::InvalidGeometry);
+        }
         let slant_range_km = slant_range_m / 1000.0;
 
         // 2. Propagation Delay & Timing Advance
@@ -136,21 +157,20 @@ impl NtnEngine {
         let timing_advance_us = one_way_delay_s * 2.0 * 1_000_000.0;
 
         // 3. Slot Duration and K_offset Calculation (TS 38.214)
-        // Slot duration in ms = 1.0 / (2^mu), where mu = log2(scs_khz / 15)
-        let slot_duration_ms = match subcarrier_spacing_khz {
-            15 => 1.0,
-            30 => 0.5,
-            60 => 0.25,
-            120 => 0.125,
-            _ => 1.0,
-        };
-        let k_offset_slots = (rtt_ms / slot_duration_ms).ceil() as u32;
+        let k_offset_float = (rtt_ms / slot_duration_ms).ceil();
+        if !k_offset_float.is_finite() || k_offset_float > u32::MAX as f64 {
+            return Err(NtnError::ComputationOutOfRange);
+        }
+        let k_offset_slots = k_offset_float as u32;
 
         // 4. Radial Velocity & Doppler Shift Calculation
         // v_rad = (V_sat . R) / |R|
         let dot_product = sat.velocity_ecef_mps[0] * rx
             + sat.velocity_ecef_mps[1] * ry
             + sat.velocity_ecef_mps[2] * rz;
+        if !dot_product.is_finite() {
+            return Err(NtnError::ComputationOutOfRange);
+        }
 
         let radial_velocity_mps = dot_product / slant_range_m;
 
@@ -164,16 +184,42 @@ impl NtnEngine {
             + ue_pos.position_ecef_m[1] * ue_pos.position_ecef_m[1]
             + ue_pos.position_ecef_m[2] * ue_pos.position_ecef_m[2])
             .sqrt();
+        if !ue_mag.is_finite() {
+            return Err(NtnError::ComputationOutOfRange);
+        }
+        if ue_mag <= f64::EPSILON {
+            return Err(NtnError::InvalidGeometry);
+        }
 
         let ue_dot_r = ue_pos.position_ecef_m[0] * rx
             + ue_pos.position_ecef_m[1] * ry
             + ue_pos.position_ecef_m[2] * rz;
+        if !ue_dot_r.is_finite() {
+            return Err(NtnError::ComputationOutOfRange);
+        }
 
         let cos_zenith = ue_dot_r / (ue_mag * slant_range_m);
-        // clamp to -1.0 .. 1.0
-        let cos_zenith_clamped = cos_zenith.max(-1.0).min(1.0);
+        if !cos_zenith.is_finite() {
+            return Err(NtnError::ComputationOutOfRange);
+        }
+        let cos_zenith_clamped = cos_zenith.clamp(-1.0, 1.0);
         let zenith_rad = cos_zenith_clamped.acos();
         let elevation_deg = 90.0 - zenith_rad.to_degrees();
+
+        if ![
+            slant_range_km,
+            one_way_delay_ms,
+            rtt_ms,
+            timing_advance_us,
+            doppler_shift_hz,
+            radial_velocity_mps,
+            elevation_deg,
+        ]
+        .iter()
+        .all(|v| v.is_finite())
+        {
+            return Err(NtnError::ComputationOutOfRange);
+        }
 
         Ok(NtnLinkMetrics {
             slant_range_km,
