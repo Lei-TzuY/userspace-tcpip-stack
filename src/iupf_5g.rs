@@ -73,6 +73,7 @@ pub enum IUpfError {
     SessionNotFound,
     InvalidGtpPacket(&'static str),
     HandoverAlreadyActive,
+    N3TeidAlreadyBound,
 }
 
 // ---------------------------------------------------------------------------
@@ -97,7 +98,10 @@ impl IUpfEngine {
         }
     }
 
-    /// Create an I-UPF Session context with N3 / N9 tunnel bindings.
+    /// Create or replace an I-UPF Session context with N3 / N9 tunnel bindings.
+    ///
+    /// A TEID may belong to only one session. Replacing an existing session cleans up
+    /// its previous N3 binding before installing the new context.
     pub fn create_session(
         &mut self,
         session_id: &str,
@@ -105,7 +109,24 @@ impl IUpfEngine {
         n3_access_teid: u32,
         gnb_downlink_teid: u32,
         default_target: RoutingTarget,
-    ) {
+    ) -> Result<(), IUpfError> {
+        if let Some(owner) = self.n3_teid_to_session.get(&n3_access_teid) {
+            if owner != session_id {
+                return Err(IUpfError::N3TeidAlreadyBound);
+            }
+        }
+
+        if let Some(existing) = self.sessions.get(session_id) {
+            if existing.n3_access_teid != n3_access_teid
+                && self
+                    .n3_teid_to_session
+                    .get(&existing.n3_access_teid)
+                    .is_some_and(|owner| owner == session_id)
+            {
+                self.n3_teid_to_session.remove(&existing.n3_access_teid);
+            }
+        }
+
         let ctx = IUpfSessionContext {
             session_id: session_id.to_string(),
             ue_ip,
@@ -120,6 +141,7 @@ impl IUpfEngine {
         self.n3_teid_to_session
             .insert(n3_access_teid, session_id.to_string());
         self.sessions.insert(session_id.to_string(), ctx);
+        Ok(())
     }
 
     /// Add an Uplink Classifier (ULCL) filter rule for local edge steering.
@@ -281,7 +303,13 @@ impl IUpfEngine {
             .sessions
             .remove(session_id)
             .ok_or(IUpfError::SessionNotFound)?;
-        self.n3_teid_to_session.remove(&sess.n3_access_teid);
+        if self
+            .n3_teid_to_session
+            .get(&sess.n3_access_teid)
+            .is_some_and(|owner| owner == session_id)
+        {
+            self.n3_teid_to_session.remove(&sess.n3_access_teid);
+        }
         Ok(())
     }
 }
