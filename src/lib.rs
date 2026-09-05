@@ -2086,7 +2086,7 @@ pub use upf_pipeline_5g::{
 };
 pub use upip_5g::{
     MaxDataRatePerUe, UpIntegrityAlgorithm, UpIntegrityPolicy, UpSecurityContext, UpipEngine,
-    UpipError, compute_mac_i,
+    UpipError,
 };
 pub use vlan::{TaggedEthernetFrame, VlanTag};
 pub use vpls::{PW_CONTROL_WORD_LEN, PwControlWord, VplsInstance, VplsPseudowire};
