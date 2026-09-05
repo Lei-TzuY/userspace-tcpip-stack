@@ -3,7 +3,8 @@
 use toy_tcpip::ptp::{PTP_MSG_SYNC, PtpPacket, PtpTimestamp};
 use toy_tcpip::ptp_pdv_filter::{PtpClockServo, PtpClockServoConfig, PtpServoAction};
 use toy_tcpip::ptp_phc::{
-    PhcPacketTagger, PhcTxTimestampRing, PtpCrossTimestamp, PtpHardwareClock,
+    PhcPacketTagger, PhcTxTimestampRing, PtpCrossTimestamp, PtpCrossTimestampError,
+    PtpHardwareClock,
 };
 
 #[test]
@@ -118,18 +119,37 @@ fn test_phc_cross_timestamping() {
     let cross_ts = PtpCrossTimestamp::new(dev_ts, sys_before, sys_after);
 
     // Bus read latency = 500_002_000 - 499_998_000 = 4000 ns
-    assert_eq!(cross_ts.bus_read_latency_ns(), 4000);
+    assert_eq!(cross_ts.bus_read_latency_ns(), Ok(4000));
     assert!(cross_ts.is_valid_latency(5000));
     assert!(!cross_ts.is_valid_latency(3000));
 
     // Midpoint of sys clock = (499_998_000 + 500_002_000) / 2 = 500_000_000 ns
     // Offset = device_ts - midpoint = 500_000_000 - 500_000_000 = 0 ns
-    assert_eq!(cross_ts.compute_offset_ns(), 0);
+    assert_eq!(cross_ts.compute_offset_ns(), Ok(0));
 
     // Test when device is ahead by +250 ns
     let dev_ahead = PtpTimestamp::new(100, 500_000_250);
     let cross_ahead = PtpCrossTimestamp::new(dev_ahead, sys_before, sys_after);
-    assert_eq!(cross_ahead.compute_offset_ns(), 250);
+    assert_eq!(cross_ahead.compute_offset_ns(), Ok(250));
+}
+
+#[test]
+fn test_phc_cross_timestamp_rejects_reversed_system_snapshots() {
+    let cross_ts = PtpCrossTimestamp::new(
+        PtpTimestamp::new(100, 500_000_000),
+        PtpTimestamp::new(100, 500_002_000),
+        PtpTimestamp::new(100, 499_998_000),
+    );
+
+    assert_eq!(
+        cross_ts.bus_read_latency_ns(),
+        Err(PtpCrossTimestampError::ReversedSystemTime)
+    );
+    assert!(!cross_ts.is_valid_latency(u64::MAX));
+    assert_eq!(
+        cross_ts.compute_offset_ns(),
+        Err(PtpCrossTimestampError::ReversedSystemTime)
+    );
 }
 
 #[test]
