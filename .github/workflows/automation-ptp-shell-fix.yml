@@ -1,0 +1,109 @@
+name: automation-ptp-shell-fix
+
+on:
+  push:
+    branches: [automation/ptp-tc-shell-fix]
+    paths:
+      - ".github/workflows/automation-ptp-shell-fix.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/bil-9-ptp-tc-fail-closed-arithmetic
+          fetch-depth: 0
+      - name: Verify exact PR head
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "c6463cfad88a84a5be6803df28755d2657078626"
+      - name: Patch checked PTP shell caller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/shell.rs")
+          text = path.read_text(encoding="utf-8")
+          old = '''        let residence = self.ptp_tc_engine.calculate_residence_time(&hop);
+          let updated_corr = self.ptp_tc_engine.update_correction_field(50, &hop);
+
+          println!(
+              "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
+              hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
+          );
+          println!(
+              "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
+              updated_corr,
+              TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
+          );
+          println!(
+              "  • Total TC Corrected Packets: {}, Total Residence Time: {}ns",
+              self.ptp_tc_engine.corrected_packets_count, self.ptp_tc_engine.total_residence_time_ns
+          );
+          println!("  PTP Transparent Clock Residence Time Correction OK!");'''
+          new = '''        let timing_result = match self.ptp_tc_engine.calculate_residence_time(&hop) {
+              Ok(residence) => match self.ptp_tc_engine.update_correction_field(50, &hop) {
+                  Ok(updated_corr) => TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
+                      .map(|scaled_corr| (residence, updated_corr, scaled_corr)),
+                  Err(error) => Err(error),
+              },
+              Err(error) => Err(error),
+          };
+
+          match timing_result {
+              Ok((residence, updated_corr, scaled_corr)) => {
+                  println!(
+                      "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
+                      hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
+                  );
+                  println!(
+                      "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
+                      updated_corr, scaled_corr
+                  );
+                  println!(
+                      "  • Total TC Corrected Packets: {}, Total Residence Time: {}ns",
+                      self.ptp_tc_engine.corrected_packets_count,
+                      self.ptp_tc_engine.total_residence_time_ns
+                  );
+                  println!("  PTP Transparent Clock Residence Time Correction OK!");
+              }
+              Err(error) => {
+                  println!("  • PTP Transparent Clock arithmetic rejected: {error:?}");
+              }
+          }'''
+          if text.count(old) != 1:
+              raise SystemExit(f"expected exactly one PTP shell demo block, found {text.count(old)}")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          cargo fmt --all
+          git diff --check
+      - name: Validate stable
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install stable --component clippy,rustfmt --profile minimal
+          cargo fmt --all -- --check
+          cargo test --locked --all-targets
+          cargo clippy --locked --all-targets --all-features -- -D clippy::correctness
+      - name: Validate minimum supported Rust 1.88
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.88.0 --profile minimal
+          cargo +1.88.0 test --locked --all-targets
+      - name: Commit repair to PR branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "LeiZ"
+          git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
+          git add src/shell.rs
+          git commit -m "fix(ptp-tc): handle checked shell timing results"
+          git push origin HEAD:fix/bil-9-ptp-tc-fail-closed-arithmetic
