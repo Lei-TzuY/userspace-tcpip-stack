@@ -222,3 +222,76 @@ fn test_bdt_error_handling_invalid_window_or_zero_values() {
     let err3 = bdt.commit_bdt_policy(&ref_id, 999);
     assert_eq!(err3, Err(BdtError::PolicyNotFound { policy_id: 999 }));
 }
+
+// ---------------------------------------------------------------------------
+// 6. Arithmetic Overflow Must Fail Closed
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_bdt_quota_multiplication_overflow_is_rejected() {
+    let mut bdt = BdtEngine::new("overflow-quota-core");
+    let (ref_id, candidates) = bdt
+        .propose_bdt_negotiation(BdtTransferRequest {
+            af_id: "bulk-af".to_string(),
+            volume_per_ue_bytes: u64::MAX,
+            number_of_ues: 2,
+            desired_window: TimeWindow {
+                start_time_epoch_s: 1_700_000_000,
+                end_time_epoch_s: 1_700_086_400,
+            },
+            network_area_ta_list: vec![],
+        })
+        .unwrap();
+    bdt.commit_bdt_policy(&ref_id, 1).unwrap();
+
+    let valid_time = candidates[0].time_window.start_time_epoch_s;
+    assert_eq!(
+        bdt.verify_and_account_traffic(&ref_id, valid_time, 1),
+        Err(BdtError::ArithmeticOverflow)
+    );
+    assert_eq!(bdt.sessions[&ref_id].total_bytes_transferred, 0);
+}
+
+#[test]
+fn test_bdt_running_total_overflow_is_rejected_without_mutation() {
+    let mut bdt = BdtEngine::new("overflow-total-core");
+    let (ref_id, candidates) = bdt
+        .propose_bdt_negotiation(BdtTransferRequest {
+            af_id: "bulk-af".to_string(),
+            volume_per_ue_bytes: u64::MAX,
+            number_of_ues: 1,
+            desired_window: TimeWindow {
+                start_time_epoch_s: 1_700_000_000,
+                end_time_epoch_s: 1_700_086_400,
+            },
+            network_area_ta_list: vec![],
+        })
+        .unwrap();
+    bdt.commit_bdt_policy(&ref_id, 1).unwrap();
+    bdt.sessions.get_mut(&ref_id).unwrap().total_bytes_transferred = u64::MAX;
+
+    let valid_time = candidates[0].time_window.start_time_epoch_s;
+    assert_eq!(
+        bdt.verify_and_account_traffic(&ref_id, valid_time, 1),
+        Err(BdtError::ArithmeticOverflow)
+    );
+    assert_eq!(bdt.sessions[&ref_id].total_bytes_transferred, u64::MAX);
+}
+
+#[test]
+fn test_bdt_policy_window_overflow_is_rejected_before_session_insert() {
+    let mut bdt = BdtEngine::new("overflow-window-core");
+    let result = bdt.propose_bdt_negotiation(BdtTransferRequest {
+        af_id: "bulk-af".to_string(),
+        volume_per_ue_bytes: 1,
+        number_of_ues: 1,
+        desired_window: TimeWindow {
+            start_time_epoch_s: u64::MAX - 100,
+            end_time_epoch_s: u64::MAX,
+        },
+        network_area_ta_list: vec![],
+    });
+
+    assert_eq!(result, Err(BdtError::ArithmeticOverflow));
+    assert!(bdt.sessions.is_empty());
+}
