@@ -1,0 +1,64 @@
+name: PTP Fuzz Smoke
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "fuzz/**"
+      - "src/ptp.rs"
+      - ".github/workflows/ptp-fuzz.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "fuzz/**"
+      - "src/ptp.rs"
+      - ".github/workflows/ptp-fuzz.yml"
+  schedule:
+    - cron: "17 6 * * 3"
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: "libFuzzer iterations for the PTP parser target"
+        required: true
+        default: "10000"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ptp-fuzz-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fuzz-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      FUZZ_RUNS: ${{ github.event_name == 'workflow_dispatch' && inputs.runs || (github.event_name == 'schedule' && '100000' || '1000') }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - name: Set up nightly Rust
+        uses: dtolnay/rust-toolchain@7c8d7d138f5c09cef361f8214cf96882cd029cdb # nightly
+      - name: Install cargo-fuzz 0.13.2
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
+      - name: Validate fuzz run count
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "${FUZZ_RUNS}" =~ ^[1-9][0-9]{0,6}$ ]] || (( 10#${FUZZ_RUNS} > 1000000 )); then
+            echo "invalid fuzz run count: ${FUZZ_RUNS}; expected an integer from 1 to 1000000" >&2
+            exit 1
+          fi
+      - name: Smoke fuzz PTP parser
+        run: >-
+          cargo fuzz run ptp_packet_parse --
+          -runs=${FUZZ_RUNS}
+          -max_len=4096
+          -timeout=10
