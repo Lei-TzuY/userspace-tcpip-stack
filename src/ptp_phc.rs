@@ -89,6 +89,15 @@ impl PtpHardwareClock {
     }
 }
 
+/// Fail-closed validation errors for PHC/system cross-timestamp samples.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PtpCrossTimestampError {
+    /// The system clock snapshot taken after the device read predates the snapshot taken before it.
+    ReversedSystemTime,
+    /// The device-to-system midpoint offset cannot be represented as a signed nanosecond value.
+    OffsetOutOfRange,
+}
+
 /// Precision Cross-Timestamping Entry (IEEE 1588-2019 Clause 9.2.5 / Linux PTP_SYS_OFFSET_PRECISE).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PtpCrossTimestamp {
@@ -114,30 +123,37 @@ impl PtpCrossTimestamp {
     }
 
     /// Returns PCIe/bus round-trip latency in nanoseconds: (sys_after - sys_before).
-    pub fn bus_read_latency_ns(&self) -> u64 {
+    ///
+    /// Reversed system snapshots are rejected rather than normalized to zero latency.
+    pub fn bus_read_latency_ns(&self) -> Result<u64, PtpCrossTimestampError> {
         let before_ns = self.sys_time_before.to_total_nanoseconds();
         let after_ns = self.sys_time_after.to_total_nanoseconds();
-        if after_ns >= before_ns {
-            (after_ns - before_ns) as u64
-        } else {
-            0
-        }
+        let latency_ns = after_ns
+            .checked_sub(before_ns)
+            .ok_or(PtpCrossTimestampError::ReversedSystemTime)?;
+        u64::try_from(latency_ns).map_err(|_| PtpCrossTimestampError::OffsetOutOfRange)
     }
 
-    /// Verifies if cross-timestamp bus read latency is within acceptable tolerance.
+    /// Verifies if cross-timestamp bus read latency is valid and within acceptable tolerance.
     pub fn is_valid_latency(&self, max_bus_latency_ns: u64) -> bool {
-        self.bus_read_latency_ns() <= max_bus_latency_ns
+        matches!(self.bus_read_latency_ns(), Ok(latency) if latency <= max_bus_latency_ns)
     }
 
     /// Computes bus-latency-compensated host-to-device clock offset in nanoseconds:
-    /// Offset = device_time - midpoint(sys_before, sys_after)
-    pub fn compute_offset_ns(&self) -> i64 {
+    /// Offset = device_time - midpoint(sys_before, sys_after).
+    ///
+    /// Invalid snapshot ordering and offsets outside the signed nanosecond range are rejected.
+    pub fn compute_offset_ns(&self) -> Result<i64, PtpCrossTimestampError> {
         let dev_ns = self.device_time.to_total_nanoseconds();
         let before_ns = self.sys_time_before.to_total_nanoseconds();
         let after_ns = self.sys_time_after.to_total_nanoseconds();
 
-        let sys_midpoint = (before_ns + after_ns) / 2;
-        (dev_ns - sys_midpoint) as i64
+        if after_ns < before_ns {
+            return Err(PtpCrossTimestampError::ReversedSystemTime);
+        }
+
+        let sys_midpoint = before_ns + (after_ns - before_ns) / 2;
+        i64::try_from(dev_ns - sys_midpoint).map_err(|_| PtpCrossTimestampError::OffsetOutOfRange)
     }
 }
 
