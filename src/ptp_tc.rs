@@ -104,7 +104,8 @@ impl TransparentClockEngine {
 
     /// Encodes nanoseconds to IEEE 1588v2 scaledNanoseconds (48-bit integer ns + 16-bit fractional ns)
     pub fn to_scaled_nanoseconds(ns: u64) -> Result<u64, PtpTcError> {
-        ns.checked_shl(16).ok_or(PtpTcError::ArithmeticOverflow)
+        ns.checked_mul(1u64 << 16)
+            .ok_or(PtpTcError::ArithmeticOverflow)
     }
 
     /// Decodes IEEE 1588v2 scaledNanoseconds to integer nanoseconds
