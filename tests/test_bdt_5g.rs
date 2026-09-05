@@ -268,7 +268,10 @@ fn test_bdt_running_total_overflow_is_rejected_without_mutation() {
         })
         .unwrap();
     bdt.commit_bdt_policy(&ref_id, 1).unwrap();
-    bdt.sessions.get_mut(&ref_id).unwrap().total_bytes_transferred = u64::MAX;
+    bdt.sessions
+        .get_mut(&ref_id)
+        .unwrap()
+        .total_bytes_transferred = u64::MAX;
 
     let valid_time = candidates[0].time_window.start_time_epoch_s;
     assert_eq!(
