@@ -10,7 +10,7 @@ permissions:
   contents: write
 
 jobs:
-  patch-and-validate:
+  diagnose-msrv:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -75,26 +75,34 @@ jobs:
           PY
           cargo fmt --all
           git diff --check
-      - name: Validate stable
-        shell: bash
-        run: |
-          set -euo pipefail
-          rustup toolchain install stable --component clippy,rustfmt --profile minimal
-          cargo fmt --all -- --check
-          cargo test --locked --all-targets
-          cargo clippy --locked --all-targets --all-features -- -D clippy::correctness
-      - name: Validate minimum supported Rust 1.88
+      - name: Capture Rust 1.88 compiler diagnostics
         shell: bash
         run: |
           set -euo pipefail
           rustup toolchain install 1.88.0 --profile minimal
-          cargo +1.88.0 test --locked --all-targets
-      - name: Commit repair to PR branch
-        shell: bash
-        run: |
-          set -euo pipefail
+          set +e
+          cargo +1.88.0 test --locked --all-targets --no-run > /tmp/msrv-diagnostic.txt 2>&1
+          status=$?
+          set -e
+          cat /tmp/msrv-diagnostic.txt
+          if [ "$status" -eq 0 ]; then
+            echo "Rust 1.88 compile-only gate passed; no failure diagnostic to persist."
+            exit 0
+          fi
+
+          git reset --hard HEAD
+          git clean -fd
+          git fetch origin automation/ptp-tc-shell-fix
+          git checkout -B automation/ptp-tc-shell-fix origin/automation/ptp-tc-shell-fix
+          mkdir -p automation
+          cp /tmp/msrv-diagnostic.txt automation/msrv-diagnostic.txt
           git config user.name "LeiZ"
           git config user.email "52287354+Lei-TzuY@users.noreply.github.com"
-          git add src/shell.rs
-          git commit -m "fix(ptp-tc): handle checked shell timing results"
-          git push origin HEAD:fix/bil-9-ptp-tc-fail-closed-arithmetic
+          git add automation/msrv-diagnostic.txt
+          if git diff --cached --quiet; then
+            echo "Diagnostic unchanged."
+          else
+            git commit -m "chore: capture Rust 1.88 PTP repair failure"
+            git push origin HEAD:automation/ptp-tc-shell-fix
+          fi
+          exit "$status"
