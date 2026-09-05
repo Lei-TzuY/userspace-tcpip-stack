@@ -1,0 +1,66 @@
+name: automation-ptp-shell-fix
+
+on:
+  push:
+    branches: [ automation/ptp-tc-shell-fix ]
+
+permissions:
+  contents: write
+
+jobs:
+  patch-target:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: fix/bil-9-ptp-tc-fail-closed-arithmetic
+          fetch-depth: 0
+      - name: Patch shell call sites
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('src/shell.rs')
+          s = p.read_text()
+          old = '''        let residence = self.ptp_tc_engine.calculate_residence_time(&hop);
+        let updated_corr = self.ptp_tc_engine.update_correction_field(50, &hop);
+
+        println!(
+            "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
+            hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
+        );
+        println!(
+            "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
+            updated_corr,
+            TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
+        );'''
+          new = '''        let residence = self
+            .ptp_tc_engine
+            .calculate_residence_time(&hop)
+            .expect("fixed PTP demo timestamps must be ordered");
+        let updated_corr = self
+            .ptp_tc_engine
+            .update_correction_field(50, &hop)
+            .expect("fixed PTP demo correction must fit");
+        let scaled_corr = TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
+            .expect("fixed PTP demo scaled correction must fit");
+
+        println!(
+            "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
+            hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
+        );
+        println!(
+            "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
+            updated_corr, scaled_corr
+        );'''
+          if s.count(old) != 1:
+              raise SystemExit(f'expected one shell call-site block, found {s.count(old)}')
+          p.write_text(s.replace(old, new))
+          PY
+          cargo fmt --all
+          git config user.name 'LeiZ'
+          git config user.email '52287354+Lei-TzuY@users.noreply.github.com'
+          git add src/shell.rs
+          git diff --cached --check
+          git commit -m 'fix(ptp-tc): update shell for checked timing results'
+          git push origin HEAD:fix/bil-9-ptp-tc-fail-closed-arithmetic
