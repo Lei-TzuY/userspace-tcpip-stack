@@ -48,7 +48,8 @@ fn test_iupf_ulcl_local_edge_steering_happy_path() {
         n3_teid,
         gnb_dl_teid,
         central_target,
-    );
+    )
+    .unwrap();
 
     // Add ULCL rule: Subnet 10.200.0.0/16 steers to Local Edge PSA
     let edge_target = RoutingTarget::LocalEdgePsa {
@@ -113,7 +114,8 @@ fn test_iupf_handover_buffering_and_flush() {
             n9_teid: 0x9999,
             central_upf_ip: [10, 0, 0, 1],
         },
-    );
+    )
+    .unwrap();
 
     // Normal downlink forwarding before handover
     let normal_dl = iupf.process_downlink_packet(sess_id, b"Normal DL").unwrap();
@@ -167,7 +169,8 @@ fn test_iupf_corrupt_gtp_and_ip_payload_rejections() {
             n9_teid: 0x7777,
             central_upf_ip: [1, 2, 3, 4],
         },
-    );
+    )
+    .unwrap();
 
     // Truncated GTP packet (< 8 bytes)
     let err1 = iupf.process_uplink_n3_packet(&[0x30, 0xFF, 0x00]);
@@ -225,7 +228,8 @@ fn test_iupf_session_removal_lifecycle() {
             n9_teid: 0xAAAA,
             central_upf_ip: [1, 1, 1, 1],
         },
-    );
+    )
+    .unwrap();
 
     assert!(iupf.sessions.contains_key(sess_id));
     assert!(iupf.n3_teid_to_session.contains_key(&n3_teid));
@@ -236,4 +240,52 @@ fn test_iupf_session_removal_lifecycle() {
 
     let err = iupf.remove_session(sess_id);
     assert_eq!(err, Err(IUpfError::SessionNotFound));
+}
+
+// ---------------------------------------------------------------------------
+// 6. Session Replacement and N3 TEID Ownership
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_iupf_session_replacement_updates_n3_teid_binding() {
+    let mut iupf = IUpfEngine::new("iupf-lifecycle-06");
+    let target = RoutingTarget::CentralInternetPsa {
+        n9_teid: 0x9000,
+        central_upf_ip: [10, 0, 0, 1],
+    };
+
+    iupf.create_session("sess-a", [192, 168, 1, 60], 0x1001, 0x2001, target.clone())
+        .unwrap();
+    iupf.create_session("sess-a", [192, 168, 1, 60], 0x1002, 0x2002, target.clone())
+        .unwrap();
+
+    assert!(!iupf.n3_teid_to_session.contains_key(&0x1001));
+    assert_eq!(
+        iupf.n3_teid_to_session.get(&0x1002).map(String::as_str),
+        Some("sess-a")
+    );
+    assert_eq!(iupf.sessions["sess-a"].n3_access_teid, 0x1002);
+}
+
+#[test]
+fn test_iupf_rejects_duplicate_n3_teid_without_mutating_state() {
+    let mut iupf = IUpfEngine::new("iupf-lifecycle-07");
+    let target = RoutingTarget::CentralInternetPsa {
+        n9_teid: 0x9000,
+        central_upf_ip: [10, 0, 0, 1],
+    };
+
+    iupf.create_session("sess-a", [192, 168, 1, 70], 0x3001, 0x4001, target.clone())
+        .unwrap();
+
+    let err = iupf.create_session("sess-b", [192, 168, 1, 71], 0x3001, 0x4002, target);
+    assert_eq!(err, Err(IUpfError::N3TeidAlreadyBound));
+    assert!(!iupf.sessions.contains_key("sess-b"));
+    assert_eq!(
+        iupf.n3_teid_to_session.get(&0x3001).map(String::as_str),
+        Some("sess-a")
+    );
+
+    iupf.remove_session("sess-a").unwrap();
+    assert!(!iupf.n3_teid_to_session.contains_key(&0x3001));
 }
