@@ -5937,23 +5937,36 @@ impl NetworkShell {
             ingress_timestamp_ns: 1_000_000_000,
             egress_timestamp_ns: 1_000_000_280, // 280ns residence time inside switch fabric
         };
-        let residence = self.ptp_tc_engine.calculate_residence_time(&hop);
-        let updated_corr = self.ptp_tc_engine.update_correction_field(50, &hop);
+        let timing_result = match self.ptp_tc_engine.calculate_residence_time(&hop) {
+            Ok(residence) => match self.ptp_tc_engine.update_correction_field(50, &hop) {
+                Ok(updated_corr) => TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
+                    .map(|scaled_corr| (residence, updated_corr, scaled_corr)),
+                Err(error) => Err(error),
+            },
+            Err(error) => Err(error),
+        };
 
-        println!(
-            "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
-            hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
-        );
-        println!(
-            "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
-            updated_corr,
-            TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
-        );
-        println!(
-            "  • Total TC Corrected Packets: {}, Total Residence Time: {}ns",
-            self.ptp_tc_engine.corrected_packets_count, self.ptp_tc_engine.total_residence_time_ns
-        );
-        println!("  PTP Transparent Clock Residence Time Correction OK!");
+        match timing_result {
+            Ok((residence, updated_corr, scaled_corr)) => {
+                println!(
+                    "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
+                    hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
+                );
+                println!(
+                    "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
+                    updated_corr, scaled_corr
+                );
+                println!(
+                    "  • Total TC Corrected Packets: {}, Total Residence Time: {}ns",
+                    self.ptp_tc_engine.corrected_packets_count,
+                    self.ptp_tc_engine.total_residence_time_ns
+                );
+                println!("  PTP Transparent Clock Residence Time Correction OK!");
+            }
+            Err(error) => {
+                println!("  • PTP Transparent Clock arithmetic rejected: {error:?}");
+            }
+        }
     }
 
     fn cmd_pfcp(&mut self, _args: &[&str]) {
