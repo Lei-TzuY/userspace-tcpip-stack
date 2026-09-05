@@ -88,6 +88,7 @@ pub enum BdtError {
     SessionNotCommitted,
     OutsidePermittedTimeWindow { current: u64, start: u64, end: u64 },
     TransferVolumeQuotaExceeded { transferred: u64, max_allowed: u64 },
+    ArithmeticOverflow,
 }
 
 // ---------------------------------------------------------------------------
@@ -124,12 +125,21 @@ impl BdtEngine {
         }
 
         let bdt_ref_id = format!("bdt-ref-{}-{}", self.engine_id, self.next_ref_counter);
-        self.next_ref_counter += 1;
+        self.next_ref_counter = self
+            .next_ref_counter
+            .checked_add(1)
+            .ok_or(BdtError::ArithmeticOverflow)?;
 
         // Generate 2 differentiated off-peak candidate policies:
         // Policy 1: Deep night window (01:00 - 05:00 relative offset) with 80% discount
-        let w1_start = req.desired_window.start_time_epoch_s + 3600;
-        let w1_end = w1_start + 14400; // 4 hours
+        let w1_start = req
+            .desired_window
+            .start_time_epoch_s
+            .checked_add(3600)
+            .ok_or(BdtError::ArithmeticOverflow)?;
+        let w1_end = w1_start
+            .checked_add(14400)
+            .ok_or(BdtError::ArithmeticOverflow)?; // 4 hours
         let policy1 = BdtPolicyCandidate {
             bdt_policy_id: 1,
             time_window: TimeWindow {
@@ -143,7 +153,9 @@ impl BdtEngine {
 
         // Policy 2: Early morning window (05:00 - 08:00 relative offset) with 50% discount
         let w2_start = w1_end;
-        let w2_end = w2_start + 10800; // 3 hours
+        let w2_end = w2_start
+            .checked_add(10800)
+            .ok_or(BdtError::ArithmeticOverflow)?; // 3 hours
         let policy2 = BdtPolicyCandidate {
             bdt_policy_id: 2,
             time_window: TimeWindow {
@@ -240,17 +252,25 @@ impl BdtEngine {
             });
         }
 
-        // 2. Volume Quota Check (volume_per_ue * number_of_ues)
-        let max_allowed = sess.volume_per_ue_bytes * (sess.number_of_ues as u64);
-        if sess.total_bytes_transferred + bytes_to_transfer > max_allowed {
+        // 2. Volume Quota Check (volume_per_ue * number_of_ues). Fail closed if
+        // configured quota or running accounting cannot be represented in u64.
+        let max_allowed = sess
+            .volume_per_ue_bytes
+            .checked_mul(sess.number_of_ues as u64)
+            .ok_or(BdtError::ArithmeticOverflow)?;
+        let transferred = sess
+            .total_bytes_transferred
+            .checked_add(bytes_to_transfer)
+            .ok_or(BdtError::ArithmeticOverflow)?;
+        if transferred > max_allowed {
             return Err(BdtError::TransferVolumeQuotaExceeded {
-                transferred: sess.total_bytes_transferred + bytes_to_transfer,
+                transferred,
                 max_allowed,
             });
         }
 
         sess.state = BdtNegotiationState::Active;
-        sess.total_bytes_transferred += bytes_to_transfer;
+        sess.total_bytes_transferred = transferred;
 
         Ok(policy.rating_group)
     }
