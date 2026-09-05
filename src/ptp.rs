@@ -61,6 +61,8 @@ pub struct PtpPacket {
 pub enum PtpError {
     PacketTooShort(usize),
     InvalidVersion(u8),
+    InvalidMessageLength { declared: u16, available: usize },
+    InvalidTimestampNanoseconds(u32),
 }
 
 impl fmt::Display for PtpError {
@@ -68,6 +70,17 @@ impl fmt::Display for PtpError {
         match self {
             PtpError::PacketTooShort(l) => write!(f, "PTP packet too short ({} bytes)", l),
             PtpError::InvalidVersion(v) => write!(f, "Invalid PTP version: {}", v),
+            PtpError::InvalidMessageLength {
+                declared,
+                available,
+            } => write!(
+                f,
+                "Invalid PTP message length: declared {}, available {}",
+                declared, available
+            ),
+            PtpError::InvalidTimestampNanoseconds(ns) => {
+                write!(f, "Invalid PTP timestamp nanoseconds: {}", ns)
+            }
         }
     }
 }
@@ -160,18 +173,27 @@ impl PtpPacket {
         }
 
         let message_length = u16::from_be_bytes([data[2], data[3]]);
-        let domain_number = data[4];
-        let flags = u16::from_be_bytes([data[6], data[7]]);
+        let declared_len = message_length as usize;
+        if declared_len < PTP_HEADER_LEN || declared_len > data.len() {
+            return Err(PtpError::InvalidMessageLength {
+                declared: message_length,
+                available: data.len(),
+            });
+        }
+        let frame = &data[..declared_len];
+
+        let domain_number = frame[4];
+        let flags = u16::from_be_bytes([frame[6], frame[7]]);
         let correction_field = i64::from_be_bytes([
-            data[8], data[9], data[10], data[11], data[12], data[13], data[14], data[15],
+            frame[8], frame[9], frame[10], frame[11], frame[12], frame[13], frame[14], frame[15],
         ]);
 
         let mut clock_identity = [0u8; 8];
-        clock_identity.copy_from_slice(&data[20..28]);
-        let source_port_id = u16::from_be_bytes([data[28], data[29]]);
-        let sequence_id = u16::from_be_bytes([data[30], data[31]]);
-        let control_field = data[32];
-        let log_message_interval = data[33] as i8;
+        clock_identity.copy_from_slice(&frame[20..28]);
+        let source_port_id = u16::from_be_bytes([frame[28], frame[29]]);
+        let sequence_id = u16::from_be_bytes([frame[30], frame[31]]);
+        let control_field = frame[32];
+        let log_message_interval = frame[33] as i8;
 
         let header = PtpHeader {
             message_type,
@@ -190,16 +212,19 @@ impl PtpPacket {
         let mut origin_timestamp = None;
         let mut offset = PTP_HEADER_LEN;
 
-        if data.len() >= offset + 10 {
+        if frame.len() >= offset + 10 {
             let mut sec_buf = [0u8; 8];
-            sec_buf[2..8].copy_from_slice(&data[offset..offset + 6]);
+            sec_buf[2..8].copy_from_slice(&frame[offset..offset + 6]);
             let seconds = u64::from_be_bytes(sec_buf);
             let nanoseconds = u32::from_be_bytes([
-                data[offset + 6],
-                data[offset + 7],
-                data[offset + 8],
-                data[offset + 9],
+                frame[offset + 6],
+                frame[offset + 7],
+                frame[offset + 8],
+                frame[offset + 9],
             ]);
+            if nanoseconds >= 1_000_000_000 {
+                return Err(PtpError::InvalidTimestampNanoseconds(nanoseconds));
+            }
             origin_timestamp = Some(PtpTimestamp {
                 seconds,
                 nanoseconds,
@@ -207,8 +232,8 @@ impl PtpPacket {
             offset += 10;
         }
 
-        let payload = if offset < data.len() {
-            data[offset..].to_vec()
+        let payload = if offset < frame.len() {
+            frame[offset..].to_vec()
         } else {
             Vec::new()
         };
@@ -276,5 +301,60 @@ mod tests {
         let (offset, delay) = calculate_ptp_offset_and_delay(t1, t2, t3, t4);
         assert_eq!(offset, 0); // Synchronized
         assert_eq!(delay, 100); // 100ns path delay
+    }
+
+    #[test]
+    fn test_ptp_rejects_declared_length_below_header() {
+        let sync = PtpPacket::build_sync([0; 8], 1, PtpTimestamp::new(1, 0));
+        let mut raw = sync.serialize();
+        raw[2..4].copy_from_slice(&(PTP_HEADER_LEN as u16 - 1).to_be_bytes());
+
+        assert_eq!(
+            PtpPacket::parse(&raw),
+            Err(PtpError::InvalidMessageLength {
+                declared: PTP_HEADER_LEN as u16 - 1,
+                available: raw.len(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_ptp_rejects_truncated_declared_frame() {
+        let sync = PtpPacket::build_sync([0; 8], 2, PtpTimestamp::new(1, 0));
+        let mut raw = sync.serialize();
+        let declared = raw.len() as u16 + 1;
+        raw[2..4].copy_from_slice(&declared.to_be_bytes());
+
+        assert_eq!(
+            PtpPacket::parse(&raw),
+            Err(PtpError::InvalidMessageLength {
+                declared,
+                available: raw.len(),
+            })
+        );
+    }
+
+    #[test]
+    fn test_ptp_ignores_transport_bytes_beyond_declared_message() {
+        let sync = PtpPacket::build_sync([0; 8], 3, PtpTimestamp::new(1, 123));
+        let mut raw = sync.serialize();
+        raw.extend_from_slice(&[0xAA, 0xBB, 0xCC, 0xDD]);
+
+        let parsed = PtpPacket::parse(&raw).unwrap();
+        assert_eq!(parsed.header.message_length, 44);
+        assert_eq!(parsed.origin_timestamp.unwrap().nanoseconds, 123);
+        assert!(parsed.payload.is_empty());
+    }
+
+    #[test]
+    fn test_ptp_rejects_invalid_timestamp_nanoseconds() {
+        let sync = PtpPacket::build_sync([0; 8], 4, PtpTimestamp::new(1, 0));
+        let mut raw = sync.serialize();
+        raw[40..44].copy_from_slice(&1_000_000_000u32.to_be_bytes());
+
+        assert_eq!(
+            PtpPacket::parse(&raw),
+            Err(PtpError::InvalidTimestampNanoseconds(1_000_000_000))
+        );
     }
 }
