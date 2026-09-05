@@ -44,7 +44,7 @@ fn test_ptp_tc_p2p_peer_delay_and_scaled_ns() {
 fn test_ptp_tc_rejects_peer_turnaround_larger_than_round_trip() {
     let mut tc = TransparentClockEngine::new(TransparentClockMode::PeerToPeer);
     assert_eq!(
-        tc.calculate_peer_delay(100, 200, 500, 450),
+        tc.calculate_peer_delay(100, 200, 600, 450),
         Err(PtpTcError::InvalidPeerDelayTimestamps)
     );
     assert_eq!(tc.peer_delay_ns, 0);
