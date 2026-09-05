@@ -31,24 +31,17 @@ jobs:
 
           path = Path("src/shell.rs")
           text = path.read_text(encoding="utf-8")
-          old = '''        let residence = self.ptp_tc_engine.calculate_residence_time(&hop);
-          let updated_corr = self.ptp_tc_engine.update_correction_field(50, &hop);
-
-          println!(
-              "  • Frame Transit: Ingress={}ns, Egress={}ns -> Residence Time={}ns",
-              hop.ingress_timestamp_ns, hop.egress_timestamp_ns, residence
-          );
-          println!(
-              "  • Updated PTP Header Correction Field: 50ns -> {}ns (Scaled: 0x{:016X})",
-              updated_corr,
-              TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
-          );
-          println!(
-              "  • Total TC Corrected Packets: {}, Total Residence Time: {}ns",
-              self.ptp_tc_engine.corrected_packets_count, self.ptp_tc_engine.total_residence_time_ns
-          );
-          println!("  PTP Transparent Clock Residence Time Correction OK!");'''
-          new = '''        let timing_result = match self.ptp_tc_engine.calculate_residence_time(&hop) {
+          start_marker = "        let residence = self.ptp_tc_engine.calculate_residence_time(&hop);"
+          end_marker = '        println!("  PTP Transparent Clock Residence Time Correction OK!");'
+          if text.count(start_marker) != 1:
+              raise SystemExit(f"expected one start anchor, found {text.count(start_marker)}")
+          if text.count(end_marker) != 1:
+              raise SystemExit(f"expected one end anchor, found {text.count(end_marker)}")
+          start = text.index(start_marker)
+          end = text.index(end_marker, start) + len(end_marker)
+          if end <= start:
+              raise SystemExit("invalid PTP shell replacement bounds")
+          replacement = '''        let timing_result = match self.ptp_tc_engine.calculate_residence_time(&hop) {
               Ok(residence) => match self.ptp_tc_engine.update_correction_field(50, &hop) {
                   Ok(updated_corr) => TransparentClockEngine::to_scaled_nanoseconds(updated_corr)
                       .map(|scaled_corr| (residence, updated_corr, scaled_corr)),
@@ -78,9 +71,7 @@ jobs:
                   println!("  • PTP Transparent Clock arithmetic rejected: {error:?}");
               }
           }'''
-          if text.count(old) != 1:
-              raise SystemExit(f"expected exactly one PTP shell demo block, found {text.count(old)}")
-          path.write_text(text.replace(old, new), encoding="utf-8")
+          path.write_text(text[:start] + replacement + text[end:], encoding="utf-8")
           PY
           cargo fmt --all
           git diff --check
