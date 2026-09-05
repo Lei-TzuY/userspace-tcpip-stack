@@ -200,7 +200,9 @@ impl OranBfpEngine {
 
         for (o, r) in original.iter().zip(reconstructed.iter()) {
             let sig_sq = (o.i as f64).powi(2) + (o.q as f64).powi(2);
-            let err_sq = ((o.i - r.i) as f64).powi(2) + ((o.q - r.q) as f64).powi(2);
+            let err_i = o.i as f64 - r.i as f64;
+            let err_q = o.q as f64 - r.q as f64;
+            let err_sq = err_i.powi(2) + err_q.powi(2);
 
             signal_power += sig_sq;
             noise_power += err_sq;
