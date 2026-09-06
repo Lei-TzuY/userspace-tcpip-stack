@@ -56,6 +56,15 @@ pub enum TelecomAlarm {
     HoldoverOperating,
 }
 
+/// Fail-closed validation errors for a telecom synchronization processing cycle.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TelecomSyncCycleError {
+    /// Cycle intervals must be finite and strictly positive.
+    InvalidInterval,
+    /// The interval cannot be represented as a positive nanosecond count.
+    IntervalOutOfRange,
+}
+
 /// Output Result from a Single Processing Cycle of the Telecom Synchronization Node.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TelecomSyncCycleResult {
@@ -155,11 +164,29 @@ impl TelecomSyncNode {
     }
 
     /// Executes a single discrete synchronization processing cycle.
-    pub fn process_sync_cycle(&mut self, delta_sec: f64) -> TelecomSyncCycleResult {
+    ///
+    /// Invalid, non-finite, non-positive, or unrepresentable intervals are rejected before any
+    /// PHC, protection-plane, hybrid-servo, or alarm state is mutated.
+    pub fn process_sync_cycle(
+        &mut self,
+        delta_sec: f64,
+    ) -> Result<TelecomSyncCycleResult, TelecomSyncCycleError> {
+        if !delta_sec.is_finite() || delta_sec <= 0.0 {
+            return Err(TelecomSyncCycleError::InvalidInterval);
+        }
+
+        let elapsed_ns_f64 = (delta_sec * 1_000_000_000.0).round();
+        if !elapsed_ns_f64.is_finite()
+            || elapsed_ns_f64 < 1.0
+            || elapsed_ns_f64 > u64::MAX as f64
+        {
+            return Err(TelecomSyncCycleError::IntervalOutOfRange);
+        }
+        let elapsed_ns = elapsed_ns_f64 as u64;
+
         let mut alarms = Vec::new();
 
         // 1. Advance free-running hardware clock counter by real elapsed time
-        let elapsed_ns = (delta_sec * 1_000_000_000.0).round() as u64;
         self.phc.tick_ns(elapsed_ns);
 
         // 2. Dual-plane protection switching evaluation & WTR damping
@@ -246,14 +273,14 @@ impl TelecomSyncNode {
 
         self.active_alarms = alarms.clone();
 
-        TelecomSyncCycleResult {
+        Ok(TelecomSyncCycleResult {
             active_plane: self.dual_plane.active_plane,
             hybrid_mode: self.hybrid.mode,
             phc_time: self.phc.get_time(),
             frequency_ppb: self.phc.freq_adjustment_ppb,
             estimated_phase_offset_ns: Some(ptp_phase_offset),
             alarms_triggered: alarms,
-        }
+        })
     }
 
     /// Generates a comprehensive status report of the node.
