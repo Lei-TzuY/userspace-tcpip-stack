@@ -38,3 +38,10 @@ path = "fuzz_targets/udp_datagram_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "tcp_segment_parse"
+path = "fuzz_targets/tcp_segment_parse.rs"
+test = false
+doc = false
+bench = false
