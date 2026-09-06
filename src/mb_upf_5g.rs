@@ -3,7 +3,7 @@
 //! Implements 5G Multicast/Broadcast User Plane Function (MB-UPF):
 //! - N6mb IP Multicast Stream Ingestion (Source Specific Multicast SSM / IGMPv3)
 //! - TMGI (Temporary Mobile Group Identity) binding to Shared N3mb GTP-U Tunnels
-//! - Point-to-Multipoint (PTM) Zero-Copy Packet Replication across active gNodeB cell branches
+//! - Point-to-Multipoint (PTM) copy-based packet replication across active gNodeB cell branches
 //! - Dynamic branch addition and pruning on UE join/leave
 //! - MB-UPF traffic accounting telemetry (packets & bytes forwarded)
 
@@ -64,6 +64,7 @@ pub enum MbUpfError {
     BranchAlreadyExists,
     BranchNotFound,
     EmptyPayload,
+    PayloadTooLarge,
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +162,7 @@ impl MbUpfEngine {
         if payload.is_empty() {
             return Err(MbUpfError::EmptyPayload);
         }
+        let payload_len = u16::try_from(payload.len()).map_err(|_| MbUpfError::PayloadTooLarge)?;
 
         let sess = self
             .sessions
@@ -174,7 +176,7 @@ impl MbUpfEngine {
             let mut gtp_packet = Vec::with_capacity(8 + payload.len());
             gtp_packet.push(0x30);
             gtp_packet.push(0xFF);
-            gtp_packet.extend_from_slice(&(payload.len() as u16).to_be_bytes());
+            gtp_packet.extend_from_slice(&payload_len.to_be_bytes());
             gtp_packet.extend_from_slice(&branch.n3mb_downlink_teid.to_be_bytes());
             gtp_packet.extend_from_slice(payload);
 
