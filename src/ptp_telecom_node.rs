@@ -176,10 +176,7 @@ impl TelecomSyncNode {
         }
 
         let elapsed_ns_f64 = (delta_sec * 1_000_000_000.0).round();
-        if !elapsed_ns_f64.is_finite()
-            || elapsed_ns_f64 < 1.0
-            || elapsed_ns_f64 > u64::MAX as f64
-        {
+        if !elapsed_ns_f64.is_finite() || elapsed_ns_f64 < 1.0 || elapsed_ns_f64 > u64::MAX as f64 {
             return Err(TelecomSyncCycleError::IntervalOutOfRange);
         }
         let elapsed_ns = elapsed_ns_f64 as u64;
