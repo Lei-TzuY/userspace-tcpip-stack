@@ -520,7 +520,10 @@ mod tests {
 
         assert_eq!(raw.len(), u16::MAX as usize);
         assert_eq!(u16::from_be_bytes([raw[2], raw[3]]), u16::MAX);
-        assert_eq!(Ipv4Packet::parse(&raw, true).unwrap().payload.len(), payload.len());
+        assert_eq!(
+            Ipv4Packet::parse(&raw, true).unwrap().payload.len(),
+            payload.len()
+        );
     }
 
     #[test]
