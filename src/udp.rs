@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::fmt;
 
 pub const UDP_HEADER_LEN: usize = 8;
+pub const UDP_MAX_PAYLOAD_LEN: usize = u16::MAX as usize - UDP_HEADER_LEN;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UdpDatagram<'a> {
@@ -23,6 +24,7 @@ pub enum UdpError {
     DatagramTooShort(usize),
     LengthTooShort { declared: usize },
     LengthMismatch { declared: usize, available: usize },
+    PayloadTooLarge { payload_length: usize },
     InvalidChecksum { found: u16 },
 }
 
@@ -47,6 +49,13 @@ impl fmt::Display for UdpError {
                     f,
                     "UDP declared length {} exceeds data length {}",
                     declared, available
+                )
+            }
+            UdpError::PayloadTooLarge { payload_length } => {
+                write!(
+                    f,
+                    "UDP payload length {} exceeds maximum {} bytes",
+                    payload_length, UDP_MAX_PAYLOAD_LEN
                 )
             }
             UdpError::InvalidChecksum { found } => {
@@ -112,14 +121,20 @@ impl<'a> UdpDatagram<'a> {
         })
     }
 
-    pub fn serialize(
+    pub fn try_serialize(
         src_ip: Ipv4Address,
         dst_ip: Ipv4Address,
         src_port: u16,
         dst_port: u16,
         payload: &[u8],
-    ) -> Vec<u8> {
-        let length = (UDP_HEADER_LEN + payload.len()) as u16;
+    ) -> Result<Vec<u8>, UdpError> {
+        let length = UDP_HEADER_LEN
+            .checked_add(payload.len())
+            .filter(|length| *length <= u16::MAX as usize)
+            .ok_or(UdpError::PayloadTooLarge {
+                payload_length: payload.len(),
+            })?;
+        let length = length as u16;
         let mut buf = Vec::with_capacity(length as usize);
 
         buf.extend_from_slice(&src_port.to_be_bytes());
@@ -131,7 +146,18 @@ impl<'a> UdpDatagram<'a> {
         let csum = compute_ipv4_transport_checksum(src_ip.0, dst_ip.0, 17, &buf);
         buf[6..8].copy_from_slice(&csum.to_be_bytes());
 
-        buf
+        Ok(buf)
+    }
+
+    pub fn serialize(
+        src_ip: Ipv4Address,
+        dst_ip: Ipv4Address,
+        src_port: u16,
+        dst_port: u16,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        Self::try_serialize(src_ip, dst_ip, src_port, dst_port, payload)
+            .expect("UDP payload exceeds maximum datagram size")
     }
 }
 
@@ -225,6 +251,34 @@ mod tests {
         let parsed = UdpDatagram::parse(src_ip, dst_ip, &raw, true).unwrap();
         assert_eq!(parsed.length, UDP_HEADER_LEN as u16);
         assert!(parsed.payload.is_empty());
+    }
+
+    #[test]
+    fn try_serialize_accepts_maximum_udp_payload() {
+        let src_ip = Ipv4Address::new(192, 0, 2, 1);
+        let dst_ip = Ipv4Address::new(198, 51, 100, 1);
+        let payload = vec![0xa5; UDP_MAX_PAYLOAD_LEN];
+
+        let raw = UdpDatagram::try_serialize(src_ip, dst_ip, 12345, 53, &payload)
+            .expect("maximum legal UDP payload should serialize");
+
+        assert_eq!(raw.len(), u16::MAX as usize);
+        assert_eq!(u16::from_be_bytes([raw[4], raw[5]]), u16::MAX);
+        assert_eq!(&raw[UDP_HEADER_LEN..], payload.as_slice());
+    }
+
+    #[test]
+    fn try_serialize_rejects_payload_larger_than_udp_length_field() {
+        let src_ip = Ipv4Address::new(192, 0, 2, 1);
+        let dst_ip = Ipv4Address::new(198, 51, 100, 1);
+        let payload = vec![0u8; UDP_MAX_PAYLOAD_LEN + 1];
+
+        assert_eq!(
+            UdpDatagram::try_serialize(src_ip, dst_ip, 12345, 53, &payload),
+            Err(UdpError::PayloadTooLarge {
+                payload_length: UDP_MAX_PAYLOAD_LEN + 1,
+            })
+        );
     }
 
     #[test]
