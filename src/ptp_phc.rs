@@ -128,9 +128,10 @@ impl PtpCrossTimestamp {
     pub fn bus_read_latency_ns(&self) -> Result<u64, PtpCrossTimestampError> {
         let before_ns = self.sys_time_before.to_total_nanoseconds();
         let after_ns = self.sys_time_after.to_total_nanoseconds();
-        let latency_ns = after_ns
-            .checked_sub(before_ns)
-            .ok_or(PtpCrossTimestampError::ReversedSystemTime)?;
+        if after_ns < before_ns {
+            return Err(PtpCrossTimestampError::ReversedSystemTime);
+        }
+        let latency_ns = after_ns - before_ns;
         u64::try_from(latency_ns).map_err(|_| PtpCrossTimestampError::OffsetOutOfRange)
     }
 
