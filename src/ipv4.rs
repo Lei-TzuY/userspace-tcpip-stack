@@ -5,6 +5,7 @@ use std::fmt;
 use std::str::FromStr;
 
 pub const IPV4_MIN_HEADER_LEN: usize = 20;
+pub const IPV4_MAX_PAYLOAD_LEN: usize = u16::MAX as usize - IPV4_MIN_HEADER_LEN;
 
 pub const IP_PROTO_ICMP: u8 = 1;
 pub const IP_PROTO_TCP: u8 = 6;
@@ -175,6 +176,9 @@ pub enum Ipv4Error {
         total_length: usize,
         header_length: usize,
     },
+    PayloadTooLarge {
+        payload_length: usize,
+    },
     ReservedFragmentFlagSet,
     NonFinalFragmentLengthNotMultipleOfEight {
         payload_length: usize,
@@ -211,6 +215,13 @@ impl fmt::Display for Ipv4Error {
                     f,
                     "IPv4 total length {} is smaller than header length {}",
                     total_length, header_length
+                )
+            }
+            Ipv4Error::PayloadTooLarge { payload_length } => {
+                write!(
+                    f,
+                    "IPv4 payload length {} exceeds maximum {} bytes",
+                    payload_length, IPV4_MAX_PAYLOAD_LEN
                 )
             }
             Ipv4Error::ReservedFragmentFlagSet => {
@@ -348,15 +359,21 @@ impl<'a> Ipv4Packet<'a> {
         Ok(true)
     }
 
-    pub fn serialize(
+    pub fn try_serialize(
         src_ip: Ipv4Address,
         dst_ip: Ipv4Address,
         protocol: u8,
         identification: u16,
         ttl: u8,
         payload: &[u8],
-    ) -> Vec<u8> {
-        let total_length = (IPV4_MIN_HEADER_LEN + payload.len()) as u16;
+    ) -> Result<Vec<u8>, Ipv4Error> {
+        let total_length = IPV4_MIN_HEADER_LEN
+            .checked_add(payload.len())
+            .filter(|length| *length <= u16::MAX as usize)
+            .ok_or(Ipv4Error::PayloadTooLarge {
+                payload_length: payload.len(),
+            })?;
+        let total_length = total_length as u16;
         let mut buf = Vec::with_capacity(total_length as usize);
 
         buf.push(0x45); // Version 4, IHL 5
@@ -376,7 +393,19 @@ impl<'a> Ipv4Packet<'a> {
 
         // Append payload
         buf.extend_from_slice(payload);
-        buf
+        Ok(buf)
+    }
+
+    pub fn serialize(
+        src_ip: Ipv4Address,
+        dst_ip: Ipv4Address,
+        protocol: u8,
+        identification: u16,
+        ttl: u8,
+        payload: &[u8],
+    ) -> Vec<u8> {
+        Self::try_serialize(src_ip, dst_ip, protocol, identification, ttl, payload)
+            .expect("IPv4 payload exceeds maximum packet size")
     }
 }
 
@@ -474,6 +503,43 @@ mod tests {
         let parsed = Ipv4Packet::parse(&raw, false).unwrap();
         assert!(parsed.header.more_fragments);
         assert_eq!(parsed.payload.len(), 8);
+    }
+
+    #[test]
+    fn try_serialize_accepts_maximum_payload_length() {
+        let payload = vec![0u8; IPV4_MAX_PAYLOAD_LEN];
+        let raw = Ipv4Packet::try_serialize(
+            Ipv4Address::new(192, 0, 2, 1),
+            Ipv4Address::new(198, 51, 100, 1),
+            IP_PROTO_UDP,
+            1,
+            64,
+            &payload,
+        )
+        .unwrap();
+
+        assert_eq!(raw.len(), u16::MAX as usize);
+        assert_eq!(u16::from_be_bytes([raw[2], raw[3]]), u16::MAX);
+        assert_eq!(Ipv4Packet::parse(&raw, true).unwrap().payload.len(), payload.len());
+    }
+
+    #[test]
+    fn try_serialize_rejects_oversized_payload() {
+        let payload = vec![0u8; IPV4_MAX_PAYLOAD_LEN + 1];
+
+        assert_eq!(
+            Ipv4Packet::try_serialize(
+                Ipv4Address::new(192, 0, 2, 1),
+                Ipv4Address::new(198, 51, 100, 1),
+                IP_PROTO_UDP,
+                1,
+                64,
+                &payload,
+            ),
+            Err(Ipv4Error::PayloadTooLarge {
+                payload_length: IPV4_MAX_PAYLOAD_LEN + 1,
+            })
+        );
     }
 
     #[test]
