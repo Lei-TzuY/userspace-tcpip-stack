@@ -42,6 +42,8 @@ fn test_mb_upf_multicast_replication_fanout_happy_path() {
     for pkt in &replicated {
         assert_eq!(pkt.gtp_packet[0], 0x30); // GTPv1
         assert_eq!(pkt.gtp_packet[1], 0xFF); // G-PDU
+        let parsed_len = u16::from_be_bytes([pkt.gtp_packet[2], pkt.gtp_packet[3]]);
+        assert_eq!(usize::from(parsed_len), video_frame.len());
         let parsed_teid = u32::from_be_bytes([
             pkt.gtp_packet[4],
             pkt.gtp_packet[5],
@@ -211,4 +213,44 @@ fn test_mb_upf_broadcast_session_multi_tower_delivery() {
     for r in replicated {
         assert_eq!(&r.gtp_packet[8..], alert_msg);
     }
+}
+
+// ---------------------------------------------------------------------------
+// 6. GTP-U Length Boundary and Fail-Closed Oversize Rejection
+// ---------------------------------------------------------------------------
+
+#[test]
+fn test_mb_upf_gtpu_length_boundary_and_oversize_rejection() {
+    let mut mb_upf = MbUpfEngine::new("mb-upf-length-06");
+    let sess_id = "sess-length-boundary";
+    let flow = MulticastFlowSpec {
+        source_ip: [203, 0, 113, 10],
+        group_ip: [232, 10, 10, 10],
+        port: 5000,
+    };
+    mb_upf.create_mbs_session(
+        sess_id,
+        "tmgi-length-06",
+        MbsSessionType::Multicast,
+        flow,
+        0x6000,
+    );
+    mb_upf
+        .add_gnb_branch(sess_id, "gnb-length", [10, 6, 0, 1], 0x6001)
+        .unwrap();
+
+    let max_payload = vec![0xAB; usize::from(u16::MAX)];
+    let replicated = mb_upf.ingest_and_replicate(sess_id, &max_payload).unwrap();
+    assert_eq!(replicated.len(), 1);
+    assert_eq!(
+        u16::from_be_bytes([replicated[0].gtp_packet[2], replicated[0].gtp_packet[3]]),
+        u16::MAX
+    );
+    assert_eq!(replicated[0].gtp_packet.len(), 8 + max_payload.len());
+
+    let before = mb_upf.sessions.get(sess_id).unwrap().clone();
+    let oversized_payload = vec![0xCD; usize::from(u16::MAX) + 1];
+    let err = mb_upf.ingest_and_replicate(sess_id, &oversized_payload);
+    assert_eq!(err, Err(MbUpfError::PayloadTooLarge));
+    assert_eq!(mb_upf.sessions.get(sess_id).unwrap(), &before);
 }
