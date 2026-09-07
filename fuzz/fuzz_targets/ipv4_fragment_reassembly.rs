@@ -46,13 +46,13 @@ fuzz_target!(|data: &[u8]| {
             .expect("fragment_payload must emit checksum-valid IPv4 packets");
         assert_eq!(packet.header.src_ip, src);
         assert_eq!(packet.header.dst_ip, dst);
-        assert_eq!(packet.header.protocol, protocol);
+        assert_eq!(packet.header.protocol.to_u8(), protocol);
         assert_eq!(packet.header.identification, identification);
 
         if let Some(payload) = reassembly.add_fragment(
             packet.header.src_ip,
             packet.header.dst_ip,
-            packet.header.protocol,
+            packet.header.protocol.to_u8(),
             packet.header.identification,
             packet.header.fragment_offset,
             packet.header.more_fragments,
