@@ -94,3 +94,10 @@ path = "fuzz_targets/ipv4_routing_table.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ipv6_routing_table"
+path = "fuzz_targets/ipv6_routing_table.rs"
+test = false
+doc = false
+bench = false
