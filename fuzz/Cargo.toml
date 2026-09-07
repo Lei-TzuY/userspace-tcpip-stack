@@ -80,3 +80,10 @@ path = "fuzz_targets/ipv4_reassembly_state.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "arp_packet_cache"
+path = "fuzz_targets/arp_packet_cache.rs"
+test = false
+doc = false
+bench = false

@@ -1,4 +1,4 @@
-name: IPv4 / Fragmentation Fuzz Smoke
+name: IPv4 / ARP / Fragmentation Fuzz Smoke
 
 on:
   push:
@@ -7,6 +7,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "fuzz/**"
+      - "src/arp.rs"
       - "src/ipv4.rs"
       - "src/fragment.rs"
       - "src/checksum.rs"
@@ -17,6 +18,7 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - "fuzz/**"
+      - "src/arp.rs"
       - "src/ipv4.rs"
       - "src/fragment.rs"
       - "src/checksum.rs"
@@ -26,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       runs:
-        description: "libFuzzer iterations per IPv4 target"
+        description: "libFuzzer iterations per IPv4/ARP target"
         required: true
         default: "10000"
         type: string
@@ -60,6 +62,12 @@ jobs:
             echo "invalid fuzz run count: ${FUZZ_RUNS}; expected an integer from 1 to 1000000" >&2
             exit 1
           fi
+      - name: Smoke fuzz ARP parser/cache
+        run: >-
+          cargo fuzz run arp_packet_cache --
+          -runs=${FUZZ_RUNS}
+          -max_len=256
+          -timeout=10
       - name: Smoke fuzz IPv4 parser
         run: >-
           cargo fuzz run ipv4_packet_parse --
