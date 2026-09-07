@@ -48,10 +48,10 @@ fuzz_target!(|data: &[u8]| {
             let _ = packet.validated_redirect(src, dst, hop_limit);
         }
         ICMPV6_TYPE_ROUTER_SOLICIT => {
-            let _ = packet.validated_router_solicitation(src, dst, hop_limit);
+            let _ = packet.is_valid_router_solicitation(src, hop_limit);
         }
         ICMPV6_TYPE_ROUTER_ADVERT => {
-            let _ = packet.validated_router_advertisement(src, dst, hop_limit);
+            let _ = packet.validated_router_advertisement(src, hop_limit);
         }
         _ => {}
     }
