@@ -41,8 +41,8 @@ fn run() -> Result<(), String> {
         if wire.len() > mtu {
             return Err(format!("fragment length {} exceeds MTU {mtu}", wire.len()));
         }
-        let packet =
-            Ipv4Packet::parse(wire).map_err(|err| format!("fragment parse failed: {err}"))?;
+        let packet = Ipv4Packet::parse(wire, true)
+            .map_err(|err| format!("fragment parse failed: {err}"))?;
         assembled = reassembly.add_fragment(
             packet.header.src_ip,
             packet.header.dst_ip,
