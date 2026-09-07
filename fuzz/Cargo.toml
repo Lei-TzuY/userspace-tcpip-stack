@@ -87,3 +87,10 @@ path = "fuzz_targets/arp_packet_cache.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ipv4_routing_table"
+path = "fuzz_targets/ipv4_routing_table.rs"
+test = false
+doc = false
+bench = false
