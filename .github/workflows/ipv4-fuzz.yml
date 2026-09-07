@@ -72,3 +72,9 @@ jobs:
           -runs=${FUZZ_RUNS}
           -max_len=8192
           -timeout=10
+      - name: Smoke fuzz hostile IPv4 reassembly state
+        run: >-
+          cargo fuzz run ipv4_reassembly_state --
+          -runs=${FUZZ_RUNS}
+          -max_len=8192
+          -timeout=10
