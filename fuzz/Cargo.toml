@@ -66,3 +66,10 @@ path = "fuzz_targets/icmpv6_ndp_parse.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ipv4_fragment_reassembly"
+path = "fuzz_targets/ipv4_fragment_reassembly.rs"
+test = false
+doc = false
+bench = false
