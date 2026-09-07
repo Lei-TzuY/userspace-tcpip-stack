@@ -341,9 +341,10 @@ impl<'a> Ipv6Packet<'a> {
         hop_limit: u8,
         payload: &[u8],
     ) -> Result<Vec<u8>, Ipv6Error> {
-        let payload_length = u16::try_from(payload.len()).map_err(|_| Ipv6Error::PayloadTooLarge {
-            payload_length: payload.len(),
-        })?;
+        let payload_length =
+            u16::try_from(payload.len()).map_err(|_| Ipv6Error::PayloadTooLarge {
+                payload_length: payload.len(),
+            })?;
         let total_len = IPV6_HEADER_LEN + payload.len();
         let mut buf = Vec::with_capacity(total_len);
 
