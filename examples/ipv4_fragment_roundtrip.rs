@@ -1,8 +1,8 @@
 use std::env;
 use std::process::ExitCode;
 
-use userspace_tcpip_stack::fragment::{IpReassemblyBuffer, fragment_payload};
-use userspace_tcpip_stack::ipv4::{IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
+use toy_tcpip::fragment::{IpReassemblyBuffer, fragment_payload};
+use toy_tcpip::ipv4::{IP_PROTO_UDP, Ipv4Address, Ipv4Packet};
 
 fn parse_usize_arg(name: &str, default: usize) -> Result<usize, String> {
     let prefix = format!("--{name}=");
