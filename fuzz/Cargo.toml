@@ -73,3 +73,10 @@ path = "fuzz_targets/ipv4_fragment_reassembly.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ipv4_reassembly_state"
+path = "fuzz_targets/ipv4_reassembly_state.rs"
+test = false
+doc = false
+bench = false
