@@ -101,3 +101,10 @@ path = "fuzz_targets/ipv6_routing_table.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "ipv6_ndp_state"
+path = "fuzz_targets/ipv6_ndp_state.rs"
+test = false
+doc = false
+bench = false
