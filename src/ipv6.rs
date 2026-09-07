@@ -8,6 +8,7 @@ use std::fmt;
 use std::str::FromStr;
 
 pub const IPV6_HEADER_LEN: usize = 40;
+pub const IPV6_MAX_PAYLOAD_LEN: usize = u16::MAX as usize;
 
 pub const NEXT_HEADER_HOP_BY_HOP: u8 = 0;
 pub const NEXT_HEADER_TCP: u8 = 6;
@@ -244,6 +245,9 @@ pub enum Ipv6Error {
         header_len: usize,
         actual_len: usize,
     },
+    PayloadTooLarge {
+        payload_length: usize,
+    },
 }
 
 impl fmt::Display for Ipv6Error {
@@ -263,6 +267,13 @@ impl fmt::Display for Ipv6Error {
                     f,
                     "IPv6 payload length mismatch: header specifies {}, found {}",
                     header_len, actual_len
+                )
+            }
+            Ipv6Error::PayloadTooLarge { payload_length } => {
+                write!(
+                    f,
+                    "IPv6 payload length {} exceeds maximum {}",
+                    payload_length, IPV6_MAX_PAYLOAD_LEN
                 )
             }
         }
@@ -323,6 +334,32 @@ impl<'a> Ipv6Packet<'a> {
         })
     }
 
+    pub fn try_serialize(
+        src_ip: Ipv6Address,
+        dst_ip: Ipv6Address,
+        next_header: u8,
+        hop_limit: u8,
+        payload: &[u8],
+    ) -> Result<Vec<u8>, Ipv6Error> {
+        let payload_length =
+            u16::try_from(payload.len()).map_err(|_| Ipv6Error::PayloadTooLarge {
+                payload_length: payload.len(),
+            })?;
+        let total_len = IPV6_HEADER_LEN + payload.len();
+        let mut buf = Vec::with_capacity(total_len);
+
+        // Version = 6, Traffic Class = 0, Flow Label = 0 -> 0x60000000
+        buf.extend_from_slice(&0x6000_0000u32.to_be_bytes());
+        buf.extend_from_slice(&payload_length.to_be_bytes());
+        buf.push(next_header);
+        buf.push(hop_limit);
+        buf.extend_from_slice(&src_ip.0);
+        buf.extend_from_slice(&dst_ip.0);
+        buf.extend_from_slice(payload);
+
+        Ok(buf)
+    }
+
     pub fn serialize(
         src_ip: Ipv6Address,
         dst_ip: Ipv6Address,
@@ -330,19 +367,8 @@ impl<'a> Ipv6Packet<'a> {
         hop_limit: u8,
         payload: &[u8],
     ) -> Vec<u8> {
-        let total_len = IPV6_HEADER_LEN + payload.len();
-        let mut buf = Vec::with_capacity(total_len);
-
-        // Version = 6, Traffic Class = 0, Flow Label = 0 -> 0x60000000
-        buf.extend_from_slice(&0x6000_0000u32.to_be_bytes());
-        buf.extend_from_slice(&(payload.len() as u16).to_be_bytes());
-        buf.push(next_header);
-        buf.push(hop_limit);
-        buf.extend_from_slice(&src_ip.0);
-        buf.extend_from_slice(&dst_ip.0);
-        buf.extend_from_slice(payload);
-
-        buf
+        Self::try_serialize(src_ip, dst_ip, next_header, hop_limit, payload)
+            .expect("IPv6 payload exceeds maximum packet size")
     }
 }
 
@@ -396,5 +422,40 @@ mod tests {
         assert_eq!(parsed.header.next_header, NEXT_HEADER_UDP);
         assert_eq!(parsed.header.hop_limit, 64);
         assert_eq!(parsed.payload, payload);
+    }
+
+    #[test]
+    fn checked_serialize_accepts_maximum_payload_length() {
+        let payload = vec![0x5a; IPV6_MAX_PAYLOAD_LEN];
+        let raw = Ipv6Packet::try_serialize(
+            Ipv6Address::LOOPBACK,
+            Ipv6Address::LINK_LOCAL_ALL_NODES,
+            NEXT_HEADER_UDP,
+            64,
+            &payload,
+        )
+        .unwrap();
+
+        assert_eq!(raw.len(), IPV6_HEADER_LEN + IPV6_MAX_PAYLOAD_LEN);
+        assert_eq!(u16::from_be_bytes([raw[4], raw[5]]), u16::MAX);
+        let parsed = Ipv6Packet::parse(&raw).unwrap();
+        assert_eq!(parsed.payload.len(), IPV6_MAX_PAYLOAD_LEN);
+    }
+
+    #[test]
+    fn checked_serialize_rejects_oversized_payload() {
+        let payload = vec![0u8; IPV6_MAX_PAYLOAD_LEN + 1];
+        assert_eq!(
+            Ipv6Packet::try_serialize(
+                Ipv6Address::LOOPBACK,
+                Ipv6Address::LINK_LOCAL_ALL_NODES,
+                NEXT_HEADER_UDP,
+                64,
+                &payload,
+            ),
+            Err(Ipv6Error::PayloadTooLarge {
+                payload_length: IPV6_MAX_PAYLOAD_LEN + 1,
+            })
+        );
     }
 }
