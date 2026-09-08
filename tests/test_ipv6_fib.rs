@@ -4,9 +4,10 @@ use toy_tcpip::bgp::Ipv4Prefix;
 use toy_tcpip::bgp_ipv6::{Ipv6Path, Ipv6Prefix};
 use toy_tcpip::bgp_rib::PathSource;
 use toy_tcpip::bgp_router::BgpRouter;
-use toy_tcpip::ethernet::MacAddress;
+use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EthernetFrame, MacAddress};
+use toy_tcpip::icmpv6::Icmpv6Packet;
 use toy_tcpip::ipv4::Ipv4Address;
-use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_UDP};
+use toy_tcpip::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6, NEXT_HEADER_UDP};
 use toy_tcpip::router::RouteSource;
 use toy_tcpip::router_ipv6::Ipv6RoutingTable;
 use toy_tcpip::stack::{NetStack, NetStackConfig};
@@ -37,6 +38,56 @@ fn netstack_ipv6_send_uses_route_next_hop_for_ndp() {
     let frame = stack.send_ip6_packet(destination, packet).unwrap();
     assert_eq!(&frame[..6], &gateway_mac.0);
     assert!(stack.pending_ndp_packets.is_empty());
+}
+
+#[test]
+fn routed_ipv6_ndp_resolution_releases_queued_packet_to_gateway() {
+    let local = ip6("2001:db8:1::10");
+    let gateway = ip6("fe80::1");
+    let destination = ip6("2001:db8:99::7");
+    let local_mac = MacAddress([0x02, 0, 0, 0, 0, 10]);
+    let gateway_mac = MacAddress([0x02, 0, 0, 0, 0, 1]);
+    let mut stack = NetStack::new(NetStackConfig {
+        mac: local_mac,
+        ip: Ipv4Address::new(192, 0, 2, 10),
+        ipv6: Some(local),
+        subnet_mask: 24,
+        gateway: None,
+    });
+    stack
+        .ipv6_routing_table
+        .add_route(ip6("2001:db8:99::"), 48, Some(gateway), "eth0");
+
+    let packet = Ipv6Packet::serialize(local, destination, NEXT_HEADER_UDP, 64, b"queued");
+    let solicitation = stack.send_ip6_packet(destination, packet).unwrap();
+
+    assert!(stack.pending_ndp_packets.contains_key(&gateway));
+    assert!(!stack.pending_ndp_packets.contains_key(&destination));
+    let solicited_node = gateway.solicited_node_multicast();
+    let expected_multicast_mac = toy_tcpip::icmpv6::ipv6_multicast_mac(solicited_node).unwrap();
+    assert_eq!(&solicitation[..6], &expected_multicast_mac.0);
+
+    let na = Icmpv6Packet::build_neighbor_advertisement(
+        gateway,
+        local,
+        gateway,
+        gateway_mac,
+        true,
+        true,
+        true,
+    );
+    let na_packet = Ipv6Packet::serialize(gateway, local, NEXT_HEADER_ICMPV6, 255, &na);
+    let na_frame = EthernetFrame::serialize(local_mac, gateway_mac, ETHERTYPE_IPV6, &na_packet);
+    let released = stack.process_frame(&na_frame);
+
+    assert!(stack.pending_ndp_packets.is_empty());
+    assert_eq!(stack.ndp_table.lookup(&gateway), Some(gateway_mac));
+    assert_eq!(released.len(), 1);
+    assert_eq!(&released[0][..6], &gateway_mac.0);
+    let forwarded = EthernetFrame::parse(&released[0]).unwrap();
+    let forwarded_ip = Ipv6Packet::parse(forwarded.payload).unwrap();
+    assert_eq!(forwarded_ip.header.dst_ip, destination);
+    assert_eq!(forwarded_ip.payload, b"queued");
 }
 
 #[test]
