@@ -353,7 +353,6 @@ mod tests {
 
         table.add_multipath_route_from(default, 0, Some(router_a), "eth0", RouteSource::Static);
         table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
-        // Re-adding the same candidate must be idempotent.
         table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
 
         let best = table.lookup_best_routes(ip("2001:db8::1234"));
@@ -394,7 +393,7 @@ mod tests {
 
         table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Bgp);
         table.add_multipath_route_from(prefix, 64, Some(router_b), "eth0", RouteSource::Bgp);
-        table.add_multipath_route_from(prefix, 64, Some(router_c), "eth0", RouteSource::Static);
+        table.add_multipath_route_from(prefix, 64, Some(router_c), "eth0", RouteSource::Ospf);
         table.add_multipath_route_from(ip("2001:db8::"), 32, None, "eth1", RouteSource::Connected);
 
         assert_eq!(
