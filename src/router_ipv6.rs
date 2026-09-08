@@ -228,7 +228,10 @@ impl Ipv6RoutingTable {
     /// destination selects one ECMP member. This makes existing forwarding callers
     /// use multipath without introducing packet-to-packet route flapping.
     pub fn lookup(&self, destination: Ipv6Address) -> Option<&Ipv6RouteEntry> {
-        let best = self.routes.iter().find(|route| route.matches(destination))?;
+        let best = self
+            .routes
+            .iter()
+            .find(|route| route.matches(destination))?;
         let mut candidates = self.routes.iter().filter(|route| {
             route.matches(destination)
                 && route.prefix_len == best.prefix_len
