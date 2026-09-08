@@ -106,6 +106,11 @@ fuzz_target!(|data: &[u8]| {
     } else {
         Ipv6Address([0; 16])
     };
+    let flow_hash = if offset + 24 <= data.len() {
+        u64::from_le_bytes(data[offset + 16..offset + 24].try_into().unwrap())
+    } else {
+        0
+    };
 
     let expected: Option<&Ipv6RouteEntry> = table
         .all_routes()
@@ -132,7 +137,11 @@ fuzz_target!(|data: &[u8]| {
             })
             .count();
         assert_eq!(best.len(), expected_count);
+
+        let selected = table.lookup_best_route_by_hash(query, flow_hash).unwrap();
+        assert_eq!(selected, best[(flow_hash % best.len() as u64) as usize]);
     } else {
         assert!(best.is_empty());
+        assert!(table.lookup_best_route_by_hash(query, flow_hash).is_none());
     }
 });
