@@ -236,6 +236,28 @@ impl Ipv6RoutingTable {
             .collect()
     }
 
+    /// Selects one equal-cost best route using a caller-supplied stable flow hash.
+    ///
+    /// Longest-prefix match and administrative distance are resolved before the
+    /// hash is applied, so a less-specific or worse-distance route can never be
+    /// selected merely to spread traffic. Callers can hash a flow tuple once and
+    /// retain deterministic per-flow affinity while still using all ECMP members.
+    pub fn lookup_best_route_by_hash(
+        &self,
+        destination: Ipv6Address,
+        flow_hash: u64,
+    ) -> Option<&Ipv6RouteEntry> {
+        let best = self.lookup(destination)?;
+        let mut candidates = self.routes.iter().filter(|route| {
+            route.matches(destination)
+                && route.prefix_len == best.prefix_len
+                && route.distance() == best.distance()
+        });
+        let count = candidates.clone().count();
+        let index = (flow_hash % count as u64) as usize;
+        candidates.nth(index)
+    }
+
     pub fn find_exact(&self, destination: Ipv6Address, prefix_len: u8) -> Option<&Ipv6RouteEntry> {
         let key = (mask_address(destination, prefix_len), prefix_len.min(128));
         self.routes
@@ -331,7 +353,6 @@ mod tests {
 
         table.add_multipath_route_from(default, 0, Some(router_a), "eth0", RouteSource::Static);
         table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
-        // Re-adding the same candidate must be idempotent.
         table.add_multipath_route_from(default, 0, Some(router_b), "eth0", RouteSource::Static);
 
         let best = table.lookup_best_routes(ip("2001:db8::1234"));
@@ -359,5 +380,54 @@ mod tests {
         assert_eq!(best.len(), 1);
         assert_eq!(best[0].source, RouteSource::Connected);
         assert_eq!(best[0].prefix_len, 64);
+    }
+
+    #[test]
+    fn ecmp_hash_selects_only_equal_cost_best_routes_deterministically() {
+        let mut table = Ipv6RoutingTable::new();
+        let prefix = ip("2001:db8:50::");
+        let destination = ip("2001:db8:50::1234");
+        let router_a = ip("fe80::1");
+        let router_b = ip("fe80::2");
+        let router_c = ip("fe80::3");
+
+        table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Bgp);
+        table.add_multipath_route_from(prefix, 64, Some(router_b), "eth0", RouteSource::Bgp);
+        table.add_multipath_route_from(prefix, 64, Some(router_c), "eth0", RouteSource::Ospf);
+        table.add_multipath_route_from(ip("2001:db8::"), 32, None, "eth1", RouteSource::Connected);
+
+        assert_eq!(
+            table
+                .lookup_best_route_by_hash(destination, 0)
+                .unwrap()
+                .gateway,
+            Some(router_a)
+        );
+        assert_eq!(
+            table
+                .lookup_best_route_by_hash(destination, 1)
+                .unwrap()
+                .gateway,
+            Some(router_b)
+        );
+        assert_eq!(
+            table
+                .lookup_best_route_by_hash(destination, 2)
+                .unwrap()
+                .gateway,
+            Some(router_a)
+        );
+        assert_eq!(
+            table
+                .lookup_best_route_by_hash(destination, u64::MAX)
+                .unwrap()
+                .gateway,
+            Some(router_b)
+        );
+        assert!(
+            table
+                .lookup_best_route_by_hash(ip("3001:db8::1"), 7)
+                .is_none()
+        );
     }
 }
