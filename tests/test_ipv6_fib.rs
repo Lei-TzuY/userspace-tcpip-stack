@@ -110,6 +110,53 @@ fn netstack_ipv6_no_route_preserves_direct_on_link_behavior() {
 }
 
 #[test]
+fn netstack_ipv6_send_spreads_destinations_across_ecmp_next_hops_stably() {
+    let local = ip6("2001:db8:1::10");
+    let gateway_a = ip6("fe80::1");
+    let gateway_b = ip6("fe80::2");
+    let destination_a = ip6("2001:db8:77::1");
+    let destination_b = ip6("2001:db8:77::2");
+    let gateway_mac_a = MacAddress([0x02, 0, 0, 0, 0, 1]);
+    let gateway_mac_b = MacAddress([0x02, 0, 0, 0, 0, 2]);
+    let mut stack = NetStack::new(NetStackConfig {
+        mac: MacAddress([0x02, 0, 0, 0, 0, 10]),
+        ip: Ipv4Address::new(192, 0, 2, 10),
+        ipv6: Some(local),
+        subnet_mask: 24,
+        gateway: None,
+    });
+    let prefix = ip6("2001:db8:77::");
+    stack.ipv6_routing_table.add_multipath_route_from(
+        prefix,
+        64,
+        Some(gateway_a),
+        "eth0",
+        RouteSource::Static,
+    );
+    stack.ipv6_routing_table.add_multipath_route_from(
+        prefix,
+        64,
+        Some(gateway_b),
+        "eth0",
+        RouteSource::Static,
+    );
+    stack.ndp_table.insert(gateway_a, gateway_mac_a);
+    stack.ndp_table.insert(gateway_b, gateway_mac_b);
+
+    let packet_a1 = Ipv6Packet::serialize(local, destination_a, NEXT_HEADER_UDP, 64, b"first");
+    let packet_a2 = Ipv6Packet::serialize(local, destination_a, NEXT_HEADER_UDP, 64, b"second");
+    let packet_b = Ipv6Packet::serialize(local, destination_b, NEXT_HEADER_UDP, 64, b"other");
+    let frame_a1 = stack.send_ip6_packet(destination_a, packet_a1).unwrap();
+    let frame_a2 = stack.send_ip6_packet(destination_a, packet_a2).unwrap();
+    let frame_b = stack.send_ip6_packet(destination_b, packet_b).unwrap();
+
+    assert_eq!(&frame_a1[..6], &frame_a2[..6]);
+    assert_ne!(&frame_a1[..6], &frame_b[..6]);
+    assert!(&frame_a1[..6] == &gateway_mac_a.0 || &frame_a1[..6] == &gateway_mac_b.0);
+    assert!(&frame_b[..6] == &gateway_mac_a.0 || &frame_b[..6] == &gateway_mac_b.0);
+}
+
+#[test]
 fn bgp_ipv6_fib_waits_for_recursive_next_hop_then_installs_and_withdraws() {
     let mut bgp = BgpRouter::new(65000, Ipv4Address::new(1, 1, 1, 1));
     let prefix = Ipv6Prefix::new(ip6("2001:db8:100::"), 48);
