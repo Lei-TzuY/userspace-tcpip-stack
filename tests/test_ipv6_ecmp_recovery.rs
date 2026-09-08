@@ -79,7 +79,13 @@ fn netstack_ipv6_ecmp_withdrawal_fails_over_and_recovery_reenters_forwarding() {
         "eth0",
         RouteSource::Static,
     );
-    assert_eq!(stack.ipv6_routing_table.lookup_best_routes(destination_a).len(), 2);
+    assert_eq!(
+        stack
+            .ipv6_routing_table
+            .lookup_best_routes(destination_a)
+            .len(),
+        2
+    );
 
     let recovered_destination = destination_selecting(&stack, gateway_a);
     let packet = Ipv6Packet::serialize(
