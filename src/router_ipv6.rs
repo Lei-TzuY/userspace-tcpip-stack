@@ -398,19 +398,31 @@ mod tests {
         table.add_multipath_route_from(ip("2001:db8::"), 32, None, "eth1", RouteSource::Connected);
 
         assert_eq!(
-            table.lookup_best_route_by_hash(destination, 0).unwrap().gateway,
+            table
+                .lookup_best_route_by_hash(destination, 0)
+                .unwrap()
+                .gateway,
             Some(router_a)
         );
         assert_eq!(
-            table.lookup_best_route_by_hash(destination, 1).unwrap().gateway,
+            table
+                .lookup_best_route_by_hash(destination, 1)
+                .unwrap()
+                .gateway,
             Some(router_b)
         );
         assert_eq!(
-            table.lookup_best_route_by_hash(destination, 2).unwrap().gateway,
+            table
+                .lookup_best_route_by_hash(destination, 2)
+                .unwrap()
+                .gateway,
             Some(router_a)
         );
         assert_eq!(
-            table.lookup_best_route_by_hash(destination, u64::MAX).unwrap().gateway,
+            table
+                .lookup_best_route_by_hash(destination, u64::MAX)
+                .unwrap()
+                .gateway,
             Some(router_b)
         );
         assert!(
