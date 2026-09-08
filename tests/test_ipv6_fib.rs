@@ -86,7 +86,7 @@ fn routed_ipv6_ndp_resolution_releases_queued_packet_to_gateway() {
     assert_eq!(&released[0][..6], &gateway_mac.0);
     let forwarded = EthernetFrame::parse(&released[0]).unwrap();
     let forwarded_ip = Ipv6Packet::parse(forwarded.payload).unwrap();
-    assert_eq!(forwarded_ip.header.dst, destination);
+    assert_eq!(forwarded_ip.header.dst_ip, destination);
     assert_eq!(forwarded_ip.payload, b"queued");
 }
 
