@@ -22,6 +22,14 @@ fn mask_address(address: Ipv6Address, prefix_len: u8) -> Ipv6Address {
     Ipv6Address(bytes)
 }
 
+fn destination_affinity_hash(destination: Ipv6Address) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    destination.0.iter().fold(FNV_OFFSET_BASIS, |hash, byte| {
+        (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
+    })
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ipv6RouteEntry {
     pub destination: Ipv6Address,
@@ -215,8 +223,20 @@ impl Ipv6RoutingTable {
         before - self.routes.len()
     }
 
+    /// Returns the best route for a destination. When several routes tie on
+    /// longest-prefix match and administrative distance, a stable hash of the
+    /// destination selects one ECMP member. This makes existing forwarding callers
+    /// use multipath without introducing packet-to-packet route flapping.
     pub fn lookup(&self, destination: Ipv6Address) -> Option<&Ipv6RouteEntry> {
-        self.routes.iter().find(|route| route.matches(destination))
+        let best = self.routes.iter().find(|route| route.matches(destination))?;
+        let mut candidates = self.routes.iter().filter(|route| {
+            route.matches(destination)
+                && route.prefix_len == best.prefix_len
+                && route.distance() == best.distance()
+        });
+        let count = candidates.clone().count();
+        let index = (destination_affinity_hash(destination) % count as u64) as usize;
+        candidates.nth(index)
     }
 
     /// Returns every route tied for the best Longest Prefix Match and
@@ -429,5 +449,24 @@ mod tests {
                 .lookup_best_route_by_hash(ip("3001:db8::1"), 7)
                 .is_none()
         );
+    }
+
+    #[test]
+    fn default_lookup_spreads_destinations_across_equal_cost_routes_stably() {
+        let mut table = Ipv6RoutingTable::new();
+        let prefix = ip("2001:db8:60::");
+        let router_a = ip("fe80::1");
+        let router_b = ip("fe80::2");
+        table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Static);
+        table.add_multipath_route_from(prefix, 64, Some(router_b), "eth0", RouteSource::Static);
+
+        let destination_a = ip("2001:db8:60::1");
+        let destination_b = ip("2001:db8:60::2");
+        let selected_a = table.lookup(destination_a).unwrap().gateway;
+        let selected_b = table.lookup(destination_b).unwrap().gateway;
+
+        assert_eq!(selected_a, table.lookup(destination_a).unwrap().gateway);
+        assert_eq!(selected_b, table.lookup(destination_b).unwrap().gateway);
+        assert_ne!(selected_a, selected_b);
     }
 }
