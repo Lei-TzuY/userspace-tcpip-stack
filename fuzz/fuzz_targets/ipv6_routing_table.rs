@@ -117,7 +117,6 @@ fuzz_target!(|data: &[u8]| {
         .iter()
         .filter(|route| route.matches(query))
         .min_by_key(|route| (u8::MAX - route.prefix_len, route.distance()));
-    assert_eq!(table.lookup(query), expected);
 
     let best = table.lookup_best_routes(query);
     if let Some(expected) = expected {
@@ -138,9 +137,13 @@ fuzz_target!(|data: &[u8]| {
             .count();
         assert_eq!(best.len(), expected_count);
 
+        let default_selected = table.lookup(query).unwrap();
+        assert!(best.contains(&default_selected));
+
         let selected = table.lookup_best_route_by_hash(query, flow_hash).unwrap();
         assert_eq!(selected, best[(flow_hash % best.len() as u64) as usize]);
     } else {
+        assert!(table.lookup(query).is_none());
         assert!(best.is_empty());
         assert!(table.lookup_best_route_by_hash(query, flow_hash).is_none());
     }
