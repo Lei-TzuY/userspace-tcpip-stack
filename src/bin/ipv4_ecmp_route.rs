@@ -178,7 +178,11 @@ mod tests {
         let table = table();
         let mut gateways = std::collections::HashSet::new();
         for source_port in 40_000..40_128 {
-            gateways.insert(select_route(&table, &udp_packet(source_port)).unwrap().gateway);
+            gateways.insert(
+                select_route(&table, &udp_packet(source_port))
+                    .unwrap()
+                    .gateway,
+            );
         }
         assert_eq!(gateways.len(), 2);
     }
