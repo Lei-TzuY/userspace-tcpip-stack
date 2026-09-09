@@ -3,6 +3,56 @@
 use crate::ipv4::Ipv4Address;
 use std::fmt;
 
+fn fnv1a_extend(mut hash: u64, bytes: &[u8]) -> u64 {
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    for byte in bytes {
+        hash = (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
+/// Stable IPv4 transport flow identity for ECMP selection.
+///
+/// The tuple follows the usual 5-tuple boundary: source/destination IPv4
+/// addresses, IP protocol value, and source/destination transport ports.
+/// Non-port protocols can use zero for both ports while retaining protocol and
+/// address entropy. The hash is deterministic and is not a cryptographic primitive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ipv4FlowKey {
+    pub source: Ipv4Address,
+    pub destination: Ipv4Address,
+    pub protocol: u8,
+    pub source_port: u16,
+    pub destination_port: u16,
+}
+
+impl Ipv4FlowKey {
+    pub fn new(
+        source: Ipv4Address,
+        destination: Ipv4Address,
+        protocol: u8,
+        source_port: u16,
+        destination_port: u16,
+    ) -> Self {
+        Self {
+            source,
+            destination,
+            protocol,
+            source_port,
+            destination_port,
+        }
+    }
+
+    pub fn stable_hash(self) -> u64 {
+        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut hash = fnv1a_extend(FNV_OFFSET_BASIS, &self.source.to_u32().to_be_bytes());
+        hash = fnv1a_extend(hash, &self.destination.to_u32().to_be_bytes());
+        hash = fnv1a_extend(hash, &[self.protocol]);
+        hash = fnv1a_extend(hash, &self.source_port.to_be_bytes());
+        fnv1a_extend(hash, &self.destination_port.to_be_bytes())
+    }
+}
+
 /// Where a route came from. Used for administrative-distance tie-breaking between
 /// equal-length prefixes and for protocol-scoped withdrawal: a routing process may
 /// remove exactly its own routes without disturbing connected or static entries.
@@ -195,6 +245,30 @@ impl RoutingTable {
         self.sort();
     }
 
+    /// Adds one equal-cost route without replacing another candidate from the same
+    /// source and prefix. Exact duplicates remain suppressed.
+    pub fn add_multipath_route_from(
+        &mut self,
+        destination: Ipv4Address,
+        prefix_len: u8,
+        gateway: Option<Ipv4Address>,
+        interface: &str,
+        source: RouteSource,
+    ) {
+        let entry = RouteEntry::with_source(destination, prefix_len, gateway, interface, source);
+        let duplicate = self.routes.iter().any(|route| {
+            route.destination.mask(route.prefix_len) == entry.destination.mask(entry.prefix_len)
+                && route.prefix_len == entry.prefix_len
+                && route.gateway == entry.gateway
+                && route.interface == entry.interface
+                && route.source == entry.source
+        });
+        if !duplicate {
+            self.routes.push(entry);
+            self.sort();
+        }
+    }
+
     /// Removes the entry for `destination/prefix_len` contributed by `source`.
     /// Returns true if a route was actually removed.
     pub fn remove_route(
@@ -211,6 +285,26 @@ impl RoutingTable {
         self.routes.len() != before
     }
 
+    /// Removes one exact multipath candidate while preserving siblings.
+    pub fn remove_route_via(
+        &mut self,
+        destination: Ipv4Address,
+        prefix_len: u8,
+        gateway: Option<Ipv4Address>,
+        interface: &str,
+        source: RouteSource,
+    ) -> bool {
+        let key = (destination.mask(prefix_len), prefix_len.min(32));
+        let before = self.routes.len();
+        self.routes.retain(|route| {
+            !((route.destination.mask(route.prefix_len), route.prefix_len) == key
+                && route.gateway == gateway
+                && route.interface == interface
+                && route.source == source)
+        });
+        self.routes.len() != before
+    }
+
     /// Removes every route contributed by `source`. Returns how many were removed.
     /// Used when a routing process is torn down and must not leave stale forwarding state.
     pub fn remove_all_from(&mut self, source: RouteSource) -> usize {
@@ -223,6 +317,44 @@ impl RoutingTable {
     /// distance among equal-length prefixes.
     pub fn lookup(&self, dst_ip: Ipv4Address) -> Option<&RouteEntry> {
         self.routes.iter().find(|r| r.matches(dst_ip))
+    }
+
+    /// Returns every route tied for the best longest-prefix match and
+    /// administrative distance, preserving deterministic table order.
+    pub fn lookup_best_routes(&self, dst_ip: Ipv4Address) -> Vec<&RouteEntry> {
+        let Some(best) = self.lookup(dst_ip) else {
+            return Vec::new();
+        };
+        self.routes
+            .iter()
+            .filter(|route| {
+                route.matches(dst_ip)
+                    && route.prefix_len == best.prefix_len
+                    && route.distance() == best.distance()
+            })
+            .collect()
+    }
+
+    /// Selects one best equal-cost route using a caller-supplied deterministic hash.
+    pub fn lookup_best_route_by_hash(
+        &self,
+        dst_ip: Ipv4Address,
+        flow_hash: u64,
+    ) -> Option<&RouteEntry> {
+        let best = self.lookup(dst_ip)?;
+        let mut candidates = self.routes.iter().filter(|route| {
+            route.matches(dst_ip)
+                && route.prefix_len == best.prefix_len
+                && route.distance() == best.distance()
+        });
+        let count = candidates.clone().count();
+        let index = (flow_hash % count as u64) as usize;
+        candidates.nth(index)
+    }
+
+    /// Selects one best equal-cost route using the stable IPv4 transport 5-tuple.
+    pub fn lookup_best_route_for_flow(&self, flow: Ipv4FlowKey) -> Option<&RouteEntry> {
+        self.lookup_best_route_by_hash(flow.destination, flow.stable_hash())
     }
 
     /// Exact-prefix lookup, ignoring longest-prefix semantics.
@@ -268,27 +400,21 @@ mod tests {
     #[test]
     fn test_longest_prefix_match() {
         let mut rt = RoutingTable::new();
-        // Default route 0.0.0.0/0 via 192.168.1.1
         rt.add_route(
             Ipv4Address::UNSPECIFIED,
             0,
             Some(Ipv4Address::new(192, 168, 1, 1)),
             "eth0",
         );
-        // Subnet route 192.168.1.0/24 direct
         rt.add_route(Ipv4Address::new(192, 168, 1, 0), 24, None, "eth0");
-        // Specific host route 192.168.1.50/32 direct
         rt.add_route(Ipv4Address::new(192, 168, 1, 50), 32, None, "eth0");
 
-        // 192.168.1.50 matches /32
         let r1 = rt.lookup(Ipv4Address::new(192, 168, 1, 50)).unwrap();
         assert_eq!(r1.prefix_len, 32);
 
-        // 192.168.1.20 matches /24
         let r2 = rt.lookup(Ipv4Address::new(192, 168, 1, 20)).unwrap();
         assert_eq!(r2.prefix_len, 24);
 
-        // 8.8.8.8 matches /0 default gateway
         let r3 = rt.lookup(Ipv4Address::new(8, 8, 8, 8)).unwrap();
         assert_eq!(r3.prefix_len, 0);
         assert_eq!(r3.gateway, Some(Ipv4Address::new(192, 168, 1, 1)));
@@ -298,7 +424,6 @@ mod tests {
     fn test_connected_route_beats_bgp_route_of_equal_length() {
         let mut rt = RoutingTable::new();
         let prefix = Ipv4Address::new(10, 9, 0, 0);
-        // BGP first, so insertion order cannot be what decides the winner.
         rt.add_route_from(
             prefix,
             24,
@@ -325,7 +450,6 @@ mod tests {
             "eth1",
             RouteSource::Bgp,
         );
-        // Re-announcing the same BGP prefix replaces rather than duplicates.
         rt.add_route_from(
             prefix,
             16,
@@ -337,10 +461,87 @@ mod tests {
         assert_eq!(rt.routes_from(RouteSource::Bgp)[0].interface, "eth2");
         assert_eq!(rt.len(), 2);
 
-        // Withdrawing the BGP route leaves the connected route untouched.
         assert!(rt.remove_route(prefix, 16, RouteSource::Bgp));
         assert!(!rt.remove_route(prefix, 16, RouteSource::Bgp));
         assert_eq!(rt.routes_from(RouteSource::Bgp).len(), 0);
         assert_eq!(rt.routes_from(RouteSource::Connected).len(), 1);
+    }
+
+    #[test]
+    fn multipath_routes_are_bounded_to_best_lpm_and_distance() {
+        let mut rt = RoutingTable::new();
+        let prefix = Ipv4Address::new(203, 0, 113, 0);
+        let gw_a = Ipv4Address::new(10, 0, 0, 1);
+        let gw_b = Ipv4Address::new(10, 0, 0, 2);
+        let gw_worse = Ipv4Address::new(10, 0, 0, 3);
+
+        rt.add_multipath_route_from(prefix, 24, Some(gw_a), "eth0", RouteSource::Bgp);
+        rt.add_multipath_route_from(prefix, 24, Some(gw_b), "eth1", RouteSource::Bgp);
+        rt.add_multipath_route_from(prefix, 24, Some(gw_b), "eth1", RouteSource::Bgp);
+        rt.add_multipath_route_from(prefix, 24, Some(gw_worse), "eth2", RouteSource::Ospf);
+        rt.add_multipath_route_from(
+            Ipv4Address::new(203, 0, 0, 0),
+            16,
+            Some(Ipv4Address::new(10, 0, 0, 4)),
+            "eth3",
+            RouteSource::Bgp,
+        );
+
+        let destination = Ipv4Address::new(203, 0, 113, 9);
+        let best = rt.lookup_best_routes(destination);
+        assert_eq!(best.len(), 2);
+        assert!(best.iter().all(|route| route.source == RouteSource::Bgp));
+        assert!(best.iter().all(|route| route.prefix_len == 24));
+        assert_eq!(rt.len(), 4);
+
+        assert!(rt.remove_route_via(prefix, 24, Some(gw_a), "eth0", RouteSource::Bgp));
+        let best = rt.lookup_best_routes(destination);
+        assert_eq!(best.len(), 1);
+        assert_eq!(best[0].gateway, Some(gw_b));
+    }
+
+    #[test]
+    fn transport_flow_key_provides_deterministic_ipv4_ecmp_affinity() {
+        let mut rt = RoutingTable::new();
+        let prefix = Ipv4Address::new(198, 51, 100, 0);
+        rt.add_multipath_route_from(
+            prefix,
+            24,
+            Some(Ipv4Address::new(10, 0, 0, 1)),
+            "eth0",
+            RouteSource::Bgp,
+        );
+        rt.add_multipath_route_from(
+            prefix,
+            24,
+            Some(Ipv4Address::new(10, 0, 0, 2)),
+            "eth1",
+            RouteSource::Bgp,
+        );
+
+        let source = Ipv4Address::new(192, 0, 2, 10);
+        let destination = Ipv4Address::new(198, 51, 100, 20);
+        let flow = Ipv4FlowKey::new(source, destination, 6, 40_000, 443);
+        let selected = rt.lookup_best_route_for_flow(flow).unwrap();
+        assert_eq!(rt.lookup_best_route_for_flow(flow).unwrap(), selected);
+
+        let original = selected.gateway;
+        let mut alternate = None;
+        for source_port in 40_001..40_128 {
+            let candidate = rt
+                .lookup_best_route_for_flow(Ipv4FlowKey::new(
+                    source,
+                    destination,
+                    6,
+                    source_port,
+                    443,
+                ))
+                .unwrap();
+            if candidate.gateway != original {
+                alternate = candidate.gateway;
+                break;
+            }
+        }
+        assert!(alternate.is_some(), "transport entropy should reach both ECMP members");
     }
 }
