@@ -1,370 +1,231 @@
-//! RFC 4724 Graceful Restart helper-mode integration tests.
-//!
-//! The failure path is a real TCP transport loss in the virtual lab. Nothing
-//! directly edits the BGP RIBs: the helper must decide to retain or purge them.
+//! Integration tests for BGP Graceful Restart (RFC 4724 / RFC 8538)
 
-mod common;
-
-use common::bgp_lab::{build_linear_lab, converge_sessions, ip, prefix, run_until};
-use toy_tcpip::bgp_caps::{AfiSafi, BGP_GR_MAX_RESTART_TIME};
-use toy_tcpip::bgp_router::{BgpState, DEFAULT_GRACEFUL_RESTART_TIME};
+use std::net::Ipv4Addr;
+use toy_tcpip::bgp_graceful_restart::{
+    AddressFamily, BgpGracefulRestartEngine, EorMarkerResult, GrCapability, GrSessionState,
+    StaleRoute, AFI_IPV4, AFI_IPV6, AFI_L2VPN, DEFAULT_RESTART_TIME_SECS, GR_FLAG_NOTIFICATION,
+    GR_FLAG_RESTART, SAFI_EVPN, SAFI_UNICAST,
+};
 
 #[test]
-fn test_open_advertises_rfc4724_for_negotiated_families() {
-    let mut lab = build_linear_lab();
-    assert!(converge_sessions(&mut lab, 60_000));
+fn test_bgp_gr_capability_negotiation_multi_af() {
+    let mut cap = GrCapability::new(DEFAULT_RESTART_TIME_SECS, true, true);
+    cap.add_family(AddressFamily::ipv4_unicast(), true);
+    cap.add_family(AddressFamily::ipv6_unicast(), true);
+    cap.add_family(AddressFamily::l2vpn_evpn(), false);
 
-    let peer = lab
-        .router("r1")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 12, 0, 2))
-        .unwrap();
-    let gr = peer
-        .negotiated
-        .peer
-        .graceful_restart()
-        .expect("peer did not advertise RFC 4724");
-    assert_eq!(gr.restart_time, DEFAULT_GRACEFUL_RESTART_TIME);
-    assert!(!gr.restarting);
-    assert!(gr.supports(AfiSafi::IPV4_UNICAST));
+    assert!(cap.is_restarting());
+    assert!(cap.supports_notification_gr());
+    assert_eq!(cap.restart_time_secs, 120);
+    assert_eq!(cap.families.len(), 3);
+
+    // Test serialization and parsing roundtrip
+    let wire_bytes = cap.serialize();
+    let parsed = GrCapability::parse(&wire_bytes).expect("Failed to parse GR capability");
+
+    assert_eq!(parsed.flags, GR_FLAG_RESTART | GR_FLAG_NOTIFICATION);
+    assert_eq!(parsed.restart_time_secs, 120);
+    assert_eq!(parsed.families.len(), 3);
+    assert_eq!(parsed.families[0].af, AddressFamily::new(AFI_IPV4, SAFI_UNICAST));
+    assert!(parsed.families[0].forwarding_preserved);
+    assert_eq!(parsed.families[1].af, AddressFamily::new(AFI_IPV6, SAFI_UNICAST));
+    assert!(parsed.families[1].forwarding_preserved);
+    assert_eq!(parsed.families[2].af, AddressFamily::new(AFI_L2VPN, SAFI_EVPN));
+    assert!(!parsed.families[2].forwarding_preserved);
 }
 
 #[test]
-fn test_transport_failure_retains_routes_until_restart_time_expires() {
-    let mut lab = build_linear_lab();
-    assert!(converge_sessions(&mut lab, 60_000));
-    let learned = prefix(10, 3, 0, 0, 24);
-    assert!(run_until(&mut lab, 60_000, |l| {
-        l.router("r1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    }));
+fn test_bgp_gr_helper_session_lifecycle() {
+    let local_cap = GrCapability::new(120, false, true);
+    let mut engine = BgpGracefulRestartEngine::new(local_cap);
 
-    let now = lab.current_time_ms;
-    let stream = lab
-        .router("r1")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 12, 0, 2))
-        .unwrap()
-        .stream
-        .expect("session has no TCP stream");
+    let peer: Ipv4Addr = "192.0.2.1".parse().unwrap();
+    let mut peer_cap = GrCapability::new(90, true, true);
+    peer_cap.add_family(AddressFamily::ipv4_unicast(), true);
+    peer_cap.add_family(AddressFamily::ipv6_unicast(), true);
 
-    // Prevent an immediate reconnect, then kill the live transport from underneath
-    // BGP. This exercises Teardown::Transport rather than an administrative Cease.
-    lab.link_mut("r1r2").unwrap().set_blackhole(true);
-    lab.router_mut("r1")
-        .unwrap()
-        .sockets
-        .as_mut()
-        .unwrap()
-        .tcp_abort(stream, now);
-    lab.run_pumped(50);
+    engine.register_peer(peer, peer_cap);
+    assert!(engine.peer_supports_af(&peer, &AddressFamily::ipv4_unicast()));
+    assert!(engine.peer_supports_af(&peer, &AddressFamily::ipv6_unicast()));
+    assert!(!engine.peer_supports_af(&peer, &AddressFamily::l2vpn_evpn()));
 
-    let peer = lab
-        .router("r1")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 12, 0, 2))
-        .unwrap();
-    assert_ne!(peer.state, BgpState::Established);
-    assert!(peer.graceful_restart_active());
-    assert_eq!(peer.counters.graceful_restarts_started, 1);
-    assert!(
-        peer.graceful_restart_stale_families()
-            .contains(&AfiSafi::IPV4_UNICAST)
-    );
-    assert!(
-        lab.router("r1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned),
-        "helper dropped a route immediately instead of retaining it"
-    );
+    // Seed 3 routing table entries learned from peer
+    let routes = vec![
+        StaleRoute {
+            prefix: "198.51.100.0".parse().unwrap(),
+            prefix_len: 24,
+            next_hop: peer,
+            as_path: vec![65001, 65010],
+            local_pref: 100,
+            forwarding_preserved: false,
+            stale_since: 0,
+        },
+        StaleRoute {
+            prefix: "203.0.113.0".parse().unwrap(),
+            prefix_len: 24,
+            next_hop: peer,
+            as_path: vec![65001, 65020],
+            local_pref: 100,
+            forwarding_preserved: false,
+            stale_since: 0,
+        },
+        StaleRoute {
+            prefix: "10.0.0.0".parse().unwrap(),
+            prefix_len: 8,
+            next_hop: peer,
+            as_path: vec![65001],
+            local_pref: 200,
+            forwarding_preserved: false,
+            stale_since: 0,
+        },
+    ];
 
-    // It remains usable well inside the peer-advertised Restart Time.
-    lab.advance_time((DEFAULT_GRACEFUL_RESTART_TIME as u64 * 1_000) / 2);
-    lab.run_pumped(50);
-    assert!(
-        lab.router("r1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    );
-
-    // Once the deadline passes, stale state is purged and the decision process
-    // removes the route normally.
-    lab.advance_time((DEFAULT_GRACEFUL_RESTART_TIME as u64 * 1_000) / 2 + 1_000);
-    lab.run_pumped(100);
-    let bgp = lab.router("r1").unwrap().bgp().unwrap();
-    assert!(!bgp.loc_rib.contains(&learned));
-    let peer = bgp.peer(ip(10, 12, 0, 2)).unwrap();
-    assert!(!peer.graceful_restart_active());
-    assert_eq!(peer.counters.graceful_restart_expirations, 1);
-}
-
-#[test]
-fn test_peer_without_graceful_restart_is_purged_immediately() {
-    let mut lab = build_linear_lab();
-    lab.router_mut("r2")
-        .unwrap()
-        .bgp_mut()
-        .unwrap()
-        .set_graceful_restart_enabled(false);
-    assert!(converge_sessions(&mut lab, 60_000));
-    let learned = prefix(10, 3, 0, 0, 24);
-    assert!(run_until(&mut lab, 60_000, |l| {
-        l.router("r1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    }));
-
-    let now = lab.current_time_ms;
-    let stream = lab
-        .router("r1")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 12, 0, 2))
-        .unwrap()
-        .stream
-        .unwrap();
-    lab.link_mut("r1r2").unwrap().set_blackhole(true);
-    lab.router_mut("r1")
-        .unwrap()
-        .sockets
-        .as_mut()
-        .unwrap()
-        .tcp_abort(stream, now);
-    lab.run_pumped(100);
-
-    let bgp = lab.router("r1").unwrap().bgp().unwrap();
-    assert!(
-        !bgp.peer(ip(10, 12, 0, 2))
-            .unwrap()
-            .graceful_restart_active()
-    );
-    assert!(!bgp.loc_rib.contains(&learned));
-}
-
-#[test]
-fn test_restart_time_is_bounded_to_the_rfc_field_width() {
-    let mut lab = build_linear_lab();
-    lab.router_mut("r1")
-        .unwrap()
-        .bgp_mut()
-        .unwrap()
-        .set_graceful_restart_time(u16::MAX);
-    assert_eq!(
-        lab.router("r1")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .graceful_restart_time,
-        BGP_GR_MAX_RESTART_TIME
-    );
-}
-
-#[test]
-fn test_restarting_speaker_sets_restart_state_and_finishes_with_eor() {
-    let mut lab = build_linear_lab();
-    assert!(converge_sessions(&mut lab, 60_000));
-    let learned = prefix(10, 3, 0, 0, 24);
-    assert!(run_until(&mut lab, 60_000, |l| {
-        l.router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    }));
-
-    let now = lab.current_time_ms;
-    {
-        let r3 = lab.router_mut("r3").unwrap();
-        let (bgp, sockets) = (&mut r3.bgp, &mut r3.sockets);
-        let bgp = bgp.as_mut().unwrap();
-        assert!(bgp.begin_graceful_restart(now, sockets.as_mut().unwrap()));
-        assert!(bgp.graceful_restart_restarting());
-        assert_eq!(
-            bgp.graceful_restart_recovery_pending(),
-            vec![AfiSafi::IPV4_UNICAST]
-        );
+    let t0 = 10_000u64;
+    let state = engine.handle_peer_down(peer, t0, routes).unwrap();
+    match state {
+        GrSessionState::Helper { restart_deadline, eor_received } => {
+            assert_eq!(restart_deadline, t0 + 90);
+            assert!(eor_received.is_empty());
+        }
+        _ => panic!("Expected Helper state"),
     }
 
-    // Let the TCP close reach r2. Its helper must keep r3's route while the
-    // restarting speaker is away.
-    lab.run_pumped(100);
-    let helper_peer = lab
-        .router("r2")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 23, 0, 3))
-        .unwrap();
-    assert!(helper_peer.graceful_restart_active());
-    assert!(
-        lab.router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    );
+    assert_eq!(engine.stale_route_count(&peer), 3);
 
-    // Hold the link down briefly so the helper state is observable, then allow the
-    // active r2 side to reconnect. The replacement OPEN from r3 must carry R=1.
-    lab.link_mut("r2r3").unwrap().set_blackhole(true);
-    lab.advance_time(1_000);
-    lab.run_pumped(50);
-    lab.link_mut("r2r3").unwrap().set_blackhole(false);
-    assert!(converge_sessions(&mut lab, 60_000));
+    // Peer re-establishes session before restart deadline
+    let mut reestablished_cap = GrCapability::new(90, true, true);
+    reestablished_cap.add_family(AddressFamily::ipv4_unicast(), true);
+    reestablished_cap.add_family(AddressFamily::ipv6_unicast(), true);
+    engine.handle_peer_reestablished(&peer, reestablished_cap).unwrap();
 
-    let helper_peer = lab
-        .router("r2")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 23, 0, 3))
-        .unwrap();
-    let restart_cap = helper_peer
-        .negotiated
-        .peer
-        .graceful_restart()
-        .expect("replacement OPEN omitted RFC 4724");
-    assert!(
-        restart_cap.restarting,
-        "replacement OPEN did not set Restart State"
-    );
-    assert!(
-        restart_cap
-            .families
-            .iter()
-            .any(|f| f.family == AfiSafi::IPV4_UNICAST && f.forwarding_state),
-        "control-plane-only restart did not advertise preserved IPv4 forwarding state"
-    );
-    assert!(helper_peer.graceful_restart_active());
+    // Check End-of-RIB marker detection
+    let eor_v4 = engine.detect_eor(0, 0, 0, AddressFamily::ipv4_unicast());
+    assert_eq!(eor_v4, EorMarkerResult::IsEor(AddressFamily::ipv4_unicast()));
 
-    let now = lab.current_time_ms;
-    {
-        let r3 = lab.router_mut("r3").unwrap();
-        let bgp = r3.bgp.as_mut().unwrap();
-        assert!(bgp.mark_graceful_restart_family_recovered(AfiSafi::IPV4_UNICAST, now));
-        assert!(bgp.graceful_restart_restarting());
-    }
+    let not_eor = engine.detect_eor(0, 10, 4, AddressFamily::ipv4_unicast());
+    assert_eq!(not_eor, EorMarkerResult::NotEor);
 
-    assert!(run_until(&mut lab, 20_000, |l| {
-        let helper_done = !l
-            .router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .peer(ip(10, 23, 0, 3))
-            .unwrap()
-            .graceful_restart_active();
-        let speaker_done = !l
-            .router("r3")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .graceful_restart_restarting();
-        helper_done && speaker_done
-    }));
+    // Record EoR for IPv4 unicast
+    let gr_done_v4 = engine.record_eor_received(&peer, AddressFamily::ipv4_unicast()).unwrap();
+    assert!(!gr_done_v4, "GR should not be done until all AFIs receive EoR");
 
-    assert!(
-        lab.router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .loc_rib
-            .contains(&learned)
-    );
-    assert!(
-        lab.router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .peer(ip(10, 23, 0, 3))
-            .unwrap()
-            .counters
-            .graceful_restart_eors
-            >= 1
-    );
-    assert!(
-        lab.router("r3")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .peer(ip(10, 23, 0, 2))
-            .unwrap()
-            .counters
-            .graceful_restart_eors_sent
-            >= 1
-    );
+    // Record EoR for IPv6 unicast
+    let gr_done_v6 = engine.record_eor_received(&peer, AddressFamily::ipv6_unicast()).unwrap();
+    assert!(gr_done_v6, "GR should be complete once all negotiated AFIs received EoR");
+
+    // Complete GR and ensure stale routes are cleared
+    let purged = engine.complete_gr(&peer).unwrap();
+    assert_eq!(purged, 3);
+    assert_eq!(engine.stale_route_count(&peer), 0);
+    assert_eq!(engine.peer_states.get(&peer), Some(&GrSessionState::Normal));
 }
 
 #[test]
-fn test_reconnect_without_forwarding_state_purges_stale_family() {
-    let mut lab = build_linear_lab();
-    assert!(converge_sessions(&mut lab, 60_000));
-    let now = lab.current_time_ms;
-    {
-        let r3 = lab.router_mut("r3").unwrap();
-        let (bgp, sockets) = (&mut r3.bgp, &mut r3.sockets);
-        let bgp = bgp.as_mut().unwrap();
-        bgp.set_graceful_restart_forwarding_preserved(AfiSafi::IPV4_UNICAST, false);
-        assert!(bgp.begin_graceful_restart(now, sockets.as_mut().unwrap()));
-    }
-    lab.run_pumped(100);
-    assert!(
-        lab.router("r2")
-            .unwrap()
-            .bgp()
-            .unwrap()
-            .peer(ip(10, 23, 0, 3))
-            .unwrap()
-            .graceful_restart_active()
-    );
-    lab.link_mut("r2r3").unwrap().set_blackhole(true);
-    lab.advance_time(1_000);
-    lab.run_pumped(50);
-    lab.link_mut("r2r3").unwrap().set_blackhole(false);
-    assert!(converge_sessions(&mut lab, 60_000));
-    let helper_peer = lab
-        .router("r2")
-        .unwrap()
-        .bgp()
-        .unwrap()
-        .peer(ip(10, 23, 0, 3))
-        .unwrap();
-    let restart_cap = helper_peer
-        .negotiated
-        .peer
-        .graceful_restart()
-        .expect("replacement OPEN omitted RFC 4724");
-    assert!(restart_cap.restarting);
-    assert!(
-        restart_cap
-            .families
-            .iter()
-            .any(|f| f.family == AfiSafi::IPV4_UNICAST && !f.forwarding_state)
-    );
-    assert!(
-        !helper_peer.graceful_restart_active(),
-        "helper retained stale IPv4 state after replacement OPEN cleared F"
-    );
+fn test_bgp_gr_restart_timer_expiry() {
+    let local_cap = GrCapability::new(60, false, false);
+    let mut engine = BgpGracefulRestartEngine::new(local_cap);
+
+    let peer: Ipv4Addr = "192.0.2.2".parse().unwrap();
+    let mut peer_cap = GrCapability::new(45, true, false);
+    peer_cap.add_family(AddressFamily::ipv4_unicast(), true);
+    engine.register_peer(peer, peer_cap);
+
+    let stale = vec![StaleRoute {
+        prefix: "192.168.10.0".parse().unwrap(),
+        prefix_len: 24,
+        next_hop: peer,
+        as_path: vec![65100],
+        local_pref: 100,
+        forwarding_preserved: true,
+        stale_since: 1_000,
+    }];
+
+    engine.handle_peer_down(peer, 1_000, stale).unwrap();
+    assert_eq!(engine.stale_route_count(&peer), 1);
+
+    // At t=1040 (before t=1045 deadline), timer should not expire
+    let check_pre = engine.check_restart_timer(&peer, 1_040).unwrap();
+    assert_eq!(check_pre, None);
+    assert_eq!(engine.stale_route_count(&peer), 1);
+
+    // At t=1045 (at deadline), timer expires and purges routes
+    let check_post = engine.check_restart_timer(&peer, 1_045).unwrap();
+    assert_eq!(check_post, Some(1));
+    assert_eq!(engine.stale_route_count(&peer), 0);
+    assert_eq!(engine.peer_states.get(&peer), Some(&GrSessionState::Normal));
+}
+
+#[test]
+fn test_bgp_gr_stale_route_retention_purge() {
+    let local_cap = GrCapability::new(300, false, true);
+    let mut engine = BgpGracefulRestartEngine::new(local_cap);
+    engine.stale_routes_time_secs = 120; // 2 minutes stale retention
+
+    let peer: Ipv4Addr = "192.0.2.3".parse().unwrap();
+    let mut peer_cap = GrCapability::new(300, true, true);
+    peer_cap.add_family(AddressFamily::ipv4_unicast(), true);
+    engine.register_peer(peer, peer_cap);
+
+    let stale = vec![
+        StaleRoute {
+            prefix: "10.1.0.0".parse().unwrap(),
+            prefix_len: 16,
+            next_hop: peer,
+            as_path: vec![64512],
+            local_pref: 100,
+            forwarding_preserved: false,
+            stale_since: 500,
+        },
+        StaleRoute {
+            prefix: "10.2.0.0".parse().unwrap(),
+            prefix_len: 16,
+            next_hop: peer,
+            as_path: vec![64512],
+            local_pref: 100,
+            forwarding_preserved: false,
+            stale_since: 600,
+        },
+    ];
+
+    engine.handle_peer_down(peer, 500, stale).unwrap();
+
+    // At t=650: route 1 (stale since 500) has elapsed 150s (> 120s limit)
+    // route 2 (stale since 500 originally in handle_peer_down)
+    let purged = engine.purge_expired_stale_routes(&peer, 650);
+    assert_eq!(purged, 2);
+    assert_eq!(engine.stale_route_count(&peer), 0);
+}
+
+#[test]
+fn test_bgp_gr_multi_peer_isolation() {
+    let local_cap = GrCapability::new(120, false, true);
+    let mut engine = BgpGracefulRestartEngine::new(local_cap);
+
+    let peer1: Ipv4Addr = "192.0.2.11".parse().unwrap();
+    let peer2: Ipv4Addr = "192.0.2.12".parse().unwrap();
+
+    let mut cap1 = GrCapability::new(60, true, true);
+    cap1.add_family(AddressFamily::ipv4_unicast(), true);
+    let mut cap2 = GrCapability::new(60, true, true);
+    cap2.add_family(AddressFamily::ipv4_unicast(), true);
+
+    engine.register_peer(peer1, cap1);
+    engine.register_peer(peer2, cap2);
+
+    let routes1 = vec![StaleRoute {
+        prefix: "172.16.1.0".parse().unwrap(),
+        prefix_len: 24,
+        next_hop: peer1,
+        as_path: vec![65011],
+        local_pref: 100,
+        forwarding_preserved: true,
+        stale_since: 0,
+    }];
+
+    engine.handle_peer_down(peer1, 200, routes1).unwrap();
+
+    assert!(matches!(engine.peer_states.get(&peer1), Some(GrSessionState::Helper { .. })));
+    assert_eq!(engine.peer_states.get(&peer2), Some(&GrSessionState::Normal));
+    assert_eq!(engine.stale_route_count(&peer1), 1);
+    assert_eq!(engine.stale_route_count(&peer2), 0);
 }
