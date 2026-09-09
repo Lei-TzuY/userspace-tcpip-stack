@@ -523,14 +523,23 @@ mod tests {
 
         table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Bgp);
         table.add_multipath_route_from(prefix, 64, Some(router_b), "eth0", RouteSource::Bgp);
-        table.add_multipath_route_from(prefix, 64, Some(ip("fe80::3")), "eth0", RouteSource::Ospf);
+        table.add_multipath_route_from(
+            prefix,
+            64,
+            Some(ip("fe80::3")),
+            "eth0",
+            RouteSource::Ospf,
+        );
 
         let flow_a = Ipv6FlowKey::new(source, destination, 6, 40_000, 443);
         let flow_b = Ipv6FlowKey::new(source, destination, 6, 40_000, 444);
         let selected_a = table.lookup_best_route_for_flow(flow_a).unwrap();
         let selected_b = table.lookup_best_route_for_flow(flow_b).unwrap();
 
-        assert_eq!(selected_a.gateway, table.lookup_best_route_for_flow(flow_a).unwrap().gateway);
+        assert_eq!(
+            selected_a.gateway,
+            table.lookup_best_route_for_flow(flow_a).unwrap().gateway
+        );
         assert_ne!(selected_a.gateway, selected_b.gateway);
         assert_eq!(selected_a.source, RouteSource::Bgp);
         assert_eq!(selected_b.source, RouteSource::Bgp);
