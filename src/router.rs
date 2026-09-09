@@ -542,6 +542,9 @@ mod tests {
                 break;
             }
         }
-        assert!(alternate.is_some(), "transport entropy should reach both ECMP members");
+        assert!(
+            alternate.is_some(),
+            "transport entropy should reach both ECMP members"
+        );
     }
 }
