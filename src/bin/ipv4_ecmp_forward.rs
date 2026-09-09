@@ -4,9 +4,7 @@ use std::process::ExitCode;
 use std::str::FromStr;
 
 use toy_tcpip::arp::ArpPacket;
-use toy_tcpip::ethernet::{
-    ETHERTYPE_ARP, ETHERTYPE_IPV4, EthernetFrame, MacAddress,
-};
+use toy_tcpip::ethernet::{ETHERTYPE_ARP, ETHERTYPE_IPV4, EthernetFrame, MacAddress};
 use toy_tcpip::ipv4::{IpProtocol, Ipv4Address, Ipv4Packet};
 use toy_tcpip::router::{Ipv4FlowKey, RouteSource, RoutingTable};
 
