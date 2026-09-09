@@ -209,7 +209,11 @@ mod tests {
             before.insert(flow_hash, gateway);
             used.insert(gateway);
         }
-        assert_eq!(used.len(), 3, "flow sample should exercise all ECMP members");
+        assert_eq!(
+            used.len(),
+            3,
+            "flow sample should exercise all ECMP members"
+        );
 
         assert!(table.remove_route_via(
             Ipv4Address::new(203, 0, 113, 0),
