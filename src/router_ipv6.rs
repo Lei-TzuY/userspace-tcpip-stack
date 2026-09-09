@@ -22,12 +22,61 @@ fn mask_address(address: Ipv6Address, prefix_len: u8) -> Ipv6Address {
     Ipv6Address(bytes)
 }
 
+fn fnv1a_extend(mut hash: u64, bytes: &[u8]) -> u64 {
+    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+    for byte in bytes {
+        hash = (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
 fn destination_affinity_hash(destination: Ipv6Address) -> u64 {
     const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-    destination.0.iter().fold(FNV_OFFSET_BASIS, |hash, byte| {
-        (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME)
-    })
+    fnv1a_extend(FNV_OFFSET_BASIS, &destination.0)
+}
+
+/// Stable IPv6 transport flow identity for ECMP selection.
+///
+/// The tuple follows the usual 5-tuple boundary: source/destination IPv6
+/// addresses, IP next-header value, and source/destination transport ports.
+/// Non-port protocols can use zero for both ports while retaining protocol and
+/// address entropy. The hash is intentionally local and deterministic; it is
+/// not a cryptographic integrity primitive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Ipv6FlowKey {
+    pub source: Ipv6Address,
+    pub destination: Ipv6Address,
+    pub next_header: u8,
+    pub source_port: u16,
+    pub destination_port: u16,
+}
+
+impl Ipv6FlowKey {
+    pub fn new(
+        source: Ipv6Address,
+        destination: Ipv6Address,
+        next_header: u8,
+        source_port: u16,
+        destination_port: u16,
+    ) -> Self {
+        Self {
+            source,
+            destination,
+            next_header,
+            source_port,
+            destination_port,
+        }
+    }
+
+    /// Returns the deterministic hash consumed by the ECMP selector.
+    pub fn stable_hash(self) -> u64 {
+        const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut hash = fnv1a_extend(FNV_OFFSET_BASIS, &self.source.0);
+        hash = fnv1a_extend(hash, &self.destination.0);
+        hash = fnv1a_extend(hash, &[self.next_header]);
+        hash = fnv1a_extend(hash, &self.source_port.to_be_bytes());
+        fnv1a_extend(hash, &self.destination_port.to_be_bytes())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -281,6 +330,15 @@ impl Ipv6RoutingTable {
         candidates.nth(index)
     }
 
+    /// Selects one equal-cost route using an IPv6 transport 5-tuple.
+    ///
+    /// Route eligibility is still decided by longest-prefix match and
+    /// administrative distance before the flow hash is applied. This keeps
+    /// transport entropy from ever selecting a less-specific or worse route.
+    pub fn lookup_best_route_for_flow(&self, flow: Ipv6FlowKey) -> Option<&Ipv6RouteEntry> {
+        self.lookup_best_route_by_hash(flow.destination, flow.stable_hash())
+    }
+
     pub fn find_exact(&self, destination: Ipv6Address, prefix_len: u8) -> Option<&Ipv6RouteEntry> {
         let key = (mask_address(destination, prefix_len), prefix_len.min(128));
         self.routes
@@ -451,6 +509,40 @@ mod tests {
             table
                 .lookup_best_route_by_hash(ip("3001:db8::1"), 7)
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn flow_key_keeps_affinity_and_uses_transport_entropy() {
+        let mut table = Ipv6RoutingTable::new();
+        let prefix = ip("2001:db8:70::");
+        let source = ip("2001:db8:1::10");
+        let destination = ip("2001:db8:70::99");
+        let router_a = ip("fe80::1");
+        let router_b = ip("fe80::2");
+
+        table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Bgp);
+        table.add_multipath_route_from(prefix, 64, Some(router_b), "eth0", RouteSource::Bgp);
+        table.add_multipath_route_from(prefix, 64, Some(ip("fe80::3")), "eth0", RouteSource::Ospf);
+
+        let flow_a = Ipv6FlowKey::new(source, destination, 6, 40_000, 443);
+        let flow_b = Ipv6FlowKey::new(source, destination, 6, 40_000, 444);
+        let selected_a = table.lookup_best_route_for_flow(flow_a).unwrap();
+        let selected_b = table.lookup_best_route_for_flow(flow_b).unwrap();
+
+        assert_eq!(
+            selected_a.gateway,
+            table.lookup_best_route_for_flow(flow_a).unwrap().gateway
+        );
+        assert_ne!(selected_a.gateway, selected_b.gateway);
+        assert_eq!(selected_a.source, RouteSource::Bgp);
+        assert_eq!(selected_b.source, RouteSource::Bgp);
+        assert_eq!(
+            table.lookup_best_route_for_flow(flow_a).unwrap().gateway,
+            table
+                .lookup_best_route_by_hash(destination, flow_a.stable_hash())
+                .unwrap()
+                .gateway
         );
     }
 
