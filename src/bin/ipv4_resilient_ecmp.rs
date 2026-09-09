@@ -38,8 +38,8 @@ fn route_score(flow_hash: u64, route: &RouteEntry) -> u64 {
 }
 
 fn route_identity_cmp(left: &RouteEntry, right: &RouteEntry) -> std::cmp::Ordering {
-    let left_gateway = left.gateway.map(Ipv4Address::to_u32);
-    let right_gateway = right.gateway.map(Ipv4Address::to_u32);
+    let left_gateway = left.gateway.map(|gateway| gateway.to_u32());
+    let right_gateway = right.gateway.map(|gateway| gateway.to_u32());
     left.destination
         .to_u32()
         .cmp(&right.destination.to_u32())
