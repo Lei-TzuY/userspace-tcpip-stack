@@ -43,7 +43,10 @@ fn flow_key(packet: &Ipv4Packet<'_>) -> Ipv4FlowKey {
     )
 }
 
-fn select_route<'a>(table: &'a RoutingTable, packet_bytes: &[u8]) -> Result<&'a RouteEntry, String> {
+fn select_route<'a>(
+    table: &'a RoutingTable,
+    packet_bytes: &[u8],
+) -> Result<&'a RouteEntry, String> {
     let packet = Ipv4Packet::parse(packet_bytes, true).map_err(|error| error.to_string())?;
     table
         .lookup_best_route_for_flow(flow_key(&packet))
