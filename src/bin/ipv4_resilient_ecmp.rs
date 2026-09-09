@@ -17,7 +17,14 @@ fn fnv1a_extend(mut hash: u64, bytes: &[u8]) -> u64 {
 
 fn route_score(flow_hash: u64, route: &RouteEntry) -> u64 {
     let mut hash = fnv1a_extend(FNV_OFFSET_BASIS, &flow_hash.to_be_bytes());
-    hash = fnv1a_extend(hash, &route.destination.mask(route.prefix_len).to_u32().to_be_bytes());
+    hash = fnv1a_extend(
+        hash,
+        &route
+            .destination
+            .mask(route.prefix_len)
+            .to_u32()
+            .to_be_bytes(),
+    );
     hash = fnv1a_extend(hash, &[route.prefix_len]);
     match route.gateway {
         Some(gateway) => {
@@ -47,11 +54,14 @@ fn select_resilient_route(
     destination: Ipv4Address,
     flow_hash: u64,
 ) -> Option<&RouteEntry> {
-    table.lookup_best_routes(destination).into_iter().max_by(|left, right| {
-        route_score(flow_hash, left)
-            .cmp(&route_score(flow_hash, right))
-            .then_with(|| route_identity_cmp(left, right))
-    })
+    table
+        .lookup_best_routes(destination)
+        .into_iter()
+        .max_by(|left, right| {
+            route_score(flow_hash, left)
+                .cmp(&route_score(flow_hash, right))
+                .then_with(|| route_identity_cmp(left, right))
+        })
 }
 
 fn parse_route_spec(spec: &str) -> Result<(Ipv4Address, u8, Option<Ipv4Address>, String), String> {
@@ -173,8 +183,12 @@ mod tests {
         let destination = Ipv4Address::new(203, 0, 113, 77);
         for flow_hash in 0..512 {
             assert_eq!(
-                select_resilient_route(&forward, destination, flow_hash).unwrap().gateway,
-                select_resilient_route(&reverse, destination, flow_hash).unwrap().gateway
+                select_resilient_route(&forward, destination, flow_hash)
+                    .unwrap()
+                    .gateway,
+                select_resilient_route(&reverse, destination, flow_hash)
+                    .unwrap()
+                    .gateway
             );
         }
     }
