@@ -4,7 +4,7 @@ use toy_tcpip::arp::ArpPacket;
 use toy_tcpip::ethernet::{ETHERTYPE_ARP, ETHERTYPE_IPV4, EtherType, EthernetFrame, MacAddress};
 use toy_tcpip::ipv4::{IpProtocol, Ipv4Address, Ipv4Packet};
 use toy_tcpip::router::{Ipv4FlowKey, RouteEntry};
-use toy_tcpip::stack::NetStack;
+use toy_tcpip::stack::{NetStack, NetStackConfig};
 
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -118,101 +118,111 @@ fn send_resilient_ipv4(stack: &mut NetStack, ip_bytes: Vec<u8>) -> Result<Vec<u8
     ))
 }
 
+fn stack() -> NetStack {
+    let mut stack = NetStack::new(NetStackConfig {
+        mac: MacAddress::new([0x02, 0, 0, 0, 0, 1]),
+        ip: Ipv4Address::new(192, 0, 2, 10),
+        ipv6: None,
+        subnet_mask: 24,
+        gateway: None,
+    });
+    for (octet, interface) in [(1, "wan-a"), (2, "wan-b"), (3, "wan-c")] {
+        let gateway = Ipv4Address::new(192, 0, 2, octet);
+        stack.routing_table.add_multipath_route_from(
+            Ipv4Address::new(203, 0, 113, 0),
+            24,
+            Some(gateway),
+            interface,
+            toy_tcpip::router::RouteSource::Static,
+        );
+        stack
+            .arp_table
+            .insert(gateway.0, MacAddress::new([0x02, 0, 0, 0, 1, octet]));
+    }
+    stack
+}
+
+fn packet(source_port: u16) -> Vec<u8> {
+    let payload = [
+        source_port.to_be_bytes()[0],
+        source_port.to_be_bytes()[1],
+        0x01,
+        0xbb,
+        0,
+        8,
+        0,
+        0,
+    ];
+    Ipv4Packet::serialize(
+        Ipv4Address::new(198, 51, 100, 9),
+        Ipv4Address::new(203, 0, 113, 7),
+        toy_tcpip::ipv4::IP_PROTO_UDP,
+        7,
+        64,
+        &payload,
+    )
+}
+
+fn run_forward() -> Result<(), String> {
+    let mut stack = stack();
+    let packet = packet(40_000);
+    let parsed = Ipv4Packet::parse(&packet, true).map_err(|error| error.to_string())?;
+    let selected = resilient_route(&stack, &parsed)
+        .ok_or_else(|| "no route".to_string())?
+        .clone();
+    let selected_gateway = selected.gateway.ok_or_else(|| "no gateway".to_string())?;
+
+    let withdrawn = [
+        Ipv4Address::new(192, 0, 2, 1),
+        Ipv4Address::new(192, 0, 2, 2),
+        Ipv4Address::new(192, 0, 2, 3),
+    ]
+    .into_iter()
+    .find(|gateway| *gateway != selected_gateway)
+    .ok_or_else(|| "no alternate gateway".to_string())?;
+
+    if !stack.routing_table.remove_route_via(
+        Ipv4Address::new(203, 0, 113, 0),
+        24,
+        Some(withdrawn),
+        match withdrawn.0[3] {
+            1 => "wan-a",
+            2 => "wan-b",
+            _ => "wan-c",
+        },
+        toy_tcpip::router::RouteSource::Static,
+    ) {
+        return Err("failed to remove route".to_string());
+    }
+
+    let reparsed = Ipv4Packet::parse(&packet, true).map_err(|error| error.to_string())?;
+    if resilient_route(&stack, &reparsed).and_then(|r| r.gateway) != Some(selected_gateway) {
+        return Err("route changed unexpectedly".to_string());
+    }
+
+    let frame = send_resilient_ipv4(&mut stack, packet)?;
+    let ethernet = EthernetFrame::parse(&frame).map_err(|error| error.to_string())?;
+    if ethernet.ethertype != EtherType::IPv4 {
+        return Err("unexpected ethertype".to_string());
+    }
+    Ok(())
+}
+
 fn main() {
-    eprintln!(
-        "netstack_ipv4_ecmp_forward is an executable integration probe; run its tests to validate resilient NetStack-backed forwarding"
-    );
+    if let Err(error) = run_forward() {
+        eprintln!("resilient ECMP forwarding probe failed: {error}");
+        std::process::exit(1);
+    }
+    println!("resilient ECMP forwarding probe: ok");
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use toy_tcpip::router::RouteSource;
-    use toy_tcpip::stack::NetStackConfig;
-
-    fn stack() -> NetStack {
-        let mut stack = NetStack::new(NetStackConfig {
-            mac: MacAddress::new([0x02, 0, 0, 0, 0, 1]),
-            ip: Ipv4Address::new(192, 0, 2, 10),
-            ipv6: None,
-            subnet_mask: 24,
-            gateway: None,
-        });
-        for (octet, interface) in [(1, "wan-a"), (2, "wan-b"), (3, "wan-c")] {
-            let gateway = Ipv4Address::new(192, 0, 2, octet);
-            stack.routing_table.add_multipath_route_from(
-                Ipv4Address::new(203, 0, 113, 0),
-                24,
-                Some(gateway),
-                interface,
-                RouteSource::Static,
-            );
-            stack
-                .arp_table
-                .insert(gateway.0, MacAddress::new([0x02, 0, 0, 0, 1, octet]));
-        }
-        stack
-    }
-
-    fn packet(source_port: u16) -> Vec<u8> {
-        let payload = [
-            source_port.to_be_bytes()[0],
-            source_port.to_be_bytes()[1],
-            0x01,
-            0xbb,
-            0,
-            8,
-            0,
-            0,
-        ];
-        Ipv4Packet::serialize(
-            Ipv4Address::new(198, 51, 100, 9),
-            Ipv4Address::new(203, 0, 113, 7),
-            toy_tcpip::ipv4::IP_PROTO_UDP,
-            7,
-            64,
-            &payload,
-        )
-    }
 
     #[test]
     fn surviving_flow_keeps_next_hop_after_unrelated_member_withdrawal() {
-        let mut stack = stack();
-        let packet = packet(40_000);
-        let parsed = Ipv4Packet::parse(&packet, true).unwrap();
-        let selected = resilient_route(&stack, &parsed).unwrap().clone();
-        let selected_gateway = selected.gateway.unwrap();
-
-        let withdrawn = [
-            Ipv4Address::new(192, 0, 2, 1),
-            Ipv4Address::new(192, 0, 2, 2),
-            Ipv4Address::new(192, 0, 2, 3),
-        ]
-        .into_iter()
-        .find(|gateway| *gateway != selected_gateway)
-        .unwrap();
-
-        assert!(stack.routing_table.remove_route_via(
-            Ipv4Address::new(203, 0, 113, 0),
-            24,
-            Some(withdrawn),
-            match withdrawn.0[3] {
-                1 => "wan-a",
-                2 => "wan-b",
-                _ => "wan-c",
-            },
-            RouteSource::Static,
-        ));
-
-        let reparsed = Ipv4Packet::parse(&packet, true).unwrap();
-        assert_eq!(
-            resilient_route(&stack, &reparsed).unwrap().gateway,
-            Some(selected_gateway)
-        );
-
-        let frame = send_resilient_ipv4(&mut stack, packet).unwrap();
-        let ethernet = EthernetFrame::parse(&frame).unwrap();
-        assert_eq!(ethernet.ethertype, EtherType::IPv4);
+        run_forward().unwrap();
     }
 
     #[test]

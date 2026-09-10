@@ -1466,7 +1466,7 @@ impl NetworkShell {
         ));
 
         let mut ptp_tc_engine = TransparentClockEngine::new(TransparentClockMode::EndToEnd);
-        ptp_tc_engine.calculate_peer_delay(0, 100, 150, 250);
+        let _ = ptp_tc_engine.calculate_peer_delay(0, 100, 150, 250);
 
         let mut pfcp_upf = PfcpNode::new("upf-edge-01.5gcore.local");
         pfcp_upf.handle_association_setup("smf-control-01.5gcore.local");
