@@ -290,8 +290,8 @@ mod tests {
         let packet = packet(40_000);
         let parsed = Ipv4Packet::parse(&packet, true).unwrap();
         let flow = flow_key(&parsed);
-        let selected = select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash())
-            .unwrap();
+        let selected =
+            select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash()).unwrap();
         let next_hop = selected.next_hop(parsed.header.dst_ip);
         let source_mac = MacAddress::new([0x02, 0, 0, 0, 0, 1]);
         let destination_mac = MacAddress::new([0x02, 0, 0, 0, 0, 2]);
@@ -310,8 +310,8 @@ mod tests {
         let packet = packet(40_001);
         let parsed = Ipv4Packet::parse(&packet, true).unwrap();
         let flow = flow_key(&parsed);
-        let selected = select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash())
-            .unwrap();
+        let selected =
+            select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash()).unwrap();
         let next_hop = selected.next_hop(parsed.header.dst_ip);
         let source_mac = MacAddress::new([0x02, 0, 0, 0, 0, 1]);
 
