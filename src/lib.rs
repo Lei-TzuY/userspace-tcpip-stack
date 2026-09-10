@@ -304,6 +304,7 @@ pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_v2x;
 pub mod nr_srap_relay;
 pub mod nr_tsc_framework;
+pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
 pub mod nr_ul_tx_switching;
 pub mod nr_unified_tci;
@@ -1679,6 +1680,12 @@ pub use nr_tsc_framework::{
     SurvivalTimeTransition, TscBridgePortDelayReport, TscEgressArrivalOutcome, TscEngine,
     TscEngineNotification, TscError, TscFlowDirection, TscIngressOutcome, TscStreamTelemetry,
     TscTrafficType, TscTranslatorType, TscaiProfile, TsnQosMapper,
+};
+pub use nr_uav_aerial::{
+    AerialInterferenceMeasurement, AerialPowerControl, AerialUeEngine, AerialUeError,
+    BroadcastRemoteId, FlightPathInfoReport, FlightWaypoint, HeightReportingConfig,
+    HeightReportingEvent, UasAuthorizationStatus, DEFAULT_HEIGHT_H1_THRESHOLD_M,
+    DEFAULT_HEIGHT_H2_THRESHOLD_M, DEFAULT_SIDELOBE_POLLUTION_COUNT, MAX_FLIGHT_WAYPOINTS,
 };
 pub use nr_udc_engine::{
     SlidingDictionary, UdcBufferSize, UdcCompressor, UdcConfig, UdcDecompressor, UdcEngine,
