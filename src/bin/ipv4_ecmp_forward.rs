@@ -6,7 +6,66 @@ use std::str::FromStr;
 use toy_tcpip::arp::ArpPacket;
 use toy_tcpip::ethernet::{ETHERTYPE_ARP, ETHERTYPE_IPV4, EthernetFrame, MacAddress};
 use toy_tcpip::ipv4::{IpProtocol, Ipv4Address, Ipv4Packet};
-use toy_tcpip::router::{Ipv4FlowKey, RouteSource, RoutingTable};
+use toy_tcpip::router::{Ipv4FlowKey, RouteEntry, RouteSource, RoutingTable};
+
+const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fnv1a_extend(mut hash: u64, bytes: &[u8]) -> u64 {
+    for byte in bytes {
+        hash = (hash ^ u64::from(*byte)).wrapping_mul(FNV_PRIME);
+    }
+    hash
+}
+
+fn route_score(flow_hash: u64, route: &RouteEntry) -> u64 {
+    let mut hash = fnv1a_extend(FNV_OFFSET_BASIS, &flow_hash.to_be_bytes());
+    hash = fnv1a_extend(
+        hash,
+        &route
+            .destination
+            .mask(route.prefix_len)
+            .to_u32()
+            .to_be_bytes(),
+    );
+    hash = fnv1a_extend(hash, &[route.prefix_len]);
+    match route.gateway {
+        Some(gateway) => {
+            hash = fnv1a_extend(hash, &[1]);
+            hash = fnv1a_extend(hash, &gateway.to_u32().to_be_bytes());
+        }
+        None => hash = fnv1a_extend(hash, &[0]),
+    }
+    hash = fnv1a_extend(hash, route.interface.as_bytes());
+    fnv1a_extend(hash, route.source.as_str().as_bytes())
+}
+
+fn route_identity_cmp(left: &RouteEntry, right: &RouteEntry) -> std::cmp::Ordering {
+    let left_gateway = left.gateway.map(|gateway| gateway.to_u32());
+    let right_gateway = right.gateway.map(|gateway| gateway.to_u32());
+    left.destination
+        .to_u32()
+        .cmp(&right.destination.to_u32())
+        .then(left.prefix_len.cmp(&right.prefix_len))
+        .then(left_gateway.cmp(&right_gateway))
+        .then(left.interface.cmp(&right.interface))
+        .then(left.source.as_str().cmp(right.source.as_str()))
+}
+
+fn select_resilient_route(
+    table: &RoutingTable,
+    destination: Ipv4Address,
+    flow_hash: u64,
+) -> Option<&RouteEntry> {
+    table
+        .lookup_best_routes(destination)
+        .into_iter()
+        .max_by(|left, right| {
+            route_score(flow_hash, left)
+                .cmp(&route_score(flow_hash, right))
+                .then_with(|| route_identity_cmp(left, right))
+        })
+}
 
 fn decode_hex(input: &str) -> Result<Vec<u8>, String> {
     if !input.len().is_multiple_of(2) {
@@ -97,8 +156,8 @@ fn forward_packet(
     packet_bytes: &[u8],
 ) -> Result<Vec<u8>, String> {
     let packet = Ipv4Packet::parse(packet_bytes, true).map_err(|error| error.to_string())?;
-    let route = table
-        .lookup_best_route_for_flow(flow_key(&packet))
+    let flow = flow_key(&packet);
+    let route = select_resilient_route(table, packet.header.dst_ip, flow.stable_hash())
         .ok_or_else(|| format!("no route for {}", packet.header.dst_ip))?;
     let next_hop = route.next_hop(packet.header.dst_ip);
 
@@ -213,12 +272,26 @@ mod tests {
         table
     }
 
+    fn three_member_table() -> RoutingTable {
+        let mut table = table();
+        table.add_multipath_route_from(
+            Ipv4Address::new(203, 0, 113, 0),
+            24,
+            Some(Ipv4Address::new(192, 0, 2, 3)),
+            "wan-c",
+            RouteSource::Static,
+        );
+        table
+    }
+
     #[test]
     fn resolved_ecmp_next_hop_emits_ipv4_ethernet_frame() {
         let table = table();
         let packet = packet(40_000);
         let parsed = Ipv4Packet::parse(&packet, true).unwrap();
-        let selected = table.lookup_best_route_for_flow(flow_key(&parsed)).unwrap();
+        let flow = flow_key(&parsed);
+        let selected =
+            select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash()).unwrap();
         let next_hop = selected.next_hop(parsed.header.dst_ip);
         let source_mac = MacAddress::new([0x02, 0, 0, 0, 0, 1]);
         let destination_mac = MacAddress::new([0x02, 0, 0, 0, 0, 2]);
@@ -236,7 +309,9 @@ mod tests {
         let table = table();
         let packet = packet(40_001);
         let parsed = Ipv4Packet::parse(&packet, true).unwrap();
-        let selected = table.lookup_best_route_for_flow(flow_key(&parsed)).unwrap();
+        let flow = flow_key(&parsed);
+        let selected =
+            select_resilient_route(&table, parsed.header.dst_ip, flow.stable_hash()).unwrap();
         let next_hop = selected.next_hop(parsed.header.dst_ip);
         let source_mac = MacAddress::new([0x02, 0, 0, 0, 0, 1]);
 
@@ -246,6 +321,54 @@ mod tests {
         assert_eq!(ethernet.dst_mac, MacAddress::BROADCAST);
         let arp = ArpPacket::parse(ethernet.payload).unwrap();
         assert_eq!(arp.target_ip, next_hop.0);
+    }
+
+    #[test]
+    fn member_withdrawal_preserves_surviving_forwarding_affinity() {
+        let mut table = three_member_table();
+        let source_mac = MacAddress::new([0x02, 0, 0, 0, 0, 1]);
+        let gateways = [
+            Ipv4Address::new(192, 0, 2, 1),
+            Ipv4Address::new(192, 0, 2, 2),
+            Ipv4Address::new(192, 0, 2, 3),
+        ];
+        let macs = [
+            MacAddress::new([0x02, 0, 0, 0, 1, 1]),
+            MacAddress::new([0x02, 0, 0, 0, 1, 2]),
+            MacAddress::new([0x02, 0, 0, 0, 1, 3]),
+        ];
+        let neighbors = HashMap::from([
+            (gateways[0], macs[0]),
+            (gateways[1], macs[1]),
+            (gateways[2], macs[2]),
+        ]);
+        let removed = gateways[1];
+        let mut before = HashMap::new();
+
+        for source_port in 40_000..40_256 {
+            let bytes = packet(source_port);
+            let frame = forward_packet(&table, &neighbors, source_mac, &bytes).unwrap();
+            before.insert(source_port, EthernetFrame::parse(&frame).unwrap().dst_mac);
+        }
+
+        assert!(table.remove_route_via(
+            Ipv4Address::new(203, 0, 113, 0),
+            24,
+            Some(removed),
+            "wan-b",
+            RouteSource::Static,
+        ));
+
+        for (source_port, old_mac) in before {
+            let bytes = packet(source_port);
+            let frame = forward_packet(&table, &neighbors, source_mac, &bytes).unwrap();
+            let new_mac = EthernetFrame::parse(&frame).unwrap().dst_mac;
+            if old_mac != macs[1] {
+                assert_eq!(new_mac, old_mac);
+            } else {
+                assert_ne!(new_mac, macs[1]);
+            }
+        }
     }
 
     #[test]
