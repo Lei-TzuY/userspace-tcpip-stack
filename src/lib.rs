@@ -24,7 +24,6 @@ pub mod bgp_color_sr;
 pub mod bgp_epe;
 pub mod bgp_evpn;
 pub mod bgp_ext_comm;
-pub mod bgp_graceful_restart;
 pub mod bgp_ipv6;
 pub mod bgp_ls;
 pub mod bgp_ls_srv6;
@@ -234,7 +233,6 @@ pub mod ipv4;
 pub mod ipv6;
 pub mod ipv6_ext;
 pub mod isis;
-pub mod isis_sr;
 pub mod iupf_5g;
 pub mod l2tp;
 pub mod lab;
@@ -246,7 +244,6 @@ pub mod lisp_gpe;
 pub mod lldp;
 pub mod lmf_5g;
 pub mod mac_5g;
-pub mod macsec;
 pub mod mb_upf_5g;
 pub mod mbsf_5g;
 pub mod mcx_cms_5g;
@@ -254,7 +251,6 @@ pub mod mfaf_5g;
 pub mod mld;
 pub mod mldp;
 pub mod mpls;
-pub mod mpls_entropy_label;
 pub mod mpls_oam;
 pub mod mpls_tp_oam;
 pub mod mqtt;
@@ -1044,16 +1040,6 @@ pub use ipv6_ext::{
     Ipv6Option, MAX_EXTENSION_HEADERS, compute_flow_label, is_extension_header,
 };
 pub use isis::{ETHERTYPE_ISIS, ISIS_NLPID_DISCRIMINATOR, IsisHeader, IsisHelloPacket, IsisTlv};
-pub use isis_sr::{
-    IsisAdjacencySid, IsisPrefixSid, IsisSegmentRoutingCapability, IsisSegmentRoutingDatabase,
-    IsisSegmentRoutingNode, SrgbRange, ADJ_SID_FLAG_B, ADJ_SID_FLAG_F, ADJ_SID_FLAG_L,
-    ADJ_SID_FLAG_P, ADJ_SID_FLAG_S, ADJ_SID_FLAG_V, ISIS_SUBTLV_ADJ_SID, ISIS_SUBTLV_LAN_ADJ_SID,
-    ISIS_SUBTLV_PREFIX_SID, ISIS_SUBTLV_SR_ALGORITHM, ISIS_SUBTLV_SR_CAPABILITY,
-    ISIS_TLV_EXTENDED_IP_REACH, ISIS_TLV_EXTENDED_IS_REACH, ISIS_TLV_IPV6_IP_REACH,
-    ISIS_TLV_ROUTER_CAPABILITY, ISIS_TLV_SID_LABEL_BINDING, PREFIX_SID_FLAG_E, PREFIX_SID_FLAG_L,
-    PREFIX_SID_FLAG_N, PREFIX_SID_FLAG_P, PREFIX_SID_FLAG_R, PREFIX_SID_FLAG_V,
-    SR_ALGORITHM_SPF, SR_ALGORITHM_STRICT_SPF, SR_CAP_FLAG_IPV4_MPLS, SR_CAP_FLAG_IPV6_MPLS,
-};
 pub use l2tp::{IP_PROTO_L2TPV3, L2TPV3_UDP_PORT, L2tpv3Packet};
 pub use lacp::{ETHERTYPE_SLOW_PROTOCOLS, LacpPacket, LacpPortInfo, LinkAggregationGroup};
 pub use ldap::{LDAP_PORT, LDAPS_PORT, LdapMessage, LdapOp, LdapServer};
@@ -1071,11 +1057,6 @@ pub use mldp::{
     MLDP_OPAQUE_TYPE_OPAQUE_BYTES, MldpEngine, MldpFecElement, MldpFecType, MldpTreeBranch,
 };
 pub use mpls::{ETHERTYPE_MPLS_UNICAST, LfibAction, LfibTable, MplsHeader, MplsPacket};
-pub use mpls_entropy_label::{
-    EcmpNextHop, EcmpSelectionResult, EntropyHashStrategy, EntropyLabelError,
-    MplsEntropyLabelEngine, MplsLabelEntry, MplsLabelStack, DEFAULT_HASH_SEED,
-    ENTROPY_LABEL_MIN, MPLS_LABEL_ELI, MPLS_LABEL_MAX,
-};
 pub use mpls_oam::{
     LSP_MSG_ECHO_REPLY, LSP_MSG_ECHO_REQUEST, LSP_PING_UDP_PORT, LSP_RET_CODE_EGRESS_FOR_FEC,
     LspEchoPacket, TargetFecIpv4,
@@ -1255,13 +1236,6 @@ pub use bgp_color_sr::{
     BGP_EXT_COMM_SUBTYPE_COLOR, BGP_EXT_COMM_TYPE_OPAQUE, BgpColorCommunity, CoBitsMode,
     ColorAwareSrEngine, ColorSrPolicy, ColorSrSegmentList, SrSteeringVerdict,
 };
-pub use bgp_graceful_restart::{
-    AddressFamily, BgpGracefulRestartEngine, EorMarkerResult, GrAddressFamilyEntry, GrCapability,
-    GrError, GrSessionState, StaleRoute, AFI_IPV4, AFI_IPV6, AFI_L2VPN, BGP_CAP_GRACEFUL_RESTART,
-    BGP_CAP_LLGR, DEFAULT_RESTART_TIME_SECS, DEFAULT_STALE_ROUTES_TIME_SECS,
-    GR_AFI_FLAG_FORWARDING, GR_FLAG_NOTIFICATION, GR_FLAG_RESTART, SAFI_EVPN, SAFI_MULTICAST,
-    SAFI_UNICAST,
-};
 pub use bsf_5g::{
     BsfEngine, CreateBindingRequest, DiscoverBindingQuery, PcfBinding, UpdateBindingRequest,
 };
@@ -1402,13 +1376,6 @@ pub use mac_5g::{
     MAC_LCID_DRX_CMD, MAC_LCID_LONG_BSR, MAC_LCID_PADDING, MAC_LCID_SHORT_BSR,
     MAC_LCID_SINGLE_ENTRY_PHR, MAC_LCID_TA_CMD, MAC_MAX_HARQ_PROCESSES, MacEntity, MacPdu,
     MacPduElement, MacSubheader,
-};
-pub use macsec::{
-    ConfidentialityMode, MacsecCipherSuite, MacsecError, MacsecProtectResult, MacsecSecTag,
-    MacsecSecY, MacsecValidateResult, ReceiveSecureChannel, SecureAssociation, SecureChannelId,
-    TransmitSecureChannel, ETHERTYPE_MACSEC, ICV_LEN_GCM_AES_128, ICV_LEN_GCM_AES_256,
-    PN_EXHAUSTION_THRESHOLD, SECTAG_HEADER_LEN, SECTAG_HEADER_LEN_WITH_SCI, TCI_C_BIT,
-    TCI_ES_BIT, TCI_E_BIT, TCI_SCB_BIT, TCI_SC_BIT, TCI_V_BIT, XPN_EXHAUSTION_THRESHOLD,
 };
 pub use mb_upf_5g::{
     GnbBranchEndpoint, MbUpfEngine, MbUpfError, MbUpfSessionContext, MbsSessionType,
