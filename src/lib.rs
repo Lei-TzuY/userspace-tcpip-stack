@@ -282,6 +282,7 @@ pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_mtrp_engine;
+pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_harq;
@@ -1551,6 +1552,15 @@ pub use nr_mtrp_engine::{
     CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
     PdschMtrpBundle, PdschTransmissionLeg, TrpConfig, TrpLinkState, DEFAULT_MTRP_BFI_THRESHOLD,
     DEFAULT_MTRP_Q_IN_DBM, DEFAULT_MTRP_Q_OUT_DBM, MAC_LCID_MTRP_BFR, MAX_MTRP_TRPS,
+};
+pub use nr_musim_engine::{
+    MusimAssistanceInfo, MusimDeviceCapability, MusimEngine, MusimError, MusimGapConfig,
+    MusimLeaveAction, MusimLeaveCause, MusimPowerSharingServo, MusimRrcState,
+    MusimServicePriority, PagingCollisionEvent, PowerSharingAllocation, SimId, SimProfile,
+    TemporaryLeaveState, DEFAULT_MUSIM_GAP_LENGTH_MS, DEFAULT_MUSIM_GAP_PERIODICITY_MS,
+    DEFAULT_PCMAX_MW as MUSIM_DEFAULT_PCMAX_MW,
+    DEFAULT_TEMPORARY_LEAVE_DURATION_MS as MUSIM_DEFAULT_TEMPORARY_LEAVE_DURATION_MS,
+    MAX_SFN_FRAMES as MUSIM_MAX_SFN_FRAMES, MIN_TRANSMIT_POWER_MW as MUSIM_MIN_TRANSMIT_POWER_MW,
 };
 pub use nr_ncr_engine::{
     AmplifiedOutput, AmplifyDirection, MAX_BEAM_ID as NCR_MAX_BEAM_ID, NcrError,
