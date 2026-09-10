@@ -52,18 +52,21 @@ fn route_identity_cmp(left: &RouteEntry, right: &RouteEntry) -> Ordering {
         .then(left.source.as_str().cmp(right.source.as_str()))
 }
 
-fn flow_key(packet: &Ipv4Packet<'_>) -> Ipv4FlowKey {
-    let (source_port, destination_port) = if packet.header.fragment_offset == 0
-        && matches!(packet.header.protocol, IpProtocol::Tcp | IpProtocol::Udp)
-        && packet.payload.len() >= 4
-    {
-        (
+fn transport_ports(packet: &Ipv4Packet<'_>) -> (u16, u16) {
+    if packet.header.fragment_offset != 0 {
+        return (0, 0);
+    }
+    match packet.header.protocol {
+        IpProtocol::Tcp | IpProtocol::Udp if packet.payload.len() >= 4 => (
             u16::from_be_bytes([packet.payload[0], packet.payload[1]]),
             u16::from_be_bytes([packet.payload[2], packet.payload[3]]),
-        )
-    } else {
-        (0, 0)
-    };
+        ),
+        _ => (0, 0),
+    }
+}
+
+fn flow_key(packet: &Ipv4Packet<'_>) -> Ipv4FlowKey {
+    let (source_port, destination_port) = transport_ports(packet);
     Ipv4FlowKey::new(
         packet.header.src_ip,
         packet.header.dst_ip,
