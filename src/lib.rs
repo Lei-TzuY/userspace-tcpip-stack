@@ -305,6 +305,7 @@ pub mod nr_sdt_engine;
 pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
 pub mod nr_sidelink_positioning;
+pub mod nr_sidelink_relay_discovery;
 pub mod nr_sidelink_v2x;
 pub mod nr_srap_relay;
 pub mod nr_tsc_framework;
@@ -1691,6 +1692,17 @@ pub use nr_sidelink_positioning::{
     GoldSequenceGenerator, SlAnchorUe, SlAoAMeasurement, SlCombSize, SlKinematicTracker,
     SlMultilaterationSolver, SlPositionEstimate, SlPositioningError, SlPrsConfig, SlRangingSession,
     SlRttMeasurement, SlSessionState,
+};
+pub use nr_sidelink_relay_discovery::{
+    CandidateRelay as SlCandidateRelay, Pc5DiscoveryMessage, Pc5DiscoveryMessageType,
+    RelayConnectionState as SlRelayConnectionState, RelayDiscoveryError as SlRelayDiscoveryError,
+    RelayDiscoveryModel, RelayReselectionDecision as SlRelayReselectionDecision,
+    SidelinkRelayConfig, SidelinkRelayDiscoveryEngine, SidelinkRelayRole,
+    DEFAULT_DIRECT_UU_THRESH_HIGH_DBM, DEFAULT_HOP_PENALTY_DB as SL_RELAY_HOP_PENALTY_DB,
+    DEFAULT_MAX_RELAY_HOPS as SL_MAX_RELAY_HOPS, DEFAULT_PC5_RSRP_MIN_THRESH_DBM,
+    DEFAULT_RELAY_EXPIRY_MS as SL_RELAY_EXPIRY_MS,
+    DEFAULT_RELAY_HYSTERESIS_DB as SL_RELAY_HYSTERESIS_DB,
+    DEFAULT_RELAY_TTT_MS as SL_RELAY_TTT_MS,
 };
 pub use nr_sidelink_v2x::{
     CandidateResource, CbrMeasurement, CrMeasurement, NrSidelinkEngine, PsfchFeedback, SciFormat1A,
