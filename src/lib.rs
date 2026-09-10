@@ -277,6 +277,7 @@ pub mod nr_dss_mixed_numerology;
 pub mod nr_eredcap_wus;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
+pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_ncr_engine;
@@ -1514,6 +1515,12 @@ pub use nr_hst_sfn::{
 pub use nr_lbt_unlicensed::{
     ChannelAccessPriorityClass, ChannelBandwidthMhz, ChannelReservationSignal, CotSharingInfo,
     EnergyDetectionConfig, HarqFeedback, LbtState, LbtType, NrLbtEngine, NrLbtMetrics,
+};
+pub use nr_ltm_mobility::{
+    LtmCandidateCell, LtmCellSwitchCommandMacCe, LtmError, LtmMobilityEngine, LtmState,
+    LtmSwitchExecutionResult, LtmSwitchMode, TimingAdvanceStatus, LTM_CFRA_SWITCH_LATENCY_MS,
+    LTM_RACHLESS_SWITCH_LATENCY_MS, MAC_LCID_LTM_CELL_SWITCH, MAC_LCID_LTM_SWITCH_CONFIRM,
+    MAX_LTM_CANDIDATES,
 };
 pub use nr_mbs_ptm::{
     LCID_MCCH, LCID_PADDING, MbsDeliveryLeg, MbsDeliveryMode, MbsDrxConfig, MbsDrxEngine,
