@@ -271,6 +271,7 @@ pub mod nr_carrier_phase_rtk;
 pub mod nr_cell_reselection;
 pub mod nr_conditional_handover;
 pub mod nr_cov_enhancement;
+pub mod nr_csi_doppler_type2;
 pub mod nr_daps_handover;
 pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
@@ -1489,6 +1490,11 @@ pub use nr_cov_enhancement::{
     DmrsBundlingController, NR_SUBCARRIERS_PER_PRB as COVENH_SUBCARRIERS_PER_PRB,
     NR_SYMBOLS_PER_SLOT as COVENH_SYMBOLS_PER_SLOT, NominalRepetition, PhaseDiscontinuityReason,
     PuschRepetitionType, PuschTypeBSegmenter, RvPattern, TbomsConfig, TddSlotFormat, TddSymbolType,
+};
+pub use nr_csi_doppler_type2::{
+    AddCoefficient, AntennaArrayLayout, Complex64 as CsiComplex64, DopplerType2Config,
+    DopplerType2Engine, DopplerType2Error, DopplerType2Report, DEFAULT_AMPLITUDE_BITS,
+    DEFAULT_PHASE_BITS, MAX_CSI_PORTS, MAX_FREQ_SUBBANDS, MAX_OBSERVATION_SLOTS,
 };
 pub use nr_daps_handover::{
     DapsCipherAlg, DapsEngine, DapsError, DapsFailureReason, DapsIntegrityAlg, DapsLeg, DapsPdu,
