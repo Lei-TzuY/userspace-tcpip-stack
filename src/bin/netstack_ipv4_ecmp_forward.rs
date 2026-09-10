@@ -1,7 +1,7 @@
 use std::cmp::Ordering;
 
 use toy_tcpip::arp::ArpPacket;
-use toy_tcpip::ethernet::{ETHERTYPE_ARP, ETHERTYPE_IPV4, EthernetFrame, MacAddress};
+use toy_tcpip::ethernet::{EtherType, ETHERTYPE_ARP, ETHERTYPE_IPV4, EthernetFrame, MacAddress};
 use toy_tcpip::ipv4::{IpProtocol, Ipv4Address, Ipv4Packet};
 use toy_tcpip::router::{Ipv4FlowKey, RouteEntry};
 use toy_tcpip::stack::NetStack;
@@ -212,7 +212,7 @@ mod tests {
 
         let frame = send_resilient_ipv4(&mut stack, packet).unwrap();
         let ethernet = EthernetFrame::parse(&frame).unwrap();
-        assert_eq!(ethernet.ethertype, ETHERTYPE_IPV4);
+        assert_eq!(ethernet.ethertype, EtherType::IPv4);
     }
 
     #[test]
