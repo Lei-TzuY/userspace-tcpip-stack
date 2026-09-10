@@ -293,6 +293,7 @@ pub mod nr_ptrs_phase_tracking;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
 pub mod nr_rim_cli_engine;
+pub mod nr_ris_metasurface;
 pub mod nr_rohc_engine;
 pub mod nr_rrc_inactive;
 pub mod nr_sbfd_engine;
@@ -1612,6 +1613,12 @@ pub use nr_rim_cli_engine::{
     DEFAULT_THERMAL_NOISE_DBM, DuctingDetectionResult, GOLD_NC as RIM_GOLD_NC,
     InterferenceSeverity, MitigationAction, RimCliError, RimCliMetrics, RimCliMitigationEngine,
     RimGoldSequenceGenerator, RimRsType, SPEED_OF_LIGHT_M_S as RIM_SPEED_OF_LIGHT_M_S,
+};
+pub use nr_ris_metasurface::{
+    ComplexPhasor as RisComplexPhasor, MetasurfaceArrayConfig, PhaseQuantization,
+    PropagationRegime, RisEngine, RisError, SphericalAngle, DEFAULT_RIS_CARRIER_FREQ_HZ,
+    MAX_METASURFACE_ELEMENTS as RIS_MAX_METASURFACE_ELEMENTS,
+    SPEED_OF_LIGHT_M_S as RIS_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_rohc_engine::{
     CompressorState, DecompressorState, FeedbackType, RohcCompressor, RohcContext,
