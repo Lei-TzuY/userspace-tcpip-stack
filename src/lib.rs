@@ -286,6 +286,7 @@ pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_harq;
 pub mod nr_ntn_polarization_doppler;
+pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
 pub mod nr_pei_engine;
 pub mod nr_positioning_lcs;
@@ -1575,6 +1576,13 @@ pub use nr_ntn_polarization_doppler::{
     DopplerFllServo, EARTH_GRAVITATIONAL_PARAM, EARTH_RADIUS_METERS,
     MAX_RESIDUAL_DOPPLER_SCS_RATIO, NtnDopplerMetrics, NtnPolarizationError, PolarizationSense,
     PolarizationTracker, SPEED_OF_LIGHT_M_S as NTN_POL_SPEED_OF_LIGHT_M_S, SatelliteKinematics,
+};
+pub use nr_ntn_precompensation::{
+    GroundUeFix, NtnCellType, NtnEphemerisState, NtnOrbitType, NtnPrecompError,
+    NtnPrecompensationEngine, NtnPrecompensationMetrics, DEFAULT_NTN_MIN_ELEVATION_DEG,
+    EARTH_GRAVITATIONAL_PARAM as NTN_PRECOMP_EARTH_GRAVITATIONAL_PARAM,
+    EARTH_RADIUS_METERS as NTN_PRECOMP_EARTH_RADIUS_METERS,
+    SPEED_OF_LIGHT_M_S as NTN_PRECOMP_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_ntn_regenerative::{
     BeamFootprintMode, EARTH_ROTATION_RATE_RAD_S as NTN_REG_EARTH_ROTATION_RATE_RAD_S,
