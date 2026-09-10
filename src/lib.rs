@@ -281,6 +281,7 @@ pub mod nr_lbt_unlicensed;
 pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
+pub mod nr_mtrp_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_harq;
@@ -1541,6 +1542,11 @@ pub use nr_mobile_iab::{
     BapRouteEntry, BapRoutingId, BapRoutingTable, IabResourceAvailability, IabTdmSlotFormat,
     MobileIabEngine, MobileIabError, MobileIabMetrics, MobileIabMigrationState,
     MultiHopTimingAdvance, NextHopResolution,
+};
+pub use nr_mtrp_engine::{
+    CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
+    PdschMtrpBundle, PdschTransmissionLeg, TrpConfig, TrpLinkState, DEFAULT_MTRP_BFI_THRESHOLD,
+    DEFAULT_MTRP_Q_IN_DBM, DEFAULT_MTRP_Q_OUT_DBM, MAC_LCID_MTRP_BFR, MAX_MTRP_TRPS,
 };
 pub use nr_ncr_engine::{
     AmplifiedOutput, AmplifyDirection, MAX_BEAM_ID as NCR_MAX_BEAM_ID, NcrError,
