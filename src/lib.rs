@@ -275,6 +275,7 @@ pub mod nr_daps_handover;
 pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
 pub mod nr_eredcap_wus;
+pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
 pub mod nr_ltm_mobility;
@@ -1503,6 +1504,12 @@ pub use nr_eredcap_wus::{
     ERedCapEngine, ERedCapError, ERedCapMetrics, HyperSfnTiming, LpWurDecision, LpWurDetector,
     LpWusModulation, LpWusSequence, PowerProfile as ERedCapPowerProfile, RelaxedRrmEvaluator,
     SdtMode, SdtPacket,
+};
+pub use nr_isac_sensing::{
+    Complex64 as IsacComplex64, DetectedTarget, IsacError, IsacMultiplexingMode, IsacSensingEngine,
+    IsacSensingMode, IsacWaveformConfig, SensingTarget, TargetClassification,
+    DEFAULT_ISAC_CARRIER_FREQ_HZ, DEFAULT_ISAC_SCS_HZ, MAX_ISAC_TARGETS,
+    SPEED_OF_LIGHT_M_S as ISAC_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_hst_sfn::{
     CP_DURATION_15KHZ_US as HST_CP_DURATION_15KHZ_US,
