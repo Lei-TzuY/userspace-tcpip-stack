@@ -299,6 +299,7 @@ pub mod nr_rrc_inactive;
 pub mod nr_sbfd_engine;
 pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
+pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_v2x;
@@ -1651,6 +1652,11 @@ pub use nr_scg_engine::{
 pub use nr_sdt_engine::{
     MAC_LCID_CCCH_SDT, MAC_LCID_DTCH_MAX, MAC_LCID_DTCH_MIN, SdtConfig, SdtEngine, SdtMacPdu,
     SdtPerformanceMetrics, SdtProcedureState, SdtResponseAction, SdtType,
+};
+pub use nr_sidelink_ca::{
+    SlCaEngine, SlCaError, SlCaSciFormat1A, SlCaTransmissionBundle, SlCarrierConfig,
+    SlCarrierCongestion, SlSchedulingMode, DEFAULT_CBR_CONGESTION_THRESHOLD,
+    DEFAULT_CR_LIMIT_CONGESTED, MAX_SL_CARRIERS, PRIMARY_SL_CARRIER_ID,
 };
 pub use nr_sidelink_drx::{
     CoordinationSchemeType, InterUeCoordinationMessage, PartialSensingConfig, ResourceSlotBlock,
