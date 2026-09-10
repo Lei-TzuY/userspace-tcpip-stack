@@ -271,6 +271,7 @@ pub mod nr_carrier_phase_rtk;
 pub mod nr_cell_reselection;
 pub mod nr_conditional_handover;
 pub mod nr_cov_enhancement;
+pub mod nr_cpac_engine;
 pub mod nr_csi_doppler_type2;
 pub mod nr_daps_handover;
 pub mod nr_drx_engine;
@@ -1491,6 +1492,15 @@ pub use nr_cov_enhancement::{
     DmrsBundlingController, NR_SUBCARRIERS_PER_PRB as COVENH_SUBCARRIERS_PER_PRB,
     NR_SYMBOLS_PER_SLOT as COVENH_SYMBOLS_PER_SLOT, NominalRepetition, PhaseDiscontinuityReason,
     PuschRepetitionType, PuschTypeBSegmenter, RvPattern, TbomsConfig, TddSlotFormat, TddSymbolType,
+};
+pub use nr_cpac_engine::{
+    CellMeasurement as CpacCellMeasurement, CpacCandidateConfig, CpacCandidateState, CpacEngine,
+    CpacError, CpacExecutionDecision, CpacProcedureType, CpacReleaseCause, CpacTriggerEvent,
+    ScgServingCell as CpacScgServingCell, XnApCpacMessage,
+    DEFAULT_A3_OFFSET_DB as CPAC_DEFAULT_A3_OFFSET_DB,
+    DEFAULT_A4_THRESHOLD_DBM as CPAC_DEFAULT_A4_THRESHOLD_DBM,
+    DEFAULT_CPAC_HYSTERESIS_DB, DEFAULT_CPAC_TTT_MS,
+    MAX_CPAC_CANDIDATES,
 };
 pub use nr_csi_doppler_type2::{
     AddCoefficient, AntennaArrayLayout, Complex64 as CsiComplex64, DopplerType2Config,
