@@ -306,6 +306,7 @@ pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
 pub mod nr_pdcch_engine;
+pub mod nr_pdsch_ldpc;
 pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
 pub mod nr_positioning_integrity;
@@ -1807,6 +1808,14 @@ pub use nr_pdcch_engine::{
     SearchSpaceType, CRC16_CCITT_POLY as PDCCH_CRC16_CCITT_POLY, HASH_MODULO_D,
     HASH_MULTIPLIER_A0, PDCCH_WIRE_MAGIC, PRBS_PER_RESOURCE_BIT, REGS_PER_CCE,
     RE_DATA_PER_REG, SUBCARRIERS_PER_REG,
+};
+pub use nr_pdsch_ldpc::{
+    compute_crc16 as ldpc_compute_crc16, compute_crc16_bits as ldpc_compute_crc16_bits,
+    compute_crc24a, compute_crc24b, compute_k0 as ldpc_compute_k0, find_lifting_size,
+    rate_match_extract, segment_transport_block, select_base_graph as ldpc_select_base_graph,
+    CbgManager, CodeBlockSegmentation, LdpcBaseGraph, LdpcError, LdpcPdschPdu,
+    CRC16_CCITT_POLY as LDPC_CRC16_CCITT_POLY, CRC24A_POLY, CRC24B_POLY, LDPC_LIFTING_SIZES,
+    MAX_CB_SIZE_BG1, MAX_CB_SIZE_BG2, PDSCH_LDPC_WIRE_MAGIC, TB_CRC_THRESHOLD_BITS,
 };
 pub use nr_pei_engine::{
     DciFormat2_7, MAX_SFN, PEI_RNTI_DEFAULT, PeiConfig, PeiPerformanceMetrics, PeiSubgroupEngine,
