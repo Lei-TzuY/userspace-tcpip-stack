@@ -314,6 +314,7 @@ pub mod nr_srap_relay;
 pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
+pub mod nr_ul_8tx_mimo;
 pub mod nr_ul_tx_switching;
 pub mod nr_unified_tci;
 pub mod nr_up_38425;
@@ -1763,6 +1764,10 @@ pub use nr_uav_aerial::{
 pub use nr_udc_engine::{
     SlidingDictionary, UdcBufferSize, UdcCompressor, UdcConfig, UdcDecompressor, UdcEngine,
     UdcFeedbackPdu, UdcHeader, compute_udc_crc4,
+};
+pub use nr_ul_8tx_mimo::{
+    AntennaPanel8Tx, CodebookCoherenceSubset as Ul8TxCodebookCoherenceSubset, CodebookGenerator8Tx,
+    Complex64 as Ul8TxComplex64, MpeThermalServo, PrecodingMatrix8Tx, Ul8TxMimoEngine, UlTxPortMode,
 };
 pub use nr_ul_tx_switching::{
     ReciprocalChannelProfile, ReciprocityComplex, SrsCombStructure, SrsFrequencyHopper,
