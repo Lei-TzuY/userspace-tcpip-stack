@@ -344,6 +344,7 @@ pub mod nr_slicing_rrm;
 pub mod nr_son_anr_mdt;
 pub mod nr_srap_relay;
 pub mod nr_ssb_pbch;
+pub mod nr_srs_processor;
 pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
@@ -2084,6 +2085,15 @@ pub use nr_ssb_pbch::{
     CRC16_CCITT_POLY as SSB_CRC16_CCITT_POLY, PBCH_TOTAL_DATA_RES, PBCH_TOTAL_DMRS_RES,
     SSB_NUM_SUBCARRIERS, SSB_NUM_SYMBOLS, SSB_WIRE_MAGIC, SYNC_SEQUENCE_LENGTH,
     SYNC_SUBCARRIER_OFFSET,
+};
+pub use nr_srs_processor::{
+    calculate_srs_hopping_index, compute_crc16 as srs_compute_crc16,
+    generate_zc_srs_sequence, get_srs_bandwidth_entry, largest_prime_less_than,
+    map_srs_to_subcarriers, AntennaSwitchingMode as SrsAntennaSwitchingMode,
+    Complex64 as SrsComplex64, SrsAntennaManager, SrsBandwidthEntry, SrsError,
+    SrsFrequencyHoppingConfig, SrsTransmissionComb, SrsUsage, SrsWirePdu,
+    CRC16_CCITT_POLY as SRS_CRC16_CCITT_POLY, SRS_WIRE_MAGIC,
+    SUBCARRIERS_PER_PRB as SRS_SUBCARRIERS_PER_PRB,
 };
 pub use nr_tsc_framework::{
     DeJitterMetrics, DeJitterPacket, DelayCritical5Qi, EthernetPcp, FrerDeduplicator, FrerResult,
