@@ -317,6 +317,7 @@ pub mod nr_pput_positioning;
 pub mod nr_ptrs_phase_tracking;
 pub mod nr_pucch_processor;
 pub mod nr_pusch_processor;
+pub mod nr_prach_receiver;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
 pub mod nr_redcap_positioning;
@@ -1892,6 +1893,15 @@ pub use nr_pusch_processor::{
     DEFAULT_RV_SEQUENCE as PUSCH_DEFAULT_RV_SEQUENCE, PUSCH_WIRE_MAGIC,
     SUBCARRIERS_PER_PRB as PUSCH_SUBCARRIERS_PER_PRB,
     SYMBOLS_PER_SLOT as PUSCH_SYMBOLS_PER_SLOT,
+};
+pub use nr_prach_receiver::{
+    apply_cyclic_shift as prach_apply_cyclic_shift, calculate_cyclic_shifts as prach_calculate_cyclic_shifts,
+    compute_crc16 as prach_compute_crc16, generate_64_preamble_bank as prach_generate_64_preamble_bank,
+    generate_base_zadoff_chu as prach_generate_base_zadoff_chu, synthesize_prach_waveform,
+    Complex64 as PrachComplex64, DetectedPreamble, PreambleDescriptor, PrachDetector,
+    PrachError, PrachFormat, PrachReceiverConfig, PrachWirePdu, RestrictedSetConfig,
+    CRC16_CCITT_POLY as PRACH_CRC16_CCITT_POLY, L_RA_LONG as PRACH_L_RA_LONG,
+    L_RA_SHORT as PRACH_L_RA_SHORT, PRACH_WIRE_MAGIC, PREAMBLES_PER_CELL,
 };
 pub use nr_rach_5g::{
     MacRarPayload, Msg1PreambleState, Msg1Transmission, Msg2RarMessage, Msg3Transmission,
