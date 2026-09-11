@@ -277,6 +277,7 @@ pub mod nr_daps_handover;
 pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
 pub mod nr_eredcap_wus;
+pub mod nr_fr3_giga_mimo;
 pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
@@ -1536,6 +1537,14 @@ pub use nr_eredcap_wus::{
     ERedCapEngine, ERedCapError, ERedCapMetrics, HyperSfnTiming, LpWurDecision, LpWurDetector,
     LpWusModulation, LpWusSequence, PowerProfile as ERedCapPowerProfile, RelaxedRrmEvaluator,
     SdtMode, SdtPacket,
+};
+pub use nr_fr3_giga_mimo::{
+    Complex64 as Fr3Complex64, Fr3ArrayGeometry, Fr3GigaMimoEngine, Fr3GigaMimoMetrics,
+    Fr3MimoError, Fr3PhaseNoiseCompensator, HybridSubarrayPrecoder,
+    NearFieldBeamformingSynthesizer, NearFieldFocusTarget,
+    PropagationRegime as Fr3PropagationRegime, PtrsTimeDensity as Fr3PtrsTimeDensity,
+    SpatialNonStationarityManager, SubarrayConfig, VisibilityRegion,
+    DEFAULT_FR3_CARRIER_FREQ_HZ, FR3_SPEED_OF_LIGHT_M_S, MAX_GIGA_MIMO_ELEMENTS,
 };
 pub use nr_isac_sensing::{
     Complex64 as IsacComplex64, DetectedTarget, IsacError, IsacMultiplexingMode, IsacSensingEngine,
