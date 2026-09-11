@@ -320,6 +320,7 @@ pub mod nr_sidelink_drx;
 pub mod nr_sidelink_harq;
 pub mod nr_sidelink_iuc;
 pub mod nr_sidelink_mode1_allocator;
+pub mod nr_sidelink_pc5_rrc;
 pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
@@ -1831,6 +1832,15 @@ pub use nr_sidelink_mode1_allocator::{
     SidelinkMode1Allocator, SlBsrEntry, SlBsrMacCe, SlGrantType, SlMode1Error,
     SlMode1Telemetry, LCID_SL_BSR, LCID_TRUNCATED_SL_BSR,
     MAX_SL_LCGS, MAX_SL_SUBCHANNELS, MAX_SL_TRANSMISSIONS_PER_TB,
+};
+pub use nr_sidelink_pc5_rrc::{
+    compute_crc16 as pc5_rrc_compute_crc16, Pc5RrcEngine, Pc5RrcError, Pc5RrcMessage,
+    Pc5RrcMessageType, Pc5RrcPeerContext, Pc5RrcState, Pc5RrcTelemetry, SlMeasurementReport,
+    SlPdcpSnSize, SlRlcMode, SlUeCapabilities, SlrbConfig,
+    CRC16_CCITT_POLY as PC5_RRC_CRC16_CCITT_POLY,
+    DEFAULT_MAX_RETX_THRESHOLD as PC5_RRC_DEFAULT_MAX_RETX_THRESHOLD,
+    DEFAULT_T400_TIMEOUT_MS as PC5_RRC_DEFAULT_T400_TIMEOUT_MS,
+    MAX_PC5_RRC_TRANSACTION_ID, MAX_SLRBS_PER_PEER,
 };
 pub use nr_sidelink_pc5s::{
     hmac_sha256 as pc5_hmac_sha256, kdf_3gpp as pc5_kdf_3gpp, Pc5LinkRole, Pc5QosFlow,
