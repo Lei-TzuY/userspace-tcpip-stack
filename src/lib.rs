@@ -286,6 +286,7 @@ pub mod nr_lbt_unlicensed;
 pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
+pub mod nr_mrdc_fast_recovery;
 pub mod nr_mtrp_engine;
 pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
@@ -1614,6 +1615,14 @@ pub use nr_mobile_iab::{
     BapRouteEntry, BapRoutingId, BapRoutingTable, IabResourceAvailability, IabTdmSlotFormat,
     MobileIabEngine, MobileIabError, MobileIabMetrics, MobileIabMigrationState,
     MultiHopTimingAdvance, NextHopResolution,
+};
+pub use nr_mrdc_fast_recovery::{
+    compute_crc16 as mrdc_compute_crc16, CellGroupStatus as MrdcCellGroupStatus,
+    CellMeasurementResult as MrdcCellMeasurementResult, McgFailureCause, McgFailureInformation,
+    MrdcFastRecoveryEngine, MrdcRecoveryError, MrdcRecoveryTelemetry, ScgFailureCause,
+    ScgFailureInformation as MrdcScgFailureInformation, CRC16_CCITT_POLY as MRDC_CRC16_CCITT_POLY,
+    DEFAULT_T310_DURATION_MS as MRDC_DEFAULT_T310_DURATION_MS,
+    DEFAULT_T316_DURATION_MS as MRDC_DEFAULT_T316_DURATION_MS,
 };
 pub use nr_mtrp_engine::{
     CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
