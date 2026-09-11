@@ -325,6 +325,7 @@ pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
 pub mod nr_sidelink_v2x;
+pub mod nr_son_anr_mdt;
 pub mod nr_srap_relay;
 pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
@@ -1872,6 +1873,18 @@ pub use nr_sidelink_relay_discovery::{
 pub use nr_sidelink_v2x::{
     CandidateResource, CbrMeasurement, CrMeasurement, NrSidelinkEngine, PsfchFeedback, SciFormat1A,
     SciFormat2A, SensingReservationEntry, SidelinkBandwidthPart, SidelinkCastType,
+};
+pub use nr_son_anr_mdt::{
+    CoverageAnomaly as SonCoverageAnomaly, GnssLocation as SonGnssLocation,
+    LoggedMdtConfig, MdtMeasurementLog, MroFailureType, Ncgi as SonNcgi,
+    NeighborRelationEntry, SensorMeasurements as SonSensorMeasurements, SonAnrMdtEngine,
+    SonError, SonTelemetry, DEFAULT_COVERAGE_HOLE_RSRP_DBM as SON_DEFAULT_COVERAGE_HOLE_RSRP_DBM,
+    DEFAULT_COVERAGE_HOLE_SINR_DB as SON_DEFAULT_COVERAGE_HOLE_SINR_DB,
+    DEFAULT_EARLY_HO_TIMER_MS as SON_DEFAULT_EARLY_HO_TIMER_MS,
+    DEFAULT_PILOT_POLLUTION_CELL_COUNT as SON_DEFAULT_PILOT_POLLUTION_CELL_COUNT,
+    DEFAULT_PILOT_POLLUTION_DELTA_DB as SON_DEFAULT_PILOT_POLLUTION_DELTA_DB,
+    DEFAULT_WEAK_COVERAGE_RSRP_DBM as SON_DEFAULT_WEAK_COVERAGE_RSRP_DBM,
+    MAX_NRT_ENTRIES as SON_MAX_NRT_ENTRIES, MAX_PCI as SON_MAX_PCI,
 };
 pub use nr_srap_relay::{
     BearerQueueState, DEFAULT_HIGH_WATERMARK_BYTES as SRAP_HIGH_WATERMARK_BYTES,
