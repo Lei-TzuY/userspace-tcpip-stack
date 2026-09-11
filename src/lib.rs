@@ -306,6 +306,7 @@ pub mod nr_ntn_polarization_doppler;
 pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
+pub mod nr_ofdm_engine;
 pub mod nr_pdcch_engine;
 pub mod nr_pdsch_ldpc;
 pub mod nr_pdcp_duplication;
