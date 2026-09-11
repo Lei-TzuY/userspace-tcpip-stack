@@ -343,6 +343,7 @@ pub mod nr_sidelink_v2x;
 pub mod nr_slicing_rrm;
 pub mod nr_son_anr_mdt;
 pub mod nr_srap_relay;
+pub mod nr_ssb_pbch;
 pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
@@ -2075,6 +2076,14 @@ pub use nr_srap_relay::{
     SrapBearerMappingTable, SrapControlPdu, SrapControlPduType, SrapDataHeader, SrapDataPdu,
     SrapEntity, SrapError, SrapFlowControlManager, SrapMetrics, SrapMultiHopRouter, SrapPduType,
     SrapRole, SrapRouteEntry,
+};
+pub use nr_ssb_pbch::{
+    compute_crc16 as ssb_compute_crc16, generate_gold_sequence_31 as ssb_generate_gold_sequence_31,
+    generate_pbch_dmrs, generate_pss, generate_sss, PbchPayload, PhysicalCellId, SsbBeamMeasurement,
+    SsbBurstManager, SsbCase, SsbError, SsbLMax, SsbMib, SsbReType, SsbResourceGrid, SsbWirePdu,
+    CRC16_CCITT_POLY as SSB_CRC16_CCITT_POLY, PBCH_TOTAL_DATA_RES, PBCH_TOTAL_DMRS_RES,
+    SSB_NUM_SUBCARRIERS, SSB_NUM_SYMBOLS, SSB_WIRE_MAGIC, SYNC_SEQUENCE_LENGTH,
+    SYNC_SUBCARRIER_OFFSET,
 };
 pub use nr_tsc_framework::{
     DeJitterMetrics, DeJitterPacket, DelayCritical5Qi, EthernetPcp, FrerDeduplicator, FrerResult,
