@@ -328,6 +328,7 @@ pub mod nr_sidelink_mode1_allocator;
 pub mod nr_sidelink_pc5_rrc;
 pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
+pub mod nr_sidelink_ranging_pbdm;
 pub mod nr_sidelink_relay_discovery;
 pub mod nr_sidelink_v2x;
 pub mod nr_slicing_rrm;
@@ -1921,6 +1922,15 @@ pub use nr_sidelink_positioning::{
     GoldSequenceGenerator, SlAnchorUe, SlAoAMeasurement, SlCombSize, SlKinematicTracker,
     SlMultilaterationSolver, SlPositionEstimate, SlPositioningError, SlPrsConfig, SlRangingSession,
     SlRttMeasurement, SlSessionState,
+};
+pub use nr_sidelink_ranging_pbdm::{
+    compute_crc16 as pbdm_compute_crc16, NrSlPbdmEngine, PbdmError, PbdmRangingOutcome,
+    PbdmRangingSessionConfig, PbdmRole, PbdmState, PbdmTelemetry, RangingChannelCondition,
+    SlPbdmCarrierTone, SlPbdmReportPdu, TwoWayRttTimestamps,
+    CRC16_CCITT_POLY as PBDM_CRC16_CCITT_POLY, DEFAULT_HOP_STEP_HZ as PBDM_DEFAULT_HOP_STEP_HZ,
+    LOS_PHASE_SIGMA_RAD_THRESHOLD as PBDM_LOS_PHASE_SIGMA_RAD_THRESHOLD,
+    MAX_PBDM_TONES, MIN_PBDM_TONES, MULTIPATH_R2_THRESHOLD as PBDM_MULTIPATH_R2_THRESHOLD,
+    PBDM_WIRE_MAGIC, SPEED_OF_LIGHT_M_S as PBDM_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_sidelink_relay_discovery::{
     CandidateRelay as SlCandidateRelay, Pc5DiscoveryMessage, Pc5DiscoveryMessageType,
