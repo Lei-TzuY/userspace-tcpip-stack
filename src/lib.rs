@@ -311,6 +311,7 @@ pub mod nr_rrc_inactive;
 pub mod nr_sbfd_engine;
 pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
+pub mod nr_sidelink_advanced_drx;
 pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
 pub mod nr_sidelink_harq;
@@ -1763,6 +1764,13 @@ pub use nr_sidelink_ca::{
     SlCaEngine, SlCaError, SlCaSciFormat1A, SlCaTransmissionBundle, SlCarrierConfig,
     SlCarrierCongestion, SlSchedulingMode, DEFAULT_CBR_CONGESTION_THRESHOLD,
     DEFAULT_CR_LIMIT_CONGESTED, MAX_SL_CARRIERS, PRIMARY_SL_CARRIER_ID,
+};
+pub use nr_sidelink_advanced_drx::{
+    ArbitrationDecision, DfnSfnAligner, EnergyTelemetry, Fr2BeamDrxSweeper, InterfaceEvent,
+    MultiRatDrxState, PowerModelParameters, SidelinkAdvancedDrxEngine, SlDrxConfig,
+    SlDrxError as SlAdvancedDrxError, SlWusCause, SlWusPacket, TransceiverHardwareArchitecture,
+    UuDrxConfig, CRC8_POLYNOMIAL as SL_DRX_CRC8_POLYNOMIAL,
+    TOTAL_SUBFRAMES_PER_CYCLE as SL_TOTAL_SUBFRAMES_PER_CYCLE,
 };
 pub use nr_sidelink_drx::{
     CoordinationSchemeType, InterUeCoordinationMessage, PartialSensingConfig, ResourceSlotBlock,
