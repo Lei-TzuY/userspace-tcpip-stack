@@ -275,6 +275,7 @@ pub mod nr_conditional_handover;
 pub mod nr_cov_enhancement;
 pub mod nr_cpac_engine;
 pub mod nr_csi_doppler_type2;
+pub mod nr_csi_rs_processor;
 pub mod nr_daps_handover;
 pub mod nr_dps_power_management;
 pub mod nr_drx_engine;
@@ -1569,6 +1570,15 @@ pub use nr_csi_doppler_type2::{
     AddCoefficient, AntennaArrayLayout, Complex64 as CsiComplex64, DopplerType2Config,
     DopplerType2Engine, DopplerType2Error, DopplerType2Report, DEFAULT_AMPLITUDE_BITS,
     DEFAULT_PHASE_BITS, MAX_CSI_PORTS, MAX_FREQ_SUBBANDS, MAX_OBSERVATION_SLOTS,
+};
+pub use nr_csi_rs_processor::{
+    compute_crc16 as csi_rs_compute_crc16, evaluate_csi_feedback, generate_cdm_cover_code,
+    generate_csi_rs_sequence, generate_gold_sequence_31 as csi_rs_generate_gold_sequence_31,
+    get_csi_rs_row_config, Complex64 as CsiRsComplex64, CsiFeedbackReport, CsiRsCdmType,
+    CsiRsDensity, CsiRsError, CsiRsRowConfig, CsiRsWirePdu, Type1CodebookConfig,
+    CQI_SNR_THRESHOLDS_DB, CRC16_CCITT_POLY as CSIRS_CRC16_CCITT_POLY, CSIRS_WIRE_MAGIC,
+    SUBCARRIERS_PER_PRB as CSIRS_SUBCARRIERS_PER_PRB,
+    SYMBOLS_PER_SLOT as CSIRS_SYMBOLS_PER_SLOT,
 };
 pub use nr_daps_handover::{
     DapsCipherAlg, DapsEngine, DapsError, DapsFailureReason, DapsIntegrityAlg, DapsLeg, DapsPdu,
