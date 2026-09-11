@@ -315,6 +315,7 @@ pub mod nr_positioning_lcs;
 pub mod nr_pput_positioning;
 pub mod nr_ptrs_phase_tracking;
 pub mod nr_pucch_processor;
+pub mod nr_pusch_processor;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
 pub mod nr_redcap_positioning;
@@ -1865,6 +1866,18 @@ pub use nr_pucch_processor::{
     UciMultiplexingResult, CRC16_CCITT_POLY as PUCCH_CRC16_CCITT_POLY, PUCCH_WIRE_MAGIC,
     SUBCARRIERS_PER_PRB as PUCCH_SUBCARRIERS_PER_PRB,
     SYMBOLS_PER_SLOT as PUCCH_SYMBOLS_PER_SLOT,
+};
+pub use nr_pusch_processor::{
+    calculate_pusch_prb_allocation, calculate_uci_on_pusch_symbols,
+    compute_crc16 as pusch_compute_crc16, schedule_pusch_repetitions,
+    uci_crc_length as pusch_uci_crc_length, FrequencyHoppingConfig as PuschFrequencyHoppingConfig,
+    FrequencyHoppingMode as PuschFrequencyHoppingMode, HopPrbAllocation as PuschHopPrbAllocation,
+    PuschActualRepetition, PuschError, PuschModulation, PuschRepetitionScheme, PuschSlotGrid,
+    PuschWirePdu, ReType as PuschReType, UciDimensionResult as PuschUciDimensionResult,
+    UciOnPuschConfig, CRC16_CCITT_POLY as PUSCH_CRC16_CCITT_POLY,
+    DEFAULT_RV_SEQUENCE as PUSCH_DEFAULT_RV_SEQUENCE, PUSCH_WIRE_MAGIC,
+    SUBCARRIERS_PER_PRB as PUSCH_SUBCARRIERS_PER_PRB,
+    SYMBOLS_PER_SLOT as PUSCH_SYMBOLS_PER_SLOT,
 };
 pub use nr_rach_5g::{
     MacRarPayload, Msg1PreambleState, Msg1Transmission, Msg2RarMessage, Msg3Transmission,
