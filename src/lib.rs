@@ -319,6 +319,7 @@ pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
 pub mod nr_sidelink_harq;
 pub mod nr_sidelink_iuc;
+pub mod nr_sidelink_mode1_allocator;
 pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
@@ -1823,6 +1824,13 @@ pub use nr_sidelink_iuc::{
     SidelinkReservationEntry, SidelinkSlotResource,
     DEFAULT_IUC_RSRP_THRESHOLD_DBM, DEFAULT_MIN_RETAINED_CANDIDATE_RATIO, MAX_IUC_WINDOW_SLOTS,
     SCI_FORMAT_2C_IDENTIFIER,
+};
+pub use nr_sidelink_mode1_allocator::{
+    ConfiguredGrantStatus as SlMode1CgStatus, CrossInterfaceHarqReport as SlCrossInterfaceHarqReport,
+    DciFormat3_0 as SlDciFormat3_0, SidelinkConfiguredGrant as SlConfiguredGrant,
+    SidelinkMode1Allocator, SlBsrEntry, SlBsrMacCe, SlGrantType, SlMode1Error,
+    SlMode1Telemetry, LCID_SL_BSR, LCID_TRUNCATED_SL_BSR,
+    MAX_SL_LCGS, MAX_SL_SUBCHANNELS, MAX_SL_TRANSMISSIONS_PER_TB,
 };
 pub use nr_sidelink_pc5s::{
     hmac_sha256 as pc5_hmac_sha256, kdf_3gpp as pc5_kdf_3gpp, Pc5LinkRole, Pc5QosFlow,
