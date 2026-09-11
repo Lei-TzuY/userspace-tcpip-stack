@@ -324,6 +324,7 @@ pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
 pub mod nr_sidelink_harq;
 pub mod nr_sidelink_iuc;
+pub mod nr_sidelink_mbs;
 pub mod nr_sidelink_mode1_allocator;
 pub mod nr_sidelink_pc5_rrc;
 pub mod nr_sidelink_pc5s;
@@ -1890,6 +1891,15 @@ pub use nr_sidelink_iuc::{
     SidelinkReservationEntry, SidelinkSlotResource,
     DEFAULT_IUC_RSRP_THRESHOLD_DBM, DEFAULT_MIN_RETAINED_CANDIDATE_RATIO, MAX_IUC_WINDOW_SLOTS,
     SCI_FORMAT_2C_IDENTIFIER,
+};
+pub use nr_sidelink_mbs::{
+    compute_crc16 as sl_mbs_compute_crc16, HarqFeedbackScheme as SlMbsHarqFeedbackScheme,
+    Location3D as SlMbsLocation3D, NrSlMbsEngine, SlMbsError, SlMbsGroupConfig,
+    SlMbsMember, SlMbsPdu, SlMbsPsfchDecision, SlMbsServiceType, SlMbsTelemetry,
+    SlMbsTmgi, CRC16_CCITT_POLY as SL_MBS_CRC16_CCITT_POLY,
+    DEFAULT_MAX_SL_MBS_RETX as SL_MBS_DEFAULT_MAX_RETX,
+    DEFAULT_MCR_METERS as SL_MBS_DEFAULT_MCR_METERS,
+    MAX_SL_MBS_GROUPS, MAX_SL_MBS_MEMBERS_PER_GROUP, SL_MBS_WIRE_MAGIC,
 };
 pub use nr_sidelink_mode1_allocator::{
     ConfiguredGrantStatus as SlMode1CgStatus, CrossInterfaceHarqReport as SlCrossInterfaceHarqReport,
