@@ -287,6 +287,7 @@ pub mod nr_mtrp_engine;
 pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
+pub mod nr_ntn_coverage;
 pub mod nr_ntn_harq;
 pub mod nr_ntn_polarization_doppler;
 pub mod nr_ntn_prach;
@@ -1598,6 +1599,14 @@ pub use nr_nes_energy_savings::{
     DEFAULT_MAX_SSB_BEAMS_FR2 as NES_DEFAULT_MAX_SSB_BEAMS_FR2,
     NR_SYMBOLS_PER_SLOT as NES_SYMBOLS_PER_SLOT, NesError, NesMetrics, NesSleepLevel, NrNesEngine,
     SpatialMimoConfig, SsbAdaptationConfig,
+};
+pub use nr_ntn_coverage::{
+    DmrsBundleStatus, DmrsBundlingAuditor, NtnCovError, NtnCovMetrics, NtnCovOrbitClass,
+    NtnCoverageEngine, NtnDmrsBundleConfig, NtnFreqHopConfig, NtnFreqHoppingPatternGenerator,
+    NtnModulationOrder, NtnSatelliteGeometry, NtnSlantRangeAdaptiveServo,
+    PucchMultiSlotRepetitionManager, TBoMsCodingEngine,
+    BOLTZMANN_CONSTANT_J_K as NTN_COV_BOLTZMANN_CONSTANT_J_K,
+    NTN_COV_EARTH_RADIUS_M, NTN_COV_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_ntn_harq::{
     AutonomousTaTracker, DEFAULT_TA_STEP_THRESHOLD_US, MAX_NTN_HARQ_PROCESSES, NtnHarqEngine,
