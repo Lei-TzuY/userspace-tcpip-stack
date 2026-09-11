@@ -279,6 +279,7 @@ pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
 pub mod nr_eredcap_wus;
 pub mod nr_fr3_giga_mimo;
+pub mod nr_harq_codebook;
 pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
@@ -1559,6 +1560,18 @@ pub use nr_fr3_giga_mimo::{
     PropagationRegime as Fr3PropagationRegime, PtrsTimeDensity as Fr3PtrsTimeDensity,
     SpatialNonStationarityManager, SubarrayConfig, VisibilityRegion,
     DEFAULT_FR3_CARRIER_FREQ_HZ, FR3_SPEED_OF_LIGHT_M_S, MAX_GIGA_MIMO_ELEMENTS,
+};
+pub use nr_harq_codebook::{
+    AssembledCodebook, CodebookTelemetry, CodebookType, DaiTracker, HarqAckBit,
+    HarqAckMacCe, HarqCodebookEngine, HarqCodebookError, HarqPriority, MultiTrpConfig,
+    MultiTrpHarqAckMode, PdschOccasion, PdschSchedulingType, PucchFormat,
+    PucchResourceSelection, SubSlotConfig, TrpIndex, Type1Config, Type2Config,
+    assemble_sub_slot_codebooks, encode_one_shot_multi_cell, multiplex_priority_codebooks,
+    select_pucch_format, select_pucch_resource, DAI_COUNTER_MODULO,
+    MAX_DL_SERVING_CELLS, MAX_HARQ_PROCESSES_PER_CELL, MAX_PDSCH_PER_SLOT,
+    MAX_SPS_CONFIGS_PER_CELL, MAX_SUB_SLOTS, MAX_TB_PER_PDSCH, MAX_TRPS,
+    NR_SYMBOLS_PER_SLOT as HARQ_NR_SYMBOLS_PER_SLOT, PUCCH_FORMAT_01_MAX_BITS,
+    PUCCH_FORMAT_2_MAX_BITS, PUCCH_FORMAT_3_MAX_BITS, PUCCH_FORMAT_4_MAX_BITS,
 };
 pub use nr_isac_sensing::{
     Complex64 as IsacComplex64, DetectedTarget, IsacError, IsacMultiplexingMode, IsacSensingEngine,
