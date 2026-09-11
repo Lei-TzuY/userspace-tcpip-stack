@@ -305,6 +305,7 @@ pub mod nr_ntn_polarization_doppler;
 pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
+pub mod nr_pdcch_engine;
 pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
 pub mod nr_positioning_integrity;
@@ -1796,6 +1797,16 @@ pub use nr_ntn_regenerative::{
     NtnRegenerativeEngine, NtnRegenerativeError, PayloadArchitecture,
     SPEED_OF_LIGHT_M_S as NTN_REG_SPEED_OF_LIGHT_M_S, SatelliteBeam, SatelliteNode, SpacePacket,
     SpaceQosPriority, Vector3D,
+};
+pub use nr_pdcch_engine::{
+    audit_slot_monitoring_budget, compute_candidate_cce_index,
+    compute_crc16 as pdcch_compute_crc16, compute_y_k, get_max_blind_decodes_per_slot,
+    get_max_non_overlapped_cces_per_slot, AggregationCandidates, AggregationLevel,
+    CceRegMapping, CommonSearchSpaceType, CoresetConfig, PdcchError,
+    PdcchMonitoringAdaptation, PdcchMonitoringPdu, PrecoderGranularity, SearchSpaceConfig,
+    SearchSpaceType, CRC16_CCITT_POLY as PDCCH_CRC16_CCITT_POLY, HASH_MODULO_D,
+    HASH_MULTIPLIER_A0, PDCCH_WIRE_MAGIC, PRBS_PER_RESOURCE_BIT, REGS_PER_CCE,
+    RE_DATA_PER_REG, SUBCARRIERS_PER_REG,
 };
 pub use nr_pei_engine::{
     DciFormat2_7, MAX_SFN, PEI_RNTI_DEFAULT, PeiConfig, PeiPerformanceMetrics, PeiSubgroupEngine,
