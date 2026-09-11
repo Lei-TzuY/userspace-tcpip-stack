@@ -291,6 +291,7 @@ pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_coverage;
+pub mod nr_ntn_dtn_store_forward;
 pub mod nr_ntn_harq;
 pub mod nr_ntn_mobility;
 pub mod nr_ntn_polarization_doppler;
@@ -1646,6 +1647,15 @@ pub use nr_ntn_coverage::{
     PucchMultiSlotRepetitionManager, TBoMsCodingEngine,
     BOLTZMANN_CONSTANT_J_K as NTN_COV_BOLTZMANN_CONSTANT_J_K,
     NTN_COV_EARTH_RADIUS_M, NTN_COV_SPEED_OF_LIGHT_M_S,
+};
+pub use nr_ntn_dtn_store_forward::{
+    compute_crc16 as dtn_compute_crc16, Bundle as DtnBundle,
+    BundleControlFlags as DtnBundleControlFlags, BundlePriority as DtnBundlePriority,
+    ContactWindow as DtnContactWindow, DtnError, DtnStorageBuffer, EndpointId as DtnEndpointId,
+    NtnDtnEngine, NtnDtnTelemetry, CRC16_CCITT_POLY as DTN_CRC16_CCITT_POLY,
+    DEFAULT_ELEVATION_MASK_DEG as DTN_DEFAULT_ELEVATION_MASK_DEG,
+    DEFAULT_MAX_BUNDLE_COUNT as DTN_DEFAULT_MAX_BUNDLE_COUNT,
+    DEFAULT_STORAGE_CAPACITY_BYTES as DTN_DEFAULT_STORAGE_CAPACITY_BYTES,
 };
 pub use nr_ntn_harq::{
     AutonomousTaTracker, DEFAULT_TA_STEP_THRESHOLD_US, MAX_NTN_HARQ_PROCESSES, NtnHarqEngine,
