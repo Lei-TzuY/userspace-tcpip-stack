@@ -305,6 +305,7 @@ pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
 pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
+pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
 pub mod nr_sidelink_v2x;
@@ -1697,6 +1698,17 @@ pub use nr_sidelink_drx::{
     CoordinationSchemeType, InterUeCoordinationMessage, PartialSensingConfig, ResourceSlotBlock,
     SidelinkDrxEngine, SidelinkDrxError, SidelinkDrxProfileConfig, SidelinkDrxSession,
     SidelinkDrxTelemetry, SidelinkHarqProcessState, SlDrxCastType,
+};
+pub use nr_sidelink_pc5s::{
+    hmac_sha256 as pc5_hmac_sha256, kdf_3gpp as pc5_kdf_3gpp, Pc5LinkRole, Pc5QosFlow,
+    Pc5SecurityContext, Pc5UnicastLink, Pc5sEngine, Pc5sLinkState, Pc5sMessage, Pc5sRejectCause,
+    Sha256 as Pc5Sha256, SidelinkCipheringAlgorithm, SidelinkIntegrityAlgorithm,
+    ANTI_REPLAY_WINDOW_SIZE as PC5_ANTI_REPLAY_WINDOW_SIZE,
+    DEFAULT_T4100_REQUEST_TIMEOUT_MS as PC5_DEFAULT_T4100_REQUEST_TIMEOUT_MS,
+    DEFAULT_T4101_SEC_MODE_TIMEOUT_MS as PC5_DEFAULT_T4101_SEC_MODE_TIMEOUT_MS,
+    DEFAULT_T4111_KEEPALIVE_MS as PC5_DEFAULT_T4111_KEEPALIVE_MS,
+    DEFAULT_T4112_TIMEOUT_MS as PC5_DEFAULT_T4112_TIMEOUT_MS,
+    MAX_PC5S_RETRANSMISSIONS, PC5S_PROTOCOL_DISCRIMINATOR,
 };
 pub use nr_sidelink_positioning::{
     GoldSequenceGenerator, SlAnchorUe, SlAoAMeasurement, SlCombSize, SlKinematicTracker,
