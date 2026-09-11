@@ -303,6 +303,7 @@ pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
 pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
+pub mod nr_positioning_integrity;
 pub mod nr_positioning_lcs;
 pub mod nr_pput_positioning;
 pub mod nr_ptrs_phase_tracking;
@@ -1745,6 +1746,15 @@ pub use nr_ntn_regenerative::{
 pub use nr_pei_engine::{
     DciFormat2_7, MAX_SFN, PEI_RNTI_DEFAULT, PeiConfig, PeiPerformanceMetrics, PeiSubgroupEngine,
     PeiTimingCalculator, PeiUeReceiver, PeiWakeupDecision, SubgroupingScheme,
+};
+pub use nr_positioning_integrity::{
+    chi_square_threshold_pfa_1e5 as integrity_chi_square_threshold,
+    compute_crc16 as integrity_compute_crc16, invert_4x4_matrix as integrity_invert_4x4,
+    IntegrityError, IntegrityEvaluationResult, IntegritySafetyStatus, NrPositioningIntegrityEngine,
+    PositioningIntegrityReport, PositioningIntegrityTelemetry, TrpRangingMeasurement,
+    CRC16_CCITT_POLY as INTEGRITY_CRC16_CCITT_POLY, DEFAULT_HAL_METERS, DEFAULT_K_H0,
+    DEFAULT_K_H1, DEFAULT_VAL_METERS, MAX_INTEGRITY_TRPS, MIN_TRPS_FOR_DETECTION,
+    MIN_TRPS_FOR_EXCLUSION, MIN_TRPS_FOR_SOLUTION,
 };
 pub use nr_positioning_lcs::{
     AngleMeasurement, AoATriangulationSolver, CoordinateTransformer, DlRstdMeasurement,
