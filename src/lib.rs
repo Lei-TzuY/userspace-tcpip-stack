@@ -266,6 +266,7 @@ pub mod ngap_5g;
 pub mod nr_aiml_air_interface;
 pub mod nr_ambient_iot;
 pub mod nr_bfr_engine;
+pub mod nr_bwp_switching;
 pub mod nr_ca_cross_carrier;
 pub mod nr_carrier_phase_rtk;
 pub mod nr_cell_free_mimo;
@@ -1487,6 +1488,16 @@ pub use nr_ambient_iot::{
 pub use nr_bfr_engine::{
     BeamFailureRecoveryConfig, BeamIdentifier, BeamMeasurement, BfrEvent, BfrState,
     BfrTransmissionType, CandidateBeamConfig, NrBfrEngine, ReferenceSignalType,
+};
+pub use nr_bwp_switching::{
+    compute_crc16 as bwp_compute_crc16, decode_riv as bwp_decode_riv,
+    encode_riv as bwp_encode_riv, BandwidthPartConfig, BwpError, BwpRole, BwpState,
+    BwpSwitchingCommandPdu, BwpSwitchingDelayType, BwpSwitchingTrigger, BwpTelemetry,
+    CyclicPrefix as BwpCyclicPrefix, NrBwpEngine, SubcarrierSpacing as BwpSubcarrierSpacing,
+    BWP_WIRE_MAGIC, CRC16_CCITT_POLY as BWP_CRC16_CCITT_POLY,
+    DEFAULT_BWP_INACTIVITY_TIMER_MS,
+    DEFAULT_CARRIER_BANDWIDTH_PRB as BWP_DEFAULT_CARRIER_BANDWIDTH_PRB,
+    MAX_BWPS_PER_CELL,
 };
 pub use nr_ca_cross_carrier::{
     CaHarqMultiplexer, CaServingCellConfig, CellHarqFeedback, CrossCarrierGrant,
