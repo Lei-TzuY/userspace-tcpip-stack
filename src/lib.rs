@@ -287,6 +287,7 @@ pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_mrdc_fast_recovery;
+pub mod nr_multi_panel_stxp;
 pub mod nr_mtrp_engine;
 pub mod nr_mu_mimo_engine;
 pub mod nr_musim_engine;
@@ -1627,6 +1628,17 @@ pub use nr_mrdc_fast_recovery::{
     ScgFailureInformation as MrdcScgFailureInformation, CRC16_CCITT_POLY as MRDC_CRC16_CCITT_POLY,
     DEFAULT_T310_DURATION_MS as MRDC_DEFAULT_T310_DURATION_MS,
     DEFAULT_T316_DURATION_MS as MRDC_DEFAULT_T316_DURATION_MS,
+};
+pub use nr_multi_panel_stxp::{
+    compute_crc16 as stxp_compute_crc16, dbm_to_mw as stxp_dbm_to_mw, mw_to_dbm as stxp_mw_to_dbm,
+    AntennaPanelConfig, MpPhrPanelEntry, MpPhrReport, MultiPanelTelemetry, NrMultiPanelStxpEngine,
+    PanelState as StxpPanelState, PanelTransmissionDecision, PanelTransmissionRequest,
+    StxpError, StxpSchedulingResult, StxpTransmissionCase, UlChannelType as StxpUlChannelType,
+    CRC16_CCITT_POLY as STXP_CRC16_CCITT_POLY, DEFAULT_P_CMAX_PANEL_DBM as STXP_DEFAULT_P_CMAX_PANEL_DBM,
+    DEFAULT_P_CMAX_TOTAL_DBM as STXP_DEFAULT_P_CMAX_TOTAL_DBM,
+    MAX_STXP_PANELS, MIN_INTER_PANEL_ISOLATION_DB as STXP_MIN_INTER_PANEL_ISOLATION_DB,
+    MIN_PANEL_POWER_DBM as STXP_MIN_PANEL_POWER_DBM, MP_PHR_WIRE_MAGIC,
+    REGULATORY_SAR_LIMIT_W_KG as STXP_REGULATORY_SAR_LIMIT_W_KG,
 };
 pub use nr_mtrp_engine::{
     CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
