@@ -297,6 +297,7 @@ pub mod nr_positioning_lcs;
 pub mod nr_ptrs_phase_tracking;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
+pub mod nr_redcap_positioning;
 pub mod nr_rim_cli_engine;
 pub mod nr_ris_metasurface;
 pub mod nr_rohc_engine;
@@ -1656,6 +1657,16 @@ pub use nr_redcap_hdfdd::{
     HdFddType, NR_SYMBOLS_PER_SLOT as REDCAP_SYMBOLS_PER_SLOT, RedCapHdFddError,
     RelaxedRrmCriteria, RelaxedRrmState, ResolutionReason, RrmRelaxationEvaluator,
     ScheduledChannel, SlotScheduleResult, SwitchingGuardConfig,
+};
+pub use nr_redcap_positioning::{
+    Anchor3D as RedCapAnchor3D, Complex64 as RedCapPosComplex64,
+    DilutionOfPrecision as RedCapPosDop, HopChannelMeasurement, IdftCirSynthesizer,
+    MultilaterationSolver3D as RedCapMultilaterationSolver3D, OnDemandPrsGrant, OnDemandPrsManager,
+    OnDemandPrsRequest, OnDemandPrsState, PhaseContinuityType as RedCapPhaseContinuityType,
+    PosAccuracyClass, PrsFrequencyHopConfig, PrsGoldSequence, PrsHop, RedCapMultiRttMeasurement,
+    RedCapPosCapability, RedCapPosDeviceType, RedCapPosError, RedCapPosMetrics,
+    RedCapPositionEstimate, RedCapPositioningEngine, SuperResolutionToaEstimator,
+    VirtualWidebandSynthesizer, REDCAP_POS_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_rim_cli_engine::{
     AtmosphericDuctingProfile, CliMeasurementType, ComplexSample as RimComplexSample,
