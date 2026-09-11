@@ -295,6 +295,7 @@ pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
 pub mod nr_pei_engine;
 pub mod nr_positioning_lcs;
+pub mod nr_pput_positioning;
 pub mod nr_ptrs_phase_tracking;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
@@ -1650,6 +1651,12 @@ pub use nr_positioning_lcs::{
     DlTdoaSolver, EcefPoint, EnuPoint, LppMessageType, LppPositioningMethod, LppTransactionManager,
     MultiRttMeasurement, MultiRttSolver, NrppaEngine, NrppaMessage, PositioningEstimate,
     SPEED_OF_LIGHT_M_S, TrpInfo, UncertaintyEllipse, Wgs84Point,
+};
+pub use nr_pput_positioning::{
+    EnergyAndLatencyComparison, HybridTdoaAoaSolver, PputBenchmarkEngine, PputCombSize,
+    PputError, PputMetrics, PputPositionEstimate, PputPositioningEngine, PputPowerConfig,
+    PputPowerController, PputResource, PputValidityCriteria, TaValidationState,
+    TaValidityTracker, TrpMeasurement, PPUT_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_ptrs_phase_tracking::{
     CommonPhaseErrorEstimator, Complex64 as PtrsComplex64, DftSOfdmPtrsConfig,
