@@ -289,6 +289,7 @@ pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_harq;
 pub mod nr_ntn_polarization_doppler;
+pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
 pub mod nr_pei_engine;
@@ -1611,6 +1612,14 @@ pub use nr_ntn_precompensation::{
     EARTH_GRAVITATIONAL_PARAM as NTN_PRECOMP_EARTH_GRAVITATIONAL_PARAM,
     EARTH_RADIUS_METERS as NTN_PRECOMP_EARTH_RADIUS_METERS,
     SPEED_OF_LIGHT_M_S as NTN_PRECOMP_SPEED_OF_LIGHT_M_S,
+};
+pub use nr_ntn_prach::{
+    generate_zadoff_chu_sequence, Complex64 as NtnPrachComplex64, NtnPrachDetectionResult,
+    NtnPrachEngine, NtnPrachFormatConfig, NtnPrachScs, NtnPrachTransmission,
+    PrachSequenceLength as NtnPrachSequenceLength, Sib19NtnConfig, UeNtnPrachPrecompensation,
+    DEFAULT_DETECTION_PAR_THRESH_DB as NTN_PRACH_DEFAULT_PAR_THRESH_DB,
+    DEFAULT_TA_OFFSET_MS as NTN_PRACH_DEFAULT_TA_OFFSET_MS,
+    SPEED_OF_LIGHT_M_S as NTN_PRACH_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_ntn_regenerative::{
     BeamFootprintMode, EARTH_ROTATION_RATE_RAD_S as NTN_REG_EARTH_ROTATION_RATE_RAD_S,
