@@ -274,6 +274,7 @@ pub mod nr_cov_enhancement;
 pub mod nr_cpac_engine;
 pub mod nr_csi_doppler_type2;
 pub mod nr_daps_handover;
+pub mod nr_dps_power_management;
 pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
 pub mod nr_eredcap_wus;
@@ -1537,6 +1538,12 @@ pub use nr_eredcap_wus::{
     ERedCapEngine, ERedCapError, ERedCapMetrics, HyperSfnTiming, LpWurDecision, LpWurDetector,
     LpWusModulation, LpWusSequence, PowerProfile as ERedCapPowerProfile, RelaxedRrmEvaluator,
     SdtMode, SdtPacket,
+};
+pub use nr_dps_power_management::{
+    dbm_to_mw, mw_to_dbm, ArbitratedTransmission, CellGroupType, DpsArbitrationResult,
+    DpsArbiter, DpsError, DpsMode, PaArchitecture, PhrEntry, PhrType, PowerControlLoop,
+    SarGovernor, TpcAccumulationMode, TransmissionRequest, UeCarrierConfig, UePowerClass,
+    UplinkChannelType, MIN_POWER_DBM,
 };
 pub use nr_fr3_giga_mimo::{
     Complex64 as Fr3Complex64, Fr3ArrayGeometry, Fr3GigaMimoEngine, Fr3GigaMimoMetrics,
