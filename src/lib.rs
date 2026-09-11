@@ -351,6 +351,7 @@ pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
 pub mod nr_ul_8tx_mimo;
+pub mod nr_ul_power_control;
 pub mod nr_ul_tx_switching;
 pub mod nr_unified_tci;
 pub mod nr_up_38425;
@@ -2133,6 +2134,16 @@ pub use nr_udc_engine::{
 pub use nr_ul_8tx_mimo::{
     AntennaPanel8Tx, CodebookCoherenceSubset as Ul8TxCodebookCoherenceSubset, CodebookGenerator8Tx,
     Complex64 as Ul8TxComplex64, MpeThermalServo, PrecodingMatrix8Tx, Ul8TxMimoEngine, UlTxPortMode,
+};
+pub use nr_ul_power_control::{
+    calculate_power_headroom, calculate_pucch_power, calculate_pusch_power, calculate_prach_power,
+    calculate_srs_power, compute_crc16 as ul_pwr_compute_crc16,
+    dbm_to_mw as ul_pwr_dbm_to_mw, mw_to_dbm as ul_pwr_mw_to_dbm,
+    resolve_simultaneous_power_scaling, ChannelPowerGrant, ChannelPowerRequest,
+    ChannelPriority as UlChannelPriority, PowerControlError, PowerHeadroomReport,
+    PucchFormat as UlPucchFormat, PucchPowerConfig, PuschPowerConfig, TpcLoop, TpcMode,
+    UlPowerControlWirePdu, CRC16_CCITT_POLY as UL_PWR_CRC16_CCITT_POLY, DEFAULT_P_CMAX_DBM,
+    HPUE_CLASS_1_5_P_CMAX_DBM, HPUE_CLASS_2_P_CMAX_DBM, UL_PWR_WIRE_MAGIC,
 };
 pub use nr_ul_tx_switching::{
     ReciprocalChannelProfile, ReciprocityComplex, SrsCombStructure, SrsFrequencyHopper,
