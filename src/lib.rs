@@ -289,6 +289,7 @@ pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_coverage;
 pub mod nr_ntn_harq;
+pub mod nr_ntn_mobility;
 pub mod nr_ntn_polarization_doppler;
 pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
@@ -1614,6 +1615,14 @@ pub use nr_ntn_harq::{
     NtnHarqError, NtnHarqProcess, NtnHarqProcessState, NtnHarqTelemetry, NtnSib19Config,
     SPEED_OF_LIGHT_MPS as NTN_SPEED_OF_LIGHT_MPS, STANDARD_TERRESTRIAL_HARQ_PROCESSES,
     SatelliteOrbitType,
+};
+pub use nr_ntn_mobility::{
+    FeederLinkSwitchoverManager, FlsPhase, GroundUeLocation, NtnBeamType,
+    NtnChoCandidate, NtnChoExecutionCondition, NtnMobilityEngine, NtnMobilityError,
+    NtnMobilityMetrics, SatelliteOrbitState, TargetPrecompensationState,
+    TargetSatellitePrecompensationServo, Vector3D as NtnMobVector3D,
+    DEFAULT_NTN_MIN_ELEVATION_DEG as NTN_MOB_DEFAULT_MIN_ELEVATION_DEG,
+    NTN_MOB_EARTH_MU, NTN_MOB_EARTH_RADIUS_M, NTN_MOB_SPEED_OF_LIGHT_M_S,
 };
 pub use nr_ntn_polarization_doppler::{
     DopplerFllServo, EARTH_GRAVITATIONAL_PARAM, EARTH_RADIUS_METERS,
