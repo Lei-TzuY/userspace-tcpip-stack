@@ -292,6 +292,7 @@ pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
 pub mod nr_ntn_coverage;
+pub mod nr_ntn_direct_to_cell;
 pub mod nr_ntn_dtn_store_forward;
 pub mod nr_ntn_harq;
 pub mod nr_ntn_mobility;
@@ -1659,6 +1660,22 @@ pub use nr_ntn_coverage::{
     PucchMultiSlotRepetitionManager, TBoMsCodingEngine,
     BOLTZMANN_CONSTANT_J_K as NTN_COV_BOLTZMANN_CONSTANT_J_K,
     NTN_COV_EARTH_RADIUS_M, NTN_COV_SPEED_OF_LIGHT_M_S,
+};
+pub use nr_ntn_direct_to_cell::{
+    compute_crc16 as d2c_compute_crc16, BeamTrackingMode as D2cBeamTrackingMode, D2cBand,
+    D2cError, D2cPacket, D2cServiceType, D2cTelemetry, HandheldD2cState,
+    HandheldLocation as D2cHandheldLocation, LinkBudgetResult as D2cLinkBudgetResult,
+    NtnDirectToCellEngine, PhasedArrayConfig as D2cPhasedArrayConfig,
+    SatelliteOrbitState as D2cSatelliteOrbitState,
+    BOLTZMANN_CONSTANT_J_K as D2C_BOLTZMANN_CONSTANT_J_K, CRC16_CCITT_POLY as D2C_CRC16_CCITT_POLY,
+    DEFAULT_MIN_ELEVATION_MASK_DEG as D2C_DEFAULT_MIN_ELEVATION_MASK_DEG,
+    EARTH_RADIUS_KM as D2C_EARTH_RADIUS_KM,
+    HANDHELD_NOMINAL_ANTENNA_GAIN_DBI as D2C_HANDHELD_NOMINAL_ANTENNA_GAIN_DBI,
+    HANDHELD_NOMINAL_TX_POWER_DBM as D2C_HANDHELD_NOMINAL_TX_POWER_DBM,
+    HANDHELD_NOISE_FIGURE_DB as D2C_HANDHELD_NOISE_FIGURE_DB, ITU_EPFD_LIMIT_DBW_M2_MHZ,
+    PRB_BANDWIDTH_15KHZ_HZ as D2C_PRB_BANDWIDTH_15KHZ_HZ,
+    SATELLITE_NOISE_FIGURE_DB as D2C_SATELLITE_NOISE_FIGURE_DB,
+    SPEED_OF_LIGHT_M_S as D2C_SPEED_OF_LIGHT_M_S, STANDARD_TEMP_K as D2C_STANDARD_TEMP_K,
 };
 pub use nr_ntn_dtn_store_forward::{
     compute_crc16 as dtn_compute_crc16, Bundle as DtnBundle,
