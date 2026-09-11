@@ -307,6 +307,7 @@ pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
 pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
+pub mod nr_sidelink_harq;
 pub mod nr_sidelink_iuc;
 pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
@@ -1720,6 +1721,15 @@ pub use nr_sidelink_drx::{
     CoordinationSchemeType, InterUeCoordinationMessage, PartialSensingConfig, ResourceSlotBlock,
     SidelinkDrxEngine, SidelinkDrxError, SidelinkDrxProfileConfig, SidelinkDrxSession,
     SidelinkDrxTelemetry, SidelinkHarqProcessState, SlDrxCastType,
+};
+pub use nr_sidelink_harq::{
+    DistanceBasedFeedbackEvaluator, DynamicGroupcastAdapter, DynamicGroupcastConfig,
+    NR_HARQ_RV_SEQUENCE as SL_NR_HARQ_RV_SEQUENCE,
+    PsfchFeedbackReport as SlPsfchFeedbackReport, PsfchFormat0Resource, PsfchPowerConfig,
+    PsfchPowerController, PsfchResourceConfig, PsfchResourceMapper, PsfchTxCandidate,
+    SidelinkHarqCodebookGenerator, SidelinkHarqEngine, SlCastType, SlCodebookType,
+    SlHarqError, SlHarqFeedbackScheme, SlHarqMetrics, SlHarqProcess, SlHarqState,
+    SlZoneId,
 };
 pub use nr_sidelink_iuc::{
     IucConfig, IucConflictNotification, IucSchemeType, SciFormat2C, SidelinkIucEngine,
