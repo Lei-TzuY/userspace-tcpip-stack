@@ -288,6 +288,7 @@ pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_mrdc_fast_recovery;
 pub mod nr_mtrp_engine;
+pub mod nr_mu_mimo_engine;
 pub mod nr_musim_engine;
 pub mod nr_ncr_engine;
 pub mod nr_nes_energy_savings;
@@ -1629,6 +1630,19 @@ pub use nr_mtrp_engine::{
     CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
     PdschMtrpBundle, PdschTransmissionLeg, TrpConfig, TrpLinkState, DEFAULT_MTRP_BFI_THRESHOLD,
     DEFAULT_MTRP_Q_IN_DBM, DEFAULT_MTRP_Q_OUT_DBM, MAC_LCID_MTRP_BFR, MAX_MTRP_TRPS,
+};
+pub use nr_mu_mimo_engine::{
+    complex_vector_inner_product as mu_mimo_inner_product,
+    complex_vector_norm as mu_mimo_vector_norm, compute_crc16 as mu_mimo_compute_crc16,
+    invert_complex_matrix as mu_mimo_invert_matrix, Complex64 as MuMimoComplex64,
+    DmrsConfigType as MuMimoDmrsConfigType, MuMimoError, MuMimoGrantFrame,
+    MuMimoSchedulingResult, MuMimoTelemetry, NrMuMimoEngine,
+    PairedUeAllocation as MuMimoPairedUeAllocation, PrecodingScheme as MuMimoPrecodingScheme,
+    UeChannelState as MuMimoUeChannelState, CRC16_CCITT_POLY as MU_MIMO_CRC16_CCITT_POLY,
+    DEFAULT_NOISE_POWER_WATTS as MU_MIMO_DEFAULT_NOISE_POWER_WATTS,
+    DEFAULT_ORTHOGONALITY_THRESHOLD as MU_MIMO_DEFAULT_ORTHOGONALITY_THRESHOLD,
+    DEFAULT_TOTAL_TX_POWER_WATTS as MU_MIMO_DEFAULT_TOTAL_TX_POWER_WATTS,
+    MAX_MU_MIMO_PAIRED_USERS,
 };
 pub use nr_musim_engine::{
     MusimAssistanceInfo, MusimDeviceCapability, MusimEngine, MusimError, MusimGapConfig,
