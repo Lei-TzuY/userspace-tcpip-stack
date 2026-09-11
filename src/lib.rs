@@ -310,6 +310,7 @@ pub mod nr_ris_metasurface;
 pub mod nr_rohc_engine;
 pub mod nr_rrc_inactive;
 pub mod nr_sbfd_engine;
+pub mod nr_scell_dormancy;
 pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
 pub mod nr_sidelink_advanced_drx;
@@ -1764,6 +1765,14 @@ pub use nr_sbfd_engine::{
     SbfdMetrics, SbfdSlotConfig, SbfdSlotType, SbfdSubband, SbfdSubbandType,
     SelfInterferenceCancellationModel,
     THERMAL_NOISE_DENSITY_DBM_HZ as SBFD_THERMAL_NOISE_DENSITY_DBM_HZ, UlGrantDecision,
+};
+pub use nr_scell_dormancy::{
+    DciDormancyFormat, FastSCellDormancyEngine, SCellConfig, SCellError, SCellRuntimeState,
+    SCellState, SCellStateTransition, SCellTelemetry, TransitionCause, TwoBitState,
+    COLD_ACTIVATION_LATENCY_MS, DEFAULT_POWER_ACTIVATED_MW, DEFAULT_POWER_DEACTIVATED_MW,
+    DEFAULT_POWER_DORMANT_MW, L1_DCI_ACTIVATION_LATENCY_MS, LCID_SCELL_DORMANCY_1_OCTET,
+    LCID_SCELL_DORMANCY_4_OCTET, MAC_CE_DORMANT_ACTIVATION_LATENCY_MS, MAX_SCELLS,
+    MAX_SCELL_GROUPS,
 };
 pub use nr_scg_engine::{
     NrScgEngine, ScgBearerConfig, ScgBearerType, ScgCellConfig, ScgEngineConfig, ScgEngineEvent,
