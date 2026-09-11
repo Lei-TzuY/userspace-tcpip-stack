@@ -322,6 +322,7 @@ pub mod nr_redcap_hdfdd;
 pub mod nr_redcap_positioning;
 pub mod nr_rim_cli_engine;
 pub mod nr_ris_metasurface;
+pub mod nr_rlm_engine;
 pub mod nr_rohc_engine;
 pub mod nr_rrc_inactive;
 pub mod nr_sbfd_engine;
@@ -1923,6 +1924,13 @@ pub use nr_ris_metasurface::{
     PropagationRegime, RisEngine, RisError, SphericalAngle, DEFAULT_RIS_CARRIER_FREQ_HZ,
     MAX_METASURFACE_ELEMENTS as RIS_MAX_METASURFACE_ELEMENTS,
     SPEED_OF_LIGHT_M_S as RIS_SPEED_OF_LIGHT_M_S,
+};
+pub use nr_rlm_engine::{
+    compute_crc16 as rlm_compute_crc16, evaluate_l1_indications, L1RlmIndication,
+    NrRlmEngine, RlfCause, RlmConfig, RlmError, RlmRsConfig, RlmRsMeasurement,
+    RlmRsType, RlmState, RlmTrpId, RlmWirePdu, CRC16_CCITT_POLY as RLM_CRC16_CCITT_POLY,
+    DEFAULT_N310, DEFAULT_N311, DEFAULT_Q_IN_SINR_DB, DEFAULT_Q_OUT_SINR_DB,
+    DEFAULT_T310_MS, DEFAULT_T311_MS, DEFAULT_T312_MS, MAX_RLM_RS, RLM_WIRE_MAGIC,
 };
 pub use nr_rohc_engine::{
     CompressorState, DecompressorState, FeedbackType, RohcCompressor, RohcContext,
