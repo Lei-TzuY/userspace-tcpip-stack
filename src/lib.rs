@@ -285,6 +285,7 @@ pub mod nr_harq_codebook;
 pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
+pub mod nr_low_papr_precoding;
 pub mod nr_ltm_mobility;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
@@ -1631,6 +1632,16 @@ pub use nr_hst_sfn::{
 pub use nr_lbt_unlicensed::{
     ChannelAccessPriorityClass, ChannelBandwidthMhz, ChannelReservationSignal, CotSharingInfo,
     EnergyDetectionConfig, HarqFeedback, LbtState, LbtType, NrLbtEngine, NrLbtMetrics,
+};
+pub use nr_low_papr_precoding::{
+    compute_coverage_distance_multiplier, compute_crc16 as low_papr_compute_crc16,
+    compute_mpr as low_papr_compute_mpr, dft as low_papr_dft,
+    evaluate_papr_and_cm, generate_empirical_ccdf, idft as low_papr_idft,
+    CcdfPoint, Complex64 as LowPaprComplex64, FdssConfig, FdssFilterType,
+    LowPaprConfigPdu, LowPaprError, ModulationScheme as LowPaprModulationScheme,
+    PaprReport, WaveformSynthesizer, WaveformType as LowPaprWaveformType,
+    CRC16_CCITT_POLY as LOW_PAPR_CRC16_CCITT_POLY, LOW_PAPR_MAGIC,
+    SUBCARRIERS_PER_PRB as LOW_PAPR_SUBCARRIERS_PER_PRB, V_REF_RMS_CUBIC_WCDMA,
 };
 pub use nr_ltm_mobility::{
     LtmCandidateCell, LtmCellSwitchCommandMacCe, LtmError, LtmMobilityEngine, LtmState,
