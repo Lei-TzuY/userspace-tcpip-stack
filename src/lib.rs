@@ -328,6 +328,7 @@ pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
 pub mod nr_sidelink_v2x;
+pub mod nr_slicing_rrm;
 pub mod nr_son_anr_mdt;
 pub mod nr_srap_relay;
 pub mod nr_tsc_framework;
@@ -1913,6 +1914,14 @@ pub use nr_sidelink_relay_discovery::{
 pub use nr_sidelink_v2x::{
     CandidateResource, CbrMeasurement, CrMeasurement, NrSidelinkEngine, PsfchFeedback, SciFormat1A,
     SciFormat2A, SensingReservationEntry, SidelinkBandwidthPart, SidelinkCastType,
+};
+pub use nr_slicing_rrm::{
+    compute_crc16 as slicing_compute_crc16, DciFormat2_1Preemption, NrSlicingRrmEngine,
+    PartitionPolicy as SlicePartitionPolicy, SliceConfigFrame, SliceMetrics, SliceScheduledGrant,
+    SliceServiceType, SliceSlaProfile, SliceTrafficDemand, SlicingError, SlicingRrmTelemetry,
+    Snssai as RanSnssai, CRC16_CCITT_POLY as SLICING_CRC16_CCITT_POLY,
+    DEFAULT_TOTAL_CARRIER_PRBS as SLICING_DEFAULT_TOTAL_CARRIER_PRBS, MAX_CONFIGURED_SLICES,
+    NOMINAL_BITS_PER_PRB_SLOT, SLOTS_PER_SECOND_30KHZ,
 };
 pub use nr_son_anr_mdt::{
     CoverageAnomaly as SonCoverageAnomaly, GnssLocation as SonGnssLocation,
