@@ -296,6 +296,7 @@ pub mod nr_ntn_polarization_doppler;
 pub mod nr_ntn_prach;
 pub mod nr_ntn_precompensation;
 pub mod nr_ntn_regenerative;
+pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
 pub mod nr_positioning_lcs;
 pub mod nr_pput_positioning;
@@ -1544,6 +1545,11 @@ pub use nr_dps_power_management::{
     DpsArbiter, DpsError, DpsMode, PaArchitecture, PhrEntry, PhrType, PowerControlLoop,
     SarGovernor, TpcAccumulationMode, TransmissionRequest, UeCarrierConfig, UePowerClass,
     UplinkChannelType, MIN_POWER_DBM,
+};
+pub use nr_pdcp_duplication::{
+    InFlightDiscardSignal, LegCellGroup, LegConfig, PdcpDuplicationEngine, PdcpDuplicationError,
+    PdcpDuplicationMacCe, PdcpDuplicationPdu, PdcpSnFormat, UrllcMetrics, UrllcQosProfile,
+    DEFAULT_SURVIVAL_TIME_MS, DEFAULT_URLLC_PDB_US, MAX_DUPLICATION_LEGS,
 };
 pub use nr_fr3_giga_mimo::{
     Complex64 as Fr3Complex64, Fr3ArrayGeometry, Fr3GigaMimoEngine, Fr3GigaMimoMetrics,
