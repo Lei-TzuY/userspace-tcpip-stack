@@ -311,6 +311,7 @@ pub mod nr_positioning_integrity;
 pub mod nr_positioning_lcs;
 pub mod nr_pput_positioning;
 pub mod nr_ptrs_phase_tracking;
+pub mod nr_pucch_processor;
 pub mod nr_rach_5g;
 pub mod nr_redcap_hdfdd;
 pub mod nr_redcap_positioning;
@@ -1826,6 +1827,16 @@ pub use nr_ptrs_phase_tracking::{
     GoldSequenceGenerator as PtrsGoldSequenceGenerator, PhaseDerotator, PtrsEngine, PtrsError,
     PtrsFrequencyBand, PtrsFrequencyDensity, PtrsMetrics, PtrsResourceMapper, PtrsThresholdConfig,
     PtrsTimeDensity, PtrsWaveformType,
+};
+pub use nr_pucch_processor::{
+    arbitrate_uci_multiplexing, calculate_format2_available_res,
+    compute_crc16 as pucch_compute_crc16, compute_format0_cyclic_shift,
+    compute_format1_occ_sequence, resolve_pucch_resource_from_pri, select_pucch_resource_set,
+    PucchError, PucchFormat as NrPucchFormat, PucchFramePdu, PucchPowerControlConfig,
+    PucchRepetitionManager, PucchResource, PucchResourceSet, SchedulingRequestState,
+    UciMultiplexingResult, CRC16_CCITT_POLY as PUCCH_CRC16_CCITT_POLY, PUCCH_WIRE_MAGIC,
+    SUBCARRIERS_PER_PRB as PUCCH_SUBCARRIERS_PER_PRB,
+    SYMBOLS_PER_SLOT as PUCCH_SYMBOLS_PER_SLOT,
 };
 pub use nr_rach_5g::{
     MacRarPayload, Msg1PreambleState, Msg1Transmission, Msg2RarMessage, Msg3Transmission,
