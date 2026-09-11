@@ -309,6 +309,7 @@ pub mod nr_pdcch_engine;
 pub mod nr_pdsch_ldpc;
 pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
+pub mod nr_polar_codec;
 pub mod nr_positioning_integrity;
 pub mod nr_positioning_lcs;
 pub mod nr_pput_positioning;
@@ -1820,6 +1821,13 @@ pub use nr_pdsch_ldpc::{
 pub use nr_pei_engine::{
     DciFormat2_7, MAX_SFN, PEI_RNTI_DEFAULT, PeiConfig, PeiPerformanceMetrics, PeiSubgroupEngine,
     PeiTimingCalculator, PeiUeReceiver, PeiWakeupDecision, SubgroupingScheme,
+};
+pub use nr_polar_codec::{
+    attach_crc24c_with_rnti, ca_scl_decode, compute_crc16 as polar_compute_crc16,
+    compute_crc24c, determine_mother_code_size, get_information_subchannel_set,
+    polar_encode, polar_rate_match, PolarError, PolarFramePdu,
+    CRC16_CCITT_POLY as POLAR_CRC16_CCITT_POLY, CRC24C_POLY, MAX_POLAR_N, MIN_POLAR_N,
+    POLAR_INTERLEAVER_PATTERN, POLAR_RELIABILITY_SEQUENCE_1024, POLAR_WIRE_MAGIC,
 };
 pub use nr_positioning_integrity::{
     chi_square_threshold_pfa_1e5 as integrity_chi_square_threshold,
