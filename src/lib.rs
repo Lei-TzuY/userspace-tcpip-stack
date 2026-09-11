@@ -306,6 +306,7 @@ pub mod nr_scg_engine;
 pub mod nr_sdt_engine;
 pub mod nr_sidelink_ca;
 pub mod nr_sidelink_drx;
+pub mod nr_sidelink_iuc;
 pub mod nr_sidelink_pc5s;
 pub mod nr_sidelink_positioning;
 pub mod nr_sidelink_relay_discovery;
@@ -1708,6 +1709,12 @@ pub use nr_sidelink_drx::{
     CoordinationSchemeType, InterUeCoordinationMessage, PartialSensingConfig, ResourceSlotBlock,
     SidelinkDrxEngine, SidelinkDrxError, SidelinkDrxProfileConfig, SidelinkDrxSession,
     SidelinkDrxTelemetry, SidelinkHarqProcessState, SlDrxCastType,
+};
+pub use nr_sidelink_iuc::{
+    IucConfig, IucConflictNotification, IucSchemeType, SciFormat2C, SidelinkIucEngine,
+    SidelinkReservationEntry, SidelinkSlotResource,
+    DEFAULT_IUC_RSRP_THRESHOLD_DBM, DEFAULT_MIN_RETAINED_CANDIDATE_RATIO, MAX_IUC_WINDOW_SLOTS,
+    SCI_FORMAT_2C_IDENTIFIER,
 };
 pub use nr_sidelink_pc5s::{
     hmac_sha256 as pc5_hmac_sha256, kdf_3gpp as pc5_kdf_3gpp, Pc5LinkRole, Pc5QosFlow,
