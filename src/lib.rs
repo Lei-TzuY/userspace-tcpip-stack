@@ -268,6 +268,7 @@ pub mod nr_ambient_iot;
 pub mod nr_bfr_engine;
 pub mod nr_ca_cross_carrier;
 pub mod nr_carrier_phase_rtk;
+pub mod nr_cell_free_mimo;
 pub mod nr_cell_reselection;
 pub mod nr_conditional_handover;
 pub mod nr_cov_enhancement;
@@ -1501,6 +1502,22 @@ pub use nr_carrier_phase_rtk::{
     MAX_SOLVER_ITERATIONS as RTK_MAX_SOLVER_ITERATIONS, RtkFixStatus, RtkMetrics, RtkSolution,
     SOLVER_CONVERGENCE_TOLERANCE_M as RTK_SOLVER_CONVERGENCE_TOLERANCE_M,
     SPEED_OF_LIGHT_M_S as RTK_SPEED_OF_LIGHT_M_S, TrpCarrierPhaseConfig,
+};
+pub use nr_cell_free_mimo::{
+    calculate_3gpp_pathloss_db as cell_free_calculate_3gpp_pathloss_db,
+    compute_crc16 as cell_free_compute_crc16,
+    pathloss_to_linear_gain as cell_free_pathloss_to_linear_gain,
+    AccessPointConfig as CellFreeAccessPointConfig, BfpQuantizer as CellFreeBfpQuantizer,
+    CellFreeFronthaulPdu, CellFreeTelemetry, CellFreeError, Complex64 as CellFreeComplex64,
+    ComplexMatrix as CellFreeComplexMatrix, DownlinkPrecodingScheme as CellFreeDownlinkPrecodingScheme,
+    NrCellFreeEngine, Position3D as CellFreePosition3D,
+    UplinkCombiningScheme as CellFreeUplinkCombiningScheme, UserCluster as CellFreeUserCluster,
+    UserEquipmentConfig as CellFreeUserEquipmentConfig,
+    CELL_FREE_WIRE_MAGIC, CRC16_CCITT_POLY as CELL_FREE_CRC16_CCITT_POLY,
+    DEFAULT_CHANNEL_BANDWIDTH_HZ as CELL_FREE_DEFAULT_CHANNEL_BANDWIDTH_HZ,
+    DEFAULT_CLUSTER_RATIO_THRESHOLD, DEFAULT_MAX_APS_PER_CLUSTER, DEFAULT_MIN_APS_PER_CLUSTER,
+    MAX_CELL_FREE_APS, MAX_CELL_FREE_UES,
+    THERMAL_NOISE_DENSITY_W_HZ as CELL_FREE_THERMAL_NOISE_DENSITY_W_HZ,
 };
 pub use nr_cell_reselection::{
     AcceptableReason, CellAccessInfo, CellMeasurement, CellReselectionDecision, CellSuitability,
