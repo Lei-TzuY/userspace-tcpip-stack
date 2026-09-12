@@ -287,6 +287,7 @@ pub mod nr_harq_codebook;
 pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
+pub mod nr_ldpc_decoder;
 pub mod nr_low_papr_precoding;
 pub mod nr_ltm_mobility;
 pub mod nr_mac_scheduler;
