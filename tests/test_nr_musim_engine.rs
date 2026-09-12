@@ -39,7 +39,7 @@ fn test_paging_frame_and_occasion_subframe_mapping() {
 
     // 3. Ns = 4 -> subframes 0, 4, 5, 9
     sim1.paging_occasions_ns = 4;
-    sim1.ue_id = 64 * 0; // i_s = 0 -> subframe 0
+    sim1.ue_id = 0; // i_s = 0 -> subframe 0
     assert_eq!(sim1.calculate_paging_occasion_subframe(), 0);
     sim1.ue_id = 64 * 1; // i_s = 1 -> subframe 4
     assert_eq!(sim1.calculate_paging_occasion_subframe(), 4);
