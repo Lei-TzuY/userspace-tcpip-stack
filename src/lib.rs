@@ -274,6 +274,7 @@ pub mod nr_cell_free_mimo;
 pub mod nr_cell_reselection;
 pub mod nr_cell_search;
 pub mod nr_conditional_handover;
+pub mod nr_configured_grant;
 pub mod nr_cov_enhancement;
 pub mod nr_cpac_engine;
 pub mod nr_csi_doppler_type2;
