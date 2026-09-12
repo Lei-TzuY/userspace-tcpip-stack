@@ -277,6 +277,7 @@ pub mod nr_cpac_engine;
 pub mod nr_csi_doppler_type2;
 pub mod nr_csi_rs_processor;
 pub mod nr_daps_handover;
+pub mod nr_dci_engine;
 pub mod nr_dps_power_management;
 pub mod nr_drx_engine;
 pub mod nr_dss_mixed_numerology;
