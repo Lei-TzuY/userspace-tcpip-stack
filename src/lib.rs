@@ -272,6 +272,7 @@ pub mod nr_channel_estimation;
 pub mod nr_carrier_phase_rtk;
 pub mod nr_cell_free_mimo;
 pub mod nr_cell_reselection;
+pub mod nr_cell_search;
 pub mod nr_conditional_handover;
 pub mod nr_cov_enhancement;
 pub mod nr_cpac_engine;
