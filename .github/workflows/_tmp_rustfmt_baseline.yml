@@ -1,0 +1,34 @@
+name: Temporary rustfmt baseline repair
+
+on:
+  push:
+    branches:
+      - tmp/rustfmt-baseline-20260912
+
+permissions:
+  contents: write
+
+jobs:
+  rustfmt-repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: tmp/rustfmt-baseline-20260912
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply rustfmt
+        run: cargo fmt --all
+      - name: Commit formatted tree
+        run: |
+          if git diff --quiet; then
+            echo "No formatting changes"
+            exit 0
+          fi
+          git config user.name "rustfmt baseline repair"
+          git config user.email "actions@users.noreply.github.com"
+          git add -- '*.rs'
+          git commit -m "chore: restore rustfmt baseline"
+          git push origin HEAD:tmp/rustfmt-baseline-20260912
