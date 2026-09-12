@@ -34,31 +34,72 @@ pub const L4S_WIRE_PDU_SIZE: usize = 30;
 pub enum L4sError {
     InvalidEcnCodepoint(u8),
     InvalidQfi(u8),
-    BufferOverflow { queue: &'static str, capacity_bytes: usize },
-    InvalidTimeSequence { current_us: u64, advance_to_us: u64 },
-    WireBufferTooSmall { required: usize, provided: usize },
+    BufferOverflow {
+        queue: &'static str,
+        capacity_bytes: usize,
+    },
+    InvalidTimeSequence {
+        current_us: u64,
+        advance_to_us: u64,
+    },
+    WireBufferTooSmall {
+        required: usize,
+        provided: usize,
+    },
     InvalidWireMagic([u8; 4]),
-    WireCrcMismatch { expected: u16, calculated: u16 },
+    WireCrcMismatch {
+        expected: u16,
+        calculated: u16,
+    },
     InvalidConfiguration(String),
 }
 
 impl fmt::Display for L4sError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            L4sError::InvalidEcnCodepoint(c) => write!(f, "Invalid IP ECN codepoint: {:#04b} (must be 0b00..0b11)", c),
+            L4sError::InvalidEcnCodepoint(c) => write!(
+                f,
+                "Invalid IP ECN codepoint: {:#04b} (must be 0b00..0b11)",
+                c
+            ),
             L4sError::InvalidQfi(q) => write!(f, "Invalid 5G QFI: {} (must be 1..=64)", q),
-            L4sError::BufferOverflow { queue, capacity_bytes } => {
-                write!(f, "DualQ {} buffer overflow: exceeds {} bytes", queue, capacity_bytes)
+            L4sError::BufferOverflow {
+                queue,
+                capacity_bytes,
+            } => {
+                write!(
+                    f,
+                    "DualQ {} buffer overflow: exceeds {} bytes",
+                    queue, capacity_bytes
+                )
             }
-            L4sError::InvalidTimeSequence { current_us, advance_to_us } => {
-                write!(f, "Cannot advance time backwards: current {} us, target {} us", current_us, advance_to_us)
+            L4sError::InvalidTimeSequence {
+                current_us,
+                advance_to_us,
+            } => {
+                write!(
+                    f,
+                    "Cannot advance time backwards: current {} us, target {} us",
+                    current_us, advance_to_us
+                )
             }
             L4sError::WireBufferTooSmall { required, provided } => {
-                write!(f, "Wire buffer too small: required {} bytes, provided {}", required, provided)
+                write!(
+                    f,
+                    "Wire buffer too small: required {} bytes, provided {}",
+                    required, provided
+                )
             }
             L4sError::InvalidWireMagic(m) => write!(f, "Invalid wire magic: {:02X?}", m),
-            L4sError::WireCrcMismatch { expected, calculated } => {
-                write!(f, "Wire CRC-16 mismatch: expected {:#06X}, calculated {:#06X}", expected, calculated)
+            L4sError::WireCrcMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected {:#06X}, calculated {:#06X}",
+                    expected, calculated
+                )
             }
             L4sError::InvalidConfiguration(msg) => write!(f, "Invalid DualQ config: {}", msg),
         }
@@ -138,7 +179,13 @@ pub struct L4sPacket {
 
 impl L4sPacket {
     /// Create a new packet with current timestamp.
-    pub fn new(id: u64, qfi: u8, size_bytes: usize, ecn: IpEcnField, arrival_time_us: u64) -> Result<Self, L4sError> {
+    pub fn new(
+        id: u64,
+        qfi: u8,
+        size_bytes: usize,
+        ecn: IpEcnField,
+        arrival_time_us: u64,
+    ) -> Result<Self, L4sError> {
         if qfi == 0 || qfi > 64 {
             return Err(L4sError::InvalidQfi(qfi));
         }
@@ -190,15 +237,15 @@ pub struct DualQConfig {
 impl Default for DualQConfig {
     fn default() -> Self {
         Self {
-            link_capacity_bps: 100_000_000,     // 100 Mbps
-            target_latency_classic_us: 15_000,  // 15 ms
-            target_latency_l4s_us: 800,         // 800 us
-            l_min_us: 400,                      // 400 us
-            l_max_us: 1_200,                    // 1200 us
+            link_capacity_bps: 100_000_000,    // 100 Mbps
+            target_latency_classic_us: 15_000, // 15 ms
+            target_latency_l4s_us: 800,        // 800 us
+            l_min_us: 400,                     // 400 us
+            l_max_us: 1_200,                   // 1200 us
             coupling_factor_k: 1.0,
             pi2_alpha: 0.16,
             pi2_beta: 0.032,
-            update_interval_us: 16_000,         // 16 ms
+            update_interval_us: 16_000, // 16 ms
             max_buffer_bytes_classic: 1_000_000,
             max_buffer_bytes_l4s: 200_000,
             classic_weight: 1,
@@ -415,11 +462,7 @@ impl DualQCoupledAqm {
                 self.classic_deficit += self.config.classic_weight as i64 * 1500;
             }
 
-            if self.l4s_deficit > 0 {
-                true
-            } else {
-                false
-            }
+            if self.l4s_deficit > 0 { true } else { false }
         };
 
         if serve_l4s {
@@ -466,7 +509,9 @@ impl DualQCoupledAqm {
     fn dequeue_classic(&mut self) -> Option<(L4sPacket, L4sPacketAction)> {
         let mut packet = self.classic_queue.pop_front()?;
         self.classic_bytes = self.classic_bytes.saturating_sub(packet.size_bytes);
-        self.classic_deficit = self.classic_deficit.saturating_sub(packet.size_bytes as i64);
+        self.classic_deficit = self
+            .classic_deficit
+            .saturating_sub(packet.size_bytes as i64);
         self.stats.total_classic_dequeued += 1;
 
         let sojourn_us = self.current_time_us.saturating_sub(packet.arrival_time_us);
@@ -516,7 +561,8 @@ impl DualQCoupledAqm {
         self.prev_qdelay_classic_us = current_sojourn_us;
 
         // Coupled probability calculation: p_L = min(1.0, k * (p_C)^2)
-        let p_l = (self.config.coupling_factor_k * self.prob_classic * self.prob_classic).clamp(0.0, 1.0);
+        let p_l =
+            (self.config.coupling_factor_k * self.prob_classic * self.prob_classic).clamp(0.0, 1.0);
         self.prob_l4s = p_l;
     }
 
@@ -534,15 +580,16 @@ impl DualQCoupledAqm {
             0
         };
 
-        let (congestion_level, bitrate_adjustment_factor) = if self.prob_classic > 0.4 || self.prob_l4s > 0.5 {
-            (RanCongestionLevel::Severe, -0.35)
-        } else if self.prob_classic > 0.2 || self.prob_l4s > 0.2 {
-            (RanCongestionLevel::Moderate, -0.20)
-        } else if self.prob_classic > 0.05 || self.prob_l4s > 0.05 {
-            (RanCongestionLevel::Mild, -0.05)
-        } else {
-            (RanCongestionLevel::None, 0.05)
-        };
+        let (congestion_level, bitrate_adjustment_factor) =
+            if self.prob_classic > 0.4 || self.prob_l4s > 0.5 {
+                (RanCongestionLevel::Severe, -0.35)
+            } else if self.prob_classic > 0.2 || self.prob_l4s > 0.2 {
+                (RanCongestionLevel::Moderate, -0.20)
+            } else if self.prob_classic > 0.05 || self.prob_l4s > 0.05 {
+                (RanCongestionLevel::Mild, -0.05)
+            } else {
+                (RanCongestionLevel::None, 0.05)
+            };
 
         RanFeedbackReport {
             current_time_us: self.current_time_us,
@@ -557,7 +604,10 @@ impl DualQCoupledAqm {
 
     /// Simple linear congruential pseudo-random generator returning [0.0, 1.0).
     fn next_random_f64(&mut self) -> f64 {
-        self.prng_state = self.prng_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        self.prng_state = self
+            .prng_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         let val = (self.prng_state >> 32) as u32;
         val as f64 / 4294967296.0
     }

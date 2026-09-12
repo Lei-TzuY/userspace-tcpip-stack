@@ -9,11 +9,10 @@
 //! - Binary wire framing (`TimingAdvanceWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_timing_advance::{
-    compute_initial_nta, compute_mac_ce_nta_adjustment, compute_total_advance_nanoseconds,
-    delay_to_initial_ta_index, AutonomousTimingAdvanceTracker, MacRarPayload, NrNumerology,
-    RarSubheader, TatState, TimeAlignmentTimer, TimeAlignmentTimerConfig, TimingAdvanceError,
-    TimingAdvanceOffsetType, TimingAdvanceWirePdu, BACKOFF_TABLE_MS, KAPPA, T_C_SECONDS,
-    T_S_SECONDS,
+    AutonomousTimingAdvanceTracker, BACKOFF_TABLE_MS, KAPPA, MacRarPayload, NrNumerology,
+    RarSubheader, T_C_SECONDS, T_S_SECONDS, TatState, TimeAlignmentTimer, TimeAlignmentTimerConfig,
+    TimingAdvanceError, TimingAdvanceOffsetType, TimingAdvanceWirePdu, compute_initial_nta,
+    compute_mac_ce_nta_adjustment, compute_total_advance_nanoseconds, delay_to_initial_ta_index,
 };
 
 // ---------------------------------------------------------------------------
@@ -44,8 +43,14 @@ fn test_basic_time_units_and_numerology() {
 
     // Standardized fixed offsets
     assert_eq!(TimingAdvanceOffsetType::Fr1Fdd.offset_units(), 0);
-    assert_eq!(TimingAdvanceOffsetType::Fr1TddDefault.offset_units(), 25_600);
-    assert_eq!(TimingAdvanceOffsetType::Fr1TddExtended.offset_units(), 39_936);
+    assert_eq!(
+        TimingAdvanceOffsetType::Fr1TddDefault.offset_units(),
+        25_600
+    );
+    assert_eq!(
+        TimingAdvanceOffsetType::Fr1TddExtended.offset_units(),
+        39_936
+    );
     assert_eq!(TimingAdvanceOffsetType::Fr2MmWave.offset_units(), 13_792);
 }
 
@@ -220,11 +225,19 @@ fn test_rar_subheaders_encode_decode() {
 
     // Invalid parameters
     assert_eq!(
-        RarSubheader::Rapid { is_last: true, rapid: 64 }.encode(),
+        RarSubheader::Rapid {
+            is_last: true,
+            rapid: 64
+        }
+        .encode(),
         Err(TimingAdvanceError::InvalidRapid(64))
     );
     assert_eq!(
-        RarSubheader::BackoffIndicator { is_last: true, bi_index: 16 }.encode(),
+        RarSubheader::BackoffIndicator {
+            is_last: true,
+            bi_index: 16
+        }
+        .encode(),
         Err(TimingAdvanceError::InvalidBackoffIndicator(16))
     );
 }

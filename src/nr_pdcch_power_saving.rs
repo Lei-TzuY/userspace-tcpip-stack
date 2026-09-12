@@ -52,16 +52,28 @@ impl fmt::Display for PdcchPowerSavingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidGroup(g) => write!(f, "Invalid search space set group ID: {}", g),
-            Self::InvalidSkippingIndex(idx) => write!(f, "Invalid skipping duration index: {}", idx),
+            Self::InvalidSkippingIndex(idx) => {
+                write!(f, "Invalid skipping duration index: {}", idx)
+            }
             Self::SearchSpaceNotFound(id) => write!(f, "Search space set {} not found", id),
             Self::DuplicateSearchSpace(id) => write!(f, "Duplicate search space set {}", id),
-            Self::MaxSearchSpacesExceeded => write!(f, "Exceeded maximum search spaces ({})", MAX_SEARCH_SPACES),
+            Self::MaxSearchSpacesExceeded => {
+                write!(f, "Exceeded maximum search spaces ({})", MAX_SEARCH_SPACES)
+            }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -160,9 +172,9 @@ pub struct PdcchPowerSavingEngine {
     search_spaces: Vec<SearchSpaceConfig>,
     active_group: SearchSpaceGroup,
     pending_switch: Option<(SearchSpaceGroup, u8)>, // (target_group, remaining_delay_slots)
-    active_timer: Option<u16>,                       // Remaining switch timer countdown
+    active_timer: Option<u16>,                      // Remaining switch timer countdown
     skip_remaining_slots: u8,
-    pending_skip: Option<(u8, u8)>,                 // (skip_duration, remaining_delay_slots)
+    pending_skip: Option<(u8, u8)>, // (skip_duration, remaining_delay_slots)
 }
 
 impl PdcchPowerSavingEngine {
@@ -297,7 +309,8 @@ impl PdcchPowerSavingEngine {
 
         for ss in &self.search_spaces {
             // Check periodicity alignment: (slot - offset) % periodicity == 0
-            let slot_offset = (slot_idx + ss.periodicity_slots as u64 - (ss.offset_slots as u64 % ss.periodicity_slots as u64))
+            let slot_offset = (slot_idx + ss.periodicity_slots as u64
+                - (ss.offset_slots as u64 % ss.periodicity_slots as u64))
                 % ss.periodicity_slots as u64;
             let is_slot_aligned = slot_offset == 0;
 
@@ -382,17 +395,17 @@ pub struct NrSsgsWirePdu {
 impl NrSsgsWirePdu {
     pub fn to_wire_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(18);
-        buf.extend_from_slice(&SSGS_WIRE_MAGIC.to_be_bytes());     // 4 bytes
-        buf.extend_from_slice(&self.sfn.to_be_bytes());            // 2 bytes
-        buf.extend_from_slice(&self.slot.to_be_bytes());           // 2 bytes
-        buf.push(self.active_group);                               // 1 byte
-        buf.push(self.skip_remaining_slots);                       // 1 byte
+        buf.extend_from_slice(&SSGS_WIRE_MAGIC.to_be_bytes()); // 4 bytes
+        buf.extend_from_slice(&self.sfn.to_be_bytes()); // 2 bytes
+        buf.extend_from_slice(&self.slot.to_be_bytes()); // 2 bytes
+        buf.push(self.active_group); // 1 byte
+        buf.push(self.skip_remaining_slots); // 1 byte
         buf.extend_from_slice(&self.switch_timer_val.to_be_bytes()); // 2 bytes
         buf.extend_from_slice(&self.total_candidates.to_be_bytes()); // 2 bytes
-        buf.extend_from_slice(&self.max_candidates.to_be_bytes());   // 2 bytes
+        buf.extend_from_slice(&self.max_candidates.to_be_bytes()); // 2 bytes
 
         let crc = compute_crc16(&buf);
-        buf.extend_from_slice(&crc.to_be_bytes());                 // 2 bytes (total 18 bytes)
+        buf.extend_from_slice(&crc.to_be_bytes()); // 2 bytes (total 18 bytes)
         buf
     }
 

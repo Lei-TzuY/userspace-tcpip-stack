@@ -48,9 +48,14 @@ impl fmt::Display for Fr3MimoError {
                 write!(f, "Requested {requested} elements exceeds maximum {max}")
             }
             Fr3MimoError::InvalidCarrierFrequency(freq) => {
-                write!(f, "Carrier frequency {freq:.2} Hz is outside FR3 range (7.125 - 24.25 GHz)")
+                write!(
+                    f,
+                    "Carrier frequency {freq:.2} Hz is outside FR3 range (7.125 - 24.25 GHz)"
+                )
             }
-            Fr3MimoError::SubarrayConfigError(msg) => write!(f, "Subarray configuration error: {msg}"),
+            Fr3MimoError::SubarrayConfigError(msg) => {
+                write!(f, "Subarray configuration error: {msg}")
+            }
             Fr3MimoError::PrecodingError(msg) => write!(f, "Precoding error: {msg}"),
         }
     }
@@ -636,10 +641,7 @@ impl Fr3GigaMimoEngine {
         let mut weights = match regime {
             PropagationRegime::NearFieldSphericalWave => {
                 self.metrics.near_field_focus_events += 1;
-                NearFieldBeamformingSynthesizer::compute_near_field_weights(
-                    &self.geometry,
-                    target,
-                )
+                NearFieldBeamformingSynthesizer::compute_near_field_weights(&self.geometry, target)
             }
             PropagationRegime::FarFieldPlaneWave => {
                 self.metrics.far_field_steering_events += 1;

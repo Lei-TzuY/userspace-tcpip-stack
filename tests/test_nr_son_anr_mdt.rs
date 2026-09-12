@@ -1,8 +1,8 @@
 //! Comprehensive integration tests for 3GPP Rel-18/19 SON, ANR, MDT & MRO Engine.
 
 use toy_tcpip::nr_son_anr_mdt::{
-    CoverageAnomaly, GnssLocation, MdtMeasurementLog, MroFailureType, Ncgi,
-    NeighborRelationEntry, SensorMeasurements, SonAnrMdtEngine, SonError,
+    CoverageAnomaly, GnssLocation, MdtMeasurementLog, MroFailureType, Ncgi, NeighborRelationEntry,
+    SensorMeasurements, SonAnrMdtEngine, SonError,
 };
 
 // ---------------------------------------------------------------------------
@@ -24,7 +24,9 @@ fn test_anr_neighbor_addition_and_validation() {
     assert!(NeighborRelationEntry::new(1008, Ncgi::new(310, 410, 1).unwrap(), 1, 1).is_err());
 
     // 3. Self-PCI conflict: Neighbor with same PCI as serving cell (100)
-    let self_pci_entry = NeighborRelationEntry::new(100, Ncgi::new(310, 410, 0xABCDEF).unwrap(), 12345, 630000).unwrap();
+    let self_pci_entry =
+        NeighborRelationEntry::new(100, Ncgi::new(310, 410, 0xABCDEF).unwrap(), 12345, 630000)
+            .unwrap();
     let err = engine.add_neighbor(self_pci_entry);
     assert!(matches!(err, Err(SonError::PciCollisionDetected { .. })));
     assert_eq!(engine.telemetry().pci_collisions_detected, 1);
@@ -95,7 +97,10 @@ fn test_mdt_immediate_reporting_and_anomaly_detection() {
         sensors: None,
     };
     let anomaly1 = engine.ingest_immediate_mdt_report(hole_log);
-    assert!(matches!(anomaly1, Some(CoverageAnomaly::CoverageHole { .. })));
+    assert!(matches!(
+        anomaly1,
+        Some(CoverageAnomaly::CoverageHole { .. })
+    ));
     assert_eq!(engine.telemetry().coverage_holes_detected, 1);
 
     // 2. Weak Coverage: RSRP <= -105 dBm but SINR > -3 dB
@@ -110,7 +115,10 @@ fn test_mdt_immediate_reporting_and_anomaly_detection() {
         sensors: None,
     };
     let anomaly2 = engine.ingest_immediate_mdt_report(weak_log);
-    assert!(matches!(anomaly2, Some(CoverageAnomaly::WeakCoverage { .. })));
+    assert!(matches!(
+        anomaly2,
+        Some(CoverageAnomaly::WeakCoverage { .. })
+    ));
 
     // 3. Pilot Pollution: Serving = -80.0 dBm with 3 competing neighbors within 3 dB
     let pollution_log = MdtMeasurementLog {
@@ -124,7 +132,10 @@ fn test_mdt_immediate_reporting_and_anomaly_detection() {
         sensors: None,
     };
     let anomaly3 = engine.ingest_immediate_mdt_report(pollution_log);
-    assert!(matches!(anomaly3, Some(CoverageAnomaly::PilotPollution { .. })));
+    assert!(matches!(
+        anomaly3,
+        Some(CoverageAnomaly::PilotPollution { .. })
+    ));
     assert_eq!(engine.telemetry().pilot_pollutions_detected, 1);
 }
 
@@ -226,7 +237,8 @@ fn test_neighbor_removal_and_protection() {
     let mut engine = SonAnrMdtEngine::new(10, s_ncgi, 1, 1000).unwrap();
 
     // 1. Add neighbor with no_remove = true
-    let mut protected = NeighborRelationEntry::new(100, Ncgi::new(310, 410, 100).unwrap(), 1, 1000).unwrap();
+    let mut protected =
+        NeighborRelationEntry::new(100, Ncgi::new(310, 410, 100).unwrap(), 1, 1000).unwrap();
     protected.no_remove = true;
     engine.add_neighbor(protected).unwrap();
 
@@ -236,7 +248,8 @@ fn test_neighbor_removal_and_protection() {
     assert!(engine.get_neighbor(100).is_some());
 
     // 2. Add unprotected neighbor (no_remove = false)
-    let unprotected = NeighborRelationEntry::new(200, Ncgi::new(310, 410, 200).unwrap(), 1, 1000).unwrap();
+    let unprotected =
+        NeighborRelationEntry::new(200, Ncgi::new(310, 410, 200).unwrap(), 1, 1000).unwrap();
     engine.add_neighbor(unprotected).unwrap();
 
     let removed2 = engine.remove_neighbor(200).expect("Remove check");

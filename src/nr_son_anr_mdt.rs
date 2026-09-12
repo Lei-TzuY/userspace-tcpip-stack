@@ -75,12 +75,29 @@ pub const DEFAULT_EARLY_HO_TIMER_MS: u64 = 1000;
 pub enum SonError {
     InvalidPci(u16),
     InvalidNci(u64),
-    NrtFull { max_entries: usize },
-    NeighborAlreadyExists { pci: u16 },
-    NeighborNotFound { pci: u16 },
-    PciCollisionDetected { pci: u16, existing_ncgi: String, new_ncgi: String },
-    PciConfusionDetected { pci: u16, ncgi_1: String, ncgi_2: String },
-    BufferOverflow { current: usize, capacity: usize },
+    NrtFull {
+        max_entries: usize,
+    },
+    NeighborAlreadyExists {
+        pci: u16,
+    },
+    NeighborNotFound {
+        pci: u16,
+    },
+    PciCollisionDetected {
+        pci: u16,
+        existing_ncgi: String,
+        new_ncgi: String,
+    },
+    PciConfusionDetected {
+        pci: u16,
+        ncgi_1: String,
+        ncgi_2: String,
+    },
+    BufferOverflow {
+        current: usize,
+        capacity: usize,
+    },
     InvalidMdtConfiguration(String),
 }
 
@@ -89,19 +106,41 @@ impl fmt::Display for SonError {
         match self {
             SonError::InvalidPci(pci) => write!(f, "Invalid PCI: {} (valid: 0..1007)", pci),
             SonError::InvalidNci(nci) => write!(f, "Invalid NCI: 0x{:X} (exceeds 36 bits)", nci),
-            SonError::NrtFull { max_entries } => write!(f, "NRT capacity full: {} entries", max_entries),
-            SonError::NeighborAlreadyExists { pci } => write!(f, "Neighbor with PCI {} already exists", pci),
-            SonError::NeighborNotFound { pci } => write!(f, "Neighbor with PCI {} not found", pci),
-            SonError::PciCollisionDetected { pci, existing_ncgi, new_ncgi } => {
-                write!(f, "PCI Collision detected on PCI {}: {} vs {}", pci, existing_ncgi, new_ncgi)
+            SonError::NrtFull { max_entries } => {
+                write!(f, "NRT capacity full: {} entries", max_entries)
             }
-            SonError::PciConfusionDetected { pci, ncgi_1, ncgi_2 } => {
-                write!(f, "PCI Confusion detected on PCI {}: duplicate neighbor NCGI {} vs {}", pci, ncgi_1, ncgi_2)
+            SonError::NeighborAlreadyExists { pci } => {
+                write!(f, "Neighbor with PCI {} already exists", pci)
+            }
+            SonError::NeighborNotFound { pci } => write!(f, "Neighbor with PCI {} not found", pci),
+            SonError::PciCollisionDetected {
+                pci,
+                existing_ncgi,
+                new_ncgi,
+            } => {
+                write!(
+                    f,
+                    "PCI Collision detected on PCI {}: {} vs {}",
+                    pci, existing_ncgi, new_ncgi
+                )
+            }
+            SonError::PciConfusionDetected {
+                pci,
+                ncgi_1,
+                ncgi_2,
+            } => {
+                write!(
+                    f,
+                    "PCI Confusion detected on PCI {}: duplicate neighbor NCGI {} vs {}",
+                    pci, ncgi_1, ncgi_2
+                )
             }
             SonError::BufferOverflow { current, capacity } => {
                 write!(f, "MDT log buffer full: {} / {} logs", current, capacity)
             }
-            SonError::InvalidMdtConfiguration(msg) => write!(f, "Invalid MDT configuration: {}", msg),
+            SonError::InvalidMdtConfiguration(msg) => {
+                write!(f, "Invalid MDT configuration: {}", msg)
+            }
         }
     }
 }
@@ -132,7 +171,10 @@ impl Ncgi {
     }
 
     pub fn to_string_id(&self) -> String {
-        format!("{:03}-{:02}-0x{:09X}", self.plmn_mcc, self.plmn_mnc, self.nci)
+        format!(
+            "{:03}-{:02}-0x{:09X}",
+            self.plmn_mcc, self.plmn_mnc, self.nci
+        )
     }
 }
 
@@ -239,10 +281,7 @@ pub enum MroFailureType {
     },
     /// Handover triggered too late: UE experiences RLF in source cell while moving towards
     /// target, and re-establishes directly in the target cell.
-    TooLateHandover {
-        source_pci: u16,
-        target_pci: u16,
-    },
+    TooLateHandover { source_pci: u16, target_pci: u16 },
     /// Handover to wrong cell: Handover sent to target cell A, RLF occurs shortly after,
     /// and UE re-establishes in an adjacent third cell B.
     HandoverToWrongCell {
@@ -266,10 +305,7 @@ pub enum CoverageAnomaly {
         measured_sinr: i16,
     },
     /// Low RSRP but acceptable SINR.
-    WeakCoverage {
-        pci: u16,
-        measured_rsrp: i16,
-    },
+    WeakCoverage { pci: u16, measured_rsrp: i16 },
     /// Excessive competing strong cells causing high co-channel interference.
     PilotPollution {
         serving_pci: u16,
@@ -315,7 +351,12 @@ pub struct SonAnrMdtEngine {
 }
 
 impl SonAnrMdtEngine {
-    pub fn new(serving_pci: u16, serving_ncgi: Ncgi, serving_tac: u32, serving_arfcn: u32) -> Result<Self, SonError> {
+    pub fn new(
+        serving_pci: u16,
+        serving_ncgi: Ncgi,
+        serving_tac: u32,
+        serving_arfcn: u32,
+    ) -> Result<Self, SonError> {
         if serving_pci > MAX_PCI {
             return Err(SonError::InvalidPci(serving_pci));
         }
@@ -390,7 +431,9 @@ impl SonAnrMdtEngine {
         }
 
         if self.nrt.len() >= MAX_NRT_ENTRIES {
-            return Err(SonError::NrtFull { max_entries: MAX_NRT_ENTRIES });
+            return Err(SonError::NrtFull {
+                max_entries: MAX_NRT_ENTRIES,
+            });
         }
 
         self.nrt.insert(entry.pci, entry);
@@ -421,7 +464,10 @@ impl SonAnrMdtEngine {
 
     /// Removes a neighbor from NRT if the `no_remove` policy flag is false.
     pub fn remove_neighbor(&mut self, pci: u16) -> Result<bool, SonError> {
-        let entry = self.nrt.get(&pci).ok_or(SonError::NeighborNotFound { pci })?;
+        let entry = self
+            .nrt
+            .get(&pci)
+            .ok_or(SonError::NeighborNotFound { pci })?;
         if entry.no_remove {
             return Ok(false); // Protected, cannot remove
         }
@@ -435,13 +481,19 @@ impl SonAnrMdtEngine {
     // -----------------------------------------------------------------------
 
     /// Ingests an Immediate MDT measurement report received from a connected UE.
-    pub fn ingest_immediate_mdt_report(&mut self, log: MdtMeasurementLog) -> Option<CoverageAnomaly> {
+    pub fn ingest_immediate_mdt_report(
+        &mut self,
+        log: MdtMeasurementLog,
+    ) -> Option<CoverageAnomaly> {
         self.telemetry.immediate_mdt_logs_processed += 1;
         self.evaluate_coverage_anomaly(&log)
     }
 
     /// Stores a batch of Logged MDT reports retrieved via `UEInformationResponse`.
-    pub fn ingest_logged_mdt_batch(&mut self, logs: Vec<MdtMeasurementLog>) -> Result<Vec<CoverageAnomaly>, SonError> {
+    pub fn ingest_logged_mdt_batch(
+        &mut self,
+        logs: Vec<MdtMeasurementLog>,
+    ) -> Result<Vec<CoverageAnomaly>, SonError> {
         let mut anomalies = Vec::new();
         for log in logs {
             if self.logged_mdt_buffer.len() >= self.max_log_capacity {
@@ -462,7 +514,9 @@ impl SonAnrMdtEngine {
     /// Evaluates whether an MDT log indicates a Coverage Hole, Weak Coverage, or Pilot Pollution.
     fn evaluate_coverage_anomaly(&mut self, log: &MdtMeasurementLog) -> Option<CoverageAnomaly> {
         // 1. Coverage Hole: Both RSRP and SINR below minimal operational limits
-        if log.serving_rsrp_dbm <= DEFAULT_COVERAGE_HOLE_RSRP_DBM && log.serving_sinr_db <= DEFAULT_COVERAGE_HOLE_SINR_DB {
+        if log.serving_rsrp_dbm <= DEFAULT_COVERAGE_HOLE_RSRP_DBM
+            && log.serving_sinr_db <= DEFAULT_COVERAGE_HOLE_SINR_DB
+        {
             self.telemetry.coverage_holes_detected += 1;
             return Some(CoverageAnomaly::CoverageHole {
                 pci: log.serving_pci,
@@ -504,12 +558,13 @@ impl SonAnrMdtEngine {
     /// Analyzes a Handover Failure / RLF incident and classifies the root cause.
     ///
     /// Also executes automated parameter adjustment on Cell Individual Offset (CIO).
-    pub fn analyze_mro_failure(
-        &mut self,
-        failure_type: MroFailureType,
-    ) -> Result<i8, SonError> {
+    pub fn analyze_mro_failure(&mut self, failure_type: MroFailureType) -> Result<i8, SonError> {
         match failure_type {
-            MroFailureType::TooEarlyHandover { source_pci, target_pci, .. } => {
+            MroFailureType::TooEarlyHandover {
+                source_pci,
+                target_pci,
+                ..
+            } => {
                 self.telemetry.too_early_ho_count += 1;
                 // Too Early: We triggered HO too quickly. Delay HO to target by increasing target CIO or reducing hysteresis.
                 if let Some(entry) = self.nrt.get_mut(&target_pci) {
@@ -531,7 +586,11 @@ impl SonAnrMdtEngine {
                 }
             }
 
-            MroFailureType::HandoverToWrongCell { attempted_target_pci, actual_reestablishment_pci, .. } => {
+            MroFailureType::HandoverToWrongCell {
+                attempted_target_pci,
+                actual_reestablishment_pci,
+                ..
+            } => {
                 self.telemetry.wrong_cell_ho_count += 1;
                 // Handover sent to wrong cell. Penalize attempted target, favor actual cell.
                 if let Some(bad_target) = self.nrt.get_mut(&attempted_target_pci) {

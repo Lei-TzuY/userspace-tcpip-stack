@@ -2,8 +2,8 @@
 
 use toy_tcpip::nr_cpac_engine::{
     CellMeasurement, CpacCandidateConfig, CpacCandidateState, CpacEngine, CpacError,
-    CpacProcedureType, CpacReleaseCause, CpacTriggerEvent, ScgServingCell, XnApCpacMessage,
-    MAX_CPAC_CANDIDATES,
+    CpacProcedureType, CpacReleaseCause, CpacTriggerEvent, MAX_CPAC_CANDIDATES, ScgServingCell,
+    XnApCpacMessage,
 };
 
 #[test]
@@ -61,7 +61,10 @@ fn test_cpac_candidate_management_and_limits() {
     // Removal check
     assert!(engine.remove_candidate(2).is_ok());
     assert_eq!(engine.candidates.len(), 7);
-    assert!(matches!(engine.remove_candidate(2), Err(CpacError::CandidateNotFound(2))));
+    assert!(matches!(
+        engine.remove_candidate(2),
+        Err(CpacError::CandidateNotFound(2))
+    ));
 }
 
 #[test]
@@ -94,7 +97,10 @@ fn test_conditional_pscell_addition_event_a4_with_ttt() {
         sinr_db: 15.0,
     }];
     assert_eq!(engine.evaluate_measurements(&meas_low, 0), None);
-    assert_eq!(engine.candidate_states.get(&1), Some(&CpacCandidateState::Configured));
+    assert_eq!(
+        engine.candidate_states.get(&1),
+        Some(&CpacCandidateState::Configured)
+    );
 
     // 2. Measurement meets entry condition at t = 100 ms (-96.0 dBm >= -98.0 dBm)
     let meas_high = vec![CellMeasurement {
@@ -107,7 +113,9 @@ fn test_conditional_pscell_addition_event_a4_with_ttt() {
     assert_eq!(engine.evaluate_measurements(&meas_high, 100), None);
     assert_eq!(
         engine.candidate_states.get(&1),
-        Some(&CpacCandidateState::ConditionMet { first_triggered_ms: 100 })
+        Some(&CpacCandidateState::ConditionMet {
+            first_triggered_ms: 100
+        })
     );
 
     // 3. At t = 140 ms (elapsed 40 ms < TTT 80 ms): still pending
@@ -121,10 +129,16 @@ fn test_conditional_pscell_addition_event_a4_with_ttt() {
     assert_eq!(decision.candidate_id, 1);
     assert_eq!(decision.target_pci, 301);
     assert_eq!(decision.target_sn_id, 10);
-    assert_eq!(decision.procedure_type, CpacProcedureType::ConditionalPscellAddition);
+    assert_eq!(
+        decision.procedure_type,
+        CpacProcedureType::ConditionalPscellAddition
+    );
     assert_eq!(decision.dedicated_preamble_index, Some(15));
     assert_eq!(decision.scg_rrc_reconfig, vec![0x01, 0x02, 0x03]);
-    assert_eq!(engine.candidate_states.get(&1), Some(&CpacCandidateState::Executing));
+    assert_eq!(
+        engine.candidate_states.get(&1),
+        Some(&CpacCandidateState::Executing)
+    );
 }
 
 #[test]
@@ -193,7 +207,12 @@ fn test_conditional_pscell_change_event_a3_with_serving_cell() {
         },
     ];
     assert_eq!(engine.evaluate_measurements(&meas2, 50), None); // Arm TTT
-    assert_eq!(engine.evaluate_measurements(&meas2, 110).map(|d| d.procedure_type), Some(CpacProcedureType::ConditionalPscellChange));
+    assert_eq!(
+        engine
+            .evaluate_measurements(&meas2, 110)
+            .map(|d| d.procedure_type),
+        Some(CpacProcedureType::ConditionalPscellChange)
+    );
 }
 
 #[test]
@@ -251,9 +270,18 @@ fn test_inter_node_xn_ap_cancellation_of_unselected_candidates() {
     );
 
     // Verify candidate states
-    assert_eq!(engine.candidate_states.get(&1), Some(&CpacCandidateState::Completed));
-    assert_eq!(engine.candidate_states.get(&2), Some(&CpacCandidateState::Cancelled));
-    assert_eq!(engine.candidate_states.get(&3), Some(&CpacCandidateState::Cancelled));
+    assert_eq!(
+        engine.candidate_states.get(&1),
+        Some(&CpacCandidateState::Completed)
+    );
+    assert_eq!(
+        engine.candidate_states.get(&2),
+        Some(&CpacCandidateState::Cancelled)
+    );
+    assert_eq!(
+        engine.candidate_states.get(&3),
+        Some(&CpacCandidateState::Cancelled)
+    );
     assert_eq!(engine.stats_cancellations_sent, 2);
 }
 
@@ -282,7 +310,9 @@ fn test_scg_radio_link_failure_fast_cpac_fallback() {
     }];
 
     // SCG RLF recovery immediately selects candidate 1 without waiting for TTT
-    let decision = engine.handle_scg_failure(&measurements).expect("RLF fallback succeeds");
+    let decision = engine
+        .handle_scg_failure(&measurements)
+        .expect("RLF fallback succeeds");
     assert_eq!(decision.candidate_id, 1);
     assert_eq!(decision.target_pci, 601);
     assert!(decision.reason.contains("SCG Radio Link Failure"));
@@ -316,7 +346,10 @@ fn test_measurement_drop_resets_condition_met() {
         sinr_db: 15.0,
     }];
     engine.evaluate_measurements(&m1, 10);
-    assert!(matches!(engine.candidate_states.get(&1), Some(&CpacCandidateState::ConditionMet { .. })));
+    assert!(matches!(
+        engine.candidate_states.get(&1),
+        Some(&CpacCandidateState::ConditionMet { .. })
+    ));
 
     // t=50: Signal fades below threshold (-105 < -100)
     let m2 = vec![CellMeasurement {
@@ -328,5 +361,8 @@ fn test_measurement_drop_resets_condition_met() {
     }];
     engine.evaluate_measurements(&m2, 50);
     // Condition reset to Configured
-    assert_eq!(engine.candidate_states.get(&1), Some(&CpacCandidateState::Configured));
+    assert_eq!(
+        engine.candidate_states.get(&1),
+        Some(&CpacCandidateState::Configured)
+    );
 }

@@ -36,9 +36,9 @@ pub const CRC24A_POLY: u32 = 0x864CFB;
 
 /// Standard 51 LDPC lifting sizes $Z_c$ per 3GPP TS 38.212 Table 5.3.2-1.
 pub const LDPC_LIFTING_SIZES: [usize; 51] = [
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40,
-    44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128, 144, 160, 176, 192, 208, 224,
-    240, 256, 288, 320, 352, 384,
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44,
+    48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128, 144, 160, 176, 192, 208, 224, 240, 256,
+    288, 320, 352, 384,
 ];
 
 /// Number of punctured initial systematic columns in 3GPP 5G NR LDPC (TS 38.212 §5.3.2).
@@ -67,27 +67,55 @@ impl fmt::Display for LdpcDecoderError {
         match self {
             Self::InvalidLiftingSize(z) => write!(f, "Invalid LDPC lifting size Z_c: {}", z),
             Self::InvalidRedundancyVersion(rv) => {
-                write!(f, "Invalid Redundancy Version {} (must be 0, 1, 2, or 3)", rv)
+                write!(
+                    f,
+                    "Invalid Redundancy Version {} (must be 0, 1, 2, or 3)",
+                    rv
+                )
             }
             Self::EmptyLlrBuffer => write!(f, "LLR input buffer cannot be empty"),
             Self::BufferSizeMismatch { expected, found } => {
-                write!(f, "Buffer size mismatch: expected {}, found {}", expected, found)
+                write!(
+                    f,
+                    "Buffer size mismatch: expected {}, found {}",
+                    expected, found
+                )
             }
             Self::SyndromeCheckFailed { iterations } => {
-                write!(f, "LDPC decoding did not converge after {} iterations", iterations)
+                write!(
+                    f,
+                    "LDPC decoding did not converge after {} iterations",
+                    iterations
+                )
             }
             Self::CodeBlockCrcMismatch { expected, computed } => {
-                write!(f, "Code block CRC-24B mismatch: expected 0x{:06X}, computed 0x{:06X}", expected, computed)
+                write!(
+                    f,
+                    "Code block CRC-24B mismatch: expected 0x{:06X}, computed 0x{:06X}",
+                    expected, computed
+                )
             }
             Self::TransportBlockCrcMismatch { expected, computed } => {
-                write!(f, "Transport block CRC mismatch: expected 0x{:06X}, computed 0x{:06X}", expected, computed)
+                write!(
+                    f,
+                    "Transport block CRC mismatch: expected 0x{:06X}, computed 0x{:06X}",
+                    expected, computed
+                )
             }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -191,16 +219,19 @@ impl BaseGraphPrototype {
                     let step = (r % 5) + 2;
                     for c in (r % step..num_info).step_by(step) {
                         let shift_base = ((r * 7 + c * 13 + 3) % 256) as u16;
-                        row_edges.push((c, [
-                            shift_base,
-                            (shift_base + 1) % 384,
-                            (shift_base + 3) % 320,
-                            (shift_base + 5) % 224,
-                            (shift_base + 7) % 288,
-                            (shift_base + 9) % 352,
-                            (shift_base + 11) % 208,
-                            (shift_base + 13) % 240,
-                        ]));
+                        row_edges.push((
+                            c,
+                            [
+                                shift_base,
+                                (shift_base + 1) % 384,
+                                (shift_base + 3) % 320,
+                                (shift_base + 5) % 224,
+                                (shift_base + 7) % 288,
+                                (shift_base + 9) % 352,
+                                (shift_base + 11) % 208,
+                                (shift_base + 13) % 240,
+                            ],
+                        ));
                     }
                     // Lower-triangular / dual-diagonal parity structure:
                     let c = 22 + r;
@@ -223,16 +254,19 @@ impl BaseGraphPrototype {
                     let step = (r % 3) + 2;
                     for c in (r % step..num_info).step_by(step) {
                         let shift_base = ((r * 5 + c * 11 + 2) % 128) as u16;
-                        row_edges.push((c, [
-                            shift_base,
-                            (shift_base + 2) % 384,
-                            (shift_base + 4) % 320,
-                            (shift_base + 6) % 224,
-                            (shift_base + 8) % 288,
-                            (shift_base + 10) % 352,
-                            (shift_base + 12) % 208,
-                            (shift_base + 14) % 240,
-                        ]));
+                        row_edges.push((
+                            c,
+                            [
+                                shift_base,
+                                (shift_base + 2) % 384,
+                                (shift_base + 4) % 320,
+                                (shift_base + 6) % 224,
+                                (shift_base + 8) % 288,
+                                (shift_base + 10) % 352,
+                                (shift_base + 12) % 208,
+                                (shift_base + 14) % 240,
+                            ],
+                        ));
                     }
                     let c = 10 + r;
                     if c < 52 {
@@ -435,10 +469,7 @@ impl LdpcDecoderEngine {
         let sys_end = k_b * z_c;
         let systematic_bits = codeword_bits[sys_start..sys_end].to_vec();
 
-        let min_llr_magnitude = post_llrs
-            .iter()
-            .map(|x| x.abs())
-            .fold(f32::MAX, f32::min);
+        let min_llr_magnitude = post_llrs.iter().map(|x| x.abs()).fold(f32::MAX, f32::min);
 
         Ok(LdpcDecodeResult {
             codeword_bits,
@@ -455,7 +486,12 @@ impl LdpcDecoderEngine {
 // ---------------------------------------------------------------------------
 
 /// Computes the 3GPP starting offset $k_0$ for Redundancy Version $RV \in \{0, 2, 3, 1\}$.
-pub fn get_rv_k0_offset(rv: u8, bg: LdpcBaseGraph, z_c: usize, n_cb: usize) -> Result<usize, LdpcDecoderError> {
+pub fn get_rv_k0_offset(
+    rv: u8,
+    bg: LdpcBaseGraph,
+    z_c: usize,
+    n_cb: usize,
+) -> Result<usize, LdpcDecoderError> {
     let factor = match bg {
         LdpcBaseGraph::BG1 => match rv {
             0 => 0,
@@ -641,7 +677,12 @@ impl LdpcEncoder {
     }
 
     /// Rate-matches full codeword into $E$ transmitted bits using Redundancy Version $RV$.
-    pub fn rate_match(&self, codeword: &[u8], rv: u8, e_bits: usize) -> Result<Vec<u8>, LdpcDecoderError> {
+    pub fn rate_match(
+        &self,
+        codeword: &[u8],
+        rv: u8,
+        e_bits: usize,
+    ) -> Result<Vec<u8>, LdpcDecoderError> {
         let n_b = self.bg.num_total_columns();
         let n_cb = (n_b - NUM_PUNCTURED_COLUMNS) * self.z_c;
         let k0 = get_rv_k0_offset(rv, self.bg, self.z_c, n_cb)?;
@@ -727,10 +768,10 @@ pub fn compute_crc16(data: &[u8]) -> u16 {
 /// Binary Wire PDU for LDPC Decoder telemetry and transport block delivery.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LdpcDecoderWirePdu {
-    pub base_graph: u8,       // 1 for BG1, 2 for BG2
+    pub base_graph: u8, // 1 for BG1, 2 for BG2
     pub z_c: u16,
     pub iterations_used: u8,
-    pub syndrome_ok: u8,      // 1 if syndrome satisfied, 0 otherwise
+    pub syndrome_ok: u8, // 1 if syndrome satisfied, 0 otherwise
     pub payload_bytes: Vec<u8>,
 }
 

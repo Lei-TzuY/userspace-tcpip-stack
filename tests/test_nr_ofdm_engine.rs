@@ -23,13 +23,17 @@ fn test_fft_ifft_roundtrip_64() {
     let original = data.clone();
 
     fft_radix2(&mut data, false); // FFT
-    fft_radix2(&mut data, true);  // IFFT
+    fft_radix2(&mut data, true); // IFFT
 
     for i in 0..n {
         assert!(
             approx_eq(data[i].re, original[i].re) && approx_eq(data[i].im, original[i].im),
             "Mismatch at index {}: got ({}, {}), expected ({}, {})",
-            i, data[i].re, data[i].im, original[i].re, original[i].im
+            i,
+            data[i].re,
+            data[i].im,
+            original[i].re,
+            original[i].im
         );
     }
 }
@@ -48,7 +52,8 @@ fn test_fft_ifft_roundtrip_256() {
     for i in 0..n {
         assert!(
             approx_eq(data[i].re, original[i].re) && approx_eq(data[i].im, original[i].im),
-            "Mismatch at index {}", i
+            "Mismatch at index {}",
+            i
         );
     }
 }
@@ -68,7 +73,8 @@ fn test_fft_ifft_roundtrip_1024() {
         assert!(
             (data[i].re - original[i].re).abs() < 1e-8
                 && (data[i].im - original[i].im).abs() < 1e-8,
-            "Mismatch at index {}", i
+            "Mismatch at index {}",
+            i
         );
     }
 }
@@ -88,7 +94,10 @@ fn test_fft_known_dc() {
     for i in 1..n {
         assert!(
             approx_eq(data[i].re, 0.0) && approx_eq(data[i].im, 0.0),
-            "Non-zero at bin {}: ({}, {})", i, data[i].re, data[i].im
+            "Non-zero at bin {}: ({}, {})",
+            i,
+            data[i].re,
+            data[i].im
         );
     }
 }
@@ -101,10 +110,34 @@ fn test_fft_known_dc() {
 fn test_qpsk_all_symbols() {
     // QPSK should have 4 symbols from 2 bits
     let constellations = [
-        ([0u8, 0], ( 1.0 / std::f64::consts::SQRT_2,  1.0 / std::f64::consts::SQRT_2)),
-        ([0, 1], ( 1.0 / std::f64::consts::SQRT_2, -1.0 / std::f64::consts::SQRT_2)),
-        ([1, 0], (-1.0 / std::f64::consts::SQRT_2,  1.0 / std::f64::consts::SQRT_2)),
-        ([1, 1], (-1.0 / std::f64::consts::SQRT_2, -1.0 / std::f64::consts::SQRT_2)),
+        (
+            [0u8, 0],
+            (
+                1.0 / std::f64::consts::SQRT_2,
+                1.0 / std::f64::consts::SQRT_2,
+            ),
+        ),
+        (
+            [0, 1],
+            (
+                1.0 / std::f64::consts::SQRT_2,
+                -1.0 / std::f64::consts::SQRT_2,
+            ),
+        ),
+        (
+            [1, 0],
+            (
+                -1.0 / std::f64::consts::SQRT_2,
+                1.0 / std::f64::consts::SQRT_2,
+            ),
+        ),
+        (
+            [1, 1],
+            (
+                -1.0 / std::f64::consts::SQRT_2,
+                -1.0 / std::f64::consts::SQRT_2,
+            ),
+        ),
     ];
 
     for (bits, (exp_re, exp_im)) in &constellations {
@@ -113,7 +146,11 @@ fn test_qpsk_all_symbols() {
         assert!(
             approx_eq(syms[0].re, *exp_re) && approx_eq(syms[0].im, *exp_im),
             "QPSK bits {:?}: got ({}, {}), expected ({}, {})",
-            bits, syms[0].re, syms[0].im, exp_re, exp_im
+            bits,
+            syms[0].re,
+            syms[0].im,
+            exp_re,
+            exp_im
         );
     }
 }
@@ -127,7 +164,10 @@ fn test_qpsk_unit_power() {
             let power = syms[0].norm_sqr();
             assert!(
                 approx_eq(power, 1.0),
-                "QPSK ({}, {}): power = {}", b0, b1, power
+                "QPSK ({}, {}): power = {}",
+                b0,
+                b1,
+                power
             );
         }
     }
@@ -152,7 +192,8 @@ fn test_16qam_power_normalization() {
     let avg_power = total_power / count as f64;
     assert!(
         (avg_power - 1.0).abs() < 0.01,
-        "16QAM average power: {} (expected 1.0)", avg_power
+        "16QAM average power: {} (expected 1.0)",
+        avg_power
     );
 }
 
@@ -169,7 +210,8 @@ fn test_64qam_power_normalization() {
     let avg_power = total_power / count as f64;
     assert!(
         (avg_power - 1.0).abs() < 0.01,
-        "64QAM average power: {} (expected 1.0)", avg_power
+        "64QAM average power: {} (expected 1.0)",
+        avg_power
     );
 }
 
@@ -186,7 +228,8 @@ fn test_256qam_power_normalization() {
     let avg_power = total_power / count as f64;
     assert!(
         (avg_power - 1.0).abs() < 0.01,
-        "256QAM average power: {} (expected 1.0)", avg_power
+        "256QAM average power: {} (expected 1.0)",
+        avg_power
     );
 }
 
@@ -203,7 +246,8 @@ fn test_1024qam_power_normalization() {
     let avg_power = total_power / count as f64;
     assert!(
         (avg_power - 1.0).abs() < 0.01,
-        "1024QAM average power: {} (expected 1.0)", avg_power
+        "1024QAM average power: {} (expected 1.0)",
+        avg_power
     );
 }
 
@@ -221,7 +265,11 @@ fn test_1024qam_unique_points() {
     }
     points.sort();
     points.dedup();
-    assert_eq!(points.len(), 1024, "1024QAM should produce 1024 unique constellation points");
+    assert_eq!(
+        points.len(),
+        1024,
+        "1024QAM should produce 1024 unique constellation points"
+    );
 }
 
 #[test]
@@ -345,7 +393,11 @@ fn test_ofdm_moddemod_roundtrip_qpsk() {
             (freq_rx[i].re - freq_tx[i].re).abs() < 1e-8
                 && (freq_rx[i].im - freq_tx[i].im).abs() < 1e-8,
             "Subcarrier {} mismatch: tx ({}, {}), rx ({}, {})",
-            i, freq_tx[i].re, freq_tx[i].im, freq_rx[i].re, freq_rx[i].im
+            i,
+            freq_tx[i].re,
+            freq_tx[i].im,
+            freq_rx[i].re,
+            freq_rx[i].im
         );
     }
 }
@@ -372,7 +424,8 @@ fn test_ofdm_moddemod_roundtrip_1024() {
         assert!(
             (freq_rx[i].re - freq_tx[i].re).abs() < 1e-7
                 && (freq_rx[i].im - freq_tx[i].im).abs() < 1e-7,
-            "SC {} mismatch", i
+            "SC {} mismatch",
+            i
         );
     }
 }
@@ -381,7 +434,7 @@ fn test_ofdm_moddemod_roundtrip_1024() {
 fn test_ofdm_invalid_fft_size() {
     let freq = vec![Complex64::zero(); 12];
     assert!(ofdm_modulate_symbol(&freq, 100, 10).is_err()); // Not power of 2
-    assert!(ofdm_modulate_symbol(&freq, 32, 10).is_err());  // Too small
+    assert!(ofdm_modulate_symbol(&freq, 32, 10).is_err()); // Too small
     assert!(ofdm_modulate_symbol(&freq, 8192, 10).is_err()); // Too large
 }
 
@@ -412,7 +465,11 @@ fn test_cp_is_tail_copy() {
         assert!(
             approx_eq(cp_sample.re, tail_sample.re) && approx_eq(cp_sample.im, tail_sample.im),
             "CP sample {} doesn't match tail: ({}, {}) vs ({}, {})",
-            i, cp_sample.re, cp_sample.im, tail_sample.re, tail_sample.im
+            i,
+            cp_sample.re,
+            cp_sample.im,
+            tail_sample.re,
+            tail_sample.im
         );
     }
 }
@@ -475,8 +532,7 @@ fn test_cfo_zero_offset() {
 
     for i in 0..3 {
         assert!(
-            approx_eq(samples[i].re, original[i].re)
-                && approx_eq(samples[i].im, original[i].im),
+            approx_eq(samples[i].re, original[i].re) && approx_eq(samples[i].im, original[i].im),
             "Zero CFO should not change samples"
         );
     }
@@ -493,14 +549,15 @@ fn test_cfo_roundtrip() {
     ];
     let original = samples.clone();
 
-    apply_cfo_correction(&mut samples, 100.0, 10000.0);  // Impair
+    apply_cfo_correction(&mut samples, 100.0, 10000.0); // Impair
     apply_cfo_correction(&mut samples, -100.0, 10000.0); // Correct
 
     for i in 0..4 {
         assert!(
             (samples[i].re - original[i].re).abs() < 1e-10
                 && (samples[i].im - original[i].im).abs() < 1e-10,
-            "CFO roundtrip mismatch at {}", i
+            "CFO roundtrip mismatch at {}",
+            i
         );
     }
 }
@@ -566,7 +623,8 @@ fn test_wire_pdu_invalid_magic() {
         modulation_order: 2,
         payload: vec![0x01],
         crc16: 0,
-    }.serialize();
+    }
+    .serialize();
 
     // Corrupt magic
     wire[0] = 0xFF;
@@ -585,7 +643,8 @@ fn test_wire_pdu_crc_corruption() {
         modulation_order: 10,
         payload: vec![0x11, 0x22, 0x33],
         crc16: 0,
-    }.serialize();
+    }
+    .serialize();
 
     // Corrupt last byte (CRC)
     let mut corrupted = wire.clone();
@@ -611,7 +670,11 @@ fn test_crc16_known_values() {
 
     // Known test: "123456789" → CRC-16/CCITT-FALSE = 0x29B1
     let crc_123 = compute_crc16(b"123456789");
-    assert_eq!(crc_123, 0x29B1, "CRC-16 of '123456789': got 0x{:04X}", crc_123);
+    assert_eq!(
+        crc_123, 0x29B1,
+        "CRC-16 of '123456789': got 0x{:04X}",
+        crc_123
+    );
 }
 
 // ===========================================================================
@@ -677,7 +740,8 @@ fn test_e2e_qpsk_ofdm_pipeline() {
         assert!(
             (rx_syms[i].re - qpsk_syms[i].re).abs() < 1e-8
                 && (rx_syms[i].im - qpsk_syms[i].im).abs() < 1e-8,
-            "E2E mismatch at SC {}", i
+            "E2E mismatch at SC {}",
+            i
         );
     }
 
@@ -686,8 +750,18 @@ fn test_e2e_qpsk_ofdm_pipeline() {
         let llrs = soft_demod_qpsk(&rx_syms[i], 0.01);
         let bit0 = if llrs[0] > 0.0 { 0u8 } else { 1u8 };
         let bit1 = if llrs[1] > 0.0 { 0u8 } else { 1u8 };
-        assert_eq!(bit0, bits[2 * i], "LLR hard-decision mismatch at bit {}", 2 * i);
-        assert_eq!(bit1, bits[2 * i + 1], "LLR hard-decision mismatch at bit {}", 2 * i + 1);
+        assert_eq!(
+            bit0,
+            bits[2 * i],
+            "LLR hard-decision mismatch at bit {}",
+            2 * i
+        );
+        assert_eq!(
+            bit1,
+            bits[2 * i + 1],
+            "LLR hard-decision mismatch at bit {}",
+            2 * i + 1
+        );
     }
 }
 

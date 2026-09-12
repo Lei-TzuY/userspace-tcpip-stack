@@ -18,10 +18,22 @@ fn test_band_properties() {
 
 #[test]
 fn test_d2c_service_types_from_u8() {
-    assert_eq!(D2cServiceType::from_u8(1).unwrap(), D2cServiceType::EmergencySos);
-    assert_eq!(D2cServiceType::from_u8(2).unwrap(), D2cServiceType::TwoWaySms);
-    assert_eq!(D2cServiceType::from_u8(3).unwrap(), D2cServiceType::NarrowbandVoNr);
-    assert_eq!(D2cServiceType::from_u8(4).unwrap(), D2cServiceType::LocationBeacon);
+    assert_eq!(
+        D2cServiceType::from_u8(1).unwrap(),
+        D2cServiceType::EmergencySos
+    );
+    assert_eq!(
+        D2cServiceType::from_u8(2).unwrap(),
+        D2cServiceType::TwoWaySms
+    );
+    assert_eq!(
+        D2cServiceType::from_u8(3).unwrap(),
+        D2cServiceType::NarrowbandVoNr
+    );
+    assert_eq!(
+        D2cServiceType::from_u8(4).unwrap(),
+        D2cServiceType::LocationBeacon
+    );
     assert!(D2cServiceType::from_u8(0).is_err());
     assert!(D2cServiceType::from_u8(5).is_err());
 
@@ -213,14 +225,21 @@ fn test_emergency_sos_and_sms_flows() {
     assert_eq!(engine.handheld_state(), HandheldD2cState::IdleSearch);
 
     // Perform initial access
-    let init_budget = engine.perform_initial_access().expect("initial access failed");
+    let init_budget = engine
+        .perform_initial_access()
+        .expect("initial access failed");
     assert!(init_budget.epfd_compliant);
     assert_eq!(engine.handheld_state(), HandheldD2cState::ConnectedDirect);
 
     // Dispatch Emergency SOS
-    let sos_pkt = engine.send_emergency_sos(1, 1001).expect("send emergency SOS failed");
+    let sos_pkt = engine
+        .send_emergency_sos(1, 1001)
+        .expect("send emergency SOS failed");
     assert_eq!(sos_pkt.service_type, D2cServiceType::EmergencySos);
-    assert_eq!(engine.handheld_state(), HandheldD2cState::EmergencySosActive);
+    assert_eq!(
+        engine.handheld_state(),
+        HandheldD2cState::EmergencySosActive
+    );
 
     // Dispatch Two-Way SMS
     let sms_pkt = engine

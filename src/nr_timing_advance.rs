@@ -58,20 +58,40 @@ pub enum TimingAdvanceError {
 impl fmt::Display for TimingAdvanceError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidNumerology(mu) => write!(f, "Invalid numerology mu: {} (must be 0..3)", mu),
-            Self::InvalidInitialTaIndex(ta) => write!(f, "Invalid initial TA index: {} (must be 0..3846)", ta),
-            Self::InvalidMacCeTaIndex(ta) => write!(f, "Invalid MAC CE TA index: {} (must be 0..63)", ta),
+            Self::InvalidNumerology(mu) => {
+                write!(f, "Invalid numerology mu: {} (must be 0..3)", mu)
+            }
+            Self::InvalidInitialTaIndex(ta) => {
+                write!(f, "Invalid initial TA index: {} (must be 0..3846)", ta)
+            }
+            Self::InvalidMacCeTaIndex(ta) => {
+                write!(f, "Invalid MAC CE TA index: {} (must be 0..63)", ta)
+            }
             Self::InvalidRapid(r) => write!(f, "Invalid RAPID: {} (must be 0..63)", r),
-            Self::InvalidBackoffIndicator(bi) => write!(f, "Invalid Backoff Indicator: {} (must be 0..15)", bi),
+            Self::InvalidBackoffIndicator(bi) => {
+                write!(f, "Invalid Backoff Indicator: {} (must be 0..15)", bi)
+            }
             Self::RarPduTooShort { needed, found } => {
-                write!(f, "RAR PDU too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "RAR PDU too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -133,7 +153,10 @@ impl TimingAdvanceOffsetType {
 
 /// Computes $N_{\text{TA}}$ from the 12-bit initial TA index $T_A \in [0, 3846]$:
 /// $N_{\text{TA}} = T_A \cdot 16 \cdot \frac{64}{2^\mu}$.
-pub fn compute_initial_nta(ta_index: u16, numerology: NrNumerology) -> Result<u32, TimingAdvanceError> {
+pub fn compute_initial_nta(
+    ta_index: u16,
+    numerology: NrNumerology,
+) -> Result<u32, TimingAdvanceError> {
     if ta_index > 3846 {
         return Err(TimingAdvanceError::InvalidInitialTaIndex(ta_index));
     }
@@ -225,7 +248,9 @@ impl TimeAlignmentTimer {
     pub fn restart(&mut self) {
         match self.config {
             TimeAlignmentTimerConfig::Infinity => {
-                self.state = TatState::Running { remaining_ms: u32::MAX };
+                self.state = TatState::Running {
+                    remaining_ms: u32::MAX,
+                };
             }
             duration => {
                 self.state = TatState::Running {
@@ -302,7 +327,8 @@ impl AutonomousTimingAdvanceTracker {
     pub fn tick_autonomous_drift(&mut self, elapsed_sec: f64, radial_velocity_mps: f64) {
         self.radial_velocity_mps = radial_velocity_mps;
         // Two-way propagation distance rate of change: 2 * v_rad
-        let drift_units = (2.0 * radial_velocity_mps * elapsed_sec) / (SPEED_OF_LIGHT * T_C_SECONDS);
+        let drift_units =
+            (2.0 * radial_velocity_mps * elapsed_sec) / (SPEED_OF_LIGHT * T_C_SECONDS);
         let new_nta = (self.current_nta as f64) + drift_units;
         self.current_nta = new_nta.max(0.0).round() as u32;
     }

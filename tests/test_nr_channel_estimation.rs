@@ -10,10 +10,10 @@
 //! - Binary wire framing (`ChannelEstimationWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_channel_estimation::{
+    ChannelEstimationError, ChannelEstimationWirePdu, Complex32, ComplexMatrix, DmrsConfigType,
+    DmrsPortInfo, EqualizerType, GoldSequenceGenerator, MimoEqualizer, SUBCARRIERS_PER_PRB,
     estimate_pilot_channel_ls, estimate_rin_covariance, get_dmrs_subcarriers,
-    interpolate_channel_frequency, ChannelEstimationError, ChannelEstimationWirePdu,
-    Complex32, ComplexMatrix, DmrsConfigType, DmrsPortInfo, EqualizerType,
-    GoldSequenceGenerator, MimoEqualizer, SUBCARRIERS_PER_PRB,
+    interpolate_channel_frequency,
 };
 
 // ---------------------------------------------------------------------------
@@ -334,7 +334,10 @@ fn test_mimo_equalization_2x2_zero_forcing_and_mmse() {
     h.set(1, 1, Complex32::new(1.2, 0.0));
 
     // Transmitted QPSK symbols
-    let x_tx = [Complex32::new(0.7071, 0.7071), Complex32::new(-0.7071, 0.7071)];
+    let x_tx = [
+        Complex32::new(0.7071, 0.7071),
+        Complex32::new(-0.7071, 0.7071),
+    ];
 
     // Received symbols Y = H * X
     let y0 = h.get(0, 0) * x_tx[0] + h.get(0, 1) * x_tx[1];

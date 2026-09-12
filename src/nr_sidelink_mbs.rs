@@ -268,7 +268,9 @@ impl SlMbsPdu {
     /// Deserializes SL-MBS PDU from binary wire format, verifying magic header and CRC-16.
     pub fn decode_wire(data: &[u8]) -> Result<Self, SlMbsError> {
         if data.len() < 35 {
-            return Err(SlMbsError::DeserializationError("Buffer too small for SL-MBS PDU header".into()));
+            return Err(SlMbsError::DeserializationError(
+                "Buffer too small for SL-MBS PDU header".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
@@ -282,7 +284,9 @@ impl SlMbsPdu {
         }
 
         if &data[0..4] != &SL_MBS_WIRE_MAGIC {
-            return Err(SlMbsError::DeserializationError("Invalid SL-MBS magic header".into()));
+            return Err(SlMbsError::DeserializationError(
+                "Invalid SL-MBS magic header".into(),
+            ));
         }
 
         let group_l2_id = u32::from_be_bytes(data[4..8].try_into().unwrap()) & 0x00FF_FFFF;
@@ -296,7 +300,9 @@ impl SlMbsPdu {
 
         let body_len = u16::from_be_bytes(data[33..35].try_into().unwrap()) as usize;
         if data.len() != 35 + body_len + 2 {
-            return Err(SlMbsError::DeserializationError("Payload length mismatch".into()));
+            return Err(SlMbsError::DeserializationError(
+                "Payload length mismatch".into(),
+            ));
         }
 
         let payload = data[35..35 + body_len].to_vec();
@@ -338,7 +344,8 @@ impl SlMbsTelemetry {
 
     /// Communication efficiency gain achieved by suppressing feedback outside MCR.
     pub fn suppression_ratio_percent(&self) -> f64 {
-        let total_feedback_ops = self.psfch_nacks_received + self.psfch_acks_received + self.mcr_suppressions;
+        let total_feedback_ops =
+            self.psfch_nacks_received + self.psfch_acks_received + self.mcr_suppressions;
         if total_feedback_ops == 0 {
             0.0
         } else {
@@ -367,17 +374,32 @@ impl fmt::Display for SlMbsError {
         match self {
             SlMbsError::GroupNotFound(id) => write!(f, "SL-MBS Group L2 ID 0x{:06X} not found", id),
             SlMbsError::GroupCapacityExceeded { max, attempted } => {
-                write!(f, "Group capacity exceeded: max {}, attempted {}", max, attempted)
+                write!(
+                    f,
+                    "Group capacity exceeded: max {}, attempted {}",
+                    max, attempted
+                )
             }
             SlMbsError::DuplicateGroupId(id) => write!(f, "Duplicate Group L2 ID: 0x{:06X}", id),
             SlMbsError::MemberNotFound(id) => write!(f, "Group member 0x{:06X} not found", id),
             SlMbsError::MemberCapacityExceeded { max, attempted } => {
-                write!(f, "Member capacity exceeded: max {}, attempted {}", max, attempted)
+                write!(
+                    f,
+                    "Member capacity exceeded: max {}, attempted {}",
+                    max, attempted
+                )
             }
             SlMbsError::DuplicateMemberId(id) => write!(f, "Duplicate Member ID: 0x{:06X}", id),
-            SlMbsError::InvalidServiceType(val) => write!(f, "Invalid SL-MBS service type: {}", val),
-            SlMbsError::InvalidFeedbackScheme(val) => write!(f, "Invalid HARQ feedback scheme: {}", val),
-            SlMbsError::ChecksumMismatch { expected, calculated } => write!(
+            SlMbsError::InvalidServiceType(val) => {
+                write!(f, "Invalid SL-MBS service type: {}", val)
+            }
+            SlMbsError::InvalidFeedbackScheme(val) => {
+                write!(f, "Invalid HARQ feedback scheme: {}", val)
+            }
+            SlMbsError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => write!(
                 f,
                 "CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
                 expected, calculated
@@ -507,7 +529,12 @@ impl NrSlMbsEngine {
     }
 
     /// Evicts members who haven't sent a keep-alive/heartbeat within timeout_ms.
-    pub fn evict_timed_out_members(&mut self, group_l2_id: u32, now_ms: u64, timeout_ms: u64) -> usize {
+    pub fn evict_timed_out_members(
+        &mut self,
+        group_l2_id: u32,
+        now_ms: u64,
+        timeout_ms: u64,
+    ) -> usize {
         if let Some(members) = self.group_members.get_mut(&group_l2_id) {
             let before = members.len();
             members.retain(|m| now_ms.saturating_sub(m.last_heard_ms) <= timeout_ms);
@@ -664,7 +691,11 @@ impl NrSlMbsEngine {
     // -----------------------------------------------------------------------
 
     /// Evaluates if an SL-MBS group is currently within its active On-Duration window.
-    pub fn is_group_drx_active(&self, group_l2_id: u32, current_time_ms: u64) -> Result<bool, SlMbsError> {
+    pub fn is_group_drx_active(
+        &self,
+        group_l2_id: u32,
+        current_time_ms: u64,
+    ) -> Result<bool, SlMbsError> {
         let group_cfg = self
             .groups
             .get(&group_l2_id)

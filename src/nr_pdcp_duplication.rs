@@ -435,7 +435,11 @@ impl PdcpDuplicationEngine {
         }
 
         // Primary leg must always remain active to prevent complete bearer starvation
-        if let Some(primary) = self.legs.iter_mut().find(|l| l.leg_id == self.primary_leg_id) {
+        if let Some(primary) = self
+            .legs
+            .iter_mut()
+            .find(|l| l.leg_id == self.primary_leg_id)
+        {
             primary.is_active = true;
         }
 
@@ -614,7 +618,11 @@ impl PdcpDuplicationEngine {
     }
 
     /// Handles an In-Flight Discard Signal on the transmitter side, freeing queued bytes.
-    pub fn handle_in_flight_discard(&mut self, signal: &InFlightDiscardSignal, packet_bytes: usize) {
+    pub fn handle_in_flight_discard(
+        &mut self,
+        signal: &InFlightDiscardSignal,
+        packet_bytes: usize,
+    ) {
         for &leg_id in &signal.target_leg_ids {
             if let Some(leg) = self.legs.iter_mut().find(|l| l.leg_id == leg_id) {
                 leg.queue_occupancy_bytes = leg.queue_occupancy_bytes.saturating_sub(packet_bytes);

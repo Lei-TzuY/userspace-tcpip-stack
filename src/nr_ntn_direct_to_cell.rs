@@ -155,10 +155,10 @@ impl D2cServiceType {
     /// Returns required baseline SNR in dB for un-repeated transmission.
     pub fn min_required_snr_db(&self) -> f64 {
         match self {
-            Self::EmergencySos => -6.0,  // Highly robust BPSK 1/5 rate
-            Self::TwoWaySms => -3.0,     // QPSK 1/3 rate
-            Self::NarrowbandVoNr => 2.0, // QPSK 1/2 rate
-            Self::LocationBeacon => -5.0,// BPSK 1/4 rate
+            Self::EmergencySos => -6.0,   // Highly robust BPSK 1/5 rate
+            Self::TwoWaySms => -3.0,      // QPSK 1/3 rate
+            Self::NarrowbandVoNr => 2.0,  // QPSK 1/2 rate
+            Self::LocationBeacon => -5.0, // BPSK 1/4 rate
         }
     }
 }
@@ -206,21 +206,49 @@ pub enum D2cError {
 impl fmt::Display for D2cError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ElevationBelowMask { elevation_deg, min_deg } => {
-                write!(f, "Satellite elevation {:.1}° below minimum mask {:.1}°", elevation_deg, min_deg)
+            Self::ElevationBelowMask {
+                elevation_deg,
+                min_deg,
+            } => {
+                write!(
+                    f,
+                    "Satellite elevation {:.1}° below minimum mask {:.1}°",
+                    elevation_deg, min_deg
+                )
             }
-            Self::LinkMarginInsufficient { snr_db, required_db } => {
-                write!(f, "Link SNR {:.2} dB below required {:.2} dB", snr_db, required_db)
+            Self::LinkMarginInsufficient {
+                snr_db,
+                required_db,
+            } => {
+                write!(
+                    f,
+                    "Link SNR {:.2} dB below required {:.2} dB",
+                    snr_db, required_db
+                )
             }
-            Self::EpfdViolation { epfd_dbw, limit_dbw } => {
-                write!(f, "Sidelobe EPFD {:.2} dBW/m²/MHz exceeds limit {:.2} dBW/m²/MHz", epfd_dbw, limit_dbw)
+            Self::EpfdViolation {
+                epfd_dbw,
+                limit_dbw,
+            } => {
+                write!(
+                    f,
+                    "Sidelobe EPFD {:.2} dBW/m²/MHz exceeds limit {:.2} dBW/m²/MHz",
+                    epfd_dbw, limit_dbw
+                )
             }
             Self::InvalidServiceType(val) => write!(f, "Invalid D2C service type: {}", val),
             Self::InvalidState(msg) => write!(f, "Invalid D2C state: {}", msg),
             Self::SerializationError(msg) => write!(f, "D2C serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "D2C deserialization error: {}", msg),
-            Self::ChecksumMismatch { expected, calculated } => {
-                write!(f, "D2C CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}", expected, calculated)
+            Self::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "D2C CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
+                    expected, calculated
+                )
             }
         }
     }
@@ -347,7 +375,13 @@ pub struct D2cPacket {
 
 impl D2cPacket {
     /// Creates an Emergency SOS packet with highest priority.
-    pub fn new_emergency_sos(message_id: u32, ue_id: u32, lat: f64, lon: f64, timestamp_ms: u64) -> Self {
+    pub fn new_emergency_sos(
+        message_id: u32,
+        ue_id: u32,
+        lat: f64,
+        lon: f64,
+        timestamp_ms: u64,
+    ) -> Self {
         let mut payload = Vec::new();
         payload.extend_from_slice(&lat.to_bits().to_be_bytes());
         payload.extend_from_slice(&lon.to_bits().to_be_bytes());
@@ -389,18 +423,25 @@ impl D2cPacket {
     /// Decodes from wire format binary frame, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, D2cError> {
         if data.len() < 24 {
-            return Err(D2cError::DeserializationError("Buffer too short for D2cPacket".into()));
+            return Err(D2cError::DeserializationError(
+                "Buffer too short for D2cPacket".into(),
+            ));
         }
 
         let payload_end = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_end], data[payload_end + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_end]);
         if expected_crc != calculated_crc {
-            return Err(D2cError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(D2cError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x44 || data[1] != 0x32 || data[2] != 0x43 || data[3] != 0x13 {
-            return Err(D2cError::DeserializationError("Invalid D2cPacket magic or version".into()));
+            return Err(D2cError::DeserializationError(
+                "Invalid D2cPacket magic or version".into(),
+            ));
         }
 
         let message_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -411,7 +452,9 @@ impl D2cPacket {
         let payload_len = u16::from_be_bytes(data[22..24].try_into().unwrap()) as usize;
 
         if data.len() != 24 + payload_len + 2 {
-            return Err(D2cError::DeserializationError("Payload length mismatch".into()));
+            return Err(D2cError::DeserializationError(
+                "Payload length mismatch".into(),
+            ));
         }
 
         let payload = data[24..24 + payload_len].to_vec();
@@ -636,7 +679,8 @@ impl NtnDirectToCellEngine {
         let sat_eirp_prb_dbw = self.array_config.max_eirp_dbw - 10.0 * prb_count_10mhz.log10();
         let sat_eirp_prb_dbm = sat_eirp_prb_dbw + 30.0;
 
-        let dl_received_power_dbm = sat_eirp_prb_dbm - total_path_loss_db + HANDHELD_NOMINAL_ANTENNA_GAIN_DBI;
+        let dl_received_power_dbm =
+            sat_eirp_prb_dbm - total_path_loss_db + HANDHELD_NOMINAL_ANTENNA_GAIN_DBI;
         let dl_noise_dbm = thermal_noise_dbm + HANDHELD_NOISE_FIGURE_DB;
         let dl_snr_db = dl_received_power_dbm - dl_noise_dbm;
 
@@ -676,14 +720,15 @@ impl NtnDirectToCellEngine {
         } else if effective_dl_snr > 8.0 {
             10 // 16QAM
         } else if effective_dl_snr > 0.0 {
-            4  // QPSK
+            4 // QPSK
         } else {
-            0  // Low-rate QPSK with repetition
+            0 // Low-rate QPSK with repetition
         };
 
         // 8. Regulatory EPFD Compliance Evaluation:
         // EPFD = EIRP_sidelobe - 10*log10(4*pi*d^2) - 10*log10(BW_MHz)
-        let sidelobe_eirp_dbw = self.array_config.max_eirp_dbw - self.array_config.sidelobe_suppression_db;
+        let sidelobe_eirp_dbw =
+            self.array_config.max_eirp_dbw - self.array_config.sidelobe_suppression_db;
         let area_spreading_db = 10.0 * (4.0 * std::f64::consts::PI * dist_m * dist_m).log10();
         let bw_mhz: f64 = 10.0;
         let epfd_dbw_m2_mhz = sidelobe_eirp_dbw - area_spreading_db - 10.0 * bw_mhz.log10();
@@ -726,10 +771,15 @@ impl NtnDirectToCellEngine {
     }
 
     /// Dispatches an Emergency SOS packet over the Direct-to-Cell link.
-    pub fn send_emergency_sos(&mut self, message_id: u32, ue_id: u32) -> Result<D2cPacket, D2cError> {
+    pub fn send_emergency_sos(
+        &mut self,
+        message_id: u32,
+        ue_id: u32,
+    ) -> Result<D2cPacket, D2cError> {
         let budget = self.evaluate_link_budget()?;
         // Emergency SOS can decode down to -6.0 dB with repetitions
-        let effective_snr = budget.ul_snr_db + 10.0 * (budget.required_repetition_factor as f64).log10();
+        let effective_snr =
+            budget.ul_snr_db + 10.0 * (budget.required_repetition_factor as f64).log10();
         if effective_snr < D2cServiceType::EmergencySos.min_required_snr_db() {
             return Err(D2cError::LinkMarginInsufficient {
                 snr_db: effective_snr,
@@ -754,9 +804,15 @@ impl NtnDirectToCellEngine {
     }
 
     /// Dispatches a standard Two-Way SMS / Messaging packet.
-    pub fn send_two_way_sms(&mut self, message_id: u32, ue_id: u32, text: &str) -> Result<D2cPacket, D2cError> {
+    pub fn send_two_way_sms(
+        &mut self,
+        message_id: u32,
+        ue_id: u32,
+        text: &str,
+    ) -> Result<D2cPacket, D2cError> {
         let budget = self.evaluate_link_budget()?;
-        let effective_snr = budget.ul_snr_db + 10.0 * (budget.required_repetition_factor as f64).log10();
+        let effective_snr =
+            budget.ul_snr_db + 10.0 * (budget.required_repetition_factor as f64).log10();
         if effective_snr < D2cServiceType::TwoWaySms.min_required_snr_db() {
             return Err(D2cError::LinkMarginInsufficient {
                 snr_db: effective_snr,

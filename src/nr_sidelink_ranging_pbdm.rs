@@ -240,7 +240,9 @@ impl SlPbdmReportPdu {
     /// Decodes from binary wire format, verifying CRC-16 checksum and magic header.
     pub fn decode_wire(data: &[u8]) -> Result<Self, PbdmError> {
         if data.len() < 35 {
-            return Err(PbdmError::DeserializationError("Buffer too small for PBDM report".into()));
+            return Err(PbdmError::DeserializationError(
+                "Buffer too small for PBDM report".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
@@ -254,7 +256,9 @@ impl SlPbdmReportPdu {
         }
 
         if &data[0..4] != &PBDM_WIRE_MAGIC {
-            return Err(PbdmError::DeserializationError("Invalid PBDM magic header".into()));
+            return Err(PbdmError::DeserializationError(
+                "Invalid PBDM magic header".into(),
+            ));
         }
 
         let session_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -327,20 +331,37 @@ impl fmt::Display for PbdmError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PbdmError::InsufficientTones { count, required } => {
-                write!(f, "Insufficient carrier tones: {} provided, {} required", count, required)
+                write!(
+                    f,
+                    "Insufficient carrier tones: {} provided, {} required",
+                    count, required
+                )
             }
-            PbdmError::InvalidFrequencySpan => write!(f, "Carrier tone frequencies are identical or non-positive"),
+            PbdmError::InvalidFrequencySpan => {
+                write!(f, "Carrier tone frequencies are identical or non-positive")
+            }
             PbdmError::NegativePropagationTime(val) => {
-                write!(f, "Negative two-way propagation time calculated: {:.3e} s", val)
+                write!(
+                    f,
+                    "Negative two-way propagation time calculated: {:.3e} s",
+                    val
+                )
             }
-            PbdmError::ChecksumMismatch { expected, calculated } => write!(
+            PbdmError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => write!(
                 f,
                 "CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
                 expected, calculated
             ),
             PbdmError::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
-            PbdmError::InvalidChannelCondition(val) => write!(f, "Invalid channel condition code: {}", val),
-            PbdmError::AmbiguityResolutionFailed(msg) => write!(f, "Integer ambiguity resolution failed: {}", msg),
+            PbdmError::InvalidChannelCondition(val) => {
+                write!(f, "Invalid channel condition code: {}", val)
+            }
+            PbdmError::AmbiguityResolutionFailed(msg) => {
+                write!(f, "Integer ambiguity resolution failed: {}", msg)
+            }
         }
     }
 }
@@ -391,7 +412,9 @@ impl NrSlPbdmEngine {
     /// Unwraps multi-carrier phases across tones sorted by ascending frequency.
     /// Removes $2\pi$ modular wraps between consecutive carriers:
     /// $\Delta \phi_{\text{wrapped}} = ((\phi_k - \phi_{k-1} + \pi) \pmod{2\pi}) - \pi$.
-    pub fn unwrap_carrier_phases(tones: &[SlPbdmCarrierTone]) -> Result<Vec<(f64, f64)>, PbdmError> {
+    pub fn unwrap_carrier_phases(
+        tones: &[SlPbdmCarrierTone],
+    ) -> Result<Vec<(f64, f64)>, PbdmError> {
         if tones.len() < MIN_PBDM_TONES {
             return Err(PbdmError::InsufficientTones {
                 count: tones.len(),
@@ -400,7 +423,11 @@ impl NrSlPbdmEngine {
         }
 
         let mut sorted = tones.to_vec();
-        sorted.sort_by(|a, b| a.freq_hz.partial_cmp(&b.freq_hz).unwrap_or(std::cmp::Ordering::Equal));
+        sorted.sort_by(|a, b| {
+            a.freq_hz
+                .partial_cmp(&b.freq_hz)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut unwrapped = Vec::with_capacity(sorted.len());
         unwrapped.push((sorted[0].freq_hz, sorted[0].phase_rad));
@@ -411,7 +438,8 @@ impl NrSlPbdmEngine {
             let raw_delta = sorted[i].phase_rad - sorted[i - 1].phase_rad;
 
             // Normalize delta into (-pi, pi]
-            let mut wrapped_delta = (raw_delta + std::f64::consts::PI) % (2.0 * std::f64::consts::PI);
+            let mut wrapped_delta =
+                (raw_delta + std::f64::consts::PI) % (2.0 * std::f64::consts::PI);
             if wrapped_delta < 0.0 {
                 wrapped_delta += 2.0 * std::f64::consts::PI;
             }
@@ -513,7 +541,9 @@ impl NrSlPbdmEngine {
         let d_pbdm_base = d_raw_phase - (self.config.internal_delay_s * SPEED_OF_LIGHT_M_S);
 
         // Step 4: Channel Condition Classification
-        let channel_condition = if r_squared >= MULTIPATH_R2_THRESHOLD && residual_sigma <= LOS_PHASE_SIGMA_RAD_THRESHOLD {
+        let channel_condition = if r_squared >= MULTIPATH_R2_THRESHOLD
+            && residual_sigma <= LOS_PHASE_SIGMA_RAD_THRESHOLD
+        {
             RangingChannelCondition::LineOfSight
         } else if r_squared >= 0.70 {
             self.telemetry.multipath_detected_epochs += 1;
@@ -535,8 +565,11 @@ impl NrSlPbdmEngine {
                 let fine_fused = (d_pbdm_base + n_cycles * d_amb).max(0.0);
 
                 // Residual uncertainty is dominated by fine phase slope residual
-                let phase_dist_std = (SPEED_OF_LIGHT_M_S / (4.0 * std::f64::consts::PI)) * (residual_sigma / self.config.hop_step_hz);
-                let uncertainty = (phase_dist_std.powi(2) + 0.02_f64.powi(2)).sqrt().clamp(0.01, 0.5);
+                let phase_dist_std = (SPEED_OF_LIGHT_M_S / (4.0 * std::f64::consts::PI))
+                    * (residual_sigma / self.config.hop_step_hz);
+                let uncertainty = (phase_dist_std.powi(2) + 0.02_f64.powi(2))
+                    .sqrt()
+                    .clamp(0.01, 0.5);
 
                 if uncertainty < 0.05 {
                     self.telemetry.sub_5cm_epochs += 1;

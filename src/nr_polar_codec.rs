@@ -132,7 +132,11 @@ impl fmt::Display for PolarError {
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             Self::CrcMismatch { expected, actual } => {
-                write!(f, "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, actual)
+                write!(
+                    f,
+                    "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, actual
+                )
             }
             Self::InvalidMagic(m) => write!(f, "Invalid magic: 0x{:08X}", m),
         }
@@ -192,7 +196,10 @@ pub fn attach_crc24c_with_rnti(payload: &[u8], rnti: u16) -> Vec<u8> {
 /// Determines the Polar mother code size $N = 2^n \in [32, 1024]$ from payload $K$ and rate-matched length $E$.
 pub fn determine_mother_code_size(k_bits: usize, e_bits: usize) -> Result<usize, PolarError> {
     if k_bits == 0 || k_bits > 1024 {
-        return Err(PolarError::PayloadTooLarge { k: k_bits, max_k: 1024 });
+        return Err(PolarError::PayloadTooLarge {
+            k: k_bits,
+            max_k: 1024,
+        });
     }
     if e_bits == 0 {
         return Err(PolarError::InvalidRateMatchedLength(e_bits));
@@ -200,7 +207,9 @@ pub fn determine_mother_code_size(k_bits: usize, e_bits: usize) -> Result<usize,
 
     // TS 38.212 Section 5.3.1 rules:
     let n1 = (e_bits as f64).log2().ceil() as u32;
-    let n_tentative = if e_bits <= ((9 * (1 << (n1 - 1))) / 8) && (k_bits as f64) / (e_bits as f64) <= 9.0 / 16.0 {
+    let n_tentative = if e_bits <= ((9 * (1 << (n1 - 1))) / 8)
+        && (k_bits as f64) / (e_bits as f64) <= 9.0 / 16.0
+    {
         n1.saturating_sub(1)
     } else {
         n1
@@ -242,10 +251,7 @@ pub fn get_information_subchannel_set(n_mother: usize, k_bits: usize) -> Vec<usi
 // ---------------------------------------------------------------------------
 
 /// Performs Polar encoding of $K$ information/CRC bits into $N$ mother coded bits.
-pub fn polar_encode(
-    info_bits: &[u8],
-    n_mother: usize,
-) -> Result<Vec<u8>, PolarError> {
+pub fn polar_encode(info_bits: &[u8], n_mother: usize) -> Result<Vec<u8>, PolarError> {
     let k = info_bits.len();
     if k == 0 || k > n_mother {
         return Err(PolarError::PayloadTooLarge { k, max_k: n_mother });
@@ -363,7 +369,10 @@ pub fn ca_scl_decode(
         return Err(PolarError::InvalidMotherCodeSize(n));
     }
     if k_info_with_crc == 0 || k_info_with_crc > n {
-        return Err(PolarError::PayloadTooLarge { k: k_info_with_crc, max_k: n });
+        return Err(PolarError::PayloadTooLarge {
+            k: k_info_with_crc,
+            max_k: n,
+        });
     }
 
     let info_set = get_information_subchannel_set(n, k_info_with_crc);
@@ -386,15 +395,27 @@ pub fn ca_scl_decode(
 
             if !is_info[i] {
                 // Frozen bit: decision strictly forced to 0
-                let penalty = if estimated_llr < 0.0 { -estimated_llr } else { 0.0 };
+                let penalty = if estimated_llr < 0.0 {
+                    -estimated_llr
+                } else {
+                    0.0
+                };
                 let mut p = path.clone();
                 p.decisions.push(0);
                 p.path_metric += penalty;
                 new_paths.push(p);
             } else {
                 // Information bit: fork path into both 0 and 1
-                let penalty0 = if estimated_llr < 0.0 { -estimated_llr } else { 0.0 };
-                let penalty1 = if estimated_llr > 0.0 { estimated_llr } else { 0.0 };
+                let penalty0 = if estimated_llr < 0.0 {
+                    -estimated_llr
+                } else {
+                    0.0
+                };
+                let penalty1 = if estimated_llr > 0.0 {
+                    estimated_llr
+                } else {
+                    0.0
+                };
 
                 let mut p0 = path.clone();
                 p0.decisions.push(0);
@@ -409,7 +430,11 @@ pub fn ca_scl_decode(
         }
 
         // Sort by path metric ascending (lower metric = more likely)
-        new_paths.sort_by(|a, b| a.path_metric.partial_cmp(&b.path_metric).unwrap_or(std::cmp::Ordering::Equal));
+        new_paths.sort_by(|a, b| {
+            a.path_metric
+                .partial_cmp(&b.path_metric)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         new_paths.truncate(list_cap);
         paths = new_paths;
     }
@@ -582,7 +607,8 @@ impl PolarFramePdu {
 
         let checksum_boundary = Self::HEADER_SIZE + payload_len;
         let expected_crc = compute_crc16(&bytes[..checksum_boundary]);
-        let actual_crc = u16::from_be_bytes([bytes[checksum_boundary], bytes[checksum_boundary + 1]]);
+        let actual_crc =
+            u16::from_be_bytes([bytes[checksum_boundary], bytes[checksum_boundary + 1]]);
         if expected_crc != actual_crc {
             return Err(PolarError::CrcMismatch {
                 expected: expected_crc,

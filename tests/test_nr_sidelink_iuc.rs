@@ -1,8 +1,8 @@
 //! Integration tests for 3GPP Rel-18 Sidelink Inter-UE Coordination (IUC) Engine.
 
 use toy_tcpip::nr_sidelink_iuc::{
-    IucConfig, IucSchemeType, SciFormat2C, SidelinkIucEngine, SidelinkReservationEntry,
-    SidelinkSlotResource, DEFAULT_IUC_RSRP_THRESHOLD_DBM,
+    DEFAULT_IUC_RSRP_THRESHOLD_DBM, IucConfig, IucSchemeType, SciFormat2C, SidelinkIucEngine,
+    SidelinkReservationEntry, SidelinkSlotResource,
 };
 
 #[test]
@@ -98,7 +98,10 @@ fn test_scheme1_preferred_set_generation_and_filtering() {
     let mut initial_candidates = Vec::new();
     for s in 100..108 {
         for subch in 0..2 {
-            initial_candidates.push(SidelinkSlotResource { slot: s, subchannel: subch });
+            initial_candidates.push(SidelinkSlotResource {
+                slot: s,
+                subchannel: subch,
+            });
         }
     }
     assert_eq!(initial_candidates.len(), 16);
@@ -106,8 +109,14 @@ fn test_scheme1_preferred_set_generation_and_filtering() {
     let filtered = ue_a.apply_scheme1_filtering(&sci_pref, &initial_candidates);
     // Colliding resources (102, 0) and (104, 1) are excluded -> 14 remaining
     assert_eq!(filtered.len(), 14);
-    assert!(!filtered.contains(&SidelinkSlotResource { slot: 102, subchannel: 0 }));
-    assert!(!filtered.contains(&SidelinkSlotResource { slot: 104, subchannel: 1 }));
+    assert!(!filtered.contains(&SidelinkSlotResource {
+        slot: 102,
+        subchannel: 0
+    }));
+    assert!(!filtered.contains(&SidelinkSlotResource {
+        slot: 104,
+        subchannel: 1
+    }));
 }
 
 #[test]
@@ -139,11 +148,8 @@ fn test_scheme1_non_preferred_set_and_hidden_node_exclusion() {
 
     // UE-B generates Non-Preferred set
     let (sci_non_pref, non_pref_set) = ue_b.generate_scheme1_coordination(
-        100,
-        3, // UE-A has lower priority (3 > 1)
-        48,
-        6,
-        false, // indicate non-preferred
+        100, 3, // UE-A has lower priority (3 > 1)
+        48, 6, false, // indicate non-preferred
     );
     assert_eq!(sci_non_pref.scheme_type, IucSchemeType::Scheme1NonPreferred);
     assert!(non_pref_set.contains(&SidelinkSlotResource {
@@ -153,14 +159,35 @@ fn test_scheme1_non_preferred_set_and_hidden_node_exclusion() {
 
     // UE-A filters candidates
     let candidates = vec![
-        SidelinkSlotResource { slot: 49, subchannel: 1 },
-        SidelinkSlotResource { slot: 50, subchannel: 2 }, // colliding
-        SidelinkSlotResource { slot: 51, subchannel: 0 },
+        SidelinkSlotResource {
+            slot: 49,
+            subchannel: 1,
+        },
+        SidelinkSlotResource {
+            slot: 50,
+            subchannel: 2,
+        }, // colliding
+        SidelinkSlotResource {
+            slot: 51,
+            subchannel: 0,
+        },
     ];
     let filtered = ue_a.apply_scheme1_filtering(&sci_non_pref, &candidates);
     assert_eq!(filtered.len(), 2);
-    assert_eq!(filtered[0], SidelinkSlotResource { slot: 49, subchannel: 1 });
-    assert_eq!(filtered[1], SidelinkSlotResource { slot: 51, subchannel: 0 });
+    assert_eq!(
+        filtered[0],
+        SidelinkSlotResource {
+            slot: 49,
+            subchannel: 1
+        }
+    );
+    assert_eq!(
+        filtered[1],
+        SidelinkSlotResource {
+            slot: 51,
+            subchannel: 0
+        }
+    );
     assert_eq!(ue_a.stats_hidden_node_collisions_avoided, 1);
 }
 
@@ -203,7 +230,10 @@ fn test_scheme1_candidate_starvation_20_percent_fallback() {
     let mut initial_candidates = Vec::new();
     for s in 10..15 {
         for subch in 0..2 {
-            initial_candidates.push(SidelinkSlotResource { slot: s, subchannel: subch });
+            initial_candidates.push(SidelinkSlotResource {
+                slot: s,
+                subchannel: subch,
+            });
         }
     }
     assert_eq!(initial_candidates.len(), 10);
@@ -274,15 +304,30 @@ fn test_scheme2_preemption_and_re_evaluation() {
     };
 
     let available_candidates = vec![
-        SidelinkSlotResource { slot: 80, subchannel: 3 }, // colliding
-        SidelinkSlotResource { slot: 82, subchannel: 1 }, // clean alternative
-        SidelinkSlotResource { slot: 83, subchannel: 2 },
+        SidelinkSlotResource {
+            slot: 80,
+            subchannel: 3,
+        }, // colliding
+        SidelinkSlotResource {
+            slot: 82,
+            subchannel: 1,
+        }, // clean alternative
+        SidelinkSlotResource {
+            slot: 83,
+            subchannel: 2,
+        },
     ];
 
     let alternative = ue_a.handle_scheme2_conflict(&conflict, &available_candidates);
     assert!(alternative.is_some());
     let alt_res = alternative.unwrap();
-    assert_eq!(alt_res, SidelinkSlotResource { slot: 82, subchannel: 1 });
+    assert_eq!(
+        alt_res,
+        SidelinkSlotResource {
+            slot: 82,
+            subchannel: 1
+        }
+    );
 
     // Conflicting reservation on slot 80 was removed and replaced by slot 82!
     assert!(!ue_a.own_reservations.contains_key(&80));

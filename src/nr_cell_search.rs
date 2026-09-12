@@ -58,21 +58,40 @@ impl fmt::Display for CellSearchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::BufferTooShort { needed, found } => {
-                write!(f, "Sample buffer too short: needed {}, found {}", needed, found)
+                write!(
+                    f,
+                    "Sample buffer too short: needed {}, found {}",
+                    needed, found
+                )
             }
             Self::InvalidNid2(n) => write!(f, "Invalid N_ID^(2): {} (must be 0, 1, or 2)", n),
             Self::InvalidNid1(n) => write!(f, "Invalid N_ID^(1): {} (must be 0..335)", n),
             Self::InvalidPci(p) => write!(f, "Invalid PCI: {} (must be 0..1007)", p),
             Self::InvalidSsbIndex(i) => write!(f, "Invalid SSB index: {}", i),
-            Self::NoPeakDetected { peak_metric, threshold } => {
-                write!(f, "No synchronization peak detected: metric {}, threshold {}", peak_metric, threshold)
+            Self::NoPeakDetected {
+                peak_metric,
+                threshold,
+            } => {
+                write!(
+                    f,
+                    "No synchronization peak detected: metric {}, threshold {}",
+                    peak_metric, threshold
+                )
             }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -101,7 +120,10 @@ impl Complex32 {
 
     #[inline]
     pub fn conj(self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 
     #[inline]
@@ -183,7 +205,10 @@ pub fn generate_pss_sequence(nid2: u8) -> Result<[i8; SYNC_SEQUENCE_LENGTH], Cel
 }
 
 /// Generates the length-127 SSS sequence for a given $N_{\text{ID}}^{(1)} \in [0, 335]$ and $N_{\text{ID}}^{(2)} \in \{0, 1, 2\}$.
-pub fn generate_sss_sequence(nid1: u16, nid2: u8) -> Result<[i8; SYNC_SEQUENCE_LENGTH], CellSearchError> {
+pub fn generate_sss_sequence(
+    nid1: u16,
+    nid2: u8,
+) -> Result<[i8; SYNC_SEQUENCE_LENGTH], CellSearchError> {
     if nid1 > 335 {
         return Err(CellSearchError::InvalidNid1(nid1));
     }
@@ -438,7 +463,10 @@ pub fn detect_ssb_beam_index(
     l_max: u8,
 ) -> Result<u8, CellSearchError> {
     if received_pbch_dmrs.is_empty() {
-        return Err(CellSearchError::BufferTooShort { needed: 1, found: 0 });
+        return Err(CellSearchError::BufferTooShort {
+            needed: 1,
+            found: 0,
+        });
     }
     if pci >= TOTAL_NR_PCIS as u16 {
         return Err(CellSearchError::InvalidPci(pci));
@@ -537,7 +565,7 @@ pub struct SsMeasurements {
 
 /// Computes SS-RSRP, SS-RSSI, SS-RSRQ, and SS-SINR over measured SSS and SSB symbols.
 pub fn compute_ss_measurements(
-    sss_subcarriers: &[Complex32], // Exactly 127 SSS subcarriers
+    sss_subcarriers: &[Complex32],       // Exactly 127 SSS subcarriers
     ssb_total_subcarriers: &[Complex32], // 240 subcarriers across SSB
     noise_power_linear: f32,
 ) -> Result<SsMeasurements, CellSearchError> {

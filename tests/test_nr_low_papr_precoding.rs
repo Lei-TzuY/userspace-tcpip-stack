@@ -167,7 +167,9 @@ fn test_papr_reduction_comparison_cp_ofdm_vs_dft_s_ofdm_vs_fdss() {
     }
 
     // 1. CP-OFDM with QPSK
-    let symbols_qpsk = ModulationScheme::Qpsk.modulate(&bits[0..num_sc * 2]).unwrap();
+    let symbols_qpsk = ModulationScheme::Qpsk
+        .modulate(&bits[0..num_sc * 2])
+        .unwrap();
     let wave_cp_ofdm = synthesizer
         .synthesize(&symbols_qpsk, WaveformType::CpOfdm)
         .unwrap();
@@ -175,10 +177,7 @@ fn test_papr_reduction_comparison_cp_ofdm_vs_dft_s_ofdm_vs_fdss() {
 
     // 2. DFT-s-OFDM with QPSK
     let wave_dft_qpsk = synthesizer
-        .synthesize(
-            &symbols_qpsk,
-            WaveformType::DftSpreadOfdm { fdss: None },
-        )
+        .synthesize(&symbols_qpsk, WaveformType::DftSpreadOfdm { fdss: None })
         .unwrap();
     let report_dft_qpsk = evaluate_papr_and_cm(&wave_dft_qpsk).unwrap();
 
@@ -187,10 +186,7 @@ fn test_papr_reduction_comparison_cp_ofdm_vs_dft_s_ofdm_vs_fdss() {
         .modulate(&bits[0..num_sc])
         .unwrap();
     let wave_dft_pibpsk = synthesizer
-        .synthesize(
-            &symbols_pibpsk,
-            WaveformType::DftSpreadOfdm { fdss: None },
-        )
+        .synthesize(&symbols_pibpsk, WaveformType::DftSpreadOfdm { fdss: None })
         .unwrap();
     let report_dft_pibpsk = evaluate_papr_and_cm(&wave_dft_pibpsk).unwrap();
 
@@ -199,16 +195,30 @@ fn test_papr_reduction_comparison_cp_ofdm_vs_dft_s_ofdm_vs_fdss() {
     let wave_dft_fdss = synthesizer
         .synthesize(
             &symbols_pibpsk,
-            WaveformType::DftSpreadOfdm { fdss: Some(fdss_cfg) },
+            WaveformType::DftSpreadOfdm {
+                fdss: Some(fdss_cfg),
+            },
         )
         .unwrap();
     let report_dft_fdss = evaluate_papr_and_cm(&wave_dft_fdss).unwrap();
 
     println!("PAPR Results:");
-    println!("  CP-OFDM QPSK:          {:.2} dB, CM: {:.2} dB", report_cp_ofdm.papr_db, report_cp_ofdm.cubic_metric_db);
-    println!("  DFT-s-OFDM QPSK:       {:.2} dB, CM: {:.2} dB", report_dft_qpsk.papr_db, report_dft_qpsk.cubic_metric_db);
-    println!("  DFT-s-OFDM pi/2-BPSK:  {:.2} dB, CM: {:.2} dB", report_dft_pibpsk.papr_db, report_dft_pibpsk.cubic_metric_db);
-    println!("  FDSS pi/2-BPSK (Rel18):{:.2} dB, CM: {:.2} dB", report_dft_fdss.papr_db, report_dft_fdss.cubic_metric_db);
+    println!(
+        "  CP-OFDM QPSK:          {:.2} dB, CM: {:.2} dB",
+        report_cp_ofdm.papr_db, report_cp_ofdm.cubic_metric_db
+    );
+    println!(
+        "  DFT-s-OFDM QPSK:       {:.2} dB, CM: {:.2} dB",
+        report_dft_qpsk.papr_db, report_dft_qpsk.cubic_metric_db
+    );
+    println!(
+        "  DFT-s-OFDM pi/2-BPSK:  {:.2} dB, CM: {:.2} dB",
+        report_dft_pibpsk.papr_db, report_dft_pibpsk.cubic_metric_db
+    );
+    println!(
+        "  FDSS pi/2-BPSK (Rel18):{:.2} dB, CM: {:.2} dB",
+        report_dft_fdss.papr_db, report_dft_fdss.cubic_metric_db
+    );
 
     // Fundamental 3GPP Rel-18 Physical Guarantees:
     // 1. DFT-s-OFDM has lower PAPR than CP-OFDM
@@ -286,7 +296,9 @@ fn test_ccdf_empirical_distribution_curves() {
     let fdss_cfg = FdssConfig::new(FdssFilterType::RaisedCosine, 0.25).unwrap();
     let ccdf_fdss = generate_empirical_ccdf(
         &synthesizer,
-        WaveformType::DftSpreadOfdm { fdss: Some(fdss_cfg) },
+        WaveformType::DftSpreadOfdm {
+            fdss: Some(fdss_cfg),
+        },
         ModulationScheme::PiHalfBpsk,
         &thresholds,
         60,
@@ -301,8 +313,16 @@ fn test_ccdf_empirical_distribution_curves() {
     }
 
     // FDSS curve must drop to 0 at much lower threshold than CP-OFDM
-    let high_thresh_prob_fdss = ccdf_fdss.iter().find(|p| p.threshold_papr_db == 6.0).unwrap().probability;
-    let high_thresh_prob_cp = ccdf_cp.iter().find(|p| p.threshold_papr_db == 6.0).unwrap().probability;
+    let high_thresh_prob_fdss = ccdf_fdss
+        .iter()
+        .find(|p| p.threshold_papr_db == 6.0)
+        .unwrap()
+        .probability;
+    let high_thresh_prob_cp = ccdf_cp
+        .iter()
+        .find(|p| p.threshold_papr_db == 6.0)
+        .unwrap()
+        .probability;
 
     assert!(
         high_thresh_prob_fdss <= high_thresh_prob_cp,
@@ -350,9 +370,9 @@ fn test_cell_edge_coverage_distance_multiplier() {
 fn test_wire_codec_and_crc16_integrity() {
     let pdu = LowPaprConfigPdu {
         version: 1,
-        waveform_type: 1, // DFT-s-OFDM
-        modulation: 0,    // pi/2-BPSK
-        filter_type: 1,   // Raised Cosine
+        waveform_type: 1,          // DFT-s-OFDM
+        modulation: 0,             // pi/2-BPSK
+        filter_type: 1,            // Raised Cosine
         roll_off_alpha_x1000: 250, // alpha = 0.25
         prb_count: 24,
         measured_papr_x100: 215, // 2.15 dB

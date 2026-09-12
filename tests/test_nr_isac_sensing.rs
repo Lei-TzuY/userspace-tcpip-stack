@@ -9,9 +9,9 @@
 //! 6. Boundary limits, maximum target capacity, and error handling.
 
 use toy_tcpip::nr_isac_sensing::{
-    IsacError, IsacMultiplexingMode, IsacSensingEngine, IsacSensingMode, IsacWaveformConfig,
-    SensingTarget, TargetClassification, DEFAULT_ISAC_CARRIER_FREQ_HZ, DEFAULT_ISAC_SCS_HZ,
-    MAX_ISAC_TARGETS,
+    DEFAULT_ISAC_CARRIER_FREQ_HZ, DEFAULT_ISAC_SCS_HZ, IsacError, IsacMultiplexingMode,
+    IsacSensingEngine, IsacSensingMode, IsacWaveformConfig, MAX_ISAC_TARGETS, SensingTarget,
+    TargetClassification,
 };
 
 #[test]
@@ -147,7 +147,10 @@ fn test_engine_target_capacity_and_range_validation() {
 
     let far_target = SensingTarget::new(10, max_r + 100.0, 0.0, 10.0);
     match engine.add_target(far_target) {
-        Err(IsacError::TargetOutOfRange { range_m, max_range_m }) => {
+        Err(IsacError::TargetOutOfRange {
+            range_m,
+            max_range_m,
+        }) => {
             assert!(range_m > max_range_m);
         }
         other => panic!("Expected TargetOutOfRange, got {:?}", other),
@@ -182,7 +185,10 @@ fn test_static_clutter_cancellation_with_moving_target() {
         .flat_map(|row| row.iter())
         .map(|c| c.norm_sqr())
         .sum();
-    assert!(energy_after > 0.0, "Dynamic target energy must be preserved");
+    assert!(
+        energy_after > 0.0,
+        "Dynamic target energy must be preserved"
+    );
 }
 
 #[test]

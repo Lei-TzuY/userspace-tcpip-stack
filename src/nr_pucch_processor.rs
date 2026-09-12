@@ -41,17 +41,35 @@ pub const SYMBOLS_PER_SLOT: u8 = 14;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PucchError {
     InvalidFormat(u8),
-    InvalidSymbolCount { format: PucchFormat, symbols: u8 },
-    InvalidStartSymbol { start: u8, len: u8 },
-    InvalidPrbCount { format: PucchFormat, prbs: u16 },
+    InvalidSymbolCount {
+        format: PucchFormat,
+        symbols: u8,
+    },
+    InvalidStartSymbol {
+        start: u8,
+        len: u8,
+    },
+    InvalidPrbCount {
+        format: PucchFormat,
+        prbs: u16,
+    },
     InvalidCyclicShift(u8),
     InvalidResourceSet(u8),
     ResourceNotFound(u8),
-    PayloadTooLarge { format: PucchFormat, bits: usize },
-    CodeRateExceeded { code_rate_x1000: u32, max_code_rate_x1000: u32 },
+    PayloadTooLarge {
+        format: PucchFormat,
+        bits: usize,
+    },
+    CodeRateExceeded {
+        code_rate_x1000: u32,
+        max_code_rate_x1000: u32,
+    },
     SerializationError(String),
     DeserializationError(String),
-    CrcMismatch { expected: u16, actual: u16 },
+    CrcMismatch {
+        expected: u16,
+        actual: u16,
+    },
     InvalidMagic(u32),
 }
 
@@ -63,7 +81,11 @@ impl fmt::Display for PucchError {
                 write!(f, "Invalid symbol count {} for {:?}", symbols, format)
             }
             Self::InvalidStartSymbol { start, len } => {
-                write!(f, "Invalid symbol range start={}, len={} (exceeds slot)", start, len)
+                write!(
+                    f,
+                    "Invalid symbol range start={}, len={} (exceeds slot)",
+                    start, len
+                )
             }
             Self::InvalidPrbCount { format, prbs } => {
                 write!(f, "Invalid PRB count {} for {:?}", prbs, format)
@@ -72,9 +94,16 @@ impl fmt::Display for PucchError {
             Self::InvalidResourceSet(set) => write!(f, "Invalid resource set index: {}", set),
             Self::ResourceNotFound(id) => write!(f, "PUCCH resource ID {} not found", id),
             Self::PayloadTooLarge { format, bits } => {
-                write!(f, "Payload {} bits exceeds max capacity for {:?}", bits, format)
+                write!(
+                    f,
+                    "Payload {} bits exceeds max capacity for {:?}",
+                    bits, format
+                )
             }
-            Self::CodeRateExceeded { code_rate_x1000, max_code_rate_x1000 } => {
+            Self::CodeRateExceeded {
+                code_rate_x1000,
+                max_code_rate_x1000,
+            } => {
                 write!(
                     f,
                     "PUCCH code rate {:.3} exceeds maximum allowable {:.3}",
@@ -85,7 +114,11 @@ impl fmt::Display for PucchError {
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             Self::CrcMismatch { expected, actual } => {
-                write!(f, "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, actual)
+                write!(
+                    f,
+                    "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, actual
+                )
             }
             Self::InvalidMagic(m) => write!(f, "Invalid PUCCH magic: 0x{:08X}", m),
         }
@@ -164,18 +197,12 @@ impl PucchFormat {
         match self {
             Self::Format0 | Self::Format1 | Self::Format4 => {
                 if prbs != 1 {
-                    return Err(PucchError::InvalidPrbCount {
-                        format: self,
-                        prbs,
-                    });
+                    return Err(PucchError::InvalidPrbCount { format: self, prbs });
                 }
             }
             Self::Format2 | Self::Format3 => {
                 if prbs == 0 || prbs > 16 {
-                    return Err(PucchError::InvalidPrbCount {
-                        format: self,
-                        prbs,
-                    });
+                    return Err(PucchError::InvalidPrbCount { format: self, prbs });
                 }
             }
         }
@@ -216,7 +243,11 @@ pub fn compute_format0_cyclic_shift(
         }
         // 1 HARQ-ACK bit with positive SR (TS 38.213 Table 9.2.3-3)
         (1, SchedulingRequestState::Positive) => {
-            if harq_bits[0] & 1 == 1 { 9 } else { 3 }
+            if harq_bits[0] & 1 == 1 {
+                9
+            } else {
+                3
+            }
         }
 
         // 2 HARQ-ACK bits without positive SR
@@ -230,20 +261,20 @@ pub fn compute_format0_cyclic_shift(
             }
         }
         // 2 HARQ-ACK bits with positive SR (TS 38.213 Table 9.2.3-4)
-        (2, SchedulingRequestState::Positive) => {
-            match (harq_bits[0] & 1, harq_bits[1] & 1) {
-                (0, 0) => 1,
-                (0, 1) => 4,
-                (1, 1) => 7,
-                (1, 0) => 10,
-                _ => 1,
-            }
-        }
+        (2, SchedulingRequestState::Positive) => match (harq_bits[0] & 1, harq_bits[1] & 1) {
+            (0, 0) => 1,
+            (0, 1) => 4,
+            (1, 1) => 7,
+            (1, 0) => 10,
+            _ => 1,
+        },
 
-        _ => return Err(PucchError::PayloadTooLarge {
-            format: PucchFormat::Format0,
-            bits: harq_bits.len(),
-        }),
+        _ => {
+            return Err(PucchError::PayloadTooLarge {
+                format: PucchFormat::Format0,
+                bits: harq_bits.len(),
+            });
+        }
     };
 
     Ok((initial_cs + delta) % 12)
@@ -290,7 +321,10 @@ pub fn compute_format1_occ_sequence(
 /// Computes available UCI Resource Elements (REs) in Format 2 transmission.
 /// In Format 2, DMRS occupies every 3rd subcarrier (subcarriers 1, 4, 7, 10),
 /// leaving 8 data subcarriers per PRB per symbol.
-pub fn calculate_format2_available_res(num_prbs: u16, num_symbols: u8) -> Result<usize, PucchError> {
+pub fn calculate_format2_available_res(
+    num_prbs: u16,
+    num_symbols: u8,
+) -> Result<usize, PucchError> {
     PucchFormat::Format2.validate(num_symbols, num_prbs)?;
     let data_sc_per_prb = 8; // 12 - 4 DMRS
     Ok((num_prbs as usize) * data_sc_per_prb * (num_symbols as usize))
@@ -363,7 +397,11 @@ pub struct PucchResourceSet {
 }
 
 impl PucchResourceSet {
-    pub fn new(set_id: u8, max_payload_bits: usize, resource_ids: Vec<u8>) -> Result<Self, PucchError> {
+    pub fn new(
+        set_id: u8,
+        max_payload_bits: usize,
+        resource_ids: Vec<u8>,
+    ) -> Result<Self, PucchError> {
         if set_id > 3 {
             return Err(PucchError::InvalidResourceSet(set_id));
         }
@@ -462,11 +500,7 @@ impl PucchRepetitionManager {
     }
 
     /// Verifies cross-slot phase continuity compliance across repeated transmissions.
-    pub fn audit_phase_continuity(
-        &self,
-        powers_dbm: &[f64],
-        prbs: &[u16],
-    ) -> bool {
+    pub fn audit_phase_continuity(&self, powers_dbm: &[f64], prbs: &[u16]) -> bool {
         if !self.cross_slot_phase_continuity || powers_dbm.len() <= 1 {
             return true;
         }
@@ -527,12 +561,7 @@ impl PucchPowerControlConfig {
 
     /// Computes PUCCH transmit power in dBm per 3GPP TS 38.213 §7.2.1:
     /// $$P = \min\left(P_{\text{CMAX}}, P_O + 10\log_{10}(2^\mu M_{\text{RB}}) + \alpha \cdot PL + \Delta_{F} + \Delta_{TF} + g\right)$$
-    pub fn compute_tx_power(
-        &self,
-        format: PucchFormat,
-        num_prbs: u16,
-        payload_bits: usize,
-    ) -> f64 {
+    pub fn compute_tx_power(&self, format: PucchFormat, num_prbs: u16, payload_bits: usize) -> f64 {
         let mu_factor = 2.0f64.powi(self.numerology_mu as i32);
         let bandwidth_term = 10.0 * ((mu_factor * (num_prbs as f64)).log10());
         let pl_term = self.pathloss_alpha * self.pathloss_db;
@@ -581,7 +610,11 @@ pub fn arbitrate_uci_multiplexing(
     num_symbols: u8,
     max_code_rate_x1000: u32,
 ) -> Result<UciMultiplexingResult, PucchError> {
-    let sr_bits = if sr_state == SchedulingRequestState::Positive { 1 } else { 0 };
+    let sr_bits = if sr_state == SchedulingRequestState::Positive {
+        1
+    } else {
+        0
+    };
     let mut total_payload = harq_ack_bits + sr_bits + csi_part1_bits + csi_part2_bits;
     let mut csi_dropped = false;
 
@@ -713,7 +746,8 @@ impl PucchFramePdu {
 
         let checksum_boundary = Self::HEADER_SIZE + payload_len;
         let expected_crc = compute_crc16(&bytes[..checksum_boundary]);
-        let actual_crc = u16::from_be_bytes([bytes[checksum_boundary], bytes[checksum_boundary + 1]]);
+        let actual_crc =
+            u16::from_be_bytes([bytes[checksum_boundary], bytes[checksum_boundary + 1]]);
         if expected_crc != actual_crc {
             return Err(PucchError::CrcMismatch {
                 expected: expected_crc,

@@ -1,10 +1,9 @@
 //! Integration tests for 3GPP Rel-18/19 SRS Processor, Antenna Switching & Channel Sounding Engine.
 
 use toy_tcpip::nr_srs_processor::{
-    calculate_srs_hopping_index, generate_zc_srs_sequence, get_srs_bandwidth_entry,
-    largest_prime_less_than, map_srs_to_subcarriers, AntennaSwitchingMode, Complex64,
-    SrsAntennaManager, SrsFrequencyHoppingConfig, SrsTransmissionComb, SrsWirePdu,
-    SRS_WIRE_MAGIC,
+    AntennaSwitchingMode, Complex64, SRS_WIRE_MAGIC, SrsAntennaManager, SrsFrequencyHoppingConfig,
+    SrsTransmissionComb, SrsWirePdu, calculate_srs_hopping_index, generate_zc_srs_sequence,
+    get_srs_bandwidth_entry, largest_prime_less_than, map_srs_to_subcarriers,
 };
 
 #[test]
@@ -159,16 +158,10 @@ fn test_srs_antenna_switching_1t4r_and_reciprocity_estimation() {
     assert_eq!(manager_2t4r.active_antennas_for_instance(2), vec![0, 1]);
 
     // Channel estimation validation
-    let tx = vec![
-        (0, Complex64::new(1.0, 0.0)),
-        (4, Complex64::new(0.0, 1.0)),
-    ];
+    let tx = vec![(0, Complex64::new(1.0, 0.0)), (4, Complex64::new(0.0, 1.0))];
     // Channel H = 0.5 + j0.2
     let channel_h = Complex64::new(0.5, 0.2);
-    let rx = vec![
-        (0, tx[0].1.mul(&channel_h)),
-        (4, tx[1].1.mul(&channel_h)),
-    ];
+    let rx = vec![(0, tx[0].1.mul(&channel_h)), (4, tx[1].1.mul(&channel_h))];
 
     let estimated_cfr = manager.estimate_channel(&rx, &tx);
     assert_eq!(estimated_cfr.len(), 2);

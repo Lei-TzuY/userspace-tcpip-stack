@@ -32,7 +32,10 @@ fn test_4x4_matrix_inversion() {
         [0.0, 0.0, 1.0, 0.0],
         [0.0, 0.0, 0.0, 1.0],
     ];
-    assert_eq!(invert_4x4_matrix(&singular), Err(IntegrityError::SingularGeometryMatrix));
+    assert_eq!(
+        invert_4x4_matrix(&singular),
+        Err(IntegrityError::SingularGeometryMatrix)
+    );
 }
 
 #[test]
@@ -254,16 +257,39 @@ fn test_unsafe_alarm_when_protection_level_exceeds_hal() {
 fn test_insufficient_anchors_error() {
     let mut engine = NrPositioningIntegrityEngine::new(DEFAULT_HAL_METERS, DEFAULT_VAL_METERS);
     let anchors = vec![
-        TrpRangingMeasurement { trp_id: 1, x_m: 0.0, y_m: 0.0, z_m: 0.0, pseudorange_m: 10.0, sigma_m: 1.0 },
-        TrpRangingMeasurement { trp_id: 2, x_m: 1.0, y_m: 0.0, z_m: 0.0, pseudorange_m: 10.0, sigma_m: 1.0 },
+        TrpRangingMeasurement {
+            trp_id: 1,
+            x_m: 0.0,
+            y_m: 0.0,
+            z_m: 0.0,
+            pseudorange_m: 10.0,
+            sigma_m: 1.0,
+        },
+        TrpRangingMeasurement {
+            trp_id: 2,
+            x_m: 1.0,
+            y_m: 0.0,
+            z_m: 0.0,
+            pseudorange_m: 10.0,
+            sigma_m: 1.0,
+        },
     ];
     let res = engine.evaluate_integrity(&anchors, [0.0; 4]);
-    assert!(matches!(res, Err(IntegrityError::InsufficientAnchors { available: 2, required: 4 })));
+    assert!(matches!(
+        res,
+        Err(IntegrityError::InsufficientAnchors {
+            available: 2,
+            required: 4
+        })
+    ));
 }
 
 #[test]
 fn test_error_display() {
-    let err1 = IntegrityError::InsufficientAnchors { available: 3, required: 4 };
+    let err1 = IntegrityError::InsufficientAnchors {
+        available: 3,
+        required: 4,
+    };
     assert!(format!("{}", err1).contains("insufficient"));
 
     let err2 = IntegrityError::SingularGeometryMatrix;

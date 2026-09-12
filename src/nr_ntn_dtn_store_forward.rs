@@ -71,13 +71,26 @@ pub fn compute_crc16(data: &[u8]) -> u16 {
 /// Errors encountered in NTN DTN Store-and-Forward operations.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DtnError {
-    BufferFull { current_bytes: usize, capacity_bytes: usize },
-    BundleExpired { bundle_id: u64, age_ms: u64, ttl_ms: u64 },
-    ContactWindowClosed { satellite_id: u32, current_time_ms: u64 },
+    BufferFull {
+        current_bytes: usize,
+        capacity_bytes: usize,
+    },
+    BundleExpired {
+        bundle_id: u64,
+        age_ms: u64,
+        ttl_ms: u64,
+    },
+    ContactWindowClosed {
+        satellite_id: u32,
+        current_time_ms: u64,
+    },
     InvalidEid(String),
     SerializationError(String),
     DeserializationError(String),
-    ChecksumMismatch { expected: u16, calculated: u16 },
+    ChecksumMismatch {
+        expected: u16,
+        calculated: u16,
+    },
     InvalidPriority(u8),
     NodeNotFound(u32),
 }
@@ -85,23 +98,54 @@ pub enum DtnError {
 impl fmt::Display for DtnError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            DtnError::BufferFull { current_bytes, capacity_bytes } => {
-                write!(f, "DTN storage full: {} / {} bytes", current_bytes, capacity_bytes)
+            DtnError::BufferFull {
+                current_bytes,
+                capacity_bytes,
+            } => {
+                write!(
+                    f,
+                    "DTN storage full: {} / {} bytes",
+                    current_bytes, capacity_bytes
+                )
             }
-            DtnError::BundleExpired { bundle_id, age_ms, ttl_ms } => {
-                write!(f, "Bundle {} expired: age {} ms > TTL {} ms", bundle_id, age_ms, ttl_ms)
+            DtnError::BundleExpired {
+                bundle_id,
+                age_ms,
+                ttl_ms,
+            } => {
+                write!(
+                    f,
+                    "Bundle {} expired: age {} ms > TTL {} ms",
+                    bundle_id, age_ms, ttl_ms
+                )
             }
-            DtnError::ContactWindowClosed { satellite_id, current_time_ms } => {
-                write!(f, "No active contact window for satellite {} at t={} ms", satellite_id, current_time_ms)
+            DtnError::ContactWindowClosed {
+                satellite_id,
+                current_time_ms,
+            } => {
+                write!(
+                    f,
+                    "No active contact window for satellite {} at t={} ms",
+                    satellite_id, current_time_ms
+                )
             }
             DtnError::InvalidEid(msg) => write!(f, "Invalid Endpoint Identifier (EID): {}", msg),
             DtnError::SerializationError(msg) => write!(f, "DTN serialization error: {}", msg),
             DtnError::DeserializationError(msg) => write!(f, "DTN deserialization error: {}", msg),
-            DtnError::ChecksumMismatch { expected, calculated } => {
-                write!(f, "CRC16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, calculated)
+            DtnError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "CRC16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, calculated
+                )
             }
             DtnError::InvalidPriority(p) => write!(f, "Invalid bundle priority level: {}", p),
-            DtnError::NodeNotFound(id) => write!(f, "Node {} not registered in contact topology", id),
+            DtnError::NodeNotFound(id) => {
+                write!(f, "Node {} not registered in contact topology", id)
+            }
         }
     }
 }
@@ -190,11 +234,21 @@ pub struct BundleControlFlags {
 impl BundleControlFlags {
     pub fn to_bits(&self) -> u8 {
         let mut bits = 0u8;
-        if self.is_fragment { bits |= 1 << 0; }
-        if self.is_admin_record { bits |= 1 << 1; }
-        if self.do_not_fragment { bits |= 1 << 2; }
-        if self.custody_requested { bits |= 1 << 3; }
-        if self.report_delivery { bits |= 1 << 4; }
+        if self.is_fragment {
+            bits |= 1 << 0;
+        }
+        if self.is_admin_record {
+            bits |= 1 << 1;
+        }
+        if self.do_not_fragment {
+            bits |= 1 << 2;
+        }
+        if self.custody_requested {
+            bits |= 1 << 3;
+        }
+        if self.report_delivery {
+            bits |= 1 << 4;
+        }
         bits
     }
 
@@ -267,7 +321,9 @@ impl Bundle {
     /// Size in bytes of this bundle including metadata and payload.
     pub fn wire_size_bytes(&self) -> usize {
         // Header overhead (~48 bytes) + Source/Dest EID strings + payload
-        48 + self.source_eid.to_uri().len() + self.destination_eid.to_uri().len() + self.payload.len()
+        48 + self.source_eid.to_uri().len()
+            + self.destination_eid.to_uri().len()
+            + self.payload.len()
     }
 
     /// Checks whether the bundle has exceeded its lifetime relative to `current_time_ms`.
@@ -328,7 +384,9 @@ impl Bundle {
     /// Decodes a bundle from a binary wire frame, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, DtnError> {
         if data.len() < 35 {
-            return Err(DtnError::DeserializationError("Data too short for DTN bundle header".into()));
+            return Err(DtnError::DeserializationError(
+                "Data too short for DTN bundle header".into(),
+            ));
         }
 
         // Verify CRC-16
@@ -344,14 +402,17 @@ impl Bundle {
 
         // Check magic
         if data[0] != 0x33 || data[1] != 0x47 || data[2] != 0x07 {
-            return Err(DtnError::DeserializationError("Invalid BPv7 magic identifier".into()));
+            return Err(DtnError::DeserializationError(
+                "Invalid BPv7 magic identifier".into(),
+            ));
         }
 
         let mut offset = 3;
         let bundle_id = u64::from_be_bytes(data[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
-        let creation_timestamp_ms = u64::from_be_bytes(data[offset..offset + 8].try_into().unwrap());
+        let creation_timestamp_ms =
+            u64::from_be_bytes(data[offset..offset + 8].try_into().unwrap());
         offset += 8;
 
         let lifetime_ttl_ms = u64::from_be_bytes(data[offset..offset + 8].try_into().unwrap());
@@ -373,8 +434,9 @@ impl Bundle {
         // Destination EID
         let dst_len = u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap()) as usize;
         offset += 2;
-        let dst_str = String::from_utf8(data[offset..offset + dst_len].to_vec())
-            .map_err(|e| DtnError::DeserializationError(format!("Invalid Destination EID: {}", e)))?;
+        let dst_str = String::from_utf8(data[offset..offset + dst_len].to_vec()).map_err(|e| {
+            DtnError::DeserializationError(format!("Invalid Destination EID: {}", e))
+        })?;
         offset += dst_len;
 
         // Payload
@@ -404,7 +466,10 @@ impl Bundle {
 fn parse_eid(s: &str) -> Result<EndpointId, DtnError> {
     let parts: Vec<&str> = s.splitn(2, ':').collect();
     if parts.len() != 2 {
-        return Err(DtnError::InvalidEid(format!("Missing scheme colon in {}", s)));
+        return Err(DtnError::InvalidEid(format!(
+            "Missing scheme colon in {}",
+            s
+        )));
     }
     Ok(EndpointId::new(parts[0], parts[1]))
 }
@@ -470,7 +535,8 @@ impl ContactWindow {
         let progress = (current_time_ms - self.start_time_ms) as f64 / self.duration_ms() as f64;
         // Peak at progress = 0.5
         let factor = 1.0 - 4.0 * (progress - 0.5) * (progress - 0.5);
-        let elev = DEFAULT_ELEVATION_MASK_DEG + (self.max_elevation_deg - DEFAULT_ELEVATION_MASK_DEG) * factor.max(0.0);
+        let elev = DEFAULT_ELEVATION_MASK_DEG
+            + (self.max_elevation_deg - DEFAULT_ELEVATION_MASK_DEG) * factor.max(0.0);
 
         // Rate adaptation per elevation bands
         if elev >= 60.0 {
@@ -547,7 +613,8 @@ impl DtnStorageBuffer {
         self.purge_expired_bundles(current_time_ms);
 
         // If still over capacity, proactively evict lowest-priority bundles (Bulk first, then Normal)
-        while (self.current_bytes + size > self.capacity_bytes || self.total_bundle_count() >= self.max_bundle_count)
+        while (self.current_bytes + size > self.capacity_bytes
+            || self.total_bundle_count() >= self.max_bundle_count)
             && !self.bulk_queue.is_empty()
         {
             if let Some(evicted) = self.bulk_queue.pop_front() {
@@ -555,7 +622,8 @@ impl DtnStorageBuffer {
             }
         }
 
-        while (self.current_bytes + size > self.capacity_bytes || self.total_bundle_count() >= self.max_bundle_count)
+        while (self.current_bytes + size > self.capacity_bytes
+            || self.total_bundle_count() >= self.max_bundle_count)
             && !self.normal_queue.is_empty()
             && bundle.priority == BundlePriority::Urgent
         {
@@ -564,7 +632,9 @@ impl DtnStorageBuffer {
             }
         }
 
-        if self.current_bytes + size > self.capacity_bytes || self.total_bundle_count() >= self.max_bundle_count {
+        if self.current_bytes + size > self.capacity_bytes
+            || self.total_bundle_count() >= self.max_bundle_count
+        {
             return Err(DtnError::BufferFull {
                 current_bytes: self.current_bytes,
                 capacity_bytes: self.capacity_bytes,
@@ -664,7 +734,8 @@ impl NtnDtnTelemetry {
         if self.total_contact_duration_ms == 0 {
             0.0
         } else {
-            (self.active_transmission_time_ms as f64 / self.total_contact_duration_ms as f64) * 100.0
+            (self.active_transmission_time_ms as f64 / self.total_contact_duration_ms as f64)
+                * 100.0
         }
     }
 
@@ -699,7 +770,10 @@ impl NtnDtnEngine {
         Self {
             node_id,
             local_eid,
-            storage: DtnStorageBuffer::new(DEFAULT_STORAGE_CAPACITY_BYTES, DEFAULT_MAX_BUNDLE_COUNT),
+            storage: DtnStorageBuffer::new(
+                DEFAULT_STORAGE_CAPACITY_BYTES,
+                DEFAULT_MAX_BUNDLE_COUNT,
+            ),
             contact_schedule: HashMap::new(),
             current_time_ms: 0,
             telemetry: NtnDtnTelemetry::default(),
@@ -803,14 +877,18 @@ impl NtnDtnEngine {
     ///
     /// Transmits as many bundles as allowed by the instantaneous data rate and available duration.
     /// Returns the list of successfully transmitted bundles.
-    pub fn transmit_burst(&mut self, peer_node_id: u32, duration_slice_ms: u64) -> Result<Vec<Bundle>, DtnError> {
+    pub fn transmit_burst(
+        &mut self,
+        peer_node_id: u32,
+        duration_slice_ms: u64,
+    ) -> Result<Vec<Bundle>, DtnError> {
         let rate_bps = {
-            let win = self
-                .get_active_contact_window(peer_node_id)
-                .ok_or(DtnError::ContactWindowClosed {
+            let win = self.get_active_contact_window(peer_node_id).ok_or(
+                DtnError::ContactWindowClosed {
                     satellite_id: peer_node_id,
                     current_time_ms: self.current_time_ms,
-                })?;
+                },
+            )?;
             win.instantaneous_rate_bps(self.current_time_ms)
         };
 
@@ -819,7 +897,8 @@ impl NtnDtnEngine {
         }
 
         // Available bytes budget for this duration slice
-        let mut available_bytes = ((rate_bps as f64 * (duration_slice_ms as f64 / 1000.0)) / 8.0) as usize;
+        let mut available_bytes =
+            ((rate_bps as f64 * (duration_slice_ms as f64 / 1000.0)) / 8.0) as usize;
         let mut transmitted = Vec::new();
 
         while available_bytes > 0 {

@@ -169,19 +169,35 @@ impl fmt::Display for SlicingError {
         match self {
             Self::InvalidSst(val) => write!(f, "Invalid Slice/Service Type (SST): {}", val),
             Self::InvalidPolicy(val) => write!(f, "Invalid PartitionPolicy: {}", val),
-            Self::SliceAlreadyExists(key) => write!(f, "Slice key 0x{:08X} already configured", key),
+            Self::SliceAlreadyExists(key) => {
+                write!(f, "Slice key 0x{:08X} already configured", key)
+            }
             Self::SliceNotFound(key) => write!(f, "Slice key 0x{:08X} not found", key),
             Self::MaxSlicesExceeded(max) => write!(f, "Exceeded maximum slice capacity of {}", max),
-            Self::TotalMinQuotaExceeded { total_min, carrier_prbs } => {
-                write!(f, "Total min PRB quotas ({}) exceed carrier capacity ({})", total_min, carrier_prbs)
+            Self::TotalMinQuotaExceeded {
+                total_min,
+                carrier_prbs,
+            } => {
+                write!(
+                    f,
+                    "Total min PRB quotas ({}) exceed carrier capacity ({})",
+                    total_min, carrier_prbs
+                )
             }
             Self::InvalidQuota { min, max } => {
                 write!(f, "Invalid quota: min ({}) > max ({})", min, max)
             }
             Self::SerializationError(msg) => write!(f, "Slicing serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Slicing deserialization error: {}", msg),
-            Self::ChecksumMismatch { expected, calculated } => {
-                write!(f, "Slicing CRC mismatch: expected 0x{:04X}, calculated 0x{:04X}", expected, calculated)
+            Self::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "Slicing CRC mismatch: expected 0x{:04X}, calculated 0x{:04X}",
+                    expected, calculated
+                )
             }
         }
     }
@@ -318,7 +334,8 @@ impl SliceConfigFrame {
             buf.extend_from_slice(&(p.mbr_mbps as f32).to_bits().to_be_bytes());
             buf.extend_from_slice(&(p.packet_delay_budget_ms as f32).to_bits().to_be_bytes());
             buf.push(p.priority);
-            let flags: u8 = (if p.can_preempt { 1 } else { 0 }) | (if p.can_be_preempted { 2 } else { 0 });
+            let flags: u8 =
+                (if p.can_preempt { 1 } else { 0 }) | (if p.can_be_preempted { 2 } else { 0 });
             buf.push(flags);
         }
 
@@ -330,18 +347,25 @@ impl SliceConfigFrame {
     /// Decodes from binary wire format, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, SlicingError> {
         if data.len() < 11 {
-            return Err(SlicingError::DeserializationError("Buffer too short for SliceConfigFrame".into()));
+            return Err(SlicingError::DeserializationError(
+                "Buffer too short for SliceConfigFrame".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(SlicingError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(SlicingError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x53 || data[1] != 0x4C || data[2] != 0x43 || data[3] != 0x12 {
-            return Err(SlicingError::DeserializationError("Invalid SliceConfigFrame magic".into()));
+            return Err(SlicingError::DeserializationError(
+                "Invalid SliceConfigFrame magic".into(),
+            ));
         }
 
         let cell_id = u16::from_be_bytes(data[4..6].try_into().unwrap());
@@ -352,17 +376,27 @@ impl SliceConfigFrame {
 
         for _ in 0..profile_count {
             if offset + 23 > payload_len {
-                return Err(SlicingError::DeserializationError("Truncated slice profile record".into()));
+                return Err(SlicingError::DeserializationError(
+                    "Truncated slice profile record".into(),
+                ));
             }
 
             let sst = SliceServiceType::from_u8(data[offset])?;
-            let sd = ((data[offset + 1] as u32) << 16) | ((data[offset + 2] as u32) << 8) | (data[offset + 3] as u32);
+            let sd = ((data[offset + 1] as u32) << 16)
+                | ((data[offset + 2] as u32) << 8)
+                | (data[offset + 3] as u32);
             let policy = PartitionPolicy::from_u8(data[offset + 4])?;
             let min_prb = u16::from_be_bytes(data[offset + 5..offset + 7].try_into().unwrap());
             let max_prb = u16::from_be_bytes(data[offset + 7..offset + 9].try_into().unwrap());
-            let gbr = f32::from_bits(u32::from_be_bytes(data[offset + 9..offset + 13].try_into().unwrap())) as f64;
-            let mbr = f32::from_bits(u32::from_be_bytes(data[offset + 13..offset + 17].try_into().unwrap())) as f64;
-            let pdb = f32::from_bits(u32::from_be_bytes(data[offset + 17..offset + 21].try_into().unwrap())) as f64;
+            let gbr = f32::from_bits(u32::from_be_bytes(
+                data[offset + 9..offset + 13].try_into().unwrap(),
+            )) as f64;
+            let mbr = f32::from_bits(u32::from_be_bytes(
+                data[offset + 13..offset + 17].try_into().unwrap(),
+            )) as f64;
+            let pdb = f32::from_bits(u32::from_be_bytes(
+                data[offset + 17..offset + 21].try_into().unwrap(),
+            )) as f64;
             let priority = data[offset + 21];
             let flags = data[offset + 22];
             let can_preempt = (flags & 1) != 0;
@@ -578,7 +612,8 @@ impl NrSlicingRrmEngine {
 
                 // Look for victims from lowest priority upwards (higher priority value = lower priority)
                 let mut victim_indices: Vec<usize> = (0..num_slices).collect();
-                victim_indices.sort_by(|&a, &b| self.profiles[b].priority.cmp(&self.profiles[a].priority));
+                victim_indices
+                    .sort_by(|&a, &b| self.profiles[b].priority.cmp(&self.profiles[a].priority));
 
                 for &v_idx in &victim_indices {
                     if v_idx == i {
@@ -628,7 +663,8 @@ impl NrSlicingRrmEngine {
             prb_start_cursor += prb_count;
 
             // Throughput = PRBs * bits/PRB * slots/s in Mbps
-            let throughput_mbps = (prb_count as f64 * NOMINAL_BITS_PER_PRB_SLOT * SLOTS_PER_SECOND_30KHZ) / 1.0e6;
+            let throughput_mbps =
+                (prb_count as f64 * NOMINAL_BITS_PER_PRB_SLOT * SLOTS_PER_SECOND_30KHZ) / 1.0e6;
             let bytes_served = (throughput_mbps * 1.0e6 / 8.0 / SLOTS_PER_SECOND_30KHZ) as u64;
 
             // Delay SLA check

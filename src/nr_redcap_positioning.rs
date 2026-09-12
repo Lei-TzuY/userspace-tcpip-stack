@@ -416,7 +416,8 @@ impl VirtualWidebandSynthesizer {
         let overlap_sc = (config.overlap_prbs as usize) * sc_per_prb;
 
         // Allocate vector for stitched CFR
-        let total_prbs = config.hops.last().unwrap().start_prb + config.hops.last().unwrap().num_prbs;
+        let total_prbs =
+            config.hops.last().unwrap().start_prb + config.hops.last().unwrap().num_prbs;
         let total_sc = (total_prbs as usize) * sc_per_prb;
         let mut wideband_cfr = vec![Complex64::ZERO; total_sc];
         let mut sample_weights = vec![0.0_f64; total_sc];
@@ -916,7 +917,7 @@ impl MultilaterationSolver3D {
                 None => {
                     return Err(RedCapPosError::SolverDiverged(
                         "Singular J^T J matrix during Multi-RTT multilateration".to_string(),
-                    ))
+                    ));
                 }
             };
 
@@ -1121,8 +1122,7 @@ impl RedCapPositioningEngine {
                 self.metrics.successful_positions += 1;
                 let count = self.metrics.successful_positions as f64;
                 self.metrics.average_residual_rms_m =
-                    (self.metrics.average_residual_rms_m * (count - 1.0)
-                        + est.residual_rms_meters)
+                    (self.metrics.average_residual_rms_m * (count - 1.0) + est.residual_rms_meters)
                         / count;
                 Ok(est)
             }

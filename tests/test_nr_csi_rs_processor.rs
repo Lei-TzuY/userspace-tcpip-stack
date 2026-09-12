@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-18/19 CSI-RS Processor & Type I Codebook Engine.
 
 use toy_tcpip::nr_csi_rs_processor::{
+    CSIRS_WIRE_MAGIC, Complex64, CsiRsCdmType, CsiRsWirePdu, Type1CodebookConfig,
     evaluate_csi_feedback, generate_cdm_cover_code, generate_csi_rs_sequence,
-    get_csi_rs_row_config, Complex64, CsiRsCdmType, CsiRsWirePdu, Type1CodebookConfig,
-    CSIRS_WIRE_MAGIC,
+    get_csi_rs_row_config,
 };
 
 #[test]
@@ -13,7 +13,11 @@ fn test_csi_rs_gold_sequence_and_unit_power() {
 
     for sym in &seq {
         let pwr = sym.norm_sqr();
-        assert!((pwr - 1.0).abs() < 1e-6, "Expected unit power 1.0, got {}", pwr);
+        assert!(
+            (pwr - 1.0).abs() < 1e-6,
+            "Expected unit power 1.0, got {}",
+            pwr
+        );
     }
 }
 
@@ -116,7 +120,10 @@ fn test_type1_codebook_beamforming_and_cophasing() {
     for (a, b) in col1.iter().zip(col2.iter()) {
         cross = cross.add(&a.mul(&b.conj()));
     }
-    assert!(cross.norm_sqr().sqrt() < 1e-6, "Rank 2 columns must be orthogonal");
+    assert!(
+        cross.norm_sqr().sqrt() < 1e-6,
+        "Rank 2 columns must be orthogonal"
+    );
 }
 
 #[test]
@@ -144,7 +151,7 @@ fn test_end_to_end_csi_feedback_evaluation() {
     assert_eq!(report.pmi, (3, 0, 1));
     assert!(report.effective_sinr_db > 20.0);
     assert!(report.cqi >= 14); // High CQI for strong channel
-    assert_eq!(report.ri, 2);  // Multi-antenna high SNR selects Rank 2
+    assert_eq!(report.ri, 2); // Multi-antenna high SNR selects Rank 2
 }
 
 #[test]

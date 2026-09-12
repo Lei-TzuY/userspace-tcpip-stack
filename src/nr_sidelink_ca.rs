@@ -49,8 +49,15 @@ pub enum SlCaError {
     CarrierAlreadyExists(u8),
     ExceededMaxCarriers(usize),
     PrimaryCarrierMissing,
-    InsufficientSubchannels { requested: u16, available: u16 },
-    CarrierCongested { carrier_id: u8, cbr: f64, limit: f64 },
+    InsufficientSubchannels {
+        requested: u16,
+        available: u16,
+    },
+    CarrierCongested {
+        carrier_id: u8,
+        cbr: f64,
+        limit: f64,
+    },
     InvalidCif(u8),
     InvalidPriority(u8),
 }
@@ -59,7 +66,9 @@ impl std::fmt::Display for SlCaError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::CarrierNotFound(id) => write!(f, "Sidelink carrier CC#{} not found", id),
-            Self::CarrierAlreadyExists(id) => write!(f, "Sidelink carrier CC#{} already registered", id),
+            Self::CarrierAlreadyExists(id) => {
+                write!(f, "Sidelink carrier CC#{} already registered", id)
+            }
             Self::ExceededMaxCarriers(count) => {
                 write!(
                     f,
@@ -67,23 +76,36 @@ impl std::fmt::Display for SlCaError {
                     count, MAX_SL_CARRIERS
                 )
             }
-            Self::PrimaryCarrierMissing => write!(f, "Primary Sidelink Carrier (PSLCC) is not configured"),
-            Self::InsufficientSubchannels { requested, available } => {
+            Self::PrimaryCarrierMissing => {
+                write!(f, "Primary Sidelink Carrier (PSLCC) is not configured")
+            }
+            Self::InsufficientSubchannels {
+                requested,
+                available,
+            } => {
                 write!(
                     f,
                     "Insufficient subchannels: requested {}, available {}",
                     requested, available
                 )
             }
-            Self::CarrierCongested { carrier_id, cbr, limit } => {
+            Self::CarrierCongested {
+                carrier_id,
+                cbr,
+                limit,
+            } => {
                 write!(
                     f,
                     "Carrier CC#{} is congested: CBR {:.2} exceeds limit {:.2}",
                     carrier_id, cbr, limit
                 )
             }
-            Self::InvalidCif(cif) => write!(f, "Invalid Carrier Indicator Field: {} (must be 0..7)", cif),
-            Self::InvalidPriority(p) => write!(f, "Invalid Sidelink priority: {} (must be 0..7)", p),
+            Self::InvalidCif(cif) => {
+                write!(f, "Invalid Carrier Indicator Field: {} (must be 0..7)", cif)
+            }
+            Self::InvalidPriority(p) => {
+                write!(f, "Invalid Sidelink priority: {} (must be 0..7)", p)
+            }
         }
     }
 }
@@ -112,7 +134,11 @@ pub struct SlCarrierConfig {
 }
 
 impl SlCarrierConfig {
-    pub fn new_primary(carrier_freq_hz: f64, num_subchannels: u16, subchannel_size_prbs: u16) -> Self {
+    pub fn new_primary(
+        carrier_freq_hz: f64,
+        num_subchannels: u16,
+        subchannel_size_prbs: u16,
+    ) -> Self {
         Self {
             carrier_id: PRIMARY_SL_CARRIER_ID,
             carrier_freq_hz,
@@ -334,7 +360,12 @@ impl SlCaEngine {
     }
 
     /// Update Channel Busy Ratio ($CBR$) and Channel Occupancy Ratio ($CR$) for a carrier.
-    pub fn update_congestion(&mut self, carrier_id: u8, cbr: f64, cr: f64) -> Result<(), SlCaError> {
+    pub fn update_congestion(
+        &mut self,
+        carrier_id: u8,
+        cbr: f64,
+        cr: f64,
+    ) -> Result<(), SlCaError> {
         let entry = self
             .congestion
             .get_mut(&carrier_id)
@@ -387,11 +418,7 @@ impl SlCaEngine {
                 continue;
             }
 
-            let cbr = self
-                .congestion
-                .get(cid)
-                .map(|c| c.cbr)
-                .unwrap_or(1.0);
+            let cbr = self.congestion.get(cid).map(|c| c.cbr).unwrap_or(1.0);
 
             match best_secondary {
                 None => best_secondary = Some((*cid, cbr)),

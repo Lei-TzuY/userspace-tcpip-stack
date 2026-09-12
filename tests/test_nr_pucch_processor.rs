@@ -8,33 +8,67 @@ fn test_pucch_format0_cyclic_shift_and_sr_multiplexing() {
     let initial_cs = 2;
 
     // 1. 1-bit HARQ without SR
-    let cs_nack = compute_format0_cyclic_shift(initial_cs, &[0], SchedulingRequestState::None).unwrap();
+    let cs_nack =
+        compute_format0_cyclic_shift(initial_cs, &[0], SchedulingRequestState::None).unwrap();
     assert_eq!(cs_nack, (2 + 0) % 12); // NACK -> delta = 0 => cs = 2
 
-    let cs_ack = compute_format0_cyclic_shift(initial_cs, &[1], SchedulingRequestState::None).unwrap();
+    let cs_ack =
+        compute_format0_cyclic_shift(initial_cs, &[1], SchedulingRequestState::None).unwrap();
     assert_eq!(cs_ack, (2 + 6) % 12); // ACK -> delta = 6 => cs = 8
 
     // 2. 1-bit HARQ with Positive SR (TS 38.213 Table 9.2.3-3)
-    let cs_nack_pos_sr = compute_format0_cyclic_shift(initial_cs, &[0], SchedulingRequestState::Positive).unwrap();
+    let cs_nack_pos_sr =
+        compute_format0_cyclic_shift(initial_cs, &[0], SchedulingRequestState::Positive).unwrap();
     assert_eq!(cs_nack_pos_sr, (2 + 3) % 12); // NACK + pos SR -> delta = 3 => cs = 5
 
-    let cs_ack_pos_sr = compute_format0_cyclic_shift(initial_cs, &[1], SchedulingRequestState::Positive).unwrap();
+    let cs_ack_pos_sr =
+        compute_format0_cyclic_shift(initial_cs, &[1], SchedulingRequestState::Positive).unwrap();
     assert_eq!(cs_ack_pos_sr, (2 + 9) % 12); // ACK + pos SR -> delta = 9 => cs = 11
 
     // 3. 2-bit HARQ without SR (TS 38.213 Table 9.2.3-2)
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[0, 0], SchedulingRequestState::None).unwrap(), (2 + 0) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[0, 1], SchedulingRequestState::None).unwrap(), (2 + 3) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[1, 1], SchedulingRequestState::None).unwrap(), (2 + 6) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[1, 0], SchedulingRequestState::None).unwrap(), (2 + 9) % 12);
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[0, 0], SchedulingRequestState::None).unwrap(),
+        (2 + 0) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[0, 1], SchedulingRequestState::None).unwrap(),
+        (2 + 3) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[1, 1], SchedulingRequestState::None).unwrap(),
+        (2 + 6) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[1, 0], SchedulingRequestState::None).unwrap(),
+        (2 + 9) % 12
+    );
 
     // 4. 2-bit HARQ with Positive SR (TS 38.213 Table 9.2.3-4)
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[0, 0], SchedulingRequestState::Positive).unwrap(), (2 + 1) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[0, 1], SchedulingRequestState::Positive).unwrap(), (2 + 4) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[1, 1], SchedulingRequestState::Positive).unwrap(), (2 + 7) % 12);
-    assert_eq!(compute_format0_cyclic_shift(initial_cs, &[1, 0], SchedulingRequestState::Positive).unwrap(), (2 + 10) % 12);
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[0, 0], SchedulingRequestState::Positive)
+            .unwrap(),
+        (2 + 1) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[0, 1], SchedulingRequestState::Positive)
+            .unwrap(),
+        (2 + 4) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[1, 1], SchedulingRequestState::Positive)
+            .unwrap(),
+        (2 + 7) % 12
+    );
+    assert_eq!(
+        compute_format0_cyclic_shift(initial_cs, &[1, 0], SchedulingRequestState::Positive)
+            .unwrap(),
+        (2 + 10) % 12
+    );
 
     // 5. Payload too large for Format 0
-    assert!(compute_format0_cyclic_shift(initial_cs, &[1, 0, 1], SchedulingRequestState::None).is_err());
+    assert!(
+        compute_format0_cyclic_shift(initial_cs, &[1, 0, 1], SchedulingRequestState::None).is_err()
+    );
 }
 
 #[test]
@@ -99,10 +133,14 @@ fn test_pucch_resource_set_selection_and_pri_lookup() {
     assert_eq!(select_pucch_resource_set(1200), 3);
 
     // 2. Resource configuration and PRI mapping
-    let res0 = PucchResource::new(10, PucchFormat::Format0, 0, 1, 12, 2, 0, 0, false, None).unwrap();
-    let res1 = PucchResource::new(11, PucchFormat::Format0, 10, 1, 12, 2, 3, 0, false, None).unwrap();
-    let res2 = PucchResource::new(12, PucchFormat::Format0, 20, 1, 12, 2, 6, 0, false, None).unwrap();
-    let res3 = PucchResource::new(13, PucchFormat::Format0, 30, 1, 12, 2, 9, 0, false, None).unwrap();
+    let res0 =
+        PucchResource::new(10, PucchFormat::Format0, 0, 1, 12, 2, 0, 0, false, None).unwrap();
+    let res1 =
+        PucchResource::new(11, PucchFormat::Format0, 10, 1, 12, 2, 3, 0, false, None).unwrap();
+    let res2 =
+        PucchResource::new(12, PucchFormat::Format0, 20, 1, 12, 2, 6, 0, false, None).unwrap();
+    let res3 =
+        PucchResource::new(13, PucchFormat::Format0, 30, 1, 12, 2, 9, 0, false, None).unwrap();
 
     let all_resources = vec![res0.clone(), res1.clone(), res2.clone(), res3.clone()];
     let resource_set0 = PucchResourceSet::new(0, 2, vec![10, 11, 12, 13]).unwrap();
@@ -131,8 +169,8 @@ fn test_intra_and_inter_slot_frequency_hopping() {
         14,
         0,
         0,
-        true,       // intra-slot hopping enabled
-        Some(100),  // second hop PRB
+        true,      // intra-slot hopping enabled
+        Some(100), // second hop PRB
     )
     .unwrap();
 
@@ -154,8 +192,8 @@ fn test_intra_and_inter_slot_frequency_hopping() {
         14,
         0,
         0,
-        false,      // no intra-slot hopping
-        Some(120),  // inter-slot hop PRB
+        false,     // no intra-slot hopping
+        Some(120), // inter-slot hop PRB
     )
     .unwrap();
 
@@ -241,16 +279,9 @@ fn test_uci_multiplexing_and_csi_part2_dropping() {
     // Allocated: 1 PRB, 2 symbols in Format 2 -> 16 REs * 2 bits/RE = 32 coded bits
     // 78 / 32 = 2.43 > max 0.800
     // Dropping CSI Part 2 leaves 28 bits. 28 / 32 = 0.875 > max 0.800 -> code rate exceeded!
-    assert!(arbitrate_uci_multiplexing(
-        8,
-        SchedulingRequestState::None,
-        20,
-        50,
-        1,
-        2,
-        800,
-    )
-    .is_err());
+    assert!(
+        arbitrate_uci_multiplexing(8, SchedulingRequestState::None, 20, 50, 1, 2, 800,).is_err()
+    );
 
     // Recoverable overload:
     // 2 HARQ bits, 10 CSI Part 1, 20 CSI Part 2 = 32 bits

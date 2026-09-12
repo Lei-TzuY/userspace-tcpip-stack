@@ -1,10 +1,10 @@
 //! Integration tests for 3GPP Rel-18/19 Uplink Power Control, Pathloss & PHR Engine.
 
 use toy_tcpip::nr_ul_power_control::{
-    calculate_power_headroom, calculate_pucch_power, calculate_pusch_power, calculate_prach_power,
-    calculate_srs_power, resolve_simultaneous_power_scaling, ChannelPowerRequest, ChannelPriority,
-    PucchFormat, PucchPowerConfig, PuschPowerConfig, TpcLoop, TpcMode, UlPowerControlWirePdu,
-    UL_PWR_WIRE_MAGIC,
+    ChannelPowerRequest, ChannelPriority, PucchFormat, PucchPowerConfig, PuschPowerConfig, TpcLoop,
+    TpcMode, UL_PWR_WIRE_MAGIC, UlPowerControlWirePdu, calculate_power_headroom,
+    calculate_prach_power, calculate_pucch_power, calculate_pusch_power, calculate_srs_power,
+    resolve_simultaneous_power_scaling,
 };
 
 #[test]

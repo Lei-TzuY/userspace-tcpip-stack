@@ -253,12 +253,7 @@ pub struct PdschOccasion {
 
 impl PdschOccasion {
     /// Create a new dynamically scheduled PDSCH occasion.
-    pub fn new_dynamic(
-        cell_id: u8,
-        slot_index: u16,
-        harq_process_id: u8,
-        num_tb: u8,
-    ) -> Self {
+    pub fn new_dynamic(cell_id: u8, slot_index: u16, harq_process_id: u8, num_tb: u8) -> Self {
         Self {
             cell_id,
             slot_index,
@@ -406,7 +401,11 @@ impl fmt::Display for HarqCodebookError {
             Self::OccasionOverflow { count, max } => {
                 write!(f, "occasion count {} exceeds max {}", count, max)
             }
-            Self::DaiMismatch { cell_id, expected, received } => {
+            Self::DaiMismatch {
+                cell_id,
+                expected,
+                received,
+            } => {
                 write!(
                     f,
                     "DAI mismatch on cell {}: expected {} got {}",
@@ -719,9 +718,7 @@ impl HarqCodebookEngine {
         type2_config: Type2Config,
         mtrp_config: MultiTrpConfig,
     ) -> Result<Self, HarqCodebookError> {
-        if type2_config.num_cells == 0
-            || type2_config.num_cells as usize > MAX_DL_SERVING_CELLS
-        {
+        if type2_config.num_cells == 0 || type2_config.num_cells as usize > MAX_DL_SERVING_CELLS {
             return Err(HarqCodebookError::InvalidConfig(format!(
                 "num_cells {} out of range [1..{}]",
                 type2_config.num_cells, MAX_DL_SERVING_CELLS
@@ -747,10 +744,7 @@ impl HarqCodebookEngine {
     }
 
     /// Add a PDSCH reception occasion to the codebook window.
-    pub fn add_occasion(
-        &mut self,
-        occasion: PdschOccasion,
-    ) -> Result<(), HarqCodebookError> {
+    pub fn add_occasion(&mut self, occasion: PdschOccasion) -> Result<(), HarqCodebookError> {
         // Validate cell ID.
         if occasion.cell_id >= self.num_cells {
             return Err(HarqCodebookError::CellIdOutOfRange {
@@ -769,9 +763,7 @@ impl HarqCodebookEngine {
         }
 
         // For mTRP, TRP index is required.
-        if self.codebook_type == CodebookType::Type3MultiTrp
-            && occasion.trp_index.is_none()
-        {
+        if self.codebook_type == CodebookType::Type3MultiTrp && occasion.trp_index.is_none() {
             return Err(HarqCodebookError::MissingTrpIndex);
         }
 
@@ -781,8 +773,7 @@ impl HarqCodebookEngine {
             if cell_idx < self.dai_trackers.len() {
                 let tracker = &mut self.dai_trackers[cell_idx];
                 // Check for DAI mismatch (counter should match sequential order).
-                let expected_counter =
-                    (tracker.counter_dai + 1) % DAI_COUNTER_MODULO;
+                let expected_counter = (tracker.counter_dai + 1) % DAI_COUNTER_MODULO;
                 if occasion.counter_dai != expected_counter
                     && !self.occasions.is_empty()
                     && occasion.scheduling_type == PdschSchedulingType::Dynamic
@@ -905,8 +896,7 @@ impl HarqCodebookEngine {
             for slot in 0..config.monitoring_window_slots as usize {
                 for sub_slot in 0..sub_slots {
                     let key = (cell as u8, slot as u16, sub_slot as u8);
-                    let base_idx = ((cell * config.monitoring_window_slots as usize
-                        + slot)
+                    let base_idx = ((cell * config.monitoring_window_slots as usize + slot)
                         * sub_slots
                         + sub_slot)
                         * pdsch_per_slot
@@ -917,10 +907,8 @@ impl HarqCodebookEngine {
                             if pdsch_idx >= pdsch_per_slot {
                                 break;
                             }
-                            for tb in 0..occ.num_tb.min(tb_per_pdsch as u8) as usize
-                            {
-                                let bit_idx =
-                                    base_idx + pdsch_idx * tb_per_pdsch + tb;
+                            for tb in 0..occ.num_tb.min(tb_per_pdsch as u8) as usize {
+                                let bit_idx = base_idx + pdsch_idx * tb_per_pdsch + tb;
                                 if bit_idx < bits.len() {
                                     bits[bit_idx] = occ.ack_bits[tb].to_bit();
                                     if occ.ack_bits[tb] == HarqAckBit::Dtx {
@@ -1057,10 +1045,7 @@ impl HarqCodebookEngine {
         let sub1 = build_sub(&trp1_occs);
 
         // Check for DTX in either sub-codebook.
-        for occ in self
-            .occasions
-            .iter()
-        {
+        for occ in self.occasions.iter() {
             for tb in 0..occ.num_tb as usize {
                 if occ.ack_bits[tb] == HarqAckBit::Dtx {
                     contains_dtx = true;
@@ -1152,7 +1137,11 @@ pub fn select_pucch_resource(
             max_payload_bits: PUCCH_FORMAT_01_MAX_BITS,
             num_prbs: 1,
             start_symbol: 0,
-            num_symbols: if format == PucchFormat::Format0 { 2 } else { 14 },
+            num_symbols: if format == PucchFormat::Format0 {
+                2
+            } else {
+                14
+            },
         },
         PucchFormat::Format2 => {
             // For Format 2, determine number of PRBs based on bit count.
@@ -1195,8 +1184,7 @@ pub fn multiplex_priority_codebooks(
     high_priority: &AssembledCodebook,
     low_priority: &AssembledCodebook,
 ) -> AssembledCodebook {
-    let mut combined_bits =
-        Vec::with_capacity(high_priority.num_bits + low_priority.num_bits);
+    let mut combined_bits = Vec::with_capacity(high_priority.num_bits + low_priority.num_bits);
     combined_bits.extend_from_slice(&high_priority.bits);
     combined_bits.extend_from_slice(&low_priority.bits);
 
@@ -1280,8 +1268,7 @@ pub fn assemble_sub_slot_codebooks(
     max_tb: u8,
 ) -> Vec<AssembledCodebook> {
     let num_sub_slots = sub_slot_config.sub_slots_per_slot();
-    let mut sub_slot_groups: Vec<Vec<&PdschOccasion>> =
-        vec![Vec::new(); num_sub_slots];
+    let mut sub_slot_groups: Vec<Vec<&PdschOccasion>> = vec![Vec::new(); num_sub_slots];
 
     for occ in occasions {
         let idx = occ.sub_slot_index as usize;

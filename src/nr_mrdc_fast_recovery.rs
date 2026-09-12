@@ -82,7 +82,10 @@ impl fmt::Display for MrdcRecoveryError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             MrdcRecoveryError::ScgNotAvailableForRecovery => {
-                write!(f, "SCG leg not available or suspended; cannot execute Fast MCG Recovery")
+                write!(
+                    f,
+                    "SCG leg not available or suspended; cannot execute Fast MCG Recovery"
+                )
             }
             MrdcRecoveryError::McgNotAvailableForRecovery => {
                 write!(f, "MCG leg not available; cannot execute Fast SCG Recovery")
@@ -91,7 +94,11 @@ impl fmt::Display for MrdcRecoveryError {
                 write!(f, "Fast recovery procedure already in progress")
             }
             MrdcRecoveryError::RecoveryTimerExpired(timer) => {
-                write!(f, "Recovery timer {} expired; triggering legacy fallback", timer)
+                write!(
+                    f,
+                    "Recovery timer {} expired; triggering legacy fallback",
+                    timer
+                )
             }
             MrdcRecoveryError::InvalidFailureCause(val) => {
                 write!(f, "Invalid failure cause value: {}", val)
@@ -102,8 +109,15 @@ impl fmt::Display for MrdcRecoveryError {
             MrdcRecoveryError::DeserializationError(msg) => {
                 write!(f, "MR-DC recovery deserialization error: {}", msg)
             }
-            MrdcRecoveryError::ChecksumMismatch { expected, calculated } => {
-                write!(f, "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, calculated)
+            MrdcRecoveryError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, calculated
+                )
             }
             MrdcRecoveryError::InvalidCellGroup(cg) => {
                 write!(f, "Invalid cell group specified: {}", cg)
@@ -226,18 +240,25 @@ impl McgFailureInformation {
     /// Decodes from wire format binary frame, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, MrdcRecoveryError> {
         if data.len() < 8 {
-            return Err(MrdcRecoveryError::DeserializationError("Buffer too short for MCGFailureInformation".into()));
+            return Err(MrdcRecoveryError::DeserializationError(
+                "Buffer too short for MCGFailureInformation".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(MrdcRecoveryError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(MrdcRecoveryError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x4D || data[1] != 0x46 || data[2] != 0x12 {
-            return Err(MrdcRecoveryError::DeserializationError("Invalid MCGFailureInformation magic".into()));
+            return Err(MrdcRecoveryError::DeserializationError(
+                "Invalid MCGFailureInformation magic".into(),
+            ));
         }
 
         let failure_cause = McgFailureCause::from_u8(data[3])?;
@@ -249,11 +270,22 @@ impl McgFailureInformation {
         let mut serving_measurements = Vec::new();
         for _ in 0..s_count {
             let pci = u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap());
-            let rsrp = f32::from_bits(u32::from_be_bytes(data[offset + 2..offset + 6].try_into().unwrap()));
-            let rsrq = f32::from_bits(u32::from_be_bytes(data[offset + 6..offset + 10].try_into().unwrap()));
-            let sinr = f32::from_bits(u32::from_be_bytes(data[offset + 10..offset + 14].try_into().unwrap()));
+            let rsrp = f32::from_bits(u32::from_be_bytes(
+                data[offset + 2..offset + 6].try_into().unwrap(),
+            ));
+            let rsrq = f32::from_bits(u32::from_be_bytes(
+                data[offset + 6..offset + 10].try_into().unwrap(),
+            ));
+            let sinr = f32::from_bits(u32::from_be_bytes(
+                data[offset + 10..offset + 14].try_into().unwrap(),
+            ));
             offset += 14;
-            serving_measurements.push(CellMeasurementResult { pci, rsrp_dbm: rsrp, rsrq_db: rsrq, sinr_db: sinr });
+            serving_measurements.push(CellMeasurementResult {
+                pci,
+                rsrp_dbm: rsrp,
+                rsrq_db: rsrq,
+                sinr_db: sinr,
+            });
         }
 
         let n_count = data[offset] as usize;
@@ -261,11 +293,22 @@ impl McgFailureInformation {
         let mut neighbor_measurements = Vec::new();
         for _ in 0..n_count {
             let pci = u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap());
-            let rsrp = f32::from_bits(u32::from_be_bytes(data[offset + 2..offset + 6].try_into().unwrap()));
-            let rsrq = f32::from_bits(u32::from_be_bytes(data[offset + 6..offset + 10].try_into().unwrap()));
-            let sinr = f32::from_bits(u32::from_be_bytes(data[offset + 10..offset + 14].try_into().unwrap()));
+            let rsrp = f32::from_bits(u32::from_be_bytes(
+                data[offset + 2..offset + 6].try_into().unwrap(),
+            ));
+            let rsrq = f32::from_bits(u32::from_be_bytes(
+                data[offset + 6..offset + 10].try_into().unwrap(),
+            ));
+            let sinr = f32::from_bits(u32::from_be_bytes(
+                data[offset + 10..offset + 14].try_into().unwrap(),
+            ));
             offset += 14;
-            neighbor_measurements.push(CellMeasurementResult { pci, rsrp_dbm: rsrp, rsrq_db: rsrq, sinr_db: sinr });
+            neighbor_measurements.push(CellMeasurementResult {
+                pci,
+                rsrp_dbm: rsrp,
+                rsrq_db: rsrq,
+                sinr_db: sinr,
+            });
         }
 
         Ok(Self {
@@ -311,18 +354,25 @@ impl ScgFailureInformation {
 
     pub fn decode_wire(data: &[u8]) -> Result<Self, MrdcRecoveryError> {
         if data.len() < 7 {
-            return Err(MrdcRecoveryError::DeserializationError("Buffer too short for SCGFailureInformation".into()));
+            return Err(MrdcRecoveryError::DeserializationError(
+                "Buffer too short for SCGFailureInformation".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(MrdcRecoveryError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(MrdcRecoveryError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x53 || data[1] != 0x46 || data[2] != 0x12 {
-            return Err(MrdcRecoveryError::DeserializationError("Invalid SCGFailureInformation magic".into()));
+            return Err(MrdcRecoveryError::DeserializationError(
+                "Invalid SCGFailureInformation magic".into(),
+            ));
         }
 
         let failure_cause = ScgFailureCause::from_u8(data[3])?;
@@ -334,11 +384,22 @@ impl ScgFailureInformation {
         let mut measurements = Vec::new();
         for _ in 0..m_count {
             let pci = u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap());
-            let rsrp = f32::from_bits(u32::from_be_bytes(data[offset + 2..offset + 6].try_into().unwrap()));
-            let rsrq = f32::from_bits(u32::from_be_bytes(data[offset + 6..offset + 10].try_into().unwrap()));
-            let sinr = f32::from_bits(u32::from_be_bytes(data[offset + 10..offset + 14].try_into().unwrap()));
+            let rsrp = f32::from_bits(u32::from_be_bytes(
+                data[offset + 2..offset + 6].try_into().unwrap(),
+            ));
+            let rsrq = f32::from_bits(u32::from_be_bytes(
+                data[offset + 6..offset + 10].try_into().unwrap(),
+            ));
+            let sinr = f32::from_bits(u32::from_be_bytes(
+                data[offset + 10..offset + 14].try_into().unwrap(),
+            ));
             offset += 14;
-            measurements.push(CellMeasurementResult { pci, rsrp_dbm: rsrp, rsrq_db: rsrq, sinr_db: sinr });
+            measurements.push(CellMeasurementResult {
+                pci,
+                rsrp_dbm: rsrp,
+                rsrq_db: rsrq,
+                sinr_db: sinr,
+            });
         }
 
         Ok(Self {
@@ -500,10 +561,14 @@ impl MrdcFastRecoveryEngine {
     /// Restores MCG to `NormalActive` state, updates PCell PCI, stops T316, and records telemetry.
     pub fn complete_mcg_recovery(&mut self, new_pcell_pci: u16) -> Result<u64, MrdcRecoveryError> {
         if self.mcg_status != CellGroupStatus::Recovering {
-            return Err(MrdcRecoveryError::InvalidCellGroup("MCG not in recovering state".into()));
+            return Err(MrdcRecoveryError::InvalidCellGroup(
+                "MCG not in recovering state".into(),
+            ));
         }
 
-        let duration = self.current_time_ms.saturating_sub(self.recovery_start_time_ms.unwrap_or(self.current_time_ms));
+        let duration = self
+            .current_time_ms
+            .saturating_sub(self.recovery_start_time_ms.unwrap_or(self.current_time_ms));
         self.mcg_status = CellGroupStatus::NormalActive;
         self.pcell_pci = new_pcell_pci;
         self.t316_remaining_ms = None;
