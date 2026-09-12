@@ -288,6 +288,7 @@ pub mod nr_hst_sfn;
 pub mod nr_lbt_unlicensed;
 pub mod nr_low_papr_precoding;
 pub mod nr_ltm_mobility;
+pub mod nr_mac_scheduler;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_mrdc_fast_recovery;
