@@ -557,9 +557,12 @@ mod tests {
         engine.optimize_anomalous_reflection(incident, reflection);
         assert_eq!(engine.stats_reconfigurations, 1);
 
-        // Verify phase gradient along x is non-zero
+        // The standard profile uses a 2-bit (90-degree) phase quantizer, so
+        // adjacent rows may legitimately map to the same discrete state. Two
+        // row spacings are enough for this steering vector to cross a quantizer
+        // boundary; verify the x-axis phase gradient survives quantization.
         let phase_row0_col0 = engine.element_phases[0];
-        let phase_row1_col0 = engine.element_phases[engine.config.num_cols];
-        assert_ne!(phase_row0_col0, phase_row1_col0);
+        let phase_row2_col0 = engine.element_phases[2 * engine.config.num_cols];
+        assert_ne!(phase_row0_col0, phase_row2_col0);
     }
 }
