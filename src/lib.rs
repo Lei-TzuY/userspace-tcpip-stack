@@ -268,6 +268,7 @@ pub mod nr_ambient_iot;
 pub mod nr_bfr_engine;
 pub mod nr_bwp_switching;
 pub mod nr_ca_cross_carrier;
+pub mod nr_channel_estimation;
 pub mod nr_carrier_phase_rtk;
 pub mod nr_cell_free_mimo;
 pub mod nr_cell_reselection;
