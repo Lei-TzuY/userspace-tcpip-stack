@@ -297,6 +297,7 @@ pub mod nr_mac_scheduler;
 pub mod nr_mbs_ptm;
 pub mod nr_mobile_iab;
 pub mod nr_mrdc_fast_recovery;
+pub mod nr_mrdc_split_bearer;
 pub mod nr_multi_panel_stxp;
 pub mod nr_mtrp_engine;
 pub mod nr_mu_mimo_engine;
