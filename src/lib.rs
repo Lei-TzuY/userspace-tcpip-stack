@@ -289,6 +289,7 @@ pub mod nr_fr3_giga_mimo;
 pub mod nr_harq_codebook;
 pub mod nr_isac_sensing;
 pub mod nr_hst_sfn;
+pub mod nr_l4s_dualq;
 pub mod nr_lbt_unlicensed;
 pub mod nr_ldpc_decoder;
 pub mod nr_link_adaptation;
