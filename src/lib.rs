@@ -317,6 +317,7 @@ pub mod nr_ntn_regenerative;
 pub mod nr_ofdm_engine;
 pub mod nr_paging_engine;
 pub mod nr_pdcch_engine;
+pub mod nr_pdcch_power_saving;
 pub mod nr_pdsch_ldpc;
 pub mod nr_pdcp_duplication;
 pub mod nr_pei_engine;
