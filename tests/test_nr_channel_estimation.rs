@@ -334,9 +334,10 @@ fn test_mimo_equalization_2x2_zero_forcing_and_mmse() {
     h.set(1, 1, Complex32::new(1.2, 0.0));
 
     // Transmitted QPSK symbols
+    let qpsk = std::f32::consts::FRAC_1_SQRT_2;
     let x_tx = [
-        Complex32::new(0.7071, 0.7071),
-        Complex32::new(-0.7071, 0.7071),
+        Complex32::new(qpsk, qpsk),
+        Complex32::new(-qpsk, qpsk),
     ];
 
     // Received symbols Y = H * X
