@@ -70,27 +70,57 @@ impl fmt::Display for PdcchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidCoresetId(id) => write!(f, "Invalid CORESET ID: {}", id),
-            Self::InvalidDuration(dur) => write!(f, "Invalid CORESET duration {} (must be 1, 2, or 3)", dur),
-            Self::InvalidFrequencyBitmap => write!(f, "Frequency domain bitmap cannot be all zeros"),
+            Self::InvalidDuration(dur) => {
+                write!(f, "Invalid CORESET duration {} (must be 1, 2, or 3)", dur)
+            }
+            Self::InvalidFrequencyBitmap => {
+                write!(f, "Frequency domain bitmap cannot be all zeros")
+            }
             Self::InvalidBundleSize(l) => write!(f, "Invalid REG bundle size: {}", l),
             Self::InvalidInterleaverSize(r) => write!(f, "Invalid interleaver size: {}", r),
             Self::InvalidAggregationLevel(al) => write!(f, "Invalid aggregation level: {}", al),
-            Self::CandidateIndexOutOfRange { index, max_candidates } => {
-                write!(f, "Candidate index {} exceeds configured candidates {}", index, max_candidates)
+            Self::CandidateIndexOutOfRange {
+                index,
+                max_candidates,
+            } => {
+                write!(
+                    f,
+                    "Candidate index {} exceeds configured candidates {}",
+                    index, max_candidates
+                )
             }
-            Self::CceExceeded { requested_cce, total_cces } => {
-                write!(f, "Requested CCE index {} exceeds total CCEs in CORESET {}", requested_cce, total_cces)
+            Self::CceExceeded {
+                requested_cce,
+                total_cces,
+            } => {
+                write!(
+                    f,
+                    "Requested CCE index {} exceeds total CCEs in CORESET {}",
+                    requested_cce, total_cces
+                )
             }
             Self::BlindDecodingBudgetExceeded { count, limit } => {
-                write!(f, "Blind decodes {} exceeds slot capability limit {}", count, limit)
+                write!(
+                    f,
+                    "Blind decodes {} exceeds slot capability limit {}",
+                    count, limit
+                )
             }
             Self::CceBudgetExceeded { count, limit } => {
-                write!(f, "Non-overlapped CCE count {} exceeds slot capability limit {}", count, limit)
+                write!(
+                    f,
+                    "Non-overlapped CCE count {} exceeds slot capability limit {}",
+                    count, limit
+                )
             }
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             Self::CrcMismatch { expected, actual } => {
-                write!(f, "CRC mismatch: expected 0x{:04X}, actual 0x{:04X}", expected, actual)
+                write!(
+                    f,
+                    "CRC mismatch: expected 0x{:04X}, actual 0x{:04X}",
+                    expected, actual
+                )
             }
             Self::InvalidMagic(m) => write!(f, "Invalid magic: 0x{:08X}", m),
         }
@@ -164,7 +194,7 @@ impl AggregationCandidates {
 pub enum CceRegMapping {
     NonInterleaved,
     Interleaved {
-        reg_bundle_size: u8, // L in {2, 6}
+        reg_bundle_size: u8,  // L in {2, 6}
         interleaver_size: u8, // R in {2, 3, 6}
         shift_index: u16,     // n_shift in 0..=274
     },
@@ -206,7 +236,12 @@ impl CoresetConfig {
             return Err(PdcchError::InvalidFrequencyBitmap);
         }
 
-        if let CceRegMapping::Interleaved { reg_bundle_size, interleaver_size, .. } = cce_reg_mapping {
+        if let CceRegMapping::Interleaved {
+            reg_bundle_size,
+            interleaver_size,
+            ..
+        } = cce_reg_mapping
+        {
             if reg_bundle_size != 2 && reg_bundle_size != 6 && reg_bundle_size != duration_symbols {
                 return Err(PdcchError::InvalidBundleSize(reg_bundle_size));
             }
@@ -308,11 +343,11 @@ impl CoresetConfig {
 /// Common Search Space types.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CommonSearchSpaceType {
-    Type0,   // SIB1 (SI-RNTI on CORESET 0)
-    Type0A,  // Other SI (SI-RNTI)
-    Type1,   // RACH Msg2/Msg4 (RA-RNTI, TC-RNTI)
-    Type2,   // Paging (P-RNTI)
-    Type3,   // Group TPC, SFI, Cancelation (INT-RNTI, SFI-RNTI, TPC-RNTI)
+    Type0,  // SIB1 (SI-RNTI on CORESET 0)
+    Type0A, // Other SI (SI-RNTI)
+    Type1,  // RACH Msg2/Msg4 (RA-RNTI, TC-RNTI)
+    Type2,  // Paging (P-RNTI)
+    Type3,  // Group TPC, SFI, Cancelation (INT-RNTI, SFI-RNTI, TPC-RNTI)
 }
 
 /// Search Space type: Common vs UE-Specific.

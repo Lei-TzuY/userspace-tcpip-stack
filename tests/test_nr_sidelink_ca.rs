@@ -7,8 +7,8 @@
 //! 4. Multi-carrier capacity limits, resource allocation boundaries, and error conditions.
 
 use toy_tcpip::nr_sidelink_ca::{
-    SlCaEngine, SlCaError, SlCaSciFormat1A, SlCarrierConfig, DEFAULT_CBR_CONGESTION_THRESHOLD,
-    MAX_SL_CARRIERS, PRIMARY_SL_CARRIER_ID,
+    DEFAULT_CBR_CONGESTION_THRESHOLD, MAX_SL_CARRIERS, PRIMARY_SL_CARRIER_ID, SlCaEngine,
+    SlCaError, SlCaSciFormat1A, SlCarrierConfig,
 };
 
 #[test]

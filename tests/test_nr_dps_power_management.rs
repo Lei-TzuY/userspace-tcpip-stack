@@ -2,9 +2,9 @@
 //! and Dual-Connectivity Uplink Power Management Engine.
 
 use toy_tcpip::nr_dps_power_management::{
-    dbm_to_mw, mw_to_dbm, CellGroupType, DpsArbiter, DpsMode, PaArchitecture,
-    PhrEntry, PhrType, PowerControlLoop, SarGovernor, TpcAccumulationMode, TransmissionRequest,
-    UeCarrierConfig, UePowerClass, UplinkChannelType, MIN_POWER_DBM,
+    CellGroupType, DpsArbiter, DpsMode, MIN_POWER_DBM, PaArchitecture, PhrEntry, PhrType,
+    PowerControlLoop, SarGovernor, TpcAccumulationMode, TransmissionRequest, UeCarrierConfig,
+    UePowerClass, UplinkChannelType, dbm_to_mw, mw_to_dbm,
 };
 
 #[test]
@@ -42,7 +42,10 @@ fn test_ue_power_class_and_pcmax_calculation() {
     // P_CMAX_H = min(24.0, 23.0) = 23.0 dBm
     // Configured PCMAX = min(21.0, 23.0) = 21.0 dBm
     let pcmax = carrier_cfg.compute_pcmax(UePowerClass::Class3);
-    assert!((pcmax - 21.0).abs() < 1e-4, "Expected PCMAX = 21.0 dBm, got {pcmax}");
+    assert!(
+        (pcmax - 21.0).abs() < 1e-4,
+        "Expected PCMAX = 21.0 dBm, got {pcmax}"
+    );
 }
 
 #[test]
@@ -101,7 +104,9 @@ fn test_semi_static_power_partitioning() {
         },
     ];
 
-    let result = arbiter.arbitrate(&reqs, 10_000, 500).expect("Arbitration failed");
+    let result = arbiter
+        .arbitrate(&reqs, 10_000, 500)
+        .expect("Arbitration failed");
     assert!(result.power_curtailment_applied);
     assert_eq!(result.channels.len(), 2);
 
@@ -170,7 +175,10 @@ fn test_dynamic_priority_arbitration_scaling() {
     let reqs = vec![
         TransmissionRequest {
             carrier_id: 0,
-            channel_type: UplinkChannelType::PucchHarqAckSr { has_sr: true, has_bfr_sr: false },
+            channel_type: UplinkChannelType::PucchHarqAckSr {
+                has_sr: true,
+                has_bfr_sr: false,
+            },
             requested_power_dbm: 20.0,
             symbol_start: 0,
             symbol_count: 14,
@@ -188,7 +196,9 @@ fn test_dynamic_priority_arbitration_scaling() {
         },
         TransmissionRequest {
             carrier_id: 2,
-            channel_type: UplinkChannelType::Srs { is_aperiodic: false },
+            channel_type: UplinkChannelType::Srs {
+                is_aperiodic: false,
+            },
             requested_power_dbm: 17.0,
             symbol_start: 12,
             symbol_count: 2,
@@ -197,7 +207,9 @@ fn test_dynamic_priority_arbitration_scaling() {
         },
     ];
 
-    let result = arbiter.arbitrate(&reqs, 5_000, 500).expect("Arbitration failed");
+    let result = arbiter
+        .arbitrate(&reqs, 5_000, 500)
+        .expect("Arbitration failed");
     assert!(result.power_curtailment_applied);
 
     let pucch_res = result.channels.iter().find(|c| c.carrier_id == 0).unwrap();
@@ -213,7 +225,10 @@ fn test_dynamic_priority_arbitration_scaling() {
     // Beta = 99.526 / 199.526 = ~0.4988
     assert!(!pusch_res.is_dropped);
     let pusch_alloc_mw = dbm_to_mw(pusch_res.allocated_power_dbm);
-    assert!((pusch_alloc_mw - 99.526).abs() < 0.5, "PUSCH alloc was {pusch_alloc_mw} mW");
+    assert!(
+        (pusch_alloc_mw - 99.526).abs() < 0.5,
+        "PUSCH alloc was {pusch_alloc_mw} mW"
+    );
     assert!((pusch_res.scaling_factor - 0.4988).abs() < 0.01);
 
     // Priority 6 (SRS) gets 0 power and is dropped

@@ -1,9 +1,8 @@
 //! Integration tests for 3GPP Rel-18 Sidelink Relay Discovery & Reselection Engine.
 
 use toy_tcpip::nr_sidelink_relay_discovery::{
-    Pc5DiscoveryMessage, Pc5DiscoveryMessageType, RelayConnectionState,
-    RelayDiscoveryError, RelayReselectionDecision, SidelinkRelayConfig,
-    SidelinkRelayDiscoveryEngine, SidelinkRelayRole,
+    Pc5DiscoveryMessage, Pc5DiscoveryMessageType, RelayConnectionState, RelayDiscoveryError,
+    RelayReselectionDecision, SidelinkRelayConfig, SidelinkRelayDiscoveryEngine, SidelinkRelayRole,
 };
 
 #[test]
@@ -215,7 +214,11 @@ fn test_reselection_hysteresis_ping_pong_mitigation() {
     assert_eq!(dec_stay, RelayReselectionDecision::StayConnected);
 
     // Relay B improves to -85 dBm (+5 dB better, exceeds 3 dB hysteresis)
-    remote_engine.candidate_relays.get_mut(&relay_b).unwrap().pc5_rsrp_dbm = -85.0;
+    remote_engine
+        .candidate_relays
+        .get_mut(&relay_b)
+        .unwrap()
+        .pc5_rsrp_dbm = -85.0;
 
     // TTT arming at 1200
     remote_engine.evaluate_reselection(None, 1200);
@@ -295,7 +298,10 @@ fn test_multi_hop_relay_limit_and_penalty() {
     remote_engine.process_discovery_message(&msg_2hops, -80.0, 100);
     assert_eq!(remote_engine.candidate_relays.len(), 1);
 
-    let candidate = remote_engine.candidate_relays.get(&[0x22, 0x22, 0x22]).unwrap();
+    let candidate = remote_engine
+        .candidate_relays
+        .get(&[0x22, 0x22, 0x22])
+        .unwrap();
     // Bottleneck min(-80, -80) = -80. Hop penalty = (2 - 1) * 3 = 3 dB -> Metric = -83 dBm
     assert_eq!(candidate.calculate_metric(3.0), -83.0);
 }

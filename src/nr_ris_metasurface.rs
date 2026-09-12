@@ -423,7 +423,10 @@ impl RisEngine {
         let mut cascaded_sum = ComplexPhasor::zero();
         let total = self.config.total_elements();
 
-        for idx in 0..total.min(gnb_to_ris_channels.len()).min(ris_to_ue_channels.len()) {
+        for idx in 0..total
+            .min(gnb_to_ris_channels.len())
+            .min(ris_to_ue_channels.len())
+        {
             let g = gnb_to_ris_channels[idx];
             let f = ris_to_ue_channels[idx];
             let beta = self.element_amplitudes[idx];
@@ -525,8 +528,7 @@ mod tests {
         let ris_to_ue = vec![ComplexPhasor::from_polar(0.1, 0.4); 16];
 
         // Before optimization, zero phases
-        let (_, gain_before) =
-            engine.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
+        let (_, gain_before) = engine.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
 
         // Optimize for coherent alignment
         engine.optimize_coherent_alignment(direct, &gnb_to_ris, &ris_to_ue);
@@ -555,9 +557,12 @@ mod tests {
         engine.optimize_anomalous_reflection(incident, reflection);
         assert_eq!(engine.stats_reconfigurations, 1);
 
-        // Verify phase gradient along x is non-zero
+        // The standard profile uses a 2-bit (90-degree) phase quantizer, so
+        // adjacent rows may legitimately map to the same discrete state. Two
+        // row spacings are enough for this steering vector to cross a quantizer
+        // boundary; verify the x-axis phase gradient survives quantization.
         let phase_row0_col0 = engine.element_phases[0];
-        let phase_row1_col0 = engine.element_phases[engine.config.num_cols];
-        assert_ne!(phase_row0_col0, phase_row1_col0);
+        let phase_row2_col0 = engine.element_phases[2 * engine.config.num_cols];
+        assert_ne!(phase_row0_col0, phase_row2_col0);
     }
 }

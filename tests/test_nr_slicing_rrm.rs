@@ -48,7 +48,10 @@ fn test_slice_profile_validation() {
         false,
         true,
     );
-    assert!(matches!(bad_profile, Err(SlicingError::InvalidQuota { .. })));
+    assert!(matches!(
+        bad_profile,
+        Err(SlicingError::InvalidQuota { .. })
+    ));
 
     // Valid profile
     let ok_profile = SliceSlaProfile::new(
@@ -62,7 +65,8 @@ fn test_slice_profile_validation() {
         4,
         false,
         true,
-    ).unwrap();
+    )
+    .unwrap();
     assert_eq!(ok_profile.min_prb_quota, 20);
     assert_eq!(ok_profile.max_prb_quota, 60);
     assert_eq!(ok_profile.priority, 4);
@@ -83,7 +87,8 @@ fn test_add_slice_profile_and_quota_oversubscription() {
         5,
         false,
         true,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(s1).unwrap();
 
     let s2 = SliceSlaProfile::new(
@@ -97,7 +102,8 @@ fn test_add_slice_profile_and_quota_oversubscription() {
         1,
         true,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(s2).unwrap();
 
     // Duplicate slice key attempt
@@ -112,8 +118,12 @@ fn test_add_slice_profile_and_quota_oversubscription() {
         5,
         false,
         true,
-    ).unwrap();
-    assert!(matches!(engine.add_slice_profile(s_dup), Err(SlicingError::SliceAlreadyExists(_))));
+    )
+    .unwrap();
+    assert!(matches!(
+        engine.add_slice_profile(s_dup),
+        Err(SlicingError::SliceAlreadyExists(_))
+    ));
 
     // Oversubscription of guaranteed minimum quotas (40 + 40 + 30 = 110 > 100)
     let s3 = SliceSlaProfile::new(
@@ -127,8 +137,12 @@ fn test_add_slice_profile_and_quota_oversubscription() {
         3,
         false,
         true,
-    ).unwrap();
-    assert!(matches!(engine.add_slice_profile(s3), Err(SlicingError::TotalMinQuotaExceeded { .. })));
+    )
+    .unwrap();
+    assert!(matches!(
+        engine.add_slice_profile(s3),
+        Err(SlicingError::TotalMinQuotaExceeded { .. })
+    ));
 }
 
 #[test]
@@ -146,7 +160,8 @@ fn test_hard_slicing_strict_isolation() {
         2,
         false,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(s1).unwrap();
 
     // Demand 100,000 bytes (~1000 PRBs, far exceeding 20 PRBs)
@@ -179,7 +194,8 @@ fn test_soft_slicing_dynamic_bursting() {
         5,
         false,
         true,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(embb).unwrap();
 
     let miot = SliceSlaProfile::new(
@@ -193,7 +209,8 @@ fn test_soft_slicing_dynamic_bursting() {
         7,
         false,
         true,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(miot).unwrap();
 
     // MIoT has zero traffic demand; eMBB has huge traffic demand
@@ -235,7 +252,8 @@ fn test_urllc_preemption_and_dci_2_1() {
         6,     // Low priority
         false, // Cannot preempt
         true,  // Can be preempted
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(embb).unwrap();
 
     let urllc_snssai = Snssai::new(SliceServiceType::Urllc, 202);
@@ -250,7 +268,8 @@ fn test_urllc_preemption_and_dci_2_1() {
         1,    // Highest priority
         true, // Can preempt
         false,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(urllc).unwrap();
 
     // eMBB requests 80 PRBs; URLLC requests 40 PRBs
@@ -325,7 +344,8 @@ fn test_delay_budget_violation_tracking() {
         1,
         true,
         false,
-    ).unwrap();
+    )
+    .unwrap();
     engine.add_slice_profile(profile).unwrap();
 
     // Traffic arrives with head-of-line delay of 7.2 ms (> 5.0 ms PDB!)
@@ -358,7 +378,8 @@ fn test_slice_config_wire_codec_and_crc() {
         5,
         false,
         true,
-    ).unwrap();
+    )
+    .unwrap();
     let p2 = SliceSlaProfile::new(
         Snssai::new(SliceServiceType::Urllc, 0x000200),
         PartitionPolicy::HardIsolated,
@@ -370,7 +391,8 @@ fn test_slice_config_wire_codec_and_crc() {
         1,
         true,
         false,
-    ).unwrap();
+    )
+    .unwrap();
 
     let frame = SliceConfigFrame {
         cell_id: 101,

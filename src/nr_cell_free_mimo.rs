@@ -174,7 +174,9 @@ impl Complex64 {
     pub fn div(self, rhs: Self) -> Result<Self, CellFreeError> {
         let d = rhs.norm_sq();
         if d < 1e-30 {
-            return Err(CellFreeError::SingularMatrix("Complex division by zero".into()));
+            return Err(CellFreeError::SingularMatrix(
+                "Complex division by zero".into(),
+            ));
         }
         Ok(Self {
             re: (self.re * rhs.re + self.im * rhs.im) / d,
@@ -302,7 +304,9 @@ impl ComplexMatrix {
             }
 
             if max_val < 1e-30 {
-                return Err(CellFreeError::SingularMatrix("Matrix is numerically singular".into()));
+                return Err(CellFreeError::SingularMatrix(
+                    "Matrix is numerically singular".into(),
+                ));
             }
 
             // Swap rows
@@ -568,7 +572,9 @@ impl CellFreeFronthaulPdu {
     /// Deserializes the fronthaul frame from wire format, verifying magic and CRC-16.
     pub fn decode_wire(data: &[u8]) -> Result<Self, CellFreeError> {
         if data.len() < 21 {
-            return Err(CellFreeError::DeserializationError("Buffer too small for frame header".into()));
+            return Err(CellFreeError::DeserializationError(
+                "Buffer too small for frame header".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
@@ -582,7 +588,9 @@ impl CellFreeFronthaulPdu {
         }
 
         if &data[0..4] != &CELL_FREE_WIRE_MAGIC {
-            return Err(CellFreeError::DeserializationError("Invalid magic header".into()));
+            return Err(CellFreeError::DeserializationError(
+                "Invalid magic header".into(),
+            ));
         }
 
         let ap_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -592,14 +600,18 @@ impl CellFreeFronthaulPdu {
         let num_samples = u16::from_be_bytes(data[17..19].try_into().unwrap()) as usize;
 
         if data.len() != 19 + num_samples * 4 + 2 {
-            return Err(CellFreeError::DeserializationError("Sample payload length mismatch".into()));
+            return Err(CellFreeError::DeserializationError(
+                "Sample payload length mismatch".into(),
+            ));
         }
 
         let mut iq_samples = Vec::with_capacity(num_samples);
         let mut offset = 19;
         for _ in 0..num_samples {
-            let i_int = i16::from_be_bytes(data[offset..offset + 2].try_into().unwrap()) as f64 / 32767.0;
-            let q_int = i16::from_be_bytes(data[offset + 2..offset + 4].try_into().unwrap()) as f64 / 32767.0;
+            let i_int =
+                i16::from_be_bytes(data[offset..offset + 2].try_into().unwrap()) as f64 / 32767.0;
+            let q_int = i16::from_be_bytes(data[offset + 2..offset + 4].try_into().unwrap()) as f64
+                / 32767.0;
             iq_samples.push(Complex64::new(i_int, q_int));
             offset += 4;
         }
@@ -657,15 +669,24 @@ impl fmt::Display for CellFreeError {
                 write!(f, "Capacity exceeded: max {}, attempted {}", max, attempted)
             }
             CellFreeError::DimensionMismatch { expected, actual } => {
-                write!(f, "Matrix dimension mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Matrix dimension mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
             CellFreeError::SingularMatrix(msg) => write!(f, "Singular matrix error: {}", msg),
-            CellFreeError::ChecksumMismatch { expected, calculated } => write!(
+            CellFreeError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => write!(
                 f,
                 "CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
                 expected, calculated
             ),
-            CellFreeError::DeserializationError(msg) => write!(f, "Deserialization failed: {}", msg),
+            CellFreeError::DeserializationError(msg) => {
+                write!(f, "Deserialization failed: {}", msg)
+            }
         }
     }
 }
@@ -716,7 +737,9 @@ impl NrCellFreeEngine {
 
     /// Adds or updates an Access Point.
     pub fn add_access_point(&mut self, ap: AccessPointConfig) -> Result<(), CellFreeError> {
-        if self.access_points.len() >= MAX_CELL_FREE_APS && !self.access_points.contains_key(&ap.ap_id) {
+        if self.access_points.len() >= MAX_CELL_FREE_APS
+            && !self.access_points.contains_key(&ap.ap_id)
+        {
             return Err(CellFreeError::CapacityExceeded {
                 max: MAX_CELL_FREE_APS,
                 attempted: self.access_points.len() + 1,
@@ -756,7 +779,8 @@ impl NrCellFreeEngine {
             let mut ap_gains: Vec<(u32, f64)> = Vec::with_capacity(self.access_points.len());
 
             for (&ap_id, ap) in &self.access_points {
-                let pl_db = calculate_3gpp_pathloss_db(&ap.location, &ue.location, ue.carrier_freq_ghz);
+                let pl_db =
+                    calculate_3gpp_pathloss_db(&ap.location, &ue.location, ue.carrier_freq_ghz);
                 let gain = pathloss_to_linear_gain(pl_db);
                 ap_gains.push((ap_id, gain));
             }
@@ -816,7 +840,8 @@ impl NrCellFreeEngine {
         // Carrier wavelength in meters (c / f)
         let wavelength_m = 299_792_458.0 / (ue.carrier_freq_ghz * 1e9);
         let d3d = ap.location.distance_to(&ue.location);
-        let dist_phase = (2.0 * std::f64::consts::PI * (d3d / wavelength_m)) % (2.0 * std::f64::consts::PI);
+        let dist_phase =
+            (2.0 * std::f64::consts::PI * (d3d / wavelength_m)) % (2.0 * std::f64::consts::PI);
 
         // Azimuth Angle of Arrival (AoA) in radians
         let dx = ue.location.x_m - ap.location.x_m;
@@ -847,7 +872,8 @@ impl NrCellFreeEngine {
         }
 
         // Noise power across bandwidth
-        let noise_power_w = THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
+        let noise_power_w =
+            THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
 
         let mut results = HashMap::new();
         let ue_ids: Vec<u32> = self.users.keys().cloned().collect();
@@ -862,14 +888,19 @@ impl NrCellFreeEngine {
                     let target_ue = &self.users[&target_ue_id];
 
                     // For each AP in cluster, compute local filter and channel responses
-                    let mut ap_g_desired: Vec<(u32, Complex64)> = Vec::with_capacity(cluster.serving_ap_ids.len());
-                    let mut ap_v_norm_sq: Vec<f64> = Vec::with_capacity(cluster.serving_ap_ids.len());
+                    let mut ap_g_desired: Vec<(u32, Complex64)> =
+                        Vec::with_capacity(cluster.serving_ap_ids.len());
+                    let mut ap_v_norm_sq: Vec<f64> =
+                        Vec::with_capacity(cluster.serving_ap_ids.len());
                     let mut ap_weights: Vec<f64> = Vec::with_capacity(cluster.serving_ap_ids.len());
                     let mut ap_g_interf: HashMap<u32, Vec<Complex64>> = HashMap::new();
 
                     for &other_ue_id in &ue_ids {
                         if other_ue_id != target_ue_id {
-                            ap_g_interf.insert(other_ue_id, Vec::with_capacity(cluster.serving_ap_ids.len()));
+                            ap_g_interf.insert(
+                                other_ue_id,
+                                Vec::with_capacity(cluster.serving_ap_ids.len()),
+                            );
                         }
                     }
 
@@ -888,13 +919,16 @@ impl NrCellFreeEngine {
                                 let snr_scale = other_ue.tx_power_watts / noise_power_w;
                                 for r in 0..n_ant {
                                     for c in 0..n_ant {
-                                        let outer = h_other[r].mul(h_other[c].conj()).scale(snr_scale);
+                                        let outer =
+                                            h_other[r].mul(h_other[c].conj()).scale(snr_scale);
                                         cov_norm.set(r, c, cov_norm.get(r, c).add(outer));
                                     }
                                 }
                             }
 
-                            let inv_cov = cov_norm.invert().unwrap_or_else(|_| ComplexMatrix::identity(n_ant));
+                            let inv_cov = cov_norm
+                                .invert()
+                                .unwrap_or_else(|_| ComplexMatrix::identity(n_ant));
                             let v_vec = inv_cov.matvec(&h_desired).unwrap_or(h_desired.clone());
                             let mut sq = 0.0;
                             for ant in 0..n_ant {
@@ -908,7 +942,10 @@ impl NrCellFreeEngine {
                                 sq += h_desired[ant].norm_sq();
                             }
                             let norm = sq.sqrt().max(1e-12);
-                            let v_vec = h_desired.iter().map(|x| x.scale(1.0 / norm)).collect::<Vec<_>>();
+                            let v_vec = h_desired
+                                .iter()
+                                .map(|x| x.scale(1.0 / norm))
+                                .collect::<Vec<_>>();
                             (v_vec, 1.0)
                         };
 
@@ -958,7 +995,8 @@ impl NrCellFreeEngine {
                     // Total uncorrelated noise power across APs
                     let mut total_noise = 0.0;
                     for idx in 0..ap_weights.len() {
-                        total_noise += (ap_weights[idx] * ap_weights[idx]) * noise_power_w * ap_v_norm_sq[idx];
+                        total_noise +=
+                            (ap_weights[idx] * ap_weights[idx]) * noise_power_w * ap_v_norm_sq[idx];
                     }
 
                     let sinr_lin = if (total_interference + total_noise) > 1e-24 {
@@ -968,7 +1006,8 @@ impl NrCellFreeEngine {
                     };
 
                     let sinr_db = 10.0 * sinr_lin.max(1e-6).log10();
-                    let rate_mbps = (self.channel_bandwidth_hz * (1.0 + sinr_lin).log2()) / 1_000_000.0;
+                    let rate_mbps =
+                        (self.channel_bandwidth_hz * (1.0 + sinr_lin).log2()) / 1_000_000.0;
                     results.insert(target_ue_id, (sinr_db, rate_mbps));
                 }
             }
@@ -1014,8 +1053,12 @@ impl NrCellFreeEngine {
                         }
                     }
 
-                    let inv_cov = global_cov.invert().unwrap_or_else(|_| ComplexMatrix::identity(total_antennas));
-                    let v_global = inv_cov.matvec(&h_stacked_target).unwrap_or(h_stacked_target.clone());
+                    let inv_cov = global_cov
+                        .invert()
+                        .unwrap_or_else(|_| ComplexMatrix::identity(total_antennas));
+                    let v_global = inv_cov
+                        .matvec(&h_stacked_target)
+                        .unwrap_or(h_stacked_target.clone());
 
                     let mut v_dot_h = Complex64::ZERO;
                     let mut v_norm_sq = 0.0;
@@ -1039,7 +1082,8 @@ impl NrCellFreeEngine {
                         }
                         let mut v_dot_other = Complex64::ZERO;
                         for i in 0..total_antennas {
-                            v_dot_other = v_dot_other.add(v_global[i].conj().mul(h_stacked_other[i]));
+                            v_dot_other =
+                                v_dot_other.add(v_global[i].conj().mul(h_stacked_other[i]));
                         }
                         interference += other_ue.tx_power_watts * v_dot_other.norm_sq();
                     }
@@ -1052,7 +1096,8 @@ impl NrCellFreeEngine {
                     };
 
                     let sinr_db = 10.0 * sinr_lin.max(1e-6).log10();
-                    let rate_mbps = (self.channel_bandwidth_hz * (1.0 + sinr_lin).log2()) / 1_000_000.0;
+                    let rate_mbps =
+                        (self.channel_bandwidth_hz * (1.0 + sinr_lin).log2()) / 1_000_000.0;
                     results.insert(target_ue_id, (sinr_db, rate_mbps));
                 }
             }
@@ -1067,7 +1112,8 @@ impl NrCellFreeEngine {
         &self,
         precoding: DownlinkPrecodingScheme,
     ) -> Result<HashMap<u32, (f64, f64)>, CellFreeError> {
-        let noise_power_w = THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
+        let noise_power_w =
+            THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
         let mut results = HashMap::new();
         let ue_ids: Vec<u32> = self.users.keys().cloned().collect();
 
@@ -1101,7 +1147,10 @@ impl NrCellFreeEngine {
                             norm_sq += h_target[ant].norm_sq();
                         }
                         let norm = norm_sq.sqrt().max(1e-12);
-                        h_target.iter().map(|s| s.scale(1.0 / norm)).collect::<Vec<_>>()
+                        h_target
+                            .iter()
+                            .map(|s| s.scale(1.0 / norm))
+                            .collect::<Vec<_>>()
                     }
                     DownlinkPrecodingScheme::ZeroForcing => {
                         // Conjugate beamforming scaled by power for standard evaluation
@@ -1110,7 +1159,10 @@ impl NrCellFreeEngine {
                             norm_sq += h_target[ant].norm_sq();
                         }
                         let norm = norm_sq.sqrt().max(1e-12);
-                        h_target.iter().map(|s| s.scale(1.0 / norm)).collect::<Vec<_>>()
+                        h_target
+                            .iter()
+                            .map(|s| s.scale(1.0 / norm))
+                            .collect::<Vec<_>>()
                     }
                 };
 
@@ -1134,7 +1186,8 @@ impl NrCellFreeEngine {
                         let other_precoder = &precoder; // Shared aperture leakage
                         let mut cross_gain = Complex64::ZERO;
                         for ant in 0..ap.num_antennas {
-                            cross_gain = cross_gain.add(h_other[ant].conj().mul(other_precoder[ant]));
+                            cross_gain =
+                                cross_gain.add(h_other[ant].conj().mul(other_precoder[ant]));
                         }
                         rx_interference_power += (p_per_user * 0.15) * cross_gain.norm_sq();
                     }
@@ -1158,7 +1211,8 @@ impl NrCellFreeEngine {
     /// Evaluates the legacy cellular benchmark (single closest serving AP without cooperation)
     /// to quantify the cell-edge gain factor of the cell-free architecture.
     pub fn evaluate_legacy_cellular_benchmark(&self) -> HashMap<u32, (f64, f64)> {
-        let noise_power_w = THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
+        let noise_power_w =
+            THERMAL_NOISE_DENSITY_W_HZ * self.channel_bandwidth_hz * 10.0_f64.powf(5.0 / 10.0);
         let mut results = HashMap::new();
         let ue_ids: Vec<u32> = self.users.keys().cloned().collect();
 

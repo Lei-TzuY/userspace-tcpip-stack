@@ -44,13 +44,27 @@ pub struct Complex64 {
 }
 
 impl Complex64 {
-    pub fn new(re: f64, im: f64) -> Self { Self { re, im } }
-    pub fn zero() -> Self { Self { re: 0.0, im: 0.0 } }
-    pub fn from_polar(r: f64, theta: f64) -> Self {
-        Self { re: r * theta.cos(), im: r * theta.sin() }
+    pub fn new(re: f64, im: f64) -> Self {
+        Self { re, im }
     }
-    pub fn norm_sqr(&self) -> f64 { self.re * self.re + self.im * self.im }
-    pub fn conj(&self) -> Self { Self { re: self.re, im: -self.im } }
+    pub fn zero() -> Self {
+        Self { re: 0.0, im: 0.0 }
+    }
+    pub fn from_polar(r: f64, theta: f64) -> Self {
+        Self {
+            re: r * theta.cos(),
+            im: r * theta.sin(),
+        }
+    }
+    pub fn norm_sqr(&self) -> f64 {
+        self.re * self.re + self.im * self.im
+    }
+    pub fn conj(&self) -> Self {
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
+    }
     pub fn mul(&self, rhs: &Complex64) -> Self {
         Self {
             re: self.re * rhs.re - self.im * rhs.im,
@@ -58,12 +72,23 @@ impl Complex64 {
         }
     }
     pub fn add(&self, rhs: &Complex64) -> Self {
-        Self { re: self.re + rhs.re, im: self.im + rhs.im }
+        Self {
+            re: self.re + rhs.re,
+            im: self.im + rhs.im,
+        }
     }
     pub fn sub(&self, rhs: &Complex64) -> Self {
-        Self { re: self.re - rhs.re, im: self.im - rhs.im }
+        Self {
+            re: self.re - rhs.re,
+            im: self.im - rhs.im,
+        }
     }
-    pub fn scale(&self, s: f64) -> Self { Self { re: self.re * s, im: self.im * s } }
+    pub fn scale(&self, s: f64) -> Self {
+        Self {
+            re: self.re * s,
+            im: self.im * s,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -109,7 +134,9 @@ pub enum OfdmError {
 impl fmt::Display for OfdmError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            OfdmError::InvalidFftSize(n) => write!(f, "Invalid FFT size: {} (must be power of 2)", n),
+            OfdmError::InvalidFftSize(n) => {
+                write!(f, "Invalid FFT size: {} (must be power of 2)", n)
+            }
             OfdmError::InvalidNumerology(mu) => write!(f, "Invalid numerology mu: {}", mu),
             OfdmError::InvalidBitCount(b) => write!(f, "Invalid bit count: {}", b),
             OfdmError::BufferTooShort(n) => write!(f, "Buffer too short: {}", n),
@@ -262,29 +289,61 @@ pub struct Numerology {
 /// Returns standard numerology for a given $\mu$ (TS 38.211 Table 4.2-1).
 pub fn get_numerology(mu: u8) -> Result<Numerology, OfdmError> {
     match mu {
-        0 => Ok(Numerology { mu: 0, scs_khz: 15, symbols_per_slot: 14, slots_per_subframe: 1, extended_cp: false }),
-        1 => Ok(Numerology { mu: 1, scs_khz: 30, symbols_per_slot: 14, slots_per_subframe: 2, extended_cp: false }),
-        2 => Ok(Numerology { mu: 2, scs_khz: 60, symbols_per_slot: 14, slots_per_subframe: 4, extended_cp: false }),
-        3 => Ok(Numerology { mu: 3, scs_khz: 120, symbols_per_slot: 14, slots_per_subframe: 8, extended_cp: false }),
-        4 => Ok(Numerology { mu: 4, scs_khz: 240, symbols_per_slot: 14, slots_per_subframe: 16, extended_cp: false }),
+        0 => Ok(Numerology {
+            mu: 0,
+            scs_khz: 15,
+            symbols_per_slot: 14,
+            slots_per_subframe: 1,
+            extended_cp: false,
+        }),
+        1 => Ok(Numerology {
+            mu: 1,
+            scs_khz: 30,
+            symbols_per_slot: 14,
+            slots_per_subframe: 2,
+            extended_cp: false,
+        }),
+        2 => Ok(Numerology {
+            mu: 2,
+            scs_khz: 60,
+            symbols_per_slot: 14,
+            slots_per_subframe: 4,
+            extended_cp: false,
+        }),
+        3 => Ok(Numerology {
+            mu: 3,
+            scs_khz: 120,
+            symbols_per_slot: 14,
+            slots_per_subframe: 8,
+            extended_cp: false,
+        }),
+        4 => Ok(Numerology {
+            mu: 4,
+            scs_khz: 240,
+            symbols_per_slot: 14,
+            slots_per_subframe: 16,
+            extended_cp: false,
+        }),
         _ => Err(OfdmError::InvalidNumerology(mu)),
     }
 }
 
 /// Returns extended CP numerology (60 kHz SCS, 12 symbols per slot).
 pub fn get_extended_cp_numerology() -> Numerology {
-    Numerology { mu: 2, scs_khz: 60, symbols_per_slot: 12, slots_per_subframe: 4, extended_cp: true }
+    Numerology {
+        mu: 2,
+        scs_khz: 60,
+        symbols_per_slot: 12,
+        slots_per_subframe: 4,
+        extended_cp: true,
+    }
 }
 
 /// Computes cyclic prefix length in samples for a given symbol within a slot.
 /// For Normal CP (TS 38.211 §5.3.1):
 ///   First symbol of each 0.5 ms half-subframe uses extended CP (N_CP = 160 * 2^-mu * N_FFT / 2048)
 ///   All other symbols use standard CP (N_CP = 144 * 2^-mu * N_FFT / 2048).
-pub fn cyclic_prefix_length(
-    symbol_in_slot: usize,
-    n_fft: usize,
-    num: &Numerology,
-) -> usize {
+pub fn cyclic_prefix_length(symbol_in_slot: usize, n_fft: usize, num: &Numerology) -> usize {
     if num.extended_cp {
         // Extended CP: 512 * N_FFT / 2048 for all symbols
         512 * n_fft / 2048
@@ -430,11 +489,7 @@ pub fn ofdm_demodulate_symbol(
 // ---------------------------------------------------------------------------
 
 /// Applies CFO phase rotation correction: $x'(n) = x(n) \cdot e^{-j 2\pi \Delta f \cdot n / f_s}$.
-pub fn apply_cfo_correction(
-    samples: &mut [Complex64],
-    delta_f_hz: f64,
-    sample_rate_hz: f64,
-) {
+pub fn apply_cfo_correction(samples: &mut [Complex64], delta_f_hz: f64, sample_rate_hz: f64) {
     let phase_inc = -2.0 * PI * delta_f_hz / sample_rate_hz;
     for (n, s) in samples.iter_mut().enumerate() {
         let rot = Complex64::from_polar(1.0, phase_inc * (n as f64));
@@ -501,7 +556,10 @@ impl OfdmWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != OFDM_WIRE_MAGIC {
-            return Err(OfdmError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(OfdmError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let slot_idx = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);

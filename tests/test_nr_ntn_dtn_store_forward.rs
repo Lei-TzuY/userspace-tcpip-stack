@@ -93,9 +93,33 @@ fn test_multi_priority_queueing_and_preemption() {
     let dst = EndpointId::ipn(2, 1);
 
     // Insert Bulk first, then Normal, then Urgent
-    let b_bulk = Bundle::new(1, src.clone(), dst.clone(), 0, 10_000, BundlePriority::Bulk, vec![1; 100]);
-    let b_normal = Bundle::new(2, src.clone(), dst.clone(), 0, 10_000, BundlePriority::Normal, vec![2; 100]);
-    let b_urgent = Bundle::new(3, src.clone(), dst.clone(), 0, 10_000, BundlePriority::Urgent, vec![3; 100]);
+    let b_bulk = Bundle::new(
+        1,
+        src.clone(),
+        dst.clone(),
+        0,
+        10_000,
+        BundlePriority::Bulk,
+        vec![1; 100],
+    );
+    let b_normal = Bundle::new(
+        2,
+        src.clone(),
+        dst.clone(),
+        0,
+        10_000,
+        BundlePriority::Normal,
+        vec![2; 100],
+    );
+    let b_urgent = Bundle::new(
+        3,
+        src.clone(),
+        dst.clone(),
+        0,
+        10_000,
+        BundlePriority::Urgent,
+        vec![3; 100],
+    );
 
     storage.store_bundle(b_bulk, 0).unwrap();
     storage.store_bundle(b_normal, 0).unwrap();
@@ -154,9 +178,33 @@ fn test_proactive_buffer_eviction_on_overflow() {
     let dst = EndpointId::ipn(2, 1);
 
     // Wire size is ~100 bytes each
-    let b1 = Bundle::new(1, src.clone(), dst.clone(), 0, 100_000, BundlePriority::Bulk, vec![1; 40]);
-    let b2 = Bundle::new(2, src.clone(), dst.clone(), 0, 100_000, BundlePriority::Bulk, vec![2; 40]);
-    let b3 = Bundle::new(3, src.clone(), dst.clone(), 0, 100_000, BundlePriority::Bulk, vec![3; 40]);
+    let b1 = Bundle::new(
+        1,
+        src.clone(),
+        dst.clone(),
+        0,
+        100_000,
+        BundlePriority::Bulk,
+        vec![1; 40],
+    );
+    let b2 = Bundle::new(
+        2,
+        src.clone(),
+        dst.clone(),
+        0,
+        100_000,
+        BundlePriority::Bulk,
+        vec![2; 40],
+    );
+    let b3 = Bundle::new(
+        3,
+        src.clone(),
+        dst.clone(),
+        0,
+        100_000,
+        BundlePriority::Bulk,
+        vec![3; 40],
+    );
 
     storage.store_bundle(b1, 0).unwrap();
     storage.store_bundle(b2, 0).unwrap();
@@ -167,8 +215,18 @@ fn test_proactive_buffer_eviction_on_overflow() {
     assert!(initial_bytes > 250);
 
     // Now insert an Urgent bundle that would exceed 400 bytes without eviction
-    let b_urgent = Bundle::new(99, src.clone(), dst.clone(), 0, 100_000, BundlePriority::Urgent, vec![9; 80]);
-    storage.store_bundle(b_urgent, 0).expect("Eviction should free space for Urgent bundle");
+    let b_urgent = Bundle::new(
+        99,
+        src.clone(),
+        dst.clone(),
+        0,
+        100_000,
+        BundlePriority::Urgent,
+        vec![9; 80],
+    );
+    storage
+        .store_bundle(b_urgent, 0)
+        .expect("Eviction should free space for Urgent bundle");
 
     // Next popped must be the Urgent bundle
     let top = storage.pop_next_bundle().unwrap();
@@ -190,11 +248,7 @@ fn test_discontinuous_contact_store_and_forward_burst() {
     // 1. Create a 5-minute contact window with the Svalbard gateway starting 30 minutes in the future
     // AOS: 1_800_000 ms (30 min), LOS: 2_100_000 ms (35 min)
     let contact_win = ContactWindow::new(
-        1,
-        gw_node_id,
-        1_800_000,
-        2_100_000,
-        80.0,
+        1, gw_node_id, 1_800_000, 2_100_000, 80.0,
         50_000_000, // 50 Mbps high-speed X/Ka-band feeder link
     );
     satellite.add_contact_window(contact_win);

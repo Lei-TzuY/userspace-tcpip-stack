@@ -150,7 +150,11 @@ impl std::fmt::Display for MusimError {
             Self::SimNotFound(id) => write!(f, "SIM slot {:?} not configured", id),
             Self::InvalidConfiguration(msg) => write!(f, "Invalid MUSIM configuration: {}", msg),
             Self::BufferTooShort { expected, actual } => {
-                write!(f, "Buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
             Self::InvalidBitfield => write!(f, "Corrupted MUSIM binary bitfield"),
             Self::PowerConstraintViolation {
@@ -191,12 +195,7 @@ pub struct SimProfile {
 }
 
 impl SimProfile {
-    pub fn new(
-        sim_id: SimId,
-        plmn_id: [u8; 3],
-        ue_id: u64,
-        drx_cycle_frames: u32,
-    ) -> Self {
+    pub fn new(sim_id: SimId, plmn_id: [u8; 3], ue_id: u64, drx_cycle_frames: u32) -> Self {
         Self {
             sim_id,
             plmn_id,
@@ -277,7 +276,11 @@ impl MusimAssistanceInfo {
     pub fn to_bytes(&self) -> [u8; 4] {
         let mut buf = [0u8; 4];
         let b0 = ((self.preferred_drx_offset_frames & 0x0F) << 4)
-            | (if self.paging_subgrouping_requested { 0x08 } else { 0x00 });
+            | (if self.paging_subgrouping_requested {
+                0x08
+            } else {
+                0x00
+            });
         buf[0] = b0;
         let per_bytes = self.recommended_gap_periodicity_ms.to_be_bytes();
         buf[1] = per_bytes[0];
@@ -324,7 +327,12 @@ pub struct MusimGapConfig {
 }
 
 impl MusimGapConfig {
-    pub fn new(gap_id: u8, gap_length_ms: u16, gap_periodicity_ms: u16, gap_offset_ms: u16) -> Self {
+    pub fn new(
+        gap_id: u8,
+        gap_length_ms: u16,
+        gap_periodicity_ms: u16,
+        gap_offset_ms: u16,
+    ) -> Self {
         Self {
             gap_id,
             gap_length_ms,
@@ -487,11 +495,7 @@ pub struct MusimEngine {
 }
 
 impl MusimEngine {
-    pub fn new(
-        capability: MusimDeviceCapability,
-        sim_a: SimProfile,
-        sim_b: SimProfile,
-    ) -> Self {
+    pub fn new(capability: MusimDeviceCapability, sim_a: SimProfile, sim_b: SimProfile) -> Self {
         Self {
             capability,
             sim_a,
@@ -636,17 +640,18 @@ impl MusimEngine {
         }
 
         // For high-priority voice/emergency use fast MAC CE, otherwise RRCReleaseRequest
-        let action = if cause == MusimLeaveCause::EmergencyCall || cause == MusimLeaveCause::VoiceCall {
-            MusimLeaveAction::SendMacCeTemporaryLeave {
-                cause,
-                expected_duration_ms: duration_ms,
-            }
-        } else {
-            MusimLeaveAction::SendRrcLeaveRequest {
-                cause,
-                expected_duration_ms: duration_ms,
-            }
-        };
+        let action =
+            if cause == MusimLeaveCause::EmergencyCall || cause == MusimLeaveCause::VoiceCall {
+                MusimLeaveAction::SendMacCeTemporaryLeave {
+                    cause,
+                    expected_duration_ms: duration_ms,
+                }
+            } else {
+                MusimLeaveAction::SendRrcLeaveRequest {
+                    cause,
+                    expected_duration_ms: duration_ms,
+                }
+            };
 
         Ok(action)
     }

@@ -58,13 +58,21 @@ impl fmt::Display for LowPaprError {
             Self::InvalidPrbCount(prb) => write!(f, "Invalid PRB count: {}", prb),
             Self::EmptyData => write!(f, "Data payload cannot be empty"),
             Self::InvalidBitStreamLength { expected, actual } => {
-                write!(f, "Invalid bit length: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Invalid bit length: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::InvalidRollOffFactor(msg) => write!(f, "Invalid roll-off factor: {}", msg),
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             Self::CrcMismatch { expected, actual } => {
-                write!(f, "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, actual)
+                write!(
+                    f,
+                    "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, actual
+                )
             }
             Self::InvalidMagic(m) => write!(f, "Invalid PDU magic: 0x{:08X}", m),
         }
@@ -357,15 +365,9 @@ impl FdssConfig {
             let norm_x = (i as f64 + 0.5) / (transition_len as f64);
             let w = match self.filter_type {
                 FdssFilterType::Rectangular => 1.0,
-                FdssFilterType::RaisedCosine => {
-                    0.5 * (1.0 - (PI * norm_x).cos())
-                }
-                FdssFilterType::RootRaisedCosine => {
-                    (0.5 * (1.0 - (PI * norm_x).cos())).sqrt()
-                }
-                FdssFilterType::HalfSine => {
-                    (PI * 0.5 * norm_x).sin()
-                }
+                FdssFilterType::RaisedCosine => 0.5 * (1.0 - (PI * norm_x).cos()),
+                FdssFilterType::RootRaisedCosine => (0.5 * (1.0 - (PI * norm_x).cos())).sqrt(),
+                FdssFilterType::HalfSine => (PI * 0.5 * norm_x).sin(),
             };
             weights[i] = w;
             weights[m - 1 - i] = w;
@@ -588,7 +590,9 @@ pub fn generate_empirical_ccdf(
 
     let mut lcg_state = seed;
     let mut pseudo_rand_bit = || -> u8 {
-        lcg_state = lcg_state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        lcg_state = lcg_state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((lcg_state >> 32) & 1) as u8
     };
 

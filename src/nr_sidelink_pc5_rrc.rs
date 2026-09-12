@@ -97,23 +97,49 @@ impl fmt::Display for Pc5RrcError {
             Pc5RrcError::InvalidTransactionId(id) => {
                 write!(f, "Invalid PC5-RRC transaction ID: {} (valid: 0..3)", id)
             }
-            Pc5RrcError::TransactionTimeout { transaction_id, peer_l2_id } => {
-                write!(f, "PC5-RRC transaction {} to peer 0x{:06X} timed out (T400 expiry)", transaction_id, peer_l2_id)
+            Pc5RrcError::TransactionTimeout {
+                transaction_id,
+                peer_l2_id,
+            } => {
+                write!(
+                    f,
+                    "PC5-RRC transaction {} to peer 0x{:06X} timed out (T400 expiry)",
+                    transaction_id, peer_l2_id
+                )
             }
             Pc5RrcError::SlrbNotFound(id) => write!(f, "Sidelink Radio Bearer {} not found", id),
             Pc5RrcError::SlrbLimitExceeded { count, max } => {
                 write!(f, "SLRB limit exceeded: {} / {} active bearers", count, max)
             }
-            Pc5RrcError::PeerNotConnected(id) => write!(f, "Peer 0x{:06X} not in PC5-RRC connected state", id),
+            Pc5RrcError::PeerNotConnected(id) => {
+                write!(f, "Peer 0x{:06X} not in PC5-RRC connected state", id)
+            }
             Pc5RrcError::InvalidStateTransition { current, target } => {
-                write!(f, "Invalid PC5-RRC transition from {} to {}", current, target)
+                write!(
+                    f,
+                    "Invalid PC5-RRC transition from {} to {}",
+                    current, target
+                )
             }
-            Pc5RrcError::SerializationError(msg) => write!(f, "PC5-RRC serialization error: {}", msg),
-            Pc5RrcError::DeserializationError(msg) => write!(f, "PC5-RRC deserialization error: {}", msg),
-            Pc5RrcError::ChecksumMismatch { expected, calculated } => {
-                write!(f, "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, calculated)
+            Pc5RrcError::SerializationError(msg) => {
+                write!(f, "PC5-RRC serialization error: {}", msg)
             }
-            Pc5RrcError::RadioLinkFailure(msg) => write!(f, "Sidelink Radio Link Failure (SL-RLF): {}", msg),
+            Pc5RrcError::DeserializationError(msg) => {
+                write!(f, "PC5-RRC deserialization error: {}", msg)
+            }
+            Pc5RrcError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, calculated
+                )
+            }
+            Pc5RrcError::RadioLinkFailure(msg) => {
+                write!(f, "Sidelink Radio Link Failure (SL-RLF): {}", msg)
+            }
         }
     }
 }
@@ -146,7 +172,10 @@ impl Pc5RrcMessageType {
             6 => Ok(Self::RrcReestablishment),
             7 => Ok(Self::RrcReestablishmentComplete),
             8 => Ok(Self::MasterInformationBlockSidelink),
-            _ => Err(Pc5RrcError::DeserializationError(format!("Unknown PC5-RRC message type: {}", val))),
+            _ => Err(Pc5RrcError::DeserializationError(format!(
+                "Unknown PC5-RRC message type: {}",
+                val
+            ))),
         }
     }
 }
@@ -191,7 +220,9 @@ impl SlrbConfig {
             pqfi,
             pdcp_sn_size: SlPdcpSnSize::Len12Bits,
             discard_timer_ms: 100,
-            rlc_mode: SlRlcMode::Acknowledged { max_retx_threshold: DEFAULT_MAX_RETX_THRESHOLD },
+            rlc_mode: SlRlcMode::Acknowledged {
+                max_retx_threshold: DEFAULT_MAX_RETX_THRESHOLD,
+            },
             priority,
         }
     }
@@ -296,7 +327,11 @@ impl Pc5RrcMessage {
         buf.push(0x12);
 
         match self {
-            Pc5RrcMessage::RrcReconfiguration { transaction_id, slrbs_to_add, slrbs_to_release } => {
+            Pc5RrcMessage::RrcReconfiguration {
+                transaction_id,
+                slrbs_to_add,
+                slrbs_to_release,
+            } => {
                 buf.push(Pc5RrcMessageType::RrcReconfiguration as u8);
                 buf.push(*transaction_id);
                 buf.push(slrbs_to_add.len() as u8);
@@ -323,7 +358,10 @@ impl Pc5RrcMessage {
                 buf.push(*transaction_id);
             }
 
-            Pc5RrcMessage::UeCapabilityEnquiry { transaction_id, requested_bands } => {
+            Pc5RrcMessage::UeCapabilityEnquiry {
+                transaction_id,
+                requested_bands,
+            } => {
                 buf.push(Pc5RrcMessageType::UeCapabilityEnquiry as u8);
                 buf.push(*transaction_id);
                 buf.push(requested_bands.len() as u8);
@@ -332,13 +370,22 @@ impl Pc5RrcMessage {
                 }
             }
 
-            Pc5RrcMessage::UeCapabilityInformation { transaction_id, capabilities } => {
+            Pc5RrcMessage::UeCapabilityInformation {
+                transaction_id,
+                capabilities,
+            } => {
                 buf.push(Pc5RrcMessageType::UeCapabilityInformation as u8);
                 buf.push(*transaction_id);
                 let mut flags = 0u8;
-                if capabilities.supports_mode1 { flags |= 1 << 0; }
-                if capabilities.supports_mode2 { flags |= 1 << 1; }
-                if capabilities.supports_psfch_harq { flags |= 1 << 2; }
+                if capabilities.supports_mode1 {
+                    flags |= 1 << 0;
+                }
+                if capabilities.supports_mode2 {
+                    flags |= 1 << 1;
+                }
+                if capabilities.supports_psfch_harq {
+                    flags |= 1 << 2;
+                }
                 buf.push(flags);
                 buf.push(capabilities.max_modulation_order);
                 buf.push(capabilities.max_concurrent_slrbs);
@@ -356,7 +403,10 @@ impl Pc5RrcMessage {
                 buf.push(report.sl_ri);
             }
 
-            Pc5RrcMessage::RrcReestablishment { transaction_id, cause } => {
+            Pc5RrcMessage::RrcReestablishment {
+                transaction_id,
+                cause,
+            } => {
                 buf.push(Pc5RrcMessageType::RrcReestablishment as u8);
                 buf.push(*transaction_id);
                 let c_bytes = cause.as_bytes();
@@ -369,7 +419,11 @@ impl Pc5RrcMessage {
                 buf.push(*transaction_id);
             }
 
-            Pc5RrcMessage::MasterInformationBlockSidelink { direct_frame_number, direct_subframe_number, in_coverage } => {
+            Pc5RrcMessage::MasterInformationBlockSidelink {
+                direct_frame_number,
+                direct_subframe_number,
+                in_coverage,
+            } => {
                 buf.push(Pc5RrcMessageType::MasterInformationBlockSidelink as u8);
                 buf.extend_from_slice(&direct_frame_number.to_be_bytes());
                 buf.push(*direct_subframe_number);
@@ -386,7 +440,9 @@ impl Pc5RrcMessage {
     /// Decodes a PC5-RRC message from wire format, verifying magic header and CRC-16.
     pub fn decode_wire(data: &[u8]) -> Result<Self, Pc5RrcError> {
         if data.len() < 6 {
-            return Err(Pc5RrcError::DeserializationError("Data too short for PC5-RRC frame".into()));
+            return Err(Pc5RrcError::DeserializationError(
+                "Data too short for PC5-RRC frame".into(),
+            ));
         }
 
         // Verify CRC-16
@@ -394,11 +450,16 @@ impl Pc5RrcMessage {
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(Pc5RrcError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(Pc5RrcError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x52 || data[1] != 0x43 || data[2] != 0x12 {
-            return Err(Pc5RrcError::DeserializationError("Invalid PC5-RRC magic header".into()));
+            return Err(Pc5RrcError::DeserializationError(
+                "Invalid PC5-RRC magic header".into(),
+            ));
         }
 
         let msg_type = Pc5RrcMessageType::from_u8(data[3])?;
@@ -417,11 +478,14 @@ impl Pc5RrcMessage {
                     let priority = data[offset + 2];
                     let is_am = data[offset + 3] == 1;
                     let retx = data[offset + 4];
-                    let discard_timer_ms = u32::from_be_bytes(data[offset + 5..offset + 9].try_into().unwrap());
+                    let discard_timer_ms =
+                        u32::from_be_bytes(data[offset + 5..offset + 9].try_into().unwrap());
                     offset += 9;
 
                     let rlc_mode = if is_am {
-                        SlRlcMode::Acknowledged { max_retx_threshold: retx }
+                        SlRlcMode::Acknowledged {
+                            max_retx_threshold: retx,
+                        }
                     } else {
                         SlRlcMode::Unacknowledged
                     };
@@ -444,7 +508,11 @@ impl Pc5RrcMessage {
                     offset += 1;
                 }
 
-                Ok(Pc5RrcMessage::RrcReconfiguration { transaction_id, slrbs_to_add, slrbs_to_release })
+                Ok(Pc5RrcMessage::RrcReconfiguration {
+                    transaction_id,
+                    slrbs_to_add,
+                    slrbs_to_release,
+                })
             }
 
             Pc5RrcMessageType::RrcReconfigurationComplete => {
@@ -459,10 +527,15 @@ impl Pc5RrcMessage {
                 offset += 1;
                 let mut requested_bands = Vec::new();
                 for _ in 0..band_count {
-                    requested_bands.push(u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap()));
+                    requested_bands.push(u16::from_be_bytes(
+                        data[offset..offset + 2].try_into().unwrap(),
+                    ));
                     offset += 2;
                 }
-                Ok(Pc5RrcMessage::UeCapabilityEnquiry { transaction_id, requested_bands })
+                Ok(Pc5RrcMessage::UeCapabilityEnquiry {
+                    transaction_id,
+                    requested_bands,
+                })
             }
 
             Pc5RrcMessageType::UeCapabilityInformation => {
@@ -476,7 +549,9 @@ impl Pc5RrcMessage {
 
                 let mut supported_bands = Vec::new();
                 for _ in 0..band_count {
-                    supported_bands.push(u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap()));
+                    supported_bands.push(u16::from_be_bytes(
+                        data[offset..offset + 2].try_into().unwrap(),
+                    ));
                     offset += 2;
                 }
 
@@ -488,7 +563,10 @@ impl Pc5RrcMessage {
                     max_concurrent_slrbs: max_slrbs,
                     supported_bands,
                 };
-                Ok(Pc5RrcMessage::UeCapabilityInformation { transaction_id, capabilities })
+                Ok(Pc5RrcMessage::UeCapabilityInformation {
+                    transaction_id,
+                    capabilities,
+                })
             }
 
             Pc5RrcMessageType::MeasurementReport => {
@@ -513,7 +591,10 @@ impl Pc5RrcMessage {
                 offset += 1;
                 let cause = String::from_utf8(data[offset..offset + len].to_vec())
                     .map_err(|e| Pc5RrcError::DeserializationError(e.to_string()))?;
-                Ok(Pc5RrcMessage::RrcReestablishment { transaction_id, cause })
+                Ok(Pc5RrcMessage::RrcReestablishment {
+                    transaction_id,
+                    cause,
+                })
             }
 
             Pc5RrcMessageType::RrcReestablishmentComplete => {
@@ -522,7 +603,8 @@ impl Pc5RrcMessage {
             }
 
             Pc5RrcMessageType::MasterInformationBlockSidelink => {
-                let direct_frame_number = u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap());
+                let direct_frame_number =
+                    u16::from_be_bytes(data[offset..offset + 2].try_into().unwrap());
                 let direct_subframe_number = data[offset + 2];
                 let in_coverage = data[offset + 3] == 1;
                 Ok(Pc5RrcMessage::MasterInformationBlockSidelink {
@@ -638,7 +720,8 @@ impl Pc5RrcEngine {
 
     fn get_next_transaction_id(&mut self) -> u8 {
         let id = self.next_transaction_id;
-        self.next_transaction_id = (self.next_transaction_id + 1) % (MAX_PC5_RRC_TRANSACTION_ID + 1);
+        self.next_transaction_id =
+            (self.next_transaction_id + 1) % (MAX_PC5_RRC_TRANSACTION_ID + 1);
         id
     }
 
@@ -648,7 +731,10 @@ impl Pc5RrcEngine {
 
     /// Initiates a PC5-RRC connection to `peer_l2_id` following PC5-S security setup.
     pub fn initiate_connection(&mut self, peer_l2_id: u32) -> Result<(), Pc5RrcError> {
-        let peer = self.peers.entry(peer_l2_id).or_insert_with(|| Pc5RrcPeerContext::new(peer_l2_id));
+        let peer = self
+            .peers
+            .entry(peer_l2_id)
+            .or_insert_with(|| Pc5RrcPeerContext::new(peer_l2_id));
         if peer.state != Pc5RrcState::Disconnected && peer.state != Pc5RrcState::RlfDetected {
             return Err(Pc5RrcError::InvalidStateTransition {
                 current: format!("{:?}", peer.state),
@@ -682,7 +768,10 @@ impl Pc5RrcEngine {
         slrbs_to_release: Vec<u8>,
     ) -> Result<Pc5RrcMessage, Pc5RrcError> {
         let tx_id = self.get_next_transaction_id();
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
 
         if peer.state != Pc5RrcState::Connected {
             return Err(Pc5RrcError::PeerNotConnected(peer_l2_id));
@@ -714,7 +803,10 @@ impl Pc5RrcEngine {
         slrbs_to_add: Vec<SlrbConfig>,
         slrbs_to_release: Vec<u8>,
     ) -> Result<Pc5RrcMessage, Pc5RrcError> {
-        let peer = self.peers.entry(peer_l2_id).or_insert_with(|| Pc5RrcPeerContext::new(peer_l2_id));
+        let peer = self
+            .peers
+            .entry(peer_l2_id)
+            .or_insert_with(|| Pc5RrcPeerContext::new(peer_l2_id));
         peer.state = Pc5RrcState::Connected;
 
         for slrb in slrbs_to_add {
@@ -740,7 +832,10 @@ impl Pc5RrcEngine {
         applied_adds: Vec<SlrbConfig>,
         applied_releases: Vec<u8>,
     ) -> Result<(), Pc5RrcError> {
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
 
         if peer.active_transaction_id != Some(transaction_id) {
             return Err(Pc5RrcError::InvalidTransactionId(transaction_id));
@@ -769,13 +864,23 @@ impl Pc5RrcEngine {
     // -----------------------------------------------------------------------
 
     /// Prepares a `UECapabilityEnquirySidelink` message.
-    pub fn prepare_capability_enquiry(&mut self, peer_l2_id: u32, requested_bands: Vec<u16>) -> Result<Pc5RrcMessage, Pc5RrcError> {
+    pub fn prepare_capability_enquiry(
+        &mut self,
+        peer_l2_id: u32,
+        requested_bands: Vec<u16>,
+    ) -> Result<Pc5RrcMessage, Pc5RrcError> {
         let tx_id = self.get_next_transaction_id();
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
         peer.active_transaction_id = Some(tx_id);
         peer.t400_remaining_ms = Some(DEFAULT_T400_TIMEOUT_MS);
 
-        Ok(Pc5RrcMessage::UeCapabilityEnquiry { transaction_id: tx_id, requested_bands })
+        Ok(Pc5RrcMessage::UeCapabilityEnquiry {
+            transaction_id: tx_id,
+            requested_bands,
+        })
     }
 
     /// Processes `UECapabilityInformationSidelink` received from peer.
@@ -784,7 +889,10 @@ impl Pc5RrcEngine {
         peer_l2_id: u32,
         capabilities: SlUeCapabilities,
     ) -> Result<(), Pc5RrcError> {
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
         peer.peer_capabilities = Some(capabilities);
         peer.active_transaction_id = None;
         peer.t400_remaining_ms = None;
@@ -803,7 +911,10 @@ impl Pc5RrcEngine {
         report: SlMeasurementReport,
         filter_alpha: f32,
     ) -> Result<(), Pc5RrcError> {
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
 
         let filtered_rsrp = match peer.filtered_rsrp_dbm {
             Some(prev) => (1.0 - filter_alpha) * prev + filter_alpha * report.peer_rsrp_dbm,
@@ -822,8 +933,15 @@ impl Pc5RrcEngine {
     // -----------------------------------------------------------------------
 
     /// Reports an RLC transmission outcome. If consecutive failures exceed threshold, triggers SL-RLF.
-    pub fn notify_rlc_transmission_failure(&mut self, peer_l2_id: u32, slrb_id: u8) -> Result<bool, Pc5RrcError> {
-        let peer = self.peers.get_mut(&peer_l2_id).ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
+    pub fn notify_rlc_transmission_failure(
+        &mut self,
+        peer_l2_id: u32,
+        slrb_id: u8,
+    ) -> Result<bool, Pc5RrcError> {
+        let peer = self
+            .peers
+            .get_mut(&peer_l2_id)
+            .ok_or(Pc5RrcError::PeerNotConnected(peer_l2_id))?;
         let threshold = match peer.active_slrbs.get(&slrb_id) {
             Some(cfg) => match cfg.rlc_mode {
                 SlRlcMode::Acknowledged { max_retx_threshold } => max_retx_threshold,
@@ -863,7 +981,13 @@ impl Pc5RrcEngine {
                     peer.t400_remaining_ms = None;
                     let tx_id = peer.active_transaction_id.unwrap_or(0);
                     peer.state = Pc5RrcState::RlfDetected;
-                    rlf_events.push((peer_id, Pc5RrcError::TransactionTimeout { transaction_id: tx_id, peer_l2_id: peer_id }));
+                    rlf_events.push((
+                        peer_id,
+                        Pc5RrcError::TransactionTimeout {
+                            transaction_id: tx_id,
+                            peer_l2_id: peer_id,
+                        },
+                    ));
                 } else {
                     peer.t400_remaining_ms = Some(remaining - delta_ms);
                 }

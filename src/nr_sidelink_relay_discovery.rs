@@ -130,7 +130,11 @@ impl std::fmt::Display for RelayDiscoveryError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::BufferTooShort { expected, actual } => {
-                write!(f, "Buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
             Self::InvalidMessageType(t) => write!(f, "Invalid PC5-D message type: 0x{:02X}", t),
             Self::InvalidRelayServiceCode => write!(f, "Invalid 24-bit Relay Service Code"),
@@ -379,7 +383,10 @@ impl SidelinkRelayDiscoveryEngine {
     }
 
     /// Generate Model A Relay Discovery Announcement (transmitting by Relay UE).
-    pub fn generate_announcement(&self, uu_rsrp_dbm: f64) -> Result<Pc5DiscoveryMessage, RelayDiscoveryError> {
+    pub fn generate_announcement(
+        &self,
+        uu_rsrp_dbm: f64,
+    ) -> Result<Pc5DiscoveryMessage, RelayDiscoveryError> {
         Ok(Pc5DiscoveryMessage {
             msg_type: Pc5DiscoveryMessageType::Announcement,
             relay_service_code: self.supported_rsc,
@@ -471,7 +478,8 @@ impl SidelinkRelayDiscoveryEngine {
                             self.stats_reselections_executed += 1;
                             return RelayReselectionDecision::SwitchToDirectUu {
                                 direct_uu_rsrp_dbm: uu_rsrp,
-                                reason: "Direct Uu RSRP exceeds high threshold + hysteresis".to_string(),
+                                reason: "Direct Uu RSRP exceeds high threshold + hysteresis"
+                                    .to_string(),
                             };
                         }
                     } else {
@@ -514,9 +522,7 @@ impl SidelinkRelayDiscoveryEngine {
 
         // Determine if target candidate satisfies re-selection hysteresis over active link
         let current_active_metric = match &self.connection_state {
-            RelayConnectionState::DirectUu => {
-                direct_uu_rsrp_dbm.unwrap_or(-140.0)
-            }
+            RelayConnectionState::DirectUu => direct_uu_rsrp_dbm.unwrap_or(-140.0),
             RelayConnectionState::ConnectedViaRelay { relay_l2_id, .. } => {
                 if let Some(current_relay) = self.candidate_relays.get(relay_l2_id) {
                     current_relay.calculate_metric(self.config.hop_penalty_db)
@@ -584,9 +590,8 @@ impl SidelinkRelayDiscoveryEngine {
     /// Prune expired candidate entries from local database.
     pub fn prune_stale_relays(&mut self, now_ms: u64) {
         let expiry = self.config.relay_expiry_ms;
-        self.candidate_relays.retain(|_, candidate| {
-            now_ms.saturating_sub(candidate.last_seen_ms) <= expiry
-        });
+        self.candidate_relays
+            .retain(|_, candidate| now_ms.saturating_sub(candidate.last_seen_ms) <= expiry);
     }
 }
 

@@ -1,8 +1,8 @@
 //! Integration tests for 3GPP Rel-18/19 Radio Link Monitoring (RLM) & RLF Engine.
 
 use toy_tcpip::nr_rlm_engine::{
-    evaluate_l1_indications, L1RlmIndication, NrRlmEngine, RlfCause, RlmConfig, RlmRsMeasurement,
-    RlmRsType, RlmState, RlmWirePdu, RLM_WIRE_MAGIC,
+    L1RlmIndication, NrRlmEngine, RLM_WIRE_MAGIC, RlfCause, RlmConfig, RlmRsMeasurement, RlmRsType,
+    RlmState, RlmWirePdu, evaluate_l1_indications,
 };
 
 #[test]
@@ -13,24 +13,51 @@ fn test_l1_qout_and_qin_threshold_evaluation() {
 
     // 1. All measurements below Q_out => OutOfSync
     let oos_meas = vec![
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 0 }, sinr_db: -4.5 },
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 1 }, sinr_db: -6.0 },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 0 },
+            sinr_db: -4.5,
+        },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 1 },
+            sinr_db: -6.0,
+        },
     ];
-    assert_eq!(evaluate_l1_indications(&oos_meas, &cfg).unwrap(), L1RlmIndication::OutOfSync);
+    assert_eq!(
+        evaluate_l1_indications(&oos_meas, &cfg).unwrap(),
+        L1RlmIndication::OutOfSync
+    );
 
     // 2. At least one measurement above Q_in => InSync
     let is_meas = vec![
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 0 }, sinr_db: -5.0 },
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 1 }, sinr_db: 1.5 },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 0 },
+            sinr_db: -5.0,
+        },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 1 },
+            sinr_db: 1.5,
+        },
     ];
-    assert_eq!(evaluate_l1_indications(&is_meas, &cfg).unwrap(), L1RlmIndication::InSync);
+    assert_eq!(
+        evaluate_l1_indications(&is_meas, &cfg).unwrap(),
+        L1RlmIndication::InSync
+    );
 
     // 3. Between Q_out and Q_in => Indeterminate
     let indet_meas = vec![
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 0 }, sinr_db: -2.0 },
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 1 }, sinr_db: -1.0 },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 0 },
+            sinr_db: -2.0,
+        },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 1 },
+            sinr_db: -1.0,
+        },
     ];
-    assert_eq!(evaluate_l1_indications(&indet_meas, &cfg).unwrap(), L1RlmIndication::Indeterminate);
+    assert_eq!(
+        evaluate_l1_indications(&indet_meas, &cfg).unwrap(),
+        L1RlmIndication::Indeterminate
+    );
 }
 
 #[test]
@@ -50,7 +77,10 @@ fn test_rlm_n310_consecutive_out_of_sync_starts_t310() {
 
     // 5th OutOfSync reaches N310 => T310 starts running
     engine.process_l1_indication(L1RlmIndication::OutOfSync);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 1000 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 1000 }
+    );
 }
 
 #[test]
@@ -62,17 +92,25 @@ fn test_rlm_t310_expiration_triggers_rlf() {
     let mut engine = NrRlmEngine::new(cfg).unwrap();
     engine.process_l1_indication(L1RlmIndication::OutOfSync);
     engine.process_l1_indication(L1RlmIndication::OutOfSync);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 1000 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 1000 }
+    );
 
     // Advance 400 ms
     engine.advance_time_ms(400);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 600 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 600 }
+    );
 
     // Advance remaining 600 ms => T310 expires
     engine.advance_time_ms(600);
     assert_eq!(
         engine.state(),
-        RlmState::RadioLinkFailureDeclared { cause: RlfCause::T310Expiry }
+        RlmState::RadioLinkFailureDeclared {
+            cause: RlfCause::T310Expiry
+        }
     );
     assert_eq!(engine.total_rlf_count, 1);
 }
@@ -86,11 +124,17 @@ fn test_rlm_n311_consecutive_in_sync_recovers_link() {
 
     let mut engine = NrRlmEngine::new(cfg).unwrap();
     engine.process_l1_indication(L1RlmIndication::OutOfSync);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 1000 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 1000 }
+    );
 
     // 1st InSync: counter advances, T310 still active
     engine.process_l1_indication(L1RlmIndication::InSync);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 1000 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 1000 }
+    );
     assert_eq!(engine.is_counter, 1);
 
     // 2nd InSync: reaches N311 => Link recovered back to NormalInSync!
@@ -108,7 +152,10 @@ fn test_rlm_t312_fast_early_recovery_acceleration() {
 
     let mut engine = NrRlmEngine::new(cfg).unwrap();
     engine.process_l1_indication(L1RlmIndication::OutOfSync);
-    assert_eq!(engine.state(), RlmState::DegradedT310Running { remaining_ms: 1000 });
+    assert_eq!(
+        engine.state(),
+        RlmState::DegradedT310Running { remaining_ms: 1000 }
+    );
 
     // Measurement report triggered (e.g. Event A3 for handover attempt)
     engine.on_measurement_report_triggered();
@@ -124,7 +171,9 @@ fn test_rlm_t312_fast_early_recovery_acceleration() {
     engine.advance_time_ms(100);
     assert_eq!(
         engine.state(),
-        RlmState::RadioLinkFailureDeclared { cause: RlfCause::T312Expiry }
+        RlmState::RadioLinkFailureDeclared {
+            cause: RlfCause::T312Expiry
+        }
     );
     assert_eq!(engine.total_rlf_count, 1);
 }
@@ -138,8 +187,14 @@ fn test_rlm_multi_trp_resilience_against_single_trp_blockage() {
 
     // TRP 0 is obstructed (-8.0 dB < Q_out), but TRP 1 has strong line-of-sight (+2.0 dB > Q_in)
     let mtrp_meas = vec![
-        RlmRsMeasurement { rs: RlmRsType::Ssb { ssb_index: 0 }, sinr_db: -8.0 },
-        RlmRsMeasurement { rs: RlmRsType::CsiRs { resource_id: 1 }, sinr_db: 2.0 },
+        RlmRsMeasurement {
+            rs: RlmRsType::Ssb { ssb_index: 0 },
+            sinr_db: -8.0,
+        },
+        RlmRsMeasurement {
+            rs: RlmRsType::CsiRs { resource_id: 1 },
+            sinr_db: 2.0,
+        },
     ];
 
     let ind = evaluate_l1_indications(&mtrp_meas, &cfg).unwrap();
@@ -155,7 +210,9 @@ fn test_rlm_external_failure_triggers_rach_and_rlc() {
     engine.trigger_external_failure(RlfCause::RandomAccessProblem);
     assert_eq!(
         engine.state(),
-        RlmState::RadioLinkFailureDeclared { cause: RlfCause::RandomAccessProblem }
+        RlmState::RadioLinkFailureDeclared {
+            cause: RlfCause::RandomAccessProblem
+        }
     );
 
     // Start RRC connection re-establishment (T311)

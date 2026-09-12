@@ -102,7 +102,9 @@ fn test_dci_explicit_group_switching_with_delay() {
     let mut engine = create_test_engine(5, 2, 1); // P_switch = 2 slots delay
 
     // At slot 10, UE receives DCI commanding switch to Group 1
-    engine.handle_dci(Some(SearchSpaceGroup::Group1), None).unwrap();
+    engine
+        .handle_dci(Some(SearchSpaceGroup::Group1), None)
+        .unwrap();
 
     // Slot 10: Delay remaining = 2 -> not switched yet
     let dec10 = engine.advance_slot(10);
@@ -128,7 +130,9 @@ fn test_search_space_switch_timer_autonomous_fallback() {
     let mut engine = create_test_engine(3, 0, 0); // Timer = 3 slots, 0 delay for immediate switch
 
     // Switch to Group 1 immediately
-    engine.handle_dci(Some(SearchSpaceGroup::Group1), None).unwrap();
+    engine
+        .handle_dci(Some(SearchSpaceGroup::Group1), None)
+        .unwrap();
     assert_eq!(engine.active_group(), SearchSpaceGroup::Group1);
     assert_eq!(engine.remaining_timer(), Some(3));
 
@@ -157,7 +161,9 @@ fn test_timer_restart_on_subsequent_dci_in_group1() {
     let mut engine = create_test_engine(4, 0, 0);
 
     // Switch to Group 1
-    engine.handle_dci(Some(SearchSpaceGroup::Group1), None).unwrap();
+    engine
+        .handle_dci(Some(SearchSpaceGroup::Group1), None)
+        .unwrap();
     assert_eq!(engine.remaining_timer(), Some(4));
 
     // Slot 1: Decrements to 3
@@ -187,7 +193,9 @@ fn test_pdcch_skipping_uss_while_preserving_css() {
     let mut engine = create_test_engine(10, 0, 1); // P_skip = 1 slot delay
 
     // Switch to Group 1 for dense monitoring
-    engine.handle_dci(Some(SearchSpaceGroup::Group1), None).unwrap();
+    engine
+        .handle_dci(Some(SearchSpaceGroup::Group1), None)
+        .unwrap();
     assert_eq!(engine.active_group(), SearchSpaceGroup::Group1);
 
     // DCI arrives commanding skipping duration index 2 (corresponds to 4 slots)

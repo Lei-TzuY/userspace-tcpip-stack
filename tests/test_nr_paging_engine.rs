@@ -10,10 +10,10 @@
 //! - Binary wire framing (`PagingWirePdu`) with magic `0x50414745` ("PAGE") and CRC-16 CCITT validation.
 
 use toy_tcpip::nr_paging_engine::{
-    check_paging_records, compute_paging_subgroup_id, compute_po_index, is_paging_frame,
-    next_paging_frame, NumberOfPagingOccasions, PagingCause, PagingConfig, PagingDrxCycle,
-    PagingError, PagingRecord, PagingWirePdu, ShortMessage, UePagingIdentity, P_RNTI,
-    SHORT_MSG_ETWS_CMAS_IND, SHORT_MSG_STOP_PAGING_MON, SHORT_MSG_SYS_INFO_MOD,
+    NumberOfPagingOccasions, P_RNTI, PagingCause, PagingConfig, PagingDrxCycle, PagingError,
+    PagingRecord, PagingWirePdu, SHORT_MSG_ETWS_CMAS_IND, SHORT_MSG_STOP_PAGING_MON,
+    SHORT_MSG_SYS_INFO_MOD, ShortMessage, UePagingIdentity, check_paging_records,
+    compute_paging_subgroup_id, compute_po_index, is_paging_frame, next_paging_frame,
 };
 
 // ---------------------------------------------------------------------------
@@ -25,13 +25,8 @@ fn test_paging_config_validation() {
     assert_eq!(P_RNTI, 0xFFFE);
 
     // Valid configuration: T=64, N=32 (divides 64), Ns=2, offset=0
-    let config = PagingConfig::new(
-        PagingDrxCycle::Rf64,
-        32,
-        NumberOfPagingOccasions::Two,
-        0,
-    )
-    .unwrap();
+    let config =
+        PagingConfig::new(PagingDrxCycle::Rf64, 32, NumberOfPagingOccasions::Two, 0).unwrap();
     assert_eq!(config.drx_cycle.frames(), 64);
     assert_eq!(config.n, 32);
     assert_eq!(config.ns as u8, 2);
@@ -55,13 +50,8 @@ fn test_paging_config_validation() {
 
 #[test]
 fn test_is_paging_frame_and_po_index_calculation() {
-    let config = PagingConfig::new(
-        PagingDrxCycle::Rf64,
-        32,
-        NumberOfPagingOccasions::Two,
-        0,
-    )
-    .unwrap();
+    let config =
+        PagingConfig::new(PagingDrxCycle::Rf64, 32, NumberOfPagingOccasions::Two, 0).unwrap();
 
     // 5G-S-TMSI = 0x0001_0000_0087 (ue_id = 135)
     let ue_identity = UePagingIdentity::Ng5gSTmsi(135);
@@ -93,13 +83,8 @@ fn test_is_paging_frame_and_po_index_calculation() {
 #[test]
 fn test_paging_frame_with_offset() {
     // Config with PF offset = 5
-    let config = PagingConfig::new(
-        PagingDrxCycle::Rf64,
-        32,
-        NumberOfPagingOccasions::One,
-        5,
-    )
-    .unwrap();
+    let config =
+        PagingConfig::new(PagingDrxCycle::Rf64, 32, NumberOfPagingOccasions::One, 5).unwrap();
 
     let ue_id = 7; // (7 % 32) * 2 = 14
     // (SFN + 5) % 64 == 14 -> SFN % 64 == 9
@@ -114,13 +99,8 @@ fn test_paging_frame_with_offset() {
 
 #[test]
 fn test_next_paging_frame_search_and_wraparound() {
-    let config = PagingConfig::new(
-        PagingDrxCycle::Rf128,
-        64,
-        NumberOfPagingOccasions::Two,
-        0,
-    )
-    .unwrap();
+    let config =
+        PagingConfig::new(PagingDrxCycle::Rf128, 64, NumberOfPagingOccasions::Two, 0).unwrap();
 
     let ue_id = 10; // (10 % 64) * (128/64) = 20 -> SFN % 128 == 20
     // SFN targets: 20, 148, 276, 404, 532, 660, 788, 916
@@ -141,13 +121,8 @@ fn test_next_paging_frame_search_and_wraparound() {
 
 #[test]
 fn test_rel18_paging_subgrouping() {
-    let config = PagingConfig::new(
-        PagingDrxCycle::Rf64,
-        32,
-        NumberOfPagingOccasions::Two,
-        0,
-    )
-    .unwrap();
+    let config =
+        PagingConfig::new(PagingDrxCycle::Rf64, 32, NumberOfPagingOccasions::Two, 0).unwrap();
 
     // Denominator = N * Ns = 32 * 2 = 64
     let n_subgroups = 4u8;

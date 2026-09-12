@@ -41,13 +41,22 @@ pub const SYMBOLS_PER_SLOT: usize = 14;
 pub enum ChannelEstimationError {
     InvalidPrbCount(usize),
     InvalidSymbolIndex(usize),
-    DimensionMismatch { expected: (usize, usize), found: (usize, usize) },
+    DimensionMismatch {
+        expected: (usize, usize),
+        found: (usize, usize),
+    },
     SingularMatrix,
     EmptyBuffer,
     InvalidPort(u16),
     InvalidWireMagic(u32),
-    WirePayloadTooShort { needed: usize, found: usize },
-    WireCrcMismatch { expected: u16, computed: u16 },
+    WirePayloadTooShort {
+        needed: usize,
+        found: usize,
+    },
+    WireCrcMismatch {
+        expected: u16,
+        computed: u16,
+    },
 }
 
 impl fmt::Display for ChannelEstimationError {
@@ -56,17 +65,31 @@ impl fmt::Display for ChannelEstimationError {
             Self::InvalidPrbCount(p) => write!(f, "Invalid PRB count: {} (must be > 0)", p),
             Self::InvalidSymbolIndex(s) => write!(f, "Invalid symbol index: {} (must be 0..13)", s),
             Self::DimensionMismatch { expected, found } => {
-                write!(f, "Matrix dimension mismatch: expected {:?}, found {:?}", expected, found)
+                write!(
+                    f,
+                    "Matrix dimension mismatch: expected {:?}, found {:?}",
+                    expected, found
+                )
             }
-            Self::SingularMatrix => write!(f, "Matrix is singular or ill-conditioned for inversion"),
+            Self::SingularMatrix => {
+                write!(f, "Matrix is singular or ill-conditioned for inversion")
+            }
             Self::EmptyBuffer => write!(f, "Input buffer cannot be empty"),
             Self::InvalidPort(p) => write!(f, "Invalid DMRS antenna port: {}", p),
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -287,7 +310,10 @@ impl ComplexMatrix {
         }
         let n = self.rows;
         if n == 1 {
-            let inv = self.get(0, 0).inv().ok_or(ChannelEstimationError::SingularMatrix)?;
+            let inv = self
+                .get(0, 0)
+                .inv()
+                .ok_or(ChannelEstimationError::SingularMatrix)?;
             let mut out = Self::zeros(1, 1);
             out.set(0, 0, inv);
             return Ok(out);
@@ -475,14 +501,62 @@ impl DmrsPortInfo {
     /// Looks up standard port configuration for DMRS Type 1 (ports 1000..1007).
     pub fn get_type1_port(port: u16) -> Result<Self, ChannelEstimationError> {
         match port {
-            1000 => Ok(Self { port_number: 1000, cdm_group: 0, delta: 0, wf: [1, 1], wt: [1, 1] }),
-            1001 => Ok(Self { port_number: 1001, cdm_group: 0, delta: 0, wf: [1, -1], wt: [1, 1] }),
-            1002 => Ok(Self { port_number: 1002, cdm_group: 1, delta: 1, wf: [1, 1], wt: [1, 1] }),
-            1003 => Ok(Self { port_number: 1003, cdm_group: 1, delta: 1, wf: [1, -1], wt: [1, 1] }),
-            1004 => Ok(Self { port_number: 1004, cdm_group: 0, delta: 0, wf: [1, 1], wt: [1, -1] }),
-            1005 => Ok(Self { port_number: 1005, cdm_group: 0, delta: 0, wf: [1, -1], wt: [1, -1] }),
-            1006 => Ok(Self { port_number: 1006, cdm_group: 1, delta: 1, wf: [1, 1], wt: [1, -1] }),
-            1007 => Ok(Self { port_number: 1007, cdm_group: 1, delta: 1, wf: [1, -1], wt: [1, -1] }),
+            1000 => Ok(Self {
+                port_number: 1000,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, 1],
+                wt: [1, 1],
+            }),
+            1001 => Ok(Self {
+                port_number: 1001,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, -1],
+                wt: [1, 1],
+            }),
+            1002 => Ok(Self {
+                port_number: 1002,
+                cdm_group: 1,
+                delta: 1,
+                wf: [1, 1],
+                wt: [1, 1],
+            }),
+            1003 => Ok(Self {
+                port_number: 1003,
+                cdm_group: 1,
+                delta: 1,
+                wf: [1, -1],
+                wt: [1, 1],
+            }),
+            1004 => Ok(Self {
+                port_number: 1004,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, 1],
+                wt: [1, -1],
+            }),
+            1005 => Ok(Self {
+                port_number: 1005,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, -1],
+                wt: [1, -1],
+            }),
+            1006 => Ok(Self {
+                port_number: 1006,
+                cdm_group: 1,
+                delta: 1,
+                wf: [1, 1],
+                wt: [1, -1],
+            }),
+            1007 => Ok(Self {
+                port_number: 1007,
+                cdm_group: 1,
+                delta: 1,
+                wf: [1, -1],
+                wt: [1, -1],
+            }),
             _ => Err(ChannelEstimationError::InvalidPort(port)),
         }
     }
@@ -490,12 +564,48 @@ impl DmrsPortInfo {
     /// Looks up standard port configuration for DMRS Type 2 (ports 1000..1005).
     pub fn get_type2_port(port: u16) -> Result<Self, ChannelEstimationError> {
         match port {
-            1000 => Ok(Self { port_number: 1000, cdm_group: 0, delta: 0, wf: [1, 1], wt: [1, 1] }),
-            1001 => Ok(Self { port_number: 1001, cdm_group: 0, delta: 0, wf: [1, -1], wt: [1, 1] }),
-            1002 => Ok(Self { port_number: 1002, cdm_group: 1, delta: 2, wf: [1, 1], wt: [1, 1] }),
-            1003 => Ok(Self { port_number: 1003, cdm_group: 1, delta: 2, wf: [1, -1], wt: [1, 1] }),
-            1004 => Ok(Self { port_number: 1004, cdm_group: 2, delta: 4, wf: [1, 1], wt: [1, 1] }),
-            1005 => Ok(Self { port_number: 1005, cdm_group: 2, delta: 4, wf: [1, -1], wt: [1, 1] }),
+            1000 => Ok(Self {
+                port_number: 1000,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, 1],
+                wt: [1, 1],
+            }),
+            1001 => Ok(Self {
+                port_number: 1001,
+                cdm_group: 0,
+                delta: 0,
+                wf: [1, -1],
+                wt: [1, 1],
+            }),
+            1002 => Ok(Self {
+                port_number: 1002,
+                cdm_group: 1,
+                delta: 2,
+                wf: [1, 1],
+                wt: [1, 1],
+            }),
+            1003 => Ok(Self {
+                port_number: 1003,
+                cdm_group: 1,
+                delta: 2,
+                wf: [1, -1],
+                wt: [1, 1],
+            }),
+            1004 => Ok(Self {
+                port_number: 1004,
+                cdm_group: 2,
+                delta: 4,
+                wf: [1, 1],
+                wt: [1, 1],
+            }),
+            1005 => Ok(Self {
+                port_number: 1005,
+                cdm_group: 2,
+                delta: 4,
+                wf: [1, -1],
+                wt: [1, 1],
+            }),
             _ => Err(ChannelEstimationError::InvalidPort(port)),
         }
     }
@@ -648,7 +758,11 @@ pub fn estimate_rin_covariance(
     // Add diagonal noise floor regularization for stability
     for i in 0..num_rx {
         let cur = rin.get(i, i);
-        rin.set(i, i, Complex32::new(cur.re + noise_floor_sigma2.max(1e-6), 0.0));
+        rin.set(
+            i,
+            i,
+            Complex32::new(cur.re + noise_floor_sigma2.max(1e-6), 0.0),
+        );
     }
 
     rin

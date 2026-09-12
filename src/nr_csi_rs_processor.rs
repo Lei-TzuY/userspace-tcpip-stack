@@ -61,9 +61,9 @@ impl CsiRsCdmType {
 /// CSI-RS Frequency Density $\rho$ (subcarriers per PRB).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CsiRsDensity {
-    HalfDot5,  // 0.5 (1 RE every 2 PRBs)
-    One,       // 1.0 (1 RE per PRB)
-    Three,     // 3.0 (3 REs per PRB)
+    HalfDot5, // 0.5 (1 RE every 2 PRBs)
+    One,      // 1.0 (1 RE per PRB)
+    Three,    // 3.0 (3 REs per PRB)
 }
 
 /// Errors encountered in CSI-RS operations.
@@ -85,7 +85,9 @@ impl fmt::Display for CsiRsError {
             CsiRsError::InvalidSymbolAllocation(s) => write!(f, "Invalid symbol allocation: {}", s),
             CsiRsError::InvalidRowIndex(r) => write!(f, "Invalid CSI-RS Table row: {}", r),
             CsiRsError::InvalidCodebookConfig(msg) => write!(f, "Invalid codebook config: {}", msg),
-            CsiRsError::ChannelEvaluationFailed(msg) => write!(f, "Channel evaluation error: {}", msg),
+            CsiRsError::ChannelEvaluationFailed(msg) => {
+                write!(f, "Channel evaluation error: {}", msg)
+            }
             CsiRsError::SerializationError(e) => write!(f, "CSI-RS serialization error: {}", e),
             CsiRsError::DeserializationError(e) => write!(f, "CSI-RS deserialization error: {}", e),
         }
@@ -121,7 +123,10 @@ impl Complex64 {
     }
 
     pub fn conj(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 
     pub fn mul(&self, rhs: &Complex64) -> Self {
@@ -498,7 +503,9 @@ pub fn evaluate_csi_feedback(
     noise_power: f64,
 ) -> Result<CsiFeedbackReport, CsiRsError> {
     if channel_h.is_empty() || channel_h[0].len() != codebook.total_ports() {
-        return Err(CsiRsError::ChannelEvaluationFailed("Channel dimension mismatch".into()));
+        return Err(CsiRsError::ChannelEvaluationFailed(
+            "Channel dimension mismatch".into(),
+        ));
     }
 
     let n_rx = channel_h.len();
@@ -625,7 +632,10 @@ impl CsiRsWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != CSIRS_WIRE_MAGIC {
-            return Err(CsiRsError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(CsiRsError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let slot_idx = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);

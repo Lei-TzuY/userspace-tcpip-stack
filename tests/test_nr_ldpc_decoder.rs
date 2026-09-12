@@ -10,10 +10,9 @@
 //! - Binary wire framing (`LdpcDecoderWirePdu`) with CRC-16 CCITT integrity.
 
 use toy_tcpip::nr_ldpc_decoder::{
-    compute_crc24a, compute_crc24b, de_rate_match, get_lifting_set_index,
-    get_rv_k0_offset, HarqSoftBuffer, LdpcBaseGraph, LdpcDecoderConfig, LdpcDecoderEngine,
-    LdpcDecoderError, LdpcDecoderWirePdu, LdpcEncoder, DEFAULT_NMS_FACTOR,
-    LDPC_LIFTING_SIZES, NUM_PUNCTURED_COLUMNS,
+    DEFAULT_NMS_FACTOR, HarqSoftBuffer, LDPC_LIFTING_SIZES, LdpcBaseGraph, LdpcDecoderConfig,
+    LdpcDecoderEngine, LdpcDecoderError, LdpcDecoderWirePdu, LdpcEncoder, NUM_PUNCTURED_COLUMNS,
+    compute_crc24a, compute_crc24b, de_rate_match, get_lifting_set_index, get_rv_k0_offset,
 };
 
 // ---------------------------------------------------------------------------
@@ -146,7 +145,10 @@ fn test_systematic_encoding_syndrome_satisfied_bg1() {
     let result = decoder.decode(&channel_llrs).unwrap();
 
     assert!(result.syndrome_satisfied);
-    assert_eq!(result.iterations_used, 1, "Clean LLRs should converge in 1 iteration");
+    assert_eq!(
+        result.iterations_used, 1,
+        "Clean LLRs should converge in 1 iteration"
+    );
     assert_eq!(result.systematic_bits, info_bits);
 }
 
@@ -212,7 +214,12 @@ fn test_error_correction_under_channel_bit_flips() {
     }
 
     // Invert/flip several LLRs to simulate channel bit errors
-    let flip_indices = [sys_start + 5, sys_start + 19, sys_start + 45, sys_start + 110];
+    let flip_indices = [
+        sys_start + 5,
+        sys_start + 19,
+        sys_start + 45,
+        sys_start + 110,
+    ];
     for &idx in &flip_indices {
         channel_llrs[idx] = -channel_llrs[idx]; // Bit flip!
     }
@@ -229,7 +236,10 @@ fn test_error_correction_under_channel_bit_flips() {
 
     // Verify all flipped bits were corrected!
     assert!(result.syndrome_satisfied, "Decoder should converge");
-    assert_eq!(result.systematic_bits, info_bits, "All information bits must be correctly recovered");
+    assert_eq!(
+        result.systematic_bits, info_bits,
+        "All information bits must be correctly recovered"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -240,16 +250,40 @@ fn test_error_correction_under_channel_bit_flips() {
 fn test_rv_k0_offsets_bg1_and_bg2() {
     let z_c = 16;
     let n_cb_bg1 = 66 * z_c;
-    assert_eq!(get_rv_k0_offset(0, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(), 0);
-    assert_eq!(get_rv_k0_offset(2, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(), 17 * z_c);
-    assert_eq!(get_rv_k0_offset(3, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(), 33 * z_c);
-    assert_eq!(get_rv_k0_offset(1, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(), 56 * z_c);
+    assert_eq!(
+        get_rv_k0_offset(0, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(),
+        0
+    );
+    assert_eq!(
+        get_rv_k0_offset(2, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(),
+        17 * z_c
+    );
+    assert_eq!(
+        get_rv_k0_offset(3, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(),
+        33 * z_c
+    );
+    assert_eq!(
+        get_rv_k0_offset(1, LdpcBaseGraph::BG1, z_c, n_cb_bg1).unwrap(),
+        56 * z_c
+    );
 
     let n_cb_bg2 = 50 * z_c;
-    assert_eq!(get_rv_k0_offset(0, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(), 0);
-    assert_eq!(get_rv_k0_offset(2, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(), 13 * z_c);
-    assert_eq!(get_rv_k0_offset(3, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(), 25 * z_c);
-    assert_eq!(get_rv_k0_offset(1, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(), 43 * z_c);
+    assert_eq!(
+        get_rv_k0_offset(0, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(),
+        0
+    );
+    assert_eq!(
+        get_rv_k0_offset(2, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(),
+        13 * z_c
+    );
+    assert_eq!(
+        get_rv_k0_offset(3, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(),
+        25 * z_c
+    );
+    assert_eq!(
+        get_rv_k0_offset(1, LdpcBaseGraph::BG2, z_c, n_cb_bg2).unwrap(),
+        43 * z_c
+    );
 
     // Invalid RV
     assert!(get_rv_k0_offset(4, LdpcBaseGraph::BG1, z_c, n_cb_bg1).is_err());
@@ -269,7 +303,10 @@ fn test_rate_match_and_de_rate_match_roundtrip() {
     assert_eq!(tx_bits.len(), e_bits);
 
     // Convert bits to soft LLRs: 0 -> +5.0, 1 -> -5.0
-    let rx_llrs: Vec<f32> = tx_bits.iter().map(|&b| if b == 0 { 5.0 } else { -5.0 }).collect();
+    let rx_llrs: Vec<f32> = tx_bits
+        .iter()
+        .map(|&b| if b == 0 { 5.0 } else { -5.0 })
+        .collect();
 
     let de_rm_llrs = de_rate_match(&rx_llrs, 0, LdpcBaseGraph::BG1, z_c).unwrap();
     assert_eq!(de_rm_llrs.len(), 68 * z_c);

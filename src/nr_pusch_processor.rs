@@ -68,9 +68,19 @@ pub enum PuschRepetitionScheme {
 /// Errors encountered in PUSCH processing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PuschError {
-    InvalidSymbolAllocation { start: usize, length: usize },
-    InvalidPrbAllocation { start: usize, num_prb: usize, bwp_size: usize },
-    ResourceExhaustion { requested: usize, available: usize },
+    InvalidSymbolAllocation {
+        start: usize,
+        length: usize,
+    },
+    InvalidPrbAllocation {
+        start: usize,
+        num_prb: usize,
+        bwp_size: usize,
+    },
+    ResourceExhaustion {
+        requested: usize,
+        available: usize,
+    },
     InvalidRepetitionCount(usize),
     InvalidHopConfiguration(String),
     SerializationError(String),
@@ -81,13 +91,32 @@ impl fmt::Display for PuschError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PuschError::InvalidSymbolAllocation { start, length } => {
-                write!(f, "Invalid PUSCH symbol allocation: start {}, length {}", start, length)
+                write!(
+                    f,
+                    "Invalid PUSCH symbol allocation: start {}, length {}",
+                    start, length
+                )
             }
-            PuschError::InvalidPrbAllocation { start, num_prb, bwp_size } => {
-                write!(f, "Invalid PRB allocation: start {}, num_prb {}, BWP size {}", start, num_prb, bwp_size)
+            PuschError::InvalidPrbAllocation {
+                start,
+                num_prb,
+                bwp_size,
+            } => {
+                write!(
+                    f,
+                    "Invalid PRB allocation: start {}, num_prb {}, BWP size {}",
+                    start, num_prb, bwp_size
+                )
             }
-            PuschError::ResourceExhaustion { requested, available } => {
-                write!(f, "Resource exhaustion: requested {} REs, available {}", requested, available)
+            PuschError::ResourceExhaustion {
+                requested,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Resource exhaustion: requested {} REs, available {}",
+                    requested, available
+                )
             }
             PuschError::InvalidRepetitionCount(c) => write!(f, "Invalid repetition count: {}", c),
             PuschError::InvalidHopConfiguration(msg) => write!(f, "Invalid hop config: {}", msg),
@@ -157,13 +186,19 @@ pub fn uci_crc_length(o_bits: usize) -> usize {
 }
 
 /// Computes UCI on PUSCH coded symbol counts according to TS 38.212 §6.3.2.4.
-pub fn calculate_uci_on_pusch_symbols(cfg: &UciOnPuschConfig) -> Result<UciDimensionResult, PuschError> {
+pub fn calculate_uci_on_pusch_symbols(
+    cfg: &UciOnPuschConfig,
+) -> Result<UciDimensionResult, PuschError> {
     if cfg.sum_k_r == 0 {
-        return Err(PuschError::ResourceExhaustion { requested: 1, available: 0 });
+        return Err(PuschError::ResourceExhaustion {
+            requested: 1,
+            available: 0,
+        });
     }
 
     let q_m = cfg.modulation.bits_per_symbol();
-    let max_uci_symbols = ((cfg.sum_m_sc_uci as u64 * cfg.alpha_scaling_milli as u64 + 999) / 1000) as usize;
+    let max_uci_symbols =
+        ((cfg.sum_m_sc_uci as u64 * cfg.alpha_scaling_milli as u64 + 999) / 1000) as usize;
 
     // 1. HARQ-ACK dimensioning
     let q_prime_ack = if cfg.o_ack_bits > 0 {
@@ -378,7 +413,8 @@ pub fn schedule_pusch_repetitions(
                 let rv = rvs[nom % rvs.len()];
 
                 while remaining_symbols > 0 {
-                    let symbols_in_this_slot = (SYMBOLS_PER_SLOT - current_sym).min(remaining_symbols);
+                    let symbols_in_this_slot =
+                        (SYMBOLS_PER_SLOT - current_sym).min(remaining_symbols);
 
                     actual_reps.push(PuschActualRepetition {
                         repetition_idx: actual_counter,
@@ -544,7 +580,11 @@ impl PuschSlotGrid {
 
     /// Counts REs of a given type.
     pub fn count_re_type(&self, target: ReType) -> usize {
-        self.grid.iter().flat_map(|row| row.iter()).filter(|&&re| re == target).count()
+        self.grid
+            .iter()
+            .flat_map(|row| row.iter())
+            .filter(|&&re| re == target)
+            .count()
     }
 }
 
@@ -617,7 +657,10 @@ impl PuschWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != PUSCH_WIRE_MAGIC {
-            return Err(PuschError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(PuschError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let slot_idx = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);

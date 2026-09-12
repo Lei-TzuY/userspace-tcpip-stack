@@ -500,10 +500,7 @@ pub enum Pc5sMessage {
         mac_i: [u8; 4],
     },
     /// Direct Security Mode Complete.
-    DirectSecurityModeComplete {
-        link_id: u32,
-        mac_i: [u8; 4],
-    },
+    DirectSecurityModeComplete { link_id: u32, mac_i: [u8; 4] },
     /// Direct Communication Accept (DCA).
     DirectCommunicationAccept {
         link_id: u32,
@@ -517,20 +514,11 @@ pub enum Pc5sMessage {
         cause: Pc5sRejectCause,
     },
     /// Direct Link Keepalive (Ping).
-    DirectLinkKeepalive {
-        link_id: u32,
-        seq_num: u16,
-    },
+    DirectLinkKeepalive { link_id: u32, seq_num: u16 },
     /// Direct Link Keepalive Ack (Pong).
-    DirectLinkKeepaliveAck {
-        link_id: u32,
-        seq_num: u16,
-    },
+    DirectLinkKeepaliveAck { link_id: u32, seq_num: u16 },
     /// Direct Link Rekeying Request.
-    DirectLinkRekeyingRequest {
-        link_id: u32,
-        fresh_nonce: [u8; 16],
-    },
+    DirectLinkRekeyingRequest { link_id: u32, fresh_nonce: [u8; 16] },
     /// Direct Link Rekeying Response.
     DirectLinkRekeyingResponse {
         link_id: u32,
@@ -543,9 +531,7 @@ pub enum Pc5sMessage {
         cause: Pc5sRejectCause,
     },
     /// Direct Link Release Accept.
-    DirectLinkReleaseAccept {
-        link_id: u32,
-    },
+    DirectLinkReleaseAccept { link_id: u32 },
 }
 
 impl Pc5sMessage {
@@ -681,15 +667,12 @@ impl Pc5sMessage {
                 if payload.len() < 31 {
                     return Err("Buffer too short for DirectCommunicationRequest".to_string());
                 }
-                let initiator_l2_id = u32::from_be_bytes([
-                    payload[0], payload[1], payload[2], payload[3],
-                ]);
-                let target_l2_id = u32::from_be_bytes([
-                    payload[4], payload[5], payload[6], payload[7],
-                ]);
-                let application_id = u32::from_be_bytes([
-                    payload[8], payload[9], payload[10], payload[11],
-                ]);
+                let initiator_l2_id =
+                    u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
+                let target_l2_id =
+                    u32::from_be_bytes([payload[4], payload[5], payload[6], payload[7]]);
+                let application_id =
+                    u32::from_be_bytes([payload[8], payload[9], payload[10], payload[11]]);
                 let mut initiator_nonce = [0u8; 16];
                 initiator_nonce.copy_from_slice(&payload[12..28]);
                 let supported_ciphers = payload[28];
@@ -999,29 +982,37 @@ impl Pc5sEngine {
         responder_nonce: [u8; 16],
         now_ms: u64,
     ) -> Result<(u32, Pc5sMessage), Pc5sMessage> {
-        let (initiator_l2_id, target_l2_id, initiator_nonce, supported_ciphers, supported_integs, qos_flows) =
-            match dcr {
-                Pc5sMessage::DirectCommunicationRequest {
-                    initiator_l2_id,
-                    target_l2_id,
-                    initiator_nonce,
-                    supported_ciphers,
-                    supported_integs,
-                    qos_flows,
-                    ..
-                } => (
-                    *initiator_l2_id,
-                    *target_l2_id,
-                    *initiator_nonce,
-                    *supported_ciphers,
-                    *supported_integs,
-                    qos_flows.clone(),
-                ),
-                _ => return Err(Pc5sMessage::DirectCommunicationReject {
+        let (
+            initiator_l2_id,
+            target_l2_id,
+            initiator_nonce,
+            supported_ciphers,
+            supported_integs,
+            qos_flows,
+        ) = match dcr {
+            Pc5sMessage::DirectCommunicationRequest {
+                initiator_l2_id,
+                target_l2_id,
+                initiator_nonce,
+                supported_ciphers,
+                supported_integs,
+                qos_flows,
+                ..
+            } => (
+                *initiator_l2_id,
+                *target_l2_id,
+                *initiator_nonce,
+                *supported_ciphers,
+                *supported_integs,
+                qos_flows.clone(),
+            ),
+            _ => {
+                return Err(Pc5sMessage::DirectCommunicationReject {
                     target_l2_id: 0,
                     cause: Pc5sRejectCause::ServiceNotSupported,
-                }),
-            };
+                });
+            }
+        };
 
         if target_l2_id != self.local_l2_id && target_l2_id != 0xFFFFFF {
             return Err(Pc5sMessage::DirectCommunicationReject {
@@ -1181,9 +1172,7 @@ impl Pc5sEngine {
         let mac_i = match dsm_comp {
             Pc5sMessage::DirectSecurityModeComplete { mac_i, .. } => *mac_i,
             _ => {
-                return Err(
-                    "Invalid message type: expected DirectSecurityModeComplete".to_string()
-                )
+                return Err("Invalid message type: expected DirectSecurityModeComplete".to_string());
             }
         };
 
@@ -1356,7 +1345,12 @@ impl Pc5sEngine {
     }
 
     /// Handle incoming Direct Link Keepalive (Ping) and return Ack.
-    pub fn handle_keepalive(&mut self, link_id: u32, seq_num: u16, now_ms: u64) -> Option<Pc5sMessage> {
+    pub fn handle_keepalive(
+        &mut self,
+        link_id: u32,
+        seq_num: u16,
+        now_ms: u64,
+    ) -> Option<Pc5sMessage> {
         if let Some(link) = self.links.get_mut(&link_id) {
             if link.state == Pc5sLinkState::DirectCommEstablished {
                 link.last_activity_ms = now_ms;

@@ -9,10 +9,10 @@
 //! - Binary wire framing (`SystemInformationWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_system_information::{
-    compute_si_window_occasion, CachedSib, CellSelectionInfo, DmrsTypeAPosition,
-    MasterInformationBlock, ModificationPeriodManager, PlmnIdentity, SibType,
+    CachedSib, CellSelectionInfo, DmrsTypeAPosition, MasterInformationBlock,
+    ModificationPeriodManager, PlmnIdentity, SI_RNTI, SIB_VALIDITY_DURATION_SEC, SibType,
     SubcarrierSpacingCommon, SystemInfoError, SystemInformationBlock1, SystemInformationWirePdu,
-    TddPeriodicityMs, TddUlDlPattern, SIB_VALIDITY_DURATION_SEC, SI_RNTI,
+    TddPeriodicityMs, TddUlDlPattern, compute_si_window_occasion,
 };
 
 // ---------------------------------------------------------------------------
@@ -128,13 +128,17 @@ fn test_si_window_occasion_calculation() {
     let current_sfn = 100u16;
 
     // Message n = 0: nw = 0 -> start_frame_offset = 0, slot = 0
-    let occ0 = compute_si_window_occasion(0, window_length_slots, periodicity_frames, mu, current_sfn).unwrap();
+    let occ0 =
+        compute_si_window_occasion(0, window_length_slots, periodicity_frames, mu, current_sfn)
+            .unwrap();
     assert_eq!(occ0.start_slot_in_frame, 0);
     assert_eq!(occ0.window_length_slots, 20);
     assert_eq!(occ0.start_sfn % periodicity_frames, 0);
 
     // Message n = 1: nw = 20 -> start_frame_offset = 1 frame, slot = 0
-    let occ1 = compute_si_window_occasion(1, window_length_slots, periodicity_frames, mu, current_sfn).unwrap();
+    let occ1 =
+        compute_si_window_occasion(1, window_length_slots, periodicity_frames, mu, current_sfn)
+            .unwrap();
     assert_eq!(occ1.start_slot_in_frame, 0);
     assert_eq!(occ1.window_length_slots, 20);
     assert_eq!(occ1.start_sfn % periodicity_frames, 1);

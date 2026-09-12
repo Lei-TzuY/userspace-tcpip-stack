@@ -11,11 +11,18 @@ fn test_ntn_orbital_slant_range_and_fspl() {
     let leo = NtnSatelliteGeometry::new_leo_600km(2.0e9); // 2 GHz S-band
 
     // At zenith (90 degrees), slant range must equal orbital altitude (600 km)
-    let slant_zenith = leo.slant_range_km(90.0).expect("Zenith calculation should succeed");
-    assert!((slant_zenith - 600.0).abs() < 0.1, "Zenith slant range should be 600 km, got {slant_zenith}");
+    let slant_zenith = leo
+        .slant_range_km(90.0)
+        .expect("Zenith calculation should succeed");
+    assert!(
+        (slant_zenith - 600.0).abs() < 0.1,
+        "Zenith slant range should be 600 km, got {slant_zenith}"
+    );
 
     // At 10 degrees elevation, slant range is significantly longer (~1930 km)
-    let slant_horizon = leo.slant_range_km(10.0).expect("10 deg calculation should succeed");
+    let slant_horizon = leo
+        .slant_range_km(10.0)
+        .expect("10 deg calculation should succeed");
     assert!(
         slant_horizon > 1800.0 && slant_horizon < 2100.0,
         "10 deg slant range unexpected: {slant_horizon} km"
@@ -71,7 +78,11 @@ fn test_dmrs_bundling_cross_slot_phase_continuity() {
     let s4 = auditor.audit_slot(4, 23.0, 10, 0.0);
     assert!(!s4.is_bundled_with_prev);
     assert_eq!(s4.current_bundle_length, 1);
-    assert!(s4.phase_break_reason.unwrap().contains("Nominal bundle size boundary"));
+    assert!(
+        s4.phase_break_reason
+            .unwrap()
+            .contains("Nominal bundle size boundary")
+    );
 
     // Slot 5: power step too large (23.0 -> 24.0 dBm, step = 1.0 dB > 0.5 dB)
     let s5 = auditor.audit_slot(5, 24.0, 10, 0.0);
@@ -131,8 +142,8 @@ fn test_inter_slot_frequency_hopping_with_bundled_boundaries() {
 
 #[test]
 fn test_pucch_multi_slot_repetition_and_cyclic_shift_hopping() {
-    let pucch_mgr = PucchMultiSlotRepetitionManager::new(4, 2)
-        .expect("PUCCH creation should succeed");
+    let pucch_mgr =
+        PucchMultiSlotRepetitionManager::new(4, 2).expect("PUCCH creation should succeed");
 
     // Cyclic shift hops across repetitions: (2 + k * 3) % 12
     let cs0 = pucch_mgr.get_cyclic_shift(0);
@@ -150,20 +161,26 @@ fn test_pucch_multi_slot_repetition_and_cyclic_shift_hopping() {
 fn test_slant_range_adaptive_repetition_servo() {
     let geo = NtnSatelliteGeometry::new_leo_600km(2.0e9);
     let servo = NtnSlantRangeAdaptiveServo::new(
-        geo,
-        23.0,     // 23 dBm PCMAX
-        4.0,      // Sat G/T = 4.0 dB/K
-        12.0,     // Target SINR = 12 dB (high throughput)
-        180e3,    // 1 PRB (180 kHz)
+        geo, 23.0,  // 23 dBm PCMAX
+        4.0,   // Sat G/T = 4.0 dB/K
+        12.0,  // Target SINR = 12 dB (high throughput)
+        180e3, // 1 PRB (180 kHz)
     );
 
     // High elevation (80 degrees near zenith): short slant range -> low repetition factor (1 or 2)
     let (k_zenith, _b_zenith, _p_zenith, margin_zenith) = servo.adapt_for_elevation(80.0).unwrap();
-    assert!(k_zenith <= 2, "Zenith repetition should be low, got {k_zenith}");
-    assert!(margin_zenith > 0.0, "Margin at zenith should be positive: {margin_zenith:.2} dB");
+    assert!(
+        k_zenith <= 2,
+        "Zenith repetition should be low, got {k_zenith}"
+    );
+    assert!(
+        margin_zenith > 0.0,
+        "Margin at zenith should be positive: {margin_zenith:.2} dB"
+    );
 
     // Low elevation (10 degrees near horizon): high slant range -> high repetition factor (8 or 16)
-    let (k_horizon, _b_horizon, p_horizon, margin_horizon) = servo.adapt_for_elevation(10.0).unwrap();
+    let (k_horizon, _b_horizon, p_horizon, margin_horizon) =
+        servo.adapt_for_elevation(10.0).unwrap();
     assert!(
         k_horizon >= 8,
         "Near horizon repetition should be high (>=8), got {k_horizon}"
@@ -190,15 +207,7 @@ fn test_end_to_end_ntn_coverage_engine_coordinator() {
         slots_per_hop: 4,
     };
 
-    let mut engine = NtnCoverageEngine::new(
-        geo,
-        dmrs_cfg,
-        hop_cfg,
-        23.0,
-        4.0,
-        -3.0,
-        180e3,
-    );
+    let mut engine = NtnCoverageEngine::new(geo, dmrs_cfg, hop_cfg, 23.0, 4.0, -3.0, 180e3);
 
     // Transmit 8 slots with frequency hopping at slot 4
     for slot in 0..8 {

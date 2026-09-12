@@ -82,9 +82,16 @@ fn test_sub_decimeter_ranging_accuracy_nominal_los() {
 
     // Sub-decimeter precision check: fused error must be within 3 cm of true distance!
     let distance_error = (outcome.fused_distance_m - true_distance_m).abs();
-    assert!(distance_error < 0.03, "Distance error {:.4} m exceeds 3 cm", distance_error);
+    assert!(
+        distance_error < 0.03,
+        "Distance error {:.4} m exceeds 3 cm",
+        distance_error
+    );
 
-    assert_eq!(outcome.channel_condition, RangingChannelCondition::LineOfSight);
+    assert_eq!(
+        outcome.channel_condition,
+        RangingChannelCondition::LineOfSight
+    );
     assert!(outcome.phase_r_squared > 0.999);
     assert!(outcome.uncertainty_m < 0.05);
     assert_eq!(engine.state(), PbdmState::Solved);
@@ -135,8 +142,15 @@ fn test_integer_ambiguity_resolution_across_long_distance() {
 
     // Integer cycle must be correctly resolved to yield accurate 95.5m
     let distance_error = (outcome.fused_distance_m - true_distance_m).abs();
-    assert!(distance_error < 0.05, "Error {:.4} m exceeds 5 cm", distance_error);
-    assert_eq!(outcome.channel_condition, RangingChannelCondition::LineOfSight);
+    assert!(
+        distance_error < 0.05,
+        "Error {:.4} m exceeds 5 cm",
+        distance_error
+    );
+    assert_eq!(
+        outcome.channel_condition,
+        RangingChannelCondition::LineOfSight
+    );
 }
 
 #[test]
@@ -262,7 +276,10 @@ fn test_wire_codec_and_crc16() {
     let decoded = SlPbdmReportPdu::decode_wire(&wire).expect("decoding failed");
     assert_eq!(decoded.session_id, 999);
     assert_eq!(decoded.timestamp_ms, 1726050000);
-    assert_eq!(decoded.channel_condition, RangingChannelCondition::LineOfSight);
+    assert_eq!(
+        decoded.channel_condition,
+        RangingChannelCondition::LineOfSight
+    );
     assert!((decoded.fused_distance_m - 12.345).abs() < 1e-3);
     assert!((decoded.uncertainty_m - 0.025).abs() < 1e-3);
 
@@ -319,7 +336,10 @@ fn test_telemetry_tracking() {
 
 #[test]
 fn test_error_display() {
-    let e1 = PbdmError::InsufficientTones { count: 2, required: 4 };
+    let e1 = PbdmError::InsufficientTones {
+        count: 2,
+        required: 4,
+    };
     assert!(format!("{}", e1).contains("Insufficient carrier tones: 2"));
 
     let e2 = PbdmError::InvalidFrequencySpan;
@@ -328,6 +348,9 @@ fn test_error_display() {
     let e3 = PbdmError::NegativePropagationTime(-1.5e-8);
     assert!(format!("{}", e3).contains("Negative two-way propagation time"));
 
-    let e4 = PbdmError::ChecksumMismatch { expected: 0x1111, calculated: 0x2222 };
+    let e4 = PbdmError::ChecksumMismatch {
+        expected: 0x1111,
+        calculated: 0x2222,
+    };
     assert!(format!("{}", e4).contains("0x1111"));
 }

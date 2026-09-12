@@ -136,8 +136,7 @@ impl FlightWaypoint {
         let lat1 = self.latitude_deg.to_radians();
         let lat2 = other.latitude_deg.to_radians();
 
-        let a = (d_lat / 2.0).sin().powi(2)
-            + lat1.cos() * lat2.cos() * (d_lon / 2.0).sin().powi(2);
+        let a = (d_lat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (d_lon / 2.0).sin().powi(2);
         let c = 2.0 * a.sqrt().atan2((1.0 - a).max(0.0).sqrt());
         let horizontal_dist = EARTH_RADIUS_M * c;
 
@@ -413,7 +412,10 @@ impl AerialUeEngine {
     }
 
     /// Set or update the planned 3D flight path trajectory.
-    pub fn set_flight_trajectory(&mut self, report: FlightPathInfoReport) -> Result<(), AerialUeError> {
+    pub fn set_flight_trajectory(
+        &mut self,
+        report: FlightPathInfoReport,
+    ) -> Result<(), AerialUeError> {
         if self.uas_status != UasAuthorizationStatus::Authorized {
             return Err(AerialUeError::UnauthorizedFlightAction);
         }

@@ -6,8 +6,8 @@ use toy_tcpip::nr_polar_codec::*;
 #[test]
 fn test_crc24c_and_rnti_scrambling() {
     let payload = vec![
-        1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0,
-        0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1,
+        1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1,
+        0, 1,
     ];
     let rnti = 0x55AA;
 
@@ -103,9 +103,7 @@ fn test_rate_matching_repetition_puncturing_shortening() {
 #[test]
 fn test_ca_scl_decoding_clean_channel_roundtrip() {
     // 16 bits DCI payload + 24 bits CRC = 40 bits total
-    let dci_payload = vec![
-        1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1,
-    ];
+    let dci_payload = vec![1, 0, 1, 1, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 1];
     let rnti = 0x8844;
     let tx_bits = attach_crc24c_with_rnti(&dci_payload, rnti);
     assert_eq!(tx_bits.len(), 40);
@@ -121,8 +119,8 @@ fn test_ca_scl_decoding_clean_channel_roundtrip() {
         .collect();
 
     // Decode with List size L = 4
-    let decoded_payload = ca_scl_decode(&channel_llr, tx_bits.len(), 4, rnti)
-        .expect("CA-SCL decoding must succeed");
+    let decoded_payload =
+        ca_scl_decode(&channel_llr, tx_bits.len(), 4, rnti).expect("CA-SCL decoding must succeed");
 
     assert_eq!(decoded_payload, dci_payload);
 }
@@ -143,7 +141,7 @@ fn test_ca_scl_decoding_with_channel_errors() {
 
     // Introduce channel bit errors / erasure (noisy sub-channels)
     channel_llr[5] = -channel_llr[5]; // bit flip
-    channel_llr[12] = 0.1;            // deep fade / erasure
+    channel_llr[12] = 0.1; // deep fade / erasure
 
     // List decoder with L = 4 corrects the perturbations
     let decoded = ca_scl_decode(&channel_llr, tx_bits.len(), 4, rnti)

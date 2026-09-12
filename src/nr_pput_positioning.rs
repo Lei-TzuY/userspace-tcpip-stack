@@ -41,13 +41,22 @@ pub enum PputError {
 impl fmt::Display for PputError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PputError::InvalidCombSize(c) => write!(f, "Invalid P-PUT comb size: {c} (supported: 2, 4, 8)"),
-            PputError::InvalidBandwidth(prbs) => write!(f, "Invalid PRB allocation: {prbs} PRBs"),
-            PputError::TaValidationFailed(msg) => write!(f, "Autonomous TA validation failed: {msg}"),
-            PputError::InsufficientMeasurements { required, provided } => {
-                write!(f, "Insufficient TRP measurements: required {required}, provided {provided}")
+            PputError::InvalidCombSize(c) => {
+                write!(f, "Invalid P-PUT comb size: {c} (supported: 2, 4, 8)")
             }
-            PputError::SolverDiverged(msg) => write!(f, "Hybrid positioning solver diverged: {msg}"),
+            PputError::InvalidBandwidth(prbs) => write!(f, "Invalid PRB allocation: {prbs} PRBs"),
+            PputError::TaValidationFailed(msg) => {
+                write!(f, "Autonomous TA validation failed: {msg}")
+            }
+            PputError::InsufficientMeasurements { required, provided } => {
+                write!(
+                    f,
+                    "Insufficient TRP measurements: required {required}, provided {provided}"
+                )
+            }
+            PputError::SolverDiverged(msg) => {
+                write!(f, "Hybrid positioning solver diverged: {msg}")
+            }
             PputError::PowerControlError(msg) => write!(f, "P-PUT power control error: {msg}"),
             PputError::ConfigurationError(msg) => write!(f, "P-PUT configuration error: {msg}"),
         }
@@ -434,13 +443,16 @@ impl HybridTdoaAoaSolver {
                 None => {
                     return Err(PputError::SolverDiverged(
                         "Singular matrix in hybrid TDOA+AoA positioning".to_string(),
-                    ))
+                    ));
                 }
             };
 
-            let delta_x = -(inv_jtj[0][0] * jtr[0] + inv_jtj[0][1] * jtr[1] + inv_jtj[0][2] * jtr[2]);
-            let delta_y = -(inv_jtj[1][0] * jtr[0] + inv_jtj[1][1] * jtr[1] + inv_jtj[1][2] * jtr[2]);
-            let delta_z = -(inv_jtj[2][0] * jtr[0] + inv_jtj[2][1] * jtr[1] + inv_jtj[2][2] * jtr[2]);
+            let delta_x =
+                -(inv_jtj[0][0] * jtr[0] + inv_jtj[0][1] * jtr[1] + inv_jtj[0][2] * jtr[2]);
+            let delta_y =
+                -(inv_jtj[1][0] * jtr[0] + inv_jtj[1][1] * jtr[1] + inv_jtj[1][2] * jtr[2]);
+            let delta_z =
+                -(inv_jtj[2][0] * jtr[0] + inv_jtj[2][1] * jtr[1] + inv_jtj[2][2] * jtr[2]);
 
             x += delta_x;
             y += delta_y;
@@ -456,8 +468,12 @@ impl HybridTdoaAoaSolver {
         let mut sum_sq = 0.0;
         for i in 1..measurements.len() {
             let m = &measurements[i];
-            let d_i = ((x - m.pos_x).powi(2) + (y - m.pos_y).powi(2) + (z - m.pos_z).powi(2)).sqrt();
-            let d_ref = ((x - ref_trp.pos_x).powi(2) + (y - ref_trp.pos_y).powi(2) + (z - ref_trp.pos_z).powi(2)).sqrt();
+            let d_i =
+                ((x - m.pos_x).powi(2) + (y - m.pos_y).powi(2) + (z - m.pos_z).powi(2)).sqrt();
+            let d_ref = ((x - ref_trp.pos_x).powi(2)
+                + (y - ref_trp.pos_y).powi(2)
+                + (z - ref_trp.pos_z).powi(2))
+            .sqrt();
             let delta_m = (m.rtoa_seconds - ref_trp.rtoa_seconds) * c;
             let err = (d_i - d_ref) - delta_m;
             sum_sq += err * err;
@@ -634,17 +650,24 @@ impl PputPositioningEngine {
 
                 // Energy savings accumulation
                 let comp = self.benchmark.evaluate_savings();
-                self.metrics.total_energy_saved_joules += (comp.legacy_energy_mj - comp.pput_energy_mj) * 1e-3;
+                self.metrics.total_energy_saved_joules +=
+                    (comp.legacy_energy_mj - comp.pput_energy_mj) * 1e-3;
 
                 Ok(tx_power)
             }
-            TaValidationState::ExpiredTimer { elapsed_ms, limit_ms } => {
+            TaValidationState::ExpiredTimer {
+                elapsed_ms,
+                limit_ms,
+            } => {
                 self.metrics.fallback_to_rach_events += 1;
                 Err(PputError::TaValidationFailed(format!(
                     "TA timer expired ({elapsed_ms} ms > {limit_ms} ms); RACH fallback required"
                 )))
             }
-            TaValidationState::ExcessiveRsrpDrift { drift_db, threshold_db } => {
+            TaValidationState::ExcessiveRsrpDrift {
+                drift_db,
+                threshold_db,
+            } => {
                 self.metrics.fallback_to_rach_events += 1;
                 Err(PputError::TaValidationFailed(format!(
                     "RSRP drift {drift_db:.1} dB exceeds threshold {threshold_db:.1} dB; RACH fallback required"

@@ -2,14 +2,14 @@
 //! and URLLC Latency Bound Engine.
 
 use toy_tcpip::nr_pdcp_duplication::{
-    LegCellGroup, LegConfig, PdcpDuplicationEngine, PdcpDuplicationError,
-    PdcpDuplicationMacCe, PdcpDuplicationPdu, PdcpSnFormat, UrllcQosProfile,
-    DEFAULT_SURVIVAL_TIME_MS, DEFAULT_URLLC_PDB_US, MAX_DUPLICATION_LEGS,
+    DEFAULT_SURVIVAL_TIME_MS, DEFAULT_URLLC_PDB_US, LegCellGroup, LegConfig, MAX_DUPLICATION_LEGS,
+    PdcpDuplicationEngine, PdcpDuplicationError, PdcpDuplicationMacCe, PdcpDuplicationPdu,
+    PdcpSnFormat, UrllcQosProfile,
 };
 
 fn create_test_engine() -> PdcpDuplicationEngine {
     let legs = vec![
-        LegConfig::new(0, LegCellGroup::Mcg, 4, true),  // Leg 0: MCG Primary
+        LegConfig::new(0, LegCellGroup::Mcg, 4, true), // Leg 0: MCG Primary
         LegConfig::new(1, LegCellGroup::Mcg, 5, false), // Leg 1: MCG Secondary
         LegConfig::new(2, LegCellGroup::Scg, 6, false), // Leg 2: SCG Primary
         LegConfig::new(3, LegCellGroup::Scg, 7, false), // Leg 3: SCG Secondary
@@ -100,7 +100,9 @@ fn test_multi_leg_pdu_dispatch() {
 
     // Submit SDU payload
     let payload = vec![0xAA, 0xBB, 0xCC, 0xDD];
-    let pdus = engine.submit_sdu(payload.clone(), 10_000).expect("SDU submission failed");
+    let pdus = engine
+        .submit_sdu(payload.clone(), 10_000)
+        .expect("SDU submission failed");
 
     // Must generate 3 identical replicated PDUs targeting Legs 0, 1, 2
     assert_eq!(pdus.len(), 3);
@@ -114,7 +116,9 @@ fn test_multi_leg_pdu_dispatch() {
     }
 
     // Submit second SDU: SN must increment to 1
-    let pdus2 = engine.submit_sdu(vec![0x11, 0x22], 11_000).expect("Second SDU failed");
+    let pdus2 = engine
+        .submit_sdu(vec![0x11, 0x22], 11_000)
+        .expect("Second SDU failed");
     assert_eq!(pdus2.len(), 3);
     assert_eq!(pdus2[0].sn, 1);
     assert_eq!(pdus2[0].count, 1);
@@ -176,7 +180,7 @@ fn test_proactive_in_flight_fast_discard() {
 fn test_urllc_pdb_and_survival_time_governor() {
     let mut rx_engine = create_test_engine();
     rx_engine.urllc_profile.packet_delay_budget_us = 2_000; // 2 ms PDB
-    rx_engine.urllc_profile.survival_time_ms = 10;          // 10 ms survival time
+    rx_engine.urllc_profile.survival_time_ms = 10; // 10 ms survival time
 
     // PDU 1: Generated at t = 1_000 us, received at t = 2_500 us (elapsed 1,500 us <= 2,000 us) -> Within PDB
     let pdu1 = PdcpDuplicationPdu {

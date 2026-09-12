@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-18 5G-Advanced Satellite NTN PRACH Engine.
 
 use toy_tcpip::nr_ntn_prach::{
-    generate_zadoff_chu_sequence, NtnPrachEngine, NtnPrachFormatConfig,
-    PrachSequenceLength, Sib19NtnConfig, UeNtnPrachPrecompensation, DEFAULT_DETECTION_PAR_THRESH_DB,
-    DEFAULT_TA_OFFSET_MS, SPEED_OF_LIGHT_M_S,
+    DEFAULT_DETECTION_PAR_THRESH_DB, DEFAULT_TA_OFFSET_MS, NtnPrachEngine, NtnPrachFormatConfig,
+    PrachSequenceLength, SPEED_OF_LIGHT_M_S, Sib19NtnConfig, UeNtnPrachPrecompensation,
+    generate_zadoff_chu_sequence,
 };
 
 fn setup_leo_sib19() -> Sib19NtnConfig {
@@ -14,7 +14,7 @@ fn setup_leo_sib19() -> Sib19NtnConfig {
         ta_common_drift_variant_ms_s2: 0.001,
         k_offset_slots: 80,
         scs_khz: 15,
-        carrier_freq_hz: 2.0e9, // 2 GHz S-band
+        carrier_freq_hz: 2.0e9,  // 2 GHz S-band
         cell_diff_delay_ms: 3.0, // 3 ms delay variation across satellite beam
     }
 }
@@ -193,7 +193,8 @@ fn test_satellite_payload_detection_window_miss_and_excess_doppler() {
     // Case 2: Arrival inside window, but catastrophic uncompensated Doppler (1250 Hz = 1 SCS subcarrier shift)
     // Sinc loss causes severe correlation degradation
     let actual_delay_in_win = tx.total_ta_ms - DEFAULT_TA_OFFSET_MS;
-    let res_doppler_loss = engine.evaluate_satellite_reception(&tx, actual_delay_in_win, 1250.0, 5.0);
+    let res_doppler_loss =
+        engine.evaluate_satellite_reception(&tx, actual_delay_in_win, 1250.0, 5.0);
     assert!(res_doppler_loss.within_window);
     assert!(!res_doppler_loss.detected); // Sinc loss drove PAR below threshold
 }

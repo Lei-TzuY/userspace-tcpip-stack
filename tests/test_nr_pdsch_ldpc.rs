@@ -6,8 +6,8 @@ use toy_tcpip::nr_pdsch_ldpc::*;
 #[test]
 fn test_crc24a_crc24b_and_crc16_algorithms() {
     let test_bits = vec![
-        1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0,
-        0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1, 0, 1,
+        1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1, 1, 1, 1, 0, 1, 0, 0, 0, 1, 1, 0, 1,
+        0, 1,
     ];
 
     let crc24a = compute_crc24a(&test_bits);
@@ -173,7 +173,7 @@ fn test_cbg_partitioning_and_selective_retransmission_savings() {
     let (failed_cbgs, retrans_cbs, savings) = cbg_mgr.evaluate_retransmission(10, &cb_errors);
     assert_eq!(failed_cbgs, vec![0]);
     assert_eq!(retrans_cbs, 3); // Only CBG 0 (3 CBs) retransmitted
-    assert_eq!(savings, 0.70);  // 70% radio resource savings over full TB retransmission!
+    assert_eq!(savings, 0.70); // 70% radio resource savings over full TB retransmission!
 
     // Worst case: Errors in CBG 0 and CBG 2
     cb_errors[6] = true;

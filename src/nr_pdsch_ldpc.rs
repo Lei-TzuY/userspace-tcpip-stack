@@ -45,9 +45,9 @@ pub const TB_CRC_THRESHOLD_BITS: usize = 3824;
 
 /// 51 standardized LDPC lifting sizes $Z_c$ per 3GPP TS 38.212 Table 5.3.2-1.
 pub const LDPC_LIFTING_SIZES: [usize; 51] = [
-    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40,
-    44, 48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128, 144, 160, 176, 192, 208, 224,
-    240, 256, 288, 320, 352, 384,
+    2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44,
+    48, 52, 56, 60, 64, 72, 80, 88, 96, 104, 112, 120, 128, 144, 160, 176, 192, 208, 224, 240, 256,
+    288, 320, 352, 384,
 ];
 
 /// Errors encountered in PDSCH LDPC processing.
@@ -69,13 +69,25 @@ impl fmt::Display for LdpcError {
         match self {
             Self::EmptyPayload => write!(f, "Payload cannot be empty"),
             Self::InvalidCodeRate(msg) => write!(f, "Invalid code rate: {}", msg),
-            Self::LiftingSizeNotFound(k) => write!(f, "No valid lifting size Z_c found for block size {}", k),
-            Self::InvalidRedundancyVersion(rv) => write!(f, "Invalid Redundancy Version {} (must be 0, 1, 2, or 3)", rv),
-            Self::InvalidCbgCount(cbg) => write!(f, "Invalid CBG count {} (must be 2, 4, 6, or 8)", cbg),
+            Self::LiftingSizeNotFound(k) => {
+                write!(f, "No valid lifting size Z_c found for block size {}", k)
+            }
+            Self::InvalidRedundancyVersion(rv) => write!(
+                f,
+                "Invalid Redundancy Version {} (must be 0, 1, 2, or 3)",
+                rv
+            ),
+            Self::InvalidCbgCount(cbg) => {
+                write!(f, "Invalid CBG count {} (must be 2, 4, 6, or 8)", cbg)
+            }
             Self::SerializationError(msg) => write!(f, "Serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "Deserialization error: {}", msg),
             Self::CrcMismatch { expected, actual } => {
-                write!(f, "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, actual)
+                write!(
+                    f,
+                    "CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, actual
+                )
             }
             Self::InvalidMagic(m) => write!(f, "Invalid magic: 0x{:08X}", m),
         }
@@ -211,7 +223,10 @@ pub fn select_base_graph(tb_size_bits: usize, code_rate: f64) -> Result<LdpcBase
     // 3GPP TS 38.212 Section 7.2.2 rules:
     // If A <= 292, or (A <= 3824 and R <= 0.67), or R <= 0.25 -> BG2
     // Otherwise -> BG1
-    if tb_size_bits <= 292 || (tb_size_bits <= TB_CRC_THRESHOLD_BITS && code_rate <= 0.67) || code_rate <= 0.25 {
+    if tb_size_bits <= 292
+        || (tb_size_bits <= TB_CRC_THRESHOLD_BITS && code_rate <= 0.67)
+        || code_rate <= 0.25
+    {
         Ok(LdpcBaseGraph::BG2)
     } else {
         Ok(LdpcBaseGraph::BG1)
@@ -465,7 +480,7 @@ pub fn compute_crc16(data: &[u8]) -> u16 {
 pub struct LdpcPdschPdu {
     pub version: u8,
     pub tb_size_bytes: u32,
-    pub base_graph: u8,       // 1 = BG1, 2 = BG2
+    pub base_graph: u8, // 1 = BG1, 2 = BG2
     pub num_code_blocks: u16,
     pub z_c: u16,
     pub filler_bits: u16,

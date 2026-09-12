@@ -60,9 +60,15 @@ pub enum NtnCellType {
 #[derive(Debug, Clone, PartialEq)]
 pub enum NtnPrecompError {
     InvalidCarrierFrequency(f64),
-    SatelliteBelowHorizon { elevation_deg: f64, min_elevation_deg: f64 },
+    SatelliteBelowHorizon {
+        elevation_deg: f64,
+        min_elevation_deg: f64,
+    },
     InvalidCoordinates,
-    EphemerisExpired { age_s: f64, max_age_s: f64 },
+    EphemerisExpired {
+        age_s: f64,
+        max_age_s: f64,
+    },
     DegenerateOrbitGeometry,
 }
 
@@ -84,7 +90,11 @@ impl std::fmt::Display for NtnPrecompError {
             }
             Self::InvalidCoordinates => write!(f, "Invalid ECEF position coordinates"),
             Self::EphemerisExpired { age_s, max_age_s } => {
-                write!(f, "Ephemeris expired: age {:.1}s > max {:.1}s", age_s, max_age_s)
+                write!(
+                    f,
+                    "Ephemeris expired: age {:.1}s > max {:.1}s",
+                    age_s, max_age_s
+                )
             }
             Self::DegenerateOrbitGeometry => write!(f, "Degenerate satellite-UE geometry"),
         }
@@ -132,7 +142,9 @@ impl NtnEphemerisState {
         let r0 = self.position_ecef_m;
         let v0 = self.velocity_ecef_m_s;
 
-        let r_mag = (r0[0] * r0[0] + r0[1] * r0[1] + r0[2] * r0[2]).sqrt().max(1.0);
+        let r_mag = (r0[0] * r0[0] + r0[1] * r0[1] + r0[2] * r0[2])
+            .sqrt()
+            .max(1.0);
         let r_mag_cube = r_mag * r_mag * r_mag;
         let accel_factor = -EARTH_GRAVITATIONAL_PARAM / r_mag_cube;
 
@@ -148,11 +160,7 @@ impl NtnEphemerisState {
             r0[2] + v0[2] * dt + 0.5 * a0[2] * dt * dt,
         ];
 
-        let v_t = [
-            v0[0] + a0[0] * dt,
-            v0[1] + a0[1] * dt,
-            v0[2] + a0[2] * dt,
-        ];
+        let v_t = [v0[0] + a0[0] * dt, v0[1] + a0[1] * dt, v0[2] + a0[2] * dt];
 
         (r_t, v_t)
     }
@@ -241,7 +249,10 @@ pub struct NtnPrecompensationEngine {
 }
 
 impl NtnPrecompensationEngine {
-    pub fn new(ephemeris: NtnEphemerisState, carrier_freq_hz: f64) -> Result<Self, NtnPrecompError> {
+    pub fn new(
+        ephemeris: NtnEphemerisState,
+        carrier_freq_hz: f64,
+    ) -> Result<Self, NtnPrecompError> {
         if carrier_freq_hz <= 0.0 {
             return Err(NtnPrecompError::InvalidCarrierFrequency(carrier_freq_hz));
         }
@@ -282,11 +293,7 @@ impl NtnPrecompensationEngine {
         let v_ue = ue.velocity_ecef_m_s;
 
         // Relative range vector from UE to Satellite: $\vec{r}_{\text{rel}} = \vec{r}_{\text{sat}} - \vec{r}_{\text{UE}}$
-        let r_rel = [
-            r_sat[0] - r_ue[0],
-            r_sat[1] - r_ue[1],
-            r_sat[2] - r_ue[2],
-        ];
+        let r_rel = [r_sat[0] - r_ue[0], r_sat[1] - r_ue[1], r_sat[2] - r_ue[2]];
 
         let slant_range = (r_rel[0] * r_rel[0] + r_rel[1] * r_rel[1] + r_rel[2] * r_rel[2]).sqrt();
         if slant_range < 1.0 {
@@ -294,7 +301,9 @@ impl NtnPrecompensationEngine {
         }
 
         // Compute local zenith / upward unit normal at UE position: $\vec{u}_{\text{up}} = \vec{r}_{\text{UE}} / \|\vec{r}_{\text{UE}}\|$
-        let r_ue_mag = (r_ue[0] * r_ue[0] + r_ue[1] * r_ue[1] + r_ue[2] * r_ue[2]).sqrt().max(1.0);
+        let r_ue_mag = (r_ue[0] * r_ue[0] + r_ue[1] * r_ue[1] + r_ue[2] * r_ue[2])
+            .sqrt()
+            .max(1.0);
         let u_up = [r_ue[0] / r_ue_mag, r_ue[1] / r_ue_mag, r_ue[2] / r_ue_mag];
 
         // Elevation angle $\theta = \arcsin\left(\frac{\vec{r}_{\text{rel}} \cdot \vec{u}_{\text{up}}}{\|\vec{r}_{\text{rel}}\|}\right)$
@@ -310,11 +319,7 @@ impl NtnPrecompensationEngine {
         }
 
         // Relative velocity vector: $\vec{v}_{\text{rel}} = \vec{v}_{\text{sat}} - \vec{v}_{\text{UE}}$
-        let v_rel = [
-            v_sat[0] - v_ue[0],
-            v_sat[1] - v_ue[1],
-            v_sat[2] - v_ue[2],
-        ];
+        let v_rel = [v_sat[0] - v_ue[0], v_sat[1] - v_ue[1], v_sat[2] - v_ue[2]];
 
         // Radial velocity along line of sight (+ approaching, - receding):
         // $v_{\text{radial}} = \frac{\vec{r}_{\text{rel}} \cdot \vec{v}_{\text{rel}}}{\|\vec{r}_{\text{rel}}\|}$
@@ -341,10 +346,11 @@ impl NtnPrecompensationEngine {
             r_sat_next[1] - r_ue[1],
             r_sat_next[2] - r_ue[2],
         ];
-        let range_next =
-            (r_rel_next[0] * r_rel_next[0] + r_rel_next[1] * r_rel_next[1] + r_rel_next[2] * r_rel_next[2])
-                .sqrt()
-                .max(1.0);
+        let range_next = (r_rel_next[0] * r_rel_next[0]
+            + r_rel_next[1] * r_rel_next[1]
+            + r_rel_next[2] * r_rel_next[2])
+            .sqrt()
+            .max(1.0);
         let v_rel_next = [
             v_sat_next[0] - v_ue[0],
             v_sat_next[1] - v_ue[1],
@@ -459,11 +465,7 @@ mod tests {
     #[test]
     fn test_doppler_precompensation_approaching_satellite() {
         // Satellite at 45 deg ahead of UE
-        let r_sat = [
-            EARTH_RADIUS_METERS + 500_000.0,
-            400_000.0,
-            0.0,
-        ];
+        let r_sat = [EARTH_RADIUS_METERS + 500_000.0, 400_000.0, 0.0];
         // Approaching with velocity towards negative Y
         let v_sat = [0.0, -7500.0, 0.0];
         let ephemeris = NtnEphemerisState::new(r_sat, v_sat, 0.0, NtnOrbitType::Leo);

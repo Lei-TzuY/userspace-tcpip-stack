@@ -1,10 +1,10 @@
 //! Integration tests for 3GPP Rel-18/19 PRACH Receiver & Timing Advance Engine.
 
 use toy_tcpip::nr_prach_receiver::{
-    apply_cyclic_shift, calculate_cyclic_shifts, generate_64_preamble_bank,
-    generate_base_zadoff_chu, synthesize_prach_waveform, Complex64, PrachDetector,
-    PrachFormat, PrachReceiverConfig, PrachWirePdu, RestrictedSetConfig, PRACH_WIRE_MAGIC,
-    PREAMBLES_PER_CELL,
+    Complex64, PRACH_WIRE_MAGIC, PREAMBLES_PER_CELL, PrachDetector, PrachFormat,
+    PrachReceiverConfig, PrachWirePdu, RestrictedSetConfig, apply_cyclic_shift,
+    calculate_cyclic_shifts, generate_64_preamble_bank, generate_base_zadoff_chu,
+    synthesize_prach_waveform,
 };
 
 #[test]
@@ -32,7 +32,8 @@ fn test_prach_cyclic_shift_unrestricted_and_restricted_set() {
     let n_cs = 13;
 
     // Unrestricted set: 139 / 13 = 10 shifts
-    let shifts_unrest = calculate_cyclic_shifts(l_ra, n_cs, RestrictedSetConfig::UnrestrictedSet).unwrap();
+    let shifts_unrest =
+        calculate_cyclic_shifts(l_ra, n_cs, RestrictedSetConfig::UnrestrictedSet).unwrap();
     assert_eq!(shifts_unrest.len(), 10);
     assert_eq!(shifts_unrest[0], 0);
     assert_eq!(shifts_unrest[1], 13);
@@ -40,7 +41,8 @@ fn test_prach_cyclic_shift_unrestricted_and_restricted_set() {
     assert_eq!(shifts_unrest[9], 117);
 
     // Restricted set: wider spacing
-    let shifts_rest = calculate_cyclic_shifts(l_ra, n_cs, RestrictedSetConfig::RestrictedSetTypeA).unwrap();
+    let shifts_rest =
+        calculate_cyclic_shifts(l_ra, n_cs, RestrictedSetConfig::RestrictedSetTypeA).unwrap();
     assert_eq!(shifts_rest.len(), 5);
     assert_eq!(shifts_rest[0], 0);
     assert_eq!(shifts_rest[1], 26);
@@ -57,7 +59,8 @@ fn test_prach_cyclic_shift_unrestricted_and_restricted_set() {
 fn test_prach_64_preamble_bank_multi_root_expansion() {
     let l_ra = 139;
     let n_cs = 13; // 10 preambles per root
-    let bank = generate_64_preamble_bank(1, l_ra, n_cs, RestrictedSetConfig::UnrestrictedSet).unwrap();
+    let bank =
+        generate_64_preamble_bank(1, l_ra, n_cs, RestrictedSetConfig::UnrestrictedSet).unwrap();
 
     assert_eq!(bank.len(), PREAMBLES_PER_CELL); // Exactly 64
 
@@ -162,7 +165,11 @@ fn test_prach_multi_preamble_simultaneous_detection() {
     }
 
     let detected = detector.detect_preambles(&rx);
-    assert_eq!(detected.len(), 2, "Both preambles must be detected simultaneously");
+    assert_eq!(
+        detected.len(),
+        2,
+        "Both preambles must be detected simultaneously"
+    );
 
     let preambles: Vec<usize> = detected.iter().map(|d| d.preamble_index).collect();
     assert!(preambles.contains(&1));

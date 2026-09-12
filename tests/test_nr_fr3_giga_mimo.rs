@@ -2,10 +2,9 @@
 //! Standards Reference: 3GPP TR 38.868, TR 38.901, TS 38.101-1, TS 38.214.
 
 use toy_tcpip::nr_fr3_giga_mimo::{
-    Fr3ArrayGeometry, Fr3GigaMimoEngine, Fr3MimoError, Fr3PhaseNoiseCompensator,
-    NearFieldBeamformingSynthesizer, NearFieldFocusTarget, PropagationRegime,
-    PtrsTimeDensity, SpatialNonStationarityManager, VisibilityRegion,
-    DEFAULT_FR3_CARRIER_FREQ_HZ, FR3_SPEED_OF_LIGHT_M_S,
+    DEFAULT_FR3_CARRIER_FREQ_HZ, FR3_SPEED_OF_LIGHT_M_S, Fr3ArrayGeometry, Fr3GigaMimoEngine,
+    Fr3MimoError, Fr3PhaseNoiseCompensator, NearFieldBeamformingSynthesizer, NearFieldFocusTarget,
+    PropagationRegime, PtrsTimeDensity, SpatialNonStationarityManager, VisibilityRegion,
 };
 
 #[test]
@@ -17,10 +16,16 @@ fn test_fr3_array_geometry_and_rayleigh_distance() {
     assert!((geom_256.wavelength_m() - lambda).abs() < 1e-6);
 
     let d_diag = geom_256.aperture_diagonal_m();
-    assert!(d_diag > 0.30 && d_diag < 0.35, "Diagonal aperture {d_diag} m out of expected range");
+    assert!(
+        d_diag > 0.30 && d_diag < 0.35,
+        "Diagonal aperture {d_diag} m out of expected range"
+    );
 
     let rayleigh = geom_256.rayleigh_distance_m();
-    assert!(rayleigh > 6.0 && rayleigh < 8.0, "Rayleigh distance {rayleigh} m out of expected range");
+    assert!(
+        rayleigh > 6.0 && rayleigh < 8.0,
+        "Rayleigh distance {rayleigh} m out of expected range"
+    );
 
     // 2. 1024-element UPA (32x32) at 10 GHz
     let geom_1024 = Fr3ArrayGeometry::new(32, 32, 10.0e9).expect("Valid 1024-element array");
@@ -30,10 +35,16 @@ fn test_fr3_array_geometry_and_rayleigh_distance() {
 
     // 3. Error handling: exceeds 1024 elements or invalid carrier frequency
     let err_size = Fr3ArrayGeometry::new(40, 40, 10.0e9);
-    assert!(matches!(err_size, Err(Fr3MimoError::ArrayDimensionExceeded { .. })));
+    assert!(matches!(
+        err_size,
+        Err(Fr3MimoError::ArrayDimensionExceeded { .. })
+    ));
 
     let err_freq = Fr3ArrayGeometry::new(16, 16, 3.5e9); // 3.5 GHz is FR1, not FR3
-    assert!(matches!(err_freq, Err(Fr3MimoError::InvalidCarrierFrequency(_))));
+    assert!(matches!(
+        err_freq,
+        Err(Fr3MimoError::InvalidCarrierFrequency(_))
+    ));
 }
 
 #[test]
@@ -47,25 +58,13 @@ fn test_near_field_spherical_wavefront_focusing() {
 
     // Evaluate coherent array factor at focal point (0, 0, 2.5) vs pre-focal (0, 0, 1.2) and post-focal (0, 0, 5.0)
     let af_focus = NearFieldBeamformingSynthesizer::evaluate_array_factor_at_point(
-        &geom,
-        &weights,
-        0.0,
-        0.0,
-        2.5,
+        &geom, &weights, 0.0, 0.0, 2.5,
     );
     let af_pre = NearFieldBeamformingSynthesizer::evaluate_array_factor_at_point(
-        &geom,
-        &weights,
-        0.0,
-        0.0,
-        1.2,
+        &geom, &weights, 0.0, 0.0, 1.2,
     );
     let af_post = NearFieldBeamformingSynthesizer::evaluate_array_factor_at_point(
-        &geom,
-        &weights,
-        0.0,
-        0.0,
-        5.0,
+        &geom, &weights, 0.0, 0.0, 5.0,
     );
 
     // At focal point, coherent addition achieves full array gain ~16.0 (sqrt(256))
@@ -87,10 +86,16 @@ fn test_near_field_vs_far_field_regime_transition() {
     assert!(rayleigh > 6.0 && rayleigh < 8.0);
 
     // Near-field evaluation: d = 2.0 m < rayleigh
-    assert_eq!(geom.classify_regime(2.0), PropagationRegime::NearFieldSphericalWave);
+    assert_eq!(
+        geom.classify_regime(2.0),
+        PropagationRegime::NearFieldSphericalWave
+    );
 
     // Far-field evaluation: d = 15.0 m >= rayleigh
-    assert_eq!(geom.classify_regime(15.0), PropagationRegime::FarFieldPlaneWave);
+    assert_eq!(
+        geom.classify_regime(15.0),
+        PropagationRegime::FarFieldPlaneWave
+    );
 }
 
 #[test]
@@ -100,7 +105,8 @@ fn test_hybrid_analog_digital_subarray_precoding() {
     let full_weights = NearFieldBeamformingSynthesizer::compute_near_field_weights(&geom, &target);
 
     // 256 elements split into 16 subarrays of 16 elements each
-    let engine = Fr3GigaMimoEngine::new(16, 16, 10.0e9, 16).expect("Engine initialization should succeed");
+    let engine =
+        Fr3GigaMimoEngine::new(16, 16, 10.0e9, 16).expect("Engine initialization should succeed");
     let (digital_weights, analog_weights) = engine
         .subarray_precoder
         .compute_hybrid_precoding(&full_weights);
@@ -148,9 +154,15 @@ fn test_fr3_phase_noise_and_ptrs_density_adaptation() {
     // Low MCS at 10 GHz -> Density 4
     assert_eq!(comp_10ghz.select_ptrs_density(8), PtrsTimeDensity::Density4);
     // Medium MCS at 10 GHz -> Density 2
-    assert_eq!(comp_10ghz.select_ptrs_density(16), PtrsTimeDensity::Density2);
+    assert_eq!(
+        comp_10ghz.select_ptrs_density(16),
+        PtrsTimeDensity::Density2
+    );
     // High MCS at 10 GHz -> Density 1
-    assert_eq!(comp_10ghz.select_ptrs_density(25), PtrsTimeDensity::Density1);
+    assert_eq!(
+        comp_10ghz.select_ptrs_density(25),
+        PtrsTimeDensity::Density1
+    );
 
     let comp_18ghz = Fr3PhaseNoiseCompensator::new(18.0e9);
     // Upper FR3 (>= 14 GHz) mandates Density 1 for all MCS
@@ -164,8 +176,8 @@ fn test_fr3_phase_noise_and_ptrs_density_adaptation() {
 
 #[test]
 fn test_end_to_end_fr3_giga_mimo_engine_coordinator() {
-    let mut engine = Fr3GigaMimoEngine::new(16, 16, 10.0e9, 16)
-        .expect("FR3 Giga-MIMO Engine creation");
+    let mut engine =
+        Fr3GigaMimoEngine::new(16, 16, 10.0e9, 16).expect("FR3 Giga-MIMO Engine creation");
 
     // Case 1: UE in near-field (z = 2.0 m)
     let ue_near = NearFieldFocusTarget::new(0.0, 0.0, 2.0);

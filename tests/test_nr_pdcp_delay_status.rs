@@ -11,9 +11,8 @@
 //! - Binary wire framing (`NrPdcpDelayWirePdu`) with CRC-16 CCITT integrity
 
 use toy_tcpip::nr_pdcp_delay_status::{
-    NrPdcpDelayWirePdu, PdcpDelayReportConfig, PdcpDelayStatusEngine,
-    PdcpDelayStatusError, ReportTriggerReason, PDCP_DELAY_CONTROL_PDU_SIZE,
-    PDU_TYPE_DATA_VOLUME_AND_DELAY_STATUS,
+    NrPdcpDelayWirePdu, PDCP_DELAY_CONTROL_PDU_SIZE, PDU_TYPE_DATA_VOLUME_AND_DELAY_STATUS,
+    PdcpDelayReportConfig, PdcpDelayStatusEngine, PdcpDelayStatusError, ReportTriggerReason,
 };
 
 #[test]
@@ -147,12 +146,12 @@ fn test_excess_delay_volume_and_count_accounting() {
 fn test_imminent_discard_alert_trigger() {
     let config = PdcpDelayReportConfig {
         drb_id: 1,
-        discard_timer_us: Some(15_000),      // 15 ms
+        discard_timer_us: Some(15_000), // 15 ms
         excess_delay_threshold_us: 10_000,
-        report_interval_us: None,            // No periodic
+        report_interval_us: None, // No periodic
         hol_delay_threshold_us: None,
         volume_threshold_bytes: None,
-        imminent_discard_window_us: 2_000,   // SDUs expiring within 2 ms (age >= 13 ms)
+        imminent_discard_window_us: 2_000, // SDUs expiring within 2 ms (age >= 13 ms)
         max_buffer_capacity: 100,
     };
 
@@ -192,7 +191,9 @@ fn test_hol_delay_threshold_trigger() {
     assert!(engine.advance_time(4_000).is_none());
 
     // Advance to t = 6.2 ms -> HOL delay = 6.2 ms >= 6 ms -> HolDelayThresholdExceeded trigger!
-    let rep = engine.advance_time(6_200).expect("Should trigger HOL report");
+    let rep = engine
+        .advance_time(6_200)
+        .expect("Should trigger HOL report");
     assert_eq!(rep.trigger, ReportTriggerReason::HolDelayThresholdExceeded);
     assert_eq!(rep.hol_delay_us, 6_200);
 }
@@ -218,7 +219,9 @@ fn test_buffer_volume_threshold_trigger() {
 
     // Enqueue 2 KB -> total 6 KB >= 5 KB -> VolumeThresholdExceeded trigger!
     engine.enqueue_sdu(2_000, 1).unwrap();
-    let rep = engine.evaluate_triggers().expect("Should trigger volume report");
+    let rep = engine
+        .evaluate_triggers()
+        .expect("Should trigger volume report");
     assert_eq!(rep.trigger, ReportTriggerReason::VolumeThresholdExceeded);
     assert_eq!(rep.total_buffered_bytes, 6_000);
 }
@@ -243,14 +246,18 @@ fn test_periodic_reporting_cadence() {
     assert!(engine.advance_time(5_000).is_none());
 
     // Advance to 10 ms -> Periodic trigger!
-    let rep10 = engine.advance_time(10_000).expect("Periodic trigger at 10 ms");
+    let rep10 = engine
+        .advance_time(10_000)
+        .expect("Periodic trigger at 10 ms");
     assert_eq!(rep10.trigger, ReportTriggerReason::Periodic);
 
     // Advance to 15 ms -> interval not reached
     assert!(engine.advance_time(15_000).is_none());
 
     // Advance to 20 ms -> Periodic trigger!
-    let rep20 = engine.advance_time(20_000).expect("Periodic trigger at 20 ms");
+    let rep20 = engine
+        .advance_time(20_000)
+        .expect("Periodic trigger at 20 ms");
     assert_eq!(rep20.trigger, ReportTriggerReason::Periodic);
 }
 
@@ -282,7 +289,10 @@ fn test_ts38323_control_pdu_encode_decode_roundtrip() {
     // Decode Control PDU
     let decoded = PdcpDelayStatusEngine::decode_control_pdu(&pdu_bytes).unwrap();
     assert_eq!(decoded.drb_id, 5);
-    assert_eq!(decoded.trigger, ReportTriggerReason::HolDelayThresholdExceeded);
+    assert_eq!(
+        decoded.trigger,
+        ReportTriggerReason::HolDelayThresholdExceeded
+    );
     assert_eq!(decoded.hol_delay_us, 12_400);
     assert_eq!(decoded.total_buffered_bytes, 48_500);
     assert_eq!(decoded.total_pending_sdus, 32);
@@ -307,7 +317,10 @@ fn test_wire_pdu_framing_and_crc16() {
     };
 
     let raw = wire.to_wire_bytes();
-    assert_eq!(raw.len(), toy_tcpip::nr_pdcp_delay_status::PDCP_DELAY_WIRE_PDU_SIZE);
+    assert_eq!(
+        raw.len(),
+        toy_tcpip::nr_pdcp_delay_status::PDCP_DELAY_WIRE_PDU_SIZE
+    );
 
     let parsed = NrPdcpDelayWirePdu::from_wire_bytes(&raw).unwrap();
     assert_eq!(parsed, wire);

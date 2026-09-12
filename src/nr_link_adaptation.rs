@@ -50,14 +50,28 @@ impl fmt::Display for LinkAdaptationError {
         match self {
             Self::EmptySinrList => write!(f, "SINR input list cannot be empty"),
             Self::InvalidRank(r) => write!(f, "Invalid transmission rank: {} (must be 1..4)", r),
-            Self::InvalidSubbandCount => write!(f, "Subband list length must match configured subbands"),
-            Self::InvalidCqiTable(t) => write!(f, "Invalid CQI table identifier: {} (must be 1, 2, or 3)", t),
+            Self::InvalidSubbandCount => {
+                write!(f, "Subband list length must match configured subbands")
+            }
+            Self::InvalidCqiTable(t) => write!(
+                f,
+                "Invalid CQI table identifier: {} (must be 1, 2, or 3)",
+                t
+            ),
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -107,7 +121,7 @@ pub struct CqiEntry {
     pub cqi_index: u8,
     pub modulation: NrModulation,
     pub code_rate_x1024: u16,
-    pub efficiency: f32,    // bits per RE
+    pub efficiency: f32,       // bits per RE
     pub snr_threshold_db: f32, // AWGN SNR required for 10% BLER
 }
 
@@ -135,59 +149,329 @@ impl CqiTableType {
 
 /// 3GPP TS 38.214 Table 5.2.2.1-2 (4-bit CQI Table 1: up to 64QAM).
 pub static CQI_TABLE_1: [CqiEntry; 15] = [
-    CqiEntry { cqi_index: 1, modulation: NrModulation::Qpsk, code_rate_x1024: 78, efficiency: 0.1523, snr_threshold_db: -6.7 },
-    CqiEntry { cqi_index: 2, modulation: NrModulation::Qpsk, code_rate_x1024: 120, efficiency: 0.2344, snr_threshold_db: -4.7 },
-    CqiEntry { cqi_index: 3, modulation: NrModulation::Qpsk, code_rate_x1024: 193, efficiency: 0.3770, snr_threshold_db: -2.3 },
-    CqiEntry { cqi_index: 4, modulation: NrModulation::Qpsk, code_rate_x1024: 308, efficiency: 0.6016, snr_threshold_db: 0.2 },
-    CqiEntry { cqi_index: 5, modulation: NrModulation::Qpsk, code_rate_x1024: 449, efficiency: 0.8770, snr_threshold_db: 2.4 },
-    CqiEntry { cqi_index: 6, modulation: NrModulation::Qpsk, code_rate_x1024: 602, efficiency: 1.1758, snr_threshold_db: 4.3 },
-    CqiEntry { cqi_index: 7, modulation: NrModulation::Qam16, code_rate_x1024: 378, efficiency: 1.4766, snr_threshold_db: 5.9 },
-    CqiEntry { cqi_index: 8, modulation: NrModulation::Qam16, code_rate_x1024: 490, efficiency: 1.9141, snr_threshold_db: 8.1 },
-    CqiEntry { cqi_index: 9, modulation: NrModulation::Qam16, code_rate_x1024: 616, efficiency: 2.4063, snr_threshold_db: 10.3 },
-    CqiEntry { cqi_index: 10, modulation: NrModulation::Qam64, code_rate_x1024: 466, efficiency: 2.7305, snr_threshold_db: 11.7 },
-    CqiEntry { cqi_index: 11, modulation: NrModulation::Qam64, code_rate_x1024: 567, efficiency: 3.3223, snr_threshold_db: 14.1 },
-    CqiEntry { cqi_index: 12, modulation: NrModulation::Qam64, code_rate_x1024: 666, efficiency: 3.9023, snr_threshold_db: 16.3 },
-    CqiEntry { cqi_index: 13, modulation: NrModulation::Qam64, code_rate_x1024: 772, efficiency: 4.5234, snr_threshold_db: 18.7 },
-    CqiEntry { cqi_index: 14, modulation: NrModulation::Qam64, code_rate_x1024: 873, efficiency: 5.1152, snr_threshold_db: 21.0 },
-    CqiEntry { cqi_index: 15, modulation: NrModulation::Qam64, code_rate_x1024: 948, efficiency: 5.5547, snr_threshold_db: 22.7 },
+    CqiEntry {
+        cqi_index: 1,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 78,
+        efficiency: 0.1523,
+        snr_threshold_db: -6.7,
+    },
+    CqiEntry {
+        cqi_index: 2,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 120,
+        efficiency: 0.2344,
+        snr_threshold_db: -4.7,
+    },
+    CqiEntry {
+        cqi_index: 3,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 193,
+        efficiency: 0.3770,
+        snr_threshold_db: -2.3,
+    },
+    CqiEntry {
+        cqi_index: 4,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 308,
+        efficiency: 0.6016,
+        snr_threshold_db: 0.2,
+    },
+    CqiEntry {
+        cqi_index: 5,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 449,
+        efficiency: 0.8770,
+        snr_threshold_db: 2.4,
+    },
+    CqiEntry {
+        cqi_index: 6,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 602,
+        efficiency: 1.1758,
+        snr_threshold_db: 4.3,
+    },
+    CqiEntry {
+        cqi_index: 7,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 378,
+        efficiency: 1.4766,
+        snr_threshold_db: 5.9,
+    },
+    CqiEntry {
+        cqi_index: 8,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 490,
+        efficiency: 1.9141,
+        snr_threshold_db: 8.1,
+    },
+    CqiEntry {
+        cqi_index: 9,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 616,
+        efficiency: 2.4063,
+        snr_threshold_db: 10.3,
+    },
+    CqiEntry {
+        cqi_index: 10,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 466,
+        efficiency: 2.7305,
+        snr_threshold_db: 11.7,
+    },
+    CqiEntry {
+        cqi_index: 11,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 567,
+        efficiency: 3.3223,
+        snr_threshold_db: 14.1,
+    },
+    CqiEntry {
+        cqi_index: 12,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 666,
+        efficiency: 3.9023,
+        snr_threshold_db: 16.3,
+    },
+    CqiEntry {
+        cqi_index: 13,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 772,
+        efficiency: 4.5234,
+        snr_threshold_db: 18.7,
+    },
+    CqiEntry {
+        cqi_index: 14,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 873,
+        efficiency: 5.1152,
+        snr_threshold_db: 21.0,
+    },
+    CqiEntry {
+        cqi_index: 15,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 948,
+        efficiency: 5.5547,
+        snr_threshold_db: 22.7,
+    },
 ];
 
 /// 3GPP TS 38.214 Table 5.2.2.1-3 (4-bit CQI Table 2: up to 256QAM).
 pub static CQI_TABLE_2: [CqiEntry; 15] = [
-    CqiEntry { cqi_index: 1, modulation: NrModulation::Qpsk, code_rate_x1024: 78, efficiency: 0.1523, snr_threshold_db: -6.7 },
-    CqiEntry { cqi_index: 2, modulation: NrModulation::Qpsk, code_rate_x1024: 193, efficiency: 0.3770, snr_threshold_db: -2.3 },
-    CqiEntry { cqi_index: 3, modulation: NrModulation::Qpsk, code_rate_x1024: 449, efficiency: 0.8770, snr_threshold_db: 2.4 },
-    CqiEntry { cqi_index: 4, modulation: NrModulation::Qam16, code_rate_x1024: 378, efficiency: 1.4766, snr_threshold_db: 5.9 },
-    CqiEntry { cqi_index: 5, modulation: NrModulation::Qam16, code_rate_x1024: 490, efficiency: 1.9141, snr_threshold_db: 8.1 },
-    CqiEntry { cqi_index: 6, modulation: NrModulation::Qam16, code_rate_x1024: 616, efficiency: 2.4063, snr_threshold_db: 10.3 },
-    CqiEntry { cqi_index: 7, modulation: NrModulation::Qam64, code_rate_x1024: 466, efficiency: 2.7305, snr_threshold_db: 11.7 },
-    CqiEntry { cqi_index: 8, modulation: NrModulation::Qam64, code_rate_x1024: 567, efficiency: 3.3223, snr_threshold_db: 14.1 },
-    CqiEntry { cqi_index: 9, modulation: NrModulation::Qam64, code_rate_x1024: 666, efficiency: 3.9023, snr_threshold_db: 16.3 },
-    CqiEntry { cqi_index: 10, modulation: NrModulation::Qam64, code_rate_x1024: 772, efficiency: 4.5234, snr_threshold_db: 18.7 },
-    CqiEntry { cqi_index: 11, modulation: NrModulation::Qam64, code_rate_x1024: 873, efficiency: 5.1152, snr_threshold_db: 21.0 },
-    CqiEntry { cqi_index: 12, modulation: NrModulation::Qam256, code_rate_x1024: 711, efficiency: 5.5547, snr_threshold_db: 23.0 },
-    CqiEntry { cqi_index: 13, modulation: NrModulation::Qam256, code_rate_x1024: 797, efficiency: 6.2266, snr_threshold_db: 25.2 },
-    CqiEntry { cqi_index: 14, modulation: NrModulation::Qam256, code_rate_x1024: 885, efficiency: 6.9141, snr_threshold_db: 27.5 },
-    CqiEntry { cqi_index: 15, modulation: NrModulation::Qam256, code_rate_x1024: 948, efficiency: 7.4063, snr_threshold_db: 29.5 },
+    CqiEntry {
+        cqi_index: 1,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 78,
+        efficiency: 0.1523,
+        snr_threshold_db: -6.7,
+    },
+    CqiEntry {
+        cqi_index: 2,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 193,
+        efficiency: 0.3770,
+        snr_threshold_db: -2.3,
+    },
+    CqiEntry {
+        cqi_index: 3,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 449,
+        efficiency: 0.8770,
+        snr_threshold_db: 2.4,
+    },
+    CqiEntry {
+        cqi_index: 4,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 378,
+        efficiency: 1.4766,
+        snr_threshold_db: 5.9,
+    },
+    CqiEntry {
+        cqi_index: 5,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 490,
+        efficiency: 1.9141,
+        snr_threshold_db: 8.1,
+    },
+    CqiEntry {
+        cqi_index: 6,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 616,
+        efficiency: 2.4063,
+        snr_threshold_db: 10.3,
+    },
+    CqiEntry {
+        cqi_index: 7,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 466,
+        efficiency: 2.7305,
+        snr_threshold_db: 11.7,
+    },
+    CqiEntry {
+        cqi_index: 8,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 567,
+        efficiency: 3.3223,
+        snr_threshold_db: 14.1,
+    },
+    CqiEntry {
+        cqi_index: 9,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 666,
+        efficiency: 3.9023,
+        snr_threshold_db: 16.3,
+    },
+    CqiEntry {
+        cqi_index: 10,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 772,
+        efficiency: 4.5234,
+        snr_threshold_db: 18.7,
+    },
+    CqiEntry {
+        cqi_index: 11,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 873,
+        efficiency: 5.1152,
+        snr_threshold_db: 21.0,
+    },
+    CqiEntry {
+        cqi_index: 12,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 711,
+        efficiency: 5.5547,
+        snr_threshold_db: 23.0,
+    },
+    CqiEntry {
+        cqi_index: 13,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 797,
+        efficiency: 6.2266,
+        snr_threshold_db: 25.2,
+    },
+    CqiEntry {
+        cqi_index: 14,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 885,
+        efficiency: 6.9141,
+        snr_threshold_db: 27.5,
+    },
+    CqiEntry {
+        cqi_index: 15,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 948,
+        efficiency: 7.4063,
+        snr_threshold_db: 29.5,
+    },
 ];
 
 /// 3GPP TS 38.214 Rel-18 Table 5.2.2.1-4 (4-bit CQI Table 3: up to 1024QAM).
 pub static CQI_TABLE_3: [CqiEntry; 15] = [
-    CqiEntry { cqi_index: 1, modulation: NrModulation::Qpsk, code_rate_x1024: 78, efficiency: 0.1523, snr_threshold_db: -6.7 },
-    CqiEntry { cqi_index: 2, modulation: NrModulation::Qpsk, code_rate_x1024: 231, efficiency: 0.4512, snr_threshold_db: -1.0 },
-    CqiEntry { cqi_index: 3, modulation: NrModulation::Qam16, code_rate_x1024: 378, efficiency: 1.4766, snr_threshold_db: 5.9 },
-    CqiEntry { cqi_index: 4, modulation: NrModulation::Qam16, code_rate_x1024: 616, efficiency: 2.4063, snr_threshold_db: 10.3 },
-    CqiEntry { cqi_index: 5, modulation: NrModulation::Qam64, code_rate_x1024: 466, efficiency: 2.7305, snr_threshold_db: 11.7 },
-    CqiEntry { cqi_index: 6, modulation: NrModulation::Qam64, code_rate_x1024: 666, efficiency: 3.9023, snr_threshold_db: 16.3 },
-    CqiEntry { cqi_index: 7, modulation: NrModulation::Qam64, code_rate_x1024: 873, efficiency: 5.1152, snr_threshold_db: 21.0 },
-    CqiEntry { cqi_index: 8, modulation: NrModulation::Qam256, code_rate_x1024: 711, efficiency: 5.5547, snr_threshold_db: 23.0 },
-    CqiEntry { cqi_index: 9, modulation: NrModulation::Qam256, code_rate_x1024: 797, efficiency: 6.2266, snr_threshold_db: 25.2 },
-    CqiEntry { cqi_index: 10, modulation: NrModulation::Qam256, code_rate_x1024: 885, efficiency: 6.9141, snr_threshold_db: 27.5 },
-    CqiEntry { cqi_index: 11, modulation: NrModulation::Qam256, code_rate_x1024: 948, efficiency: 7.4063, snr_threshold_db: 29.5 },
-    CqiEntry { cqi_index: 12, modulation: NrModulation::Qam1024, code_rate_x1024: 805, efficiency: 7.8613, snr_threshold_db: 32.0 },
-    CqiEntry { cqi_index: 13, modulation: NrModulation::Qam1024, code_rate_x1024: 853, efficiency: 8.3301, snr_threshold_db: 34.2 },
-    CqiEntry { cqi_index: 14, modulation: NrModulation::Qam1024, code_rate_x1024: 911, efficiency: 8.8965, snr_threshold_db: 36.5 },
-    CqiEntry { cqi_index: 15, modulation: NrModulation::Qam1024, code_rate_x1024: 963, efficiency: 9.4043, snr_threshold_db: 39.0 },
+    CqiEntry {
+        cqi_index: 1,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 78,
+        efficiency: 0.1523,
+        snr_threshold_db: -6.7,
+    },
+    CqiEntry {
+        cqi_index: 2,
+        modulation: NrModulation::Qpsk,
+        code_rate_x1024: 231,
+        efficiency: 0.4512,
+        snr_threshold_db: -1.0,
+    },
+    CqiEntry {
+        cqi_index: 3,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 378,
+        efficiency: 1.4766,
+        snr_threshold_db: 5.9,
+    },
+    CqiEntry {
+        cqi_index: 4,
+        modulation: NrModulation::Qam16,
+        code_rate_x1024: 616,
+        efficiency: 2.4063,
+        snr_threshold_db: 10.3,
+    },
+    CqiEntry {
+        cqi_index: 5,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 466,
+        efficiency: 2.7305,
+        snr_threshold_db: 11.7,
+    },
+    CqiEntry {
+        cqi_index: 6,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 666,
+        efficiency: 3.9023,
+        snr_threshold_db: 16.3,
+    },
+    CqiEntry {
+        cqi_index: 7,
+        modulation: NrModulation::Qam64,
+        code_rate_x1024: 873,
+        efficiency: 5.1152,
+        snr_threshold_db: 21.0,
+    },
+    CqiEntry {
+        cqi_index: 8,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 711,
+        efficiency: 5.5547,
+        snr_threshold_db: 23.0,
+    },
+    CqiEntry {
+        cqi_index: 9,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 797,
+        efficiency: 6.2266,
+        snr_threshold_db: 25.2,
+    },
+    CqiEntry {
+        cqi_index: 10,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 885,
+        efficiency: 6.9141,
+        snr_threshold_db: 27.5,
+    },
+    CqiEntry {
+        cqi_index: 11,
+        modulation: NrModulation::Qam256,
+        code_rate_x1024: 948,
+        efficiency: 7.4063,
+        snr_threshold_db: 29.5,
+    },
+    CqiEntry {
+        cqi_index: 12,
+        modulation: NrModulation::Qam1024,
+        code_rate_x1024: 805,
+        efficiency: 7.8613,
+        snr_threshold_db: 32.0,
+    },
+    CqiEntry {
+        cqi_index: 13,
+        modulation: NrModulation::Qam1024,
+        code_rate_x1024: 853,
+        efficiency: 8.3301,
+        snr_threshold_db: 34.2,
+    },
+    CqiEntry {
+        cqi_index: 14,
+        modulation: NrModulation::Qam1024,
+        code_rate_x1024: 911,
+        efficiency: 8.8965,
+        snr_threshold_db: 36.5,
+    },
+    CqiEntry {
+        cqi_index: 15,
+        modulation: NrModulation::Qam1024,
+        code_rate_x1024: 963,
+        efficiency: 9.4043,
+        snr_threshold_db: 39.0,
+    },
 ];
 
 // ---------------------------------------------------------------------------
@@ -196,7 +480,10 @@ pub static CQI_TABLE_3: [CqiEntry; 15] = [
 
 /// Computes Effective SINR (dB) from a slice of subband/subcarrier SINRs (dB) using EESM:
 /// $\text{SINR}_{\text{eff}} = -\beta \ln\left( \frac{1}{K} \sum_{k=1}^K e^{-\text{SINR}_k^{\text{linear}} / \beta} \right)$.
-pub fn compute_eesm_effective_sinr(sinrs_db: &[f32], beta: f32) -> Result<f32, LinkAdaptationError> {
+pub fn compute_eesm_effective_sinr(
+    sinrs_db: &[f32],
+    beta: f32,
+) -> Result<f32, LinkAdaptationError> {
     if sinrs_db.is_empty() {
         return Err(LinkAdaptationError::EmptySinrList);
     }
@@ -274,8 +561,8 @@ impl AntennaPanelGeometry {
 /// Selected Precoding Matrix Indicator (PMI) indices: $(i_1, i_2)$.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PmiSelection {
-    pub beam_l: u8,   // Horizontal beam index
-    pub beam_m: u8,   // Vertical beam index
+    pub beam_l: u8,    // Horizontal beam index
+    pub beam_m: u8,    // Vertical beam index
     pub cophase_n: u8, // Co-phasing index across polarizations: n in {0, 1, 2, 3} -> {1, j, -1, -j}
 }
 
@@ -297,7 +584,11 @@ pub fn select_type1_pmi_rank1(
     let total_tx = panel.num_tx_ports();
 
     let mut best_power = -1.0f32;
-    let mut best_pmi = PmiSelection { beam_l: 0, beam_m: 0, cophase_n: 0 };
+    let mut best_pmi = PmiSelection {
+        beam_l: 0,
+        beam_m: 0,
+        cophase_n: 0,
+    };
 
     let pi = std::f32::consts::PI;
 
@@ -308,7 +599,9 @@ pub fn select_type1_pmi_rank1(
             let mut v = Vec::with_capacity(n1 * n2);
             for x2 in 0..n2 {
                 for x1 in 0..n1 {
-                    let phase = 2.0 * pi * ((x1 * l) as f32 / (n1 * o1) as f32 + (x2 * m) as f32 / (n2 * o2) as f32);
+                    let phase = 2.0
+                        * pi
+                        * ((x1 * l) as f32 / (n1 * o1) as f32 + (x2 * m) as f32 / (n2 * o2) as f32);
                     v.push((phase.cos(), phase.sin()));
                 }
             }
@@ -382,7 +675,10 @@ pub fn select_rank_indicator(
 
     for r in 1..=allowed_ranks {
         // Multi-layer transmission requires sufficient SNR on all layers to decode codewords
-        let min_layer_snr_db = 10.0 * ((snr_lin / (r as f32)) * eigenvalues[r - 1]).max(1e-6).log10();
+        let min_layer_snr_db = 10.0
+            * ((snr_lin / (r as f32)) * eigenvalues[r - 1])
+                .max(1e-6)
+                .log10();
         if r > 1 && (snr_db < 0.0 || min_layer_snr_db < -6.0) {
             continue;
         }

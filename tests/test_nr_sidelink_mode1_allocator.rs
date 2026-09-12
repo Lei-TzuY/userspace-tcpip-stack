@@ -2,8 +2,8 @@
 //! Network-Controlled Resource Allocation & DCI 3_0 Scheduling Engine.
 
 use toy_tcpip::nr_sidelink_mode1_allocator::{
-    DciFormat3_0, SidelinkMode1Allocator, SlBsrEntry, SlBsrMacCe, SlGrantType, SlMode1Error,
-    MAX_SL_SUBCHANNELS,
+    DciFormat3_0, MAX_SL_SUBCHANNELS, SidelinkMode1Allocator, SlBsrEntry, SlBsrMacCe, SlGrantType,
+    SlMode1Error,
 };
 
 // ---------------------------------------------------------------------------
@@ -21,7 +21,10 @@ fn test_dci_format_3_0_construction_and_validation() {
 
     // 2. Out-of-bounds subchannel allocation
     let bad_alloc = DciFormat3_0::new_dynamic(MAX_SL_SUBCHANNELS - 2, 5, 2, vec![0], 10);
-    assert!(matches!(bad_alloc, Err(SlMode1Error::InvalidSubchannelAllocation { .. })));
+    assert!(matches!(
+        bad_alloc,
+        Err(SlMode1Error::InvalidSubchannelAllocation { .. })
+    ));
 
     // 3. Configured Grant Type 2 Activation & Deactivation pattern checks
     let act_dci = DciFormat3_0 {
@@ -146,7 +149,9 @@ fn test_configured_grant_type2_activation_and_deactivation() {
         pucch_resource_indicator: 1,
         grant_type: SlGrantType::ConfiguredGrantType2Activation { cg_id: 2 },
     };
-    allocator.process_cg_dci(&act_dci).expect("Activate CG Type 2");
+    allocator
+        .process_cg_dci(&act_dci)
+        .expect("Activate CG Type 2");
 
     // Advance slots: slot 24 triggers, then slot 32 triggers
     let mut occ = 0;
@@ -170,7 +175,9 @@ fn test_configured_grant_type2_activation_and_deactivation() {
         pucch_resource_indicator: 0,
         grant_type: SlGrantType::ConfiguredGrantType2Deactivation { cg_id: 2 },
     };
-    allocator.process_cg_dci(&deact_dci).expect("Deactivate CG Type 2");
+    allocator
+        .process_cg_dci(&deact_dci)
+        .expect("Deactivate CG Type 2");
 
     // Advance further slots -> no more transmissions
     for _ in 36..=50 {

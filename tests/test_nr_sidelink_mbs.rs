@@ -77,12 +77,16 @@ fn test_option1_distance_based_nack_feedback_within_mcr() {
     let tx_loc = Location3D::new(30.0, 40.0, 0.0);
 
     // Case 1: Decoding failure within MCR -> Must send NACK on PSFCH
-    let decision_fail = rx_engine.evaluate_rx_feedback(0x555555, &tx_loc, false).unwrap();
+    let decision_fail = rx_engine
+        .evaluate_rx_feedback(0x555555, &tx_loc, false)
+        .unwrap();
     assert_eq!(decision_fail, SlMbsPsfchDecision::SendNack);
     assert_eq!(rx_engine.telemetry().psfch_nacks_received, 1);
 
     // Case 2: Decoding success within MCR -> SendAck (no PSFCH congestion)
-    let decision_ok = rx_engine.evaluate_rx_feedback(0x555555, &tx_loc, true).unwrap();
+    let decision_ok = rx_engine
+        .evaluate_rx_feedback(0x555555, &tx_loc, true)
+        .unwrap();
     assert_eq!(decision_ok, SlMbsPsfchDecision::SendAck);
 }
 
@@ -105,7 +109,9 @@ fn test_option1_distance_based_feedback_suppression_outside_mcr() {
     let tx_loc = Location3D::new(100.0, 0.0, 0.0);
 
     // Even on decoding failure, feedback MUST be suppressed outside MCR!
-    let decision = rx_engine.evaluate_rx_feedback(0x777777, &tx_loc, false).unwrap();
+    let decision = rx_engine
+        .evaluate_rx_feedback(0x777777, &tx_loc, false)
+        .unwrap();
     assert_eq!(decision, SlMbsPsfchDecision::SuppressedOutsideMcr);
 
     // Verify suppression telemetry
@@ -129,10 +135,14 @@ fn test_option2_individual_ack_nack_and_blind_retx() {
     engine.create_group(cfg2).unwrap();
 
     let tx_far = Location3D::new(500.0, 0.0, 0.0); // Far away
-    let d_ok = engine.evaluate_rx_feedback(0x222222, &tx_far, true).unwrap();
+    let d_ok = engine
+        .evaluate_rx_feedback(0x222222, &tx_far, true)
+        .unwrap();
     assert_eq!(d_ok, SlMbsPsfchDecision::SendAck);
 
-    let d_fail = engine.evaluate_rx_feedback(0x222222, &tx_far, false).unwrap();
+    let d_fail = engine
+        .evaluate_rx_feedback(0x222222, &tx_far, false)
+        .unwrap();
     assert_eq!(d_fail, SlMbsPsfchDecision::SendNack);
 
     // Group with Blind Retransmission
@@ -145,7 +155,9 @@ fn test_option2_individual_ack_nack_and_blind_retx() {
     cfg_blind.feedback_scheme = HarqFeedbackScheme::BlindRetransmissions;
     engine.create_group(cfg_blind).unwrap();
 
-    let d_blind = engine.evaluate_rx_feedback(0x333333, &tx_far, false).unwrap();
+    let d_blind = engine
+        .evaluate_rx_feedback(0x333333, &tx_far, false)
+        .unwrap();
     assert_eq!(d_blind, SlMbsPsfchDecision::SuppressedBlindRetx);
 }
 
@@ -163,7 +175,9 @@ fn test_transmitter_multicast_tx_and_psfch_handling() {
 
     // Prepare PDU
     let payload = vec![0xCA, 0xFE, 0xBA, 0xBE];
-    let pdu = tx_engine.prepare_multicast_tx(0xABCDEF, 42, payload.clone()).unwrap();
+    let pdu = tx_engine
+        .prepare_multicast_tx(0xABCDEF, 42, payload.clone())
+        .unwrap();
 
     assert_eq!(pdu.group_l2_id, 0xABCDEF);
     assert_eq!(pdu.sequence_number, 42);
@@ -257,12 +271,18 @@ fn test_error_display() {
     let e1 = SlMbsError::GroupNotFound(0x123456);
     assert!(format!("{}", e1).contains("Group L2 ID 0x123456 not found"));
 
-    let e2 = SlMbsError::GroupCapacityExceeded { max: 16, attempted: 17 };
+    let e2 = SlMbsError::GroupCapacityExceeded {
+        max: 16,
+        attempted: 17,
+    };
     assert!(format!("{}", e2).contains("Group capacity exceeded"));
 
     let e3 = SlMbsError::MemberNotFound(0x654321);
     assert!(format!("{}", e3).contains("Group member 0x654321 not found"));
 
-    let e4 = SlMbsError::ChecksumMismatch { expected: 0xABCD, calculated: 0x1234 };
+    let e4 = SlMbsError::ChecksumMismatch {
+        expected: 0xABCD,
+        calculated: 0x1234,
+    };
     assert!(format!("{}", e4).contains("0xABCD"));
 }

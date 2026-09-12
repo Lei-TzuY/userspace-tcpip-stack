@@ -110,7 +110,10 @@ impl PanelState {
             1 => Ok(PanelState::Standby),
             2 => Ok(PanelState::MpeThrottled),
             3 => Ok(PanelState::ThermalShutdown),
-            other => Err(StxpError::InvalidState(format!("Unknown panel state: {}", other))),
+            other => Err(StxpError::InvalidState(format!(
+                "Unknown panel state: {}",
+                other
+            ))),
         }
     }
 }
@@ -263,7 +266,9 @@ impl MpPhrReport {
     /// Deserializes MP-PHR report from binary wire format, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, StxpError> {
         if data.len() < 20 {
-            return Err(StxpError::DeserializationError("Buffer too small for MP-PHR header".into()));
+            return Err(StxpError::DeserializationError(
+                "Buffer too small for MP-PHR header".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
@@ -277,7 +282,9 @@ impl MpPhrReport {
         }
 
         if &data[0..4] != &MP_PHR_WIRE_MAGIC {
-            return Err(StxpError::DeserializationError("Invalid MP-PHR wire magic header".into()));
+            return Err(StxpError::DeserializationError(
+                "Invalid MP-PHR wire magic header".into(),
+            ));
         }
 
         let ue_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -286,15 +293,21 @@ impl MpPhrReport {
         let num_panels = data[17] as usize;
 
         if data.len() != 18 + num_panels * 10 + 2 {
-            return Err(StxpError::DeserializationError("Payload size does not match panel count".into()));
+            return Err(StxpError::DeserializationError(
+                "Payload size does not match panel count".into(),
+            ));
         }
 
         let mut offset = 18;
         let mut panels = Vec::with_capacity(num_panels);
         for _ in 0..num_panels {
             let panel_id = data[offset];
-            let ph_db = f32::from_bits(u32::from_be_bytes(data[offset + 1..offset + 5].try_into().unwrap()));
-            let p_cmax_p_dbm = f32::from_bits(u32::from_be_bytes(data[offset + 5..offset + 9].try_into().unwrap()));
+            let ph_db = f32::from_bits(u32::from_be_bytes(
+                data[offset + 1..offset + 5].try_into().unwrap(),
+            ));
+            let p_cmax_p_dbm = f32::from_bits(u32::from_be_bytes(
+                data[offset + 5..offset + 9].try_into().unwrap(),
+            ));
             let mpe_applied = data[offset + 9] != 0;
             offset += 10;
             panels.push(MpPhrPanelEntry {
@@ -365,16 +378,28 @@ impl fmt::Display for StxpError {
         match self {
             StxpError::PanelNotFound(id) => write!(f, "Panel ID {} not found", id),
             StxpError::PanelCapacityExceeded { max, attempted } => {
-                write!(f, "Panel capacity exceeded: max {}, attempted {}", max, attempted)
+                write!(
+                    f,
+                    "Panel capacity exceeded: max {}, attempted {}",
+                    max, attempted
+                )
             }
             StxpError::DuplicatePanelId(id) => write!(f, "Duplicate panel ID: {}", id),
-            StxpError::PanelUnavailable(id) => write!(f, "Panel ID {} is currently unavailable for TX", id),
-            StxpError::IsolationTooLow { isolation_db, required_db } => write!(
+            StxpError::PanelUnavailable(id) => {
+                write!(f, "Panel ID {} is currently unavailable for TX", id)
+            }
+            StxpError::IsolationTooLow {
+                isolation_db,
+                required_db,
+            } => write!(
                 f,
                 "Inter-panel isolation {:.1} dB is below required {:.1} dB",
                 isolation_db, required_db
             ),
-            StxpError::ChecksumMismatch { expected, calculated } => write!(
+            StxpError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => write!(
                 f,
                 "CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
                 expected, calculated
@@ -612,7 +637,11 @@ impl NrMultiPanelStxpEngine {
         for req in requests {
             let target_dbm = self.calculate_panel_target_power(req)?;
             let id = req.panel_id as usize;
-            let mpe_reduction = if id < MAX_STXP_PANELS { self.p_mpr_db[id] } else { 0.0 };
+            let mpe_reduction = if id < MAX_STXP_PANELS {
+                self.p_mpr_db[id]
+            } else {
+                0.0
+            };
 
             temp_decisions.push((
                 req.panel_id,
@@ -680,7 +709,11 @@ impl NrMultiPanelStxpEngine {
             for idx in 0..temp_decisions.len() {
                 let (pid, ch, req_dbm, req_mw, mpe_db, _) = temp_decisions[idx];
                 let allocated_mw = scaled_powers_mw[idx];
-                let scaling_factor = if req_mw > 0.0 { allocated_mw / req_mw } else { 0.0 };
+                let scaling_factor = if req_mw > 0.0 {
+                    allocated_mw / req_mw
+                } else {
+                    0.0
+                };
                 let scaled_dbm = mw_to_dbm(allocated_mw);
 
                 final_decisions.push(PanelTransmissionDecision {
@@ -710,7 +743,13 @@ impl NrMultiPanelStxpEngine {
 
         let total_transmitted_mw: f64 = final_decisions
             .iter()
-            .map(|d| if d.allocated { dbm_to_mw(d.scaled_power_dbm) } else { 0.0 })
+            .map(|d| {
+                if d.allocated {
+                    dbm_to_mw(d.scaled_power_dbm)
+                } else {
+                    0.0
+                }
+            })
             .sum();
 
         // Classify STxP transmission case
@@ -720,12 +759,20 @@ impl NrMultiPanelStxpEngine {
             // Calculate spatial multiplexing throughput gain
             self.telemetry.throughput_boost_accum += (active_allocated_count as f64 - 1.0) * 0.85;
 
-            let has_pusch = final_decisions
-                .iter()
-                .any(|d| d.allocated && matches!(d.channel_type, UlChannelType::PuschData | UlChannelType::PuschHarqAck));
-            let has_pucch = final_decisions
-                .iter()
-                .any(|d| d.allocated && matches!(d.channel_type, UlChannelType::PucchHarqAck | UlChannelType::PucchCsi));
+            let has_pusch = final_decisions.iter().any(|d| {
+                d.allocated
+                    && matches!(
+                        d.channel_type,
+                        UlChannelType::PuschData | UlChannelType::PuschHarqAck
+                    )
+            });
+            let has_pucch = final_decisions.iter().any(|d| {
+                d.allocated
+                    && matches!(
+                        d.channel_type,
+                        UlChannelType::PucchHarqAck | UlChannelType::PucchCsi
+                    )
+            });
             let has_srs = final_decisions
                 .iter()
                 .any(|d| d.allocated && matches!(d.channel_type, UlChannelType::Srs));

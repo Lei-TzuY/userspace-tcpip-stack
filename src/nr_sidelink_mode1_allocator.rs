@@ -61,13 +61,20 @@ pub const MAX_SL_LCGS: u8 = 8;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SlMode1Error {
     InvalidDciFormat(String),
-    InvalidSubchannelAllocation { start: u8, length: u8, max_subchannels: u8 },
+    InvalidSubchannelAllocation {
+        start: u8,
+        length: u8,
+        max_subchannels: u8,
+    },
     InvalidTimeGap(u8),
     InvalidLcg(u8),
     InvalidPriority(u8),
     ConfiguredGrantNotFound(u8),
     ConfiguredGrantAlreadyActive(u8),
-    BufferTooShort { expected: usize, actual: usize },
+    BufferTooShort {
+        expected: usize,
+        actual: usize,
+    },
     NoResourcesAvailable,
 }
 
@@ -75,18 +82,42 @@ impl fmt::Display for SlMode1Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SlMode1Error::InvalidDciFormat(msg) => write!(f, "Invalid DCI 3_0 format: {}", msg),
-            SlMode1Error::InvalidSubchannelAllocation { start, length, max_subchannels } => {
-                write!(f, "Invalid sub-channel range: start {} + len {} exceeds pool max {}", start, length, max_subchannels)
+            SlMode1Error::InvalidSubchannelAllocation {
+                start,
+                length,
+                max_subchannels,
+            } => {
+                write!(
+                    f,
+                    "Invalid sub-channel range: start {} + len {} exceeds pool max {}",
+                    start, length, max_subchannels
+                )
             }
-            SlMode1Error::InvalidTimeGap(gap) => write!(f, "Invalid DCI-to-SL time gap: {} slots", gap),
-            SlMode1Error::InvalidLcg(lcg) => write!(f, "Invalid Sidelink LCG: {} (valid: 0..7)", lcg),
-            SlMode1Error::InvalidPriority(p) => write!(f, "Invalid Sidelink priority: {} (valid: 0..7)", p),
-            SlMode1Error::ConfiguredGrantNotFound(id) => write!(f, "Sidelink Configured Grant {} not found", id),
-            SlMode1Error::ConfiguredGrantAlreadyActive(id) => write!(f, "Sidelink Configured Grant {} already active", id),
+            SlMode1Error::InvalidTimeGap(gap) => {
+                write!(f, "Invalid DCI-to-SL time gap: {} slots", gap)
+            }
+            SlMode1Error::InvalidLcg(lcg) => {
+                write!(f, "Invalid Sidelink LCG: {} (valid: 0..7)", lcg)
+            }
+            SlMode1Error::InvalidPriority(p) => {
+                write!(f, "Invalid Sidelink priority: {} (valid: 0..7)", p)
+            }
+            SlMode1Error::ConfiguredGrantNotFound(id) => {
+                write!(f, "Sidelink Configured Grant {} not found", id)
+            }
+            SlMode1Error::ConfiguredGrantAlreadyActive(id) => {
+                write!(f, "Sidelink Configured Grant {} already active", id)
+            }
             SlMode1Error::BufferTooShort { expected, actual } => {
-                write!(f, "Buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
-            SlMode1Error::NoResourcesAvailable => write!(f, "No Sidelink sub-channel or slot resources available"),
+            SlMode1Error::NoResourcesAvailable => {
+                write!(f, "No Sidelink sub-channel or slot resources available")
+            }
         }
     }
 }
@@ -193,7 +224,11 @@ pub struct SlBsrEntry {
 }
 
 impl SlBsrEntry {
-    pub fn new(destination_index: u8, lcg_id: u8, buffer_size_index: u8) -> Result<Self, SlMode1Error> {
+    pub fn new(
+        destination_index: u8,
+        lcg_id: u8,
+        buffer_size_index: u8,
+    ) -> Result<Self, SlMode1Error> {
         if lcg_id >= MAX_SL_LCGS {
             return Err(SlMode1Error::InvalidLcg(lcg_id));
         }
@@ -321,7 +356,8 @@ impl SlMode1Telemetry {
         if self.cross_interface_harq_relayed == 0 {
             0.0
         } else {
-            (self.successful_pc5_deliveries as f64 / self.cross_interface_harq_relayed as f64) * 100.0
+            (self.successful_pc5_deliveries as f64 / self.cross_interface_harq_relayed as f64)
+                * 100.0
         }
     }
 }
@@ -433,7 +469,9 @@ impl SidelinkMode1Allocator {
                     .get_mut(&cg_id)
                     .ok_or(SlMode1Error::ConfiguredGrantNotFound(cg_id))?;
                 if cg.is_type1 {
-                    return Err(SlMode1Error::InvalidDciFormat("Cannot activate Type 1 CG via DCI".into()));
+                    return Err(SlMode1Error::InvalidDciFormat(
+                        "Cannot activate Type 1 CG via DCI".into(),
+                    ));
                 }
                 cg.status = ConfiguredGrantStatus::ConfiguredAndActive;
                 cg.start_subchannel = dci.start_subchannel;
@@ -470,14 +508,18 @@ impl SidelinkMode1Allocator {
     }
 
     /// Dynamic gNodeB scheduler: allocates DCI format 3_0 grants for pending SL-BSRs.
-    pub fn schedule_dynamic_grants(&mut self, available_subchannels_per_slot: u8) -> Vec<(u16, DciFormat3_0)> {
+    pub fn schedule_dynamic_grants(
+        &mut self,
+        available_subchannels_per_slot: u8,
+    ) -> Vec<(u16, DciFormat3_0)> {
         let mut grants = Vec::new();
         let mut used_subchannels = 0;
 
         while let Some((ue_rnti, entry)) = self.pending_requests.pop_front() {
             let bytes_needed = entry.buffer_size_bytes();
             // Estimate required sub-channels (assuming ~100 bytes per sub-channel at MCS 16)
-            let required_subchannels = ((bytes_needed / 100).max(1) as u8).min(available_subchannels_per_slot);
+            let required_subchannels =
+                ((bytes_needed / 100).max(1) as u8).min(available_subchannels_per_slot);
 
             if used_subchannels + required_subchannels <= available_subchannels_per_slot {
                 let start_ch = used_subchannels;
@@ -546,7 +588,9 @@ impl SidelinkMode1Allocator {
         let mut active_transmissions = Vec::new(); // (grant_id, start_ch, num_ch)
 
         for (&id, cg) in self.configured_grants.iter_mut() {
-            if cg.status == ConfiguredGrantStatus::ConfiguredAndActive && self.current_slot >= cg.next_transmission_slot {
+            if cg.status == ConfiguredGrantStatus::ConfiguredAndActive
+                && self.current_slot >= cg.next_transmission_slot
+            {
                 active_transmissions.push((id, cg.start_subchannel, cg.num_subchannels));
                 cg.next_transmission_slot += cg.periodicity_slots as u64;
 

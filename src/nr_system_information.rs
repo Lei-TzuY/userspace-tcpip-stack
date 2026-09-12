@@ -56,17 +56,27 @@ impl fmt::Display for SystemInfoError {
             Self::InvalidSfn(s) => write!(f, "Invalid SFN: {} (must be 0..1023)", s),
             Self::InvalidKssb(k) => write!(f, "Invalid k_SSB: {} (must be 0..15)", k),
             Self::InvalidPlmnLength => write!(f, "Invalid PLMN MCC/MNC length"),
-            Self::InvalidCellIdentity(c) => write!(f, "Invalid 36-bit cell identity: {} (must be < 2^36)", c),
+            Self::InvalidCellIdentity(c) => {
+                write!(f, "Invalid 36-bit cell identity: {} (must be < 2^36)", c)
+            }
             Self::InvalidTac(t) => write!(f, "Invalid 24-bit TAC: {} (must be < 2^24)", t),
             Self::InvalidSiWindowLength(w) => write!(f, "Invalid SI window length: {} slots", w),
             Self::InvalidPeriodicity(p) => write!(f, "Invalid SI periodicity: {} frames", p),
             Self::SiMessageNotFound(id) => write!(f, "SI message not found: index {}", id),
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -115,7 +125,9 @@ impl MasterInformationBlock {
     /// Synthesizes 10-bit SFN from 6 MSBs (broadcast in MIB on PBCH) and 4 LSBs (timing bits in PBCH payload).
     pub fn combine_sfn(sfn_6_msb: u8, sfn_4_lsb: u8) -> Result<u16, SystemInfoError> {
         if sfn_6_msb > 63 || sfn_4_lsb > 15 {
-            return Err(SystemInfoError::InvalidSfn(((sfn_6_msb as u16) << 4) | (sfn_4_lsb as u16)));
+            return Err(SystemInfoError::InvalidSfn(
+                ((sfn_6_msb as u16) << 4) | (sfn_4_lsb as u16),
+            ));
         }
         Ok(((sfn_6_msb as u16) << 4) | (sfn_4_lsb as u16))
     }
@@ -140,8 +152,8 @@ impl MasterInformationBlock {
 /// Public Land Mobile Network (PLMN) Identity.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlmnIdentity {
-    pub mcc: u16, // Mobile Country Code (e.g. 310, 460)
-    pub mnc: u16, // Mobile Network Code (e.g. 260, 01)
+    pub mcc: u16,            // Mobile Country Code (e.g. 310, 460)
+    pub mnc: u16,            // Mobile Network Code (e.g. 260, 01)
     pub mnc_digit_count: u8, // 2 or 3 digits
 }
 
@@ -157,7 +169,11 @@ pub struct CellSelectionInfo {
 impl CellSelectionInfo {
     /// Evaluates whether cell selection criteria S-criterion is met:
     /// $S_{\text{rxlev}} = Q_{\text{rxlevmeas}} - Q_{\text{rxlevmin}} > 0$.
-    pub fn evaluate_s_criterion(&self, measured_rsrp_dbm: f32, measured_rsrq_db: Option<f32>) -> bool {
+    pub fn evaluate_s_criterion(
+        &self,
+        measured_rsrp_dbm: f32,
+        measured_rsrq_db: Option<f32>,
+    ) -> bool {
         let s_rxlev = measured_rsrp_dbm - self.q_rx_lev_min_dbm;
         if s_rxlev <= 0.0 {
             return false;
@@ -373,7 +389,8 @@ impl CachedSib {
         if self.value_tag != current_value_tag {
             return false;
         }
-        current_timestamp_sec.saturating_sub(self.received_timestamp_sec) < (SIB_VALIDITY_DURATION_SEC as u64)
+        current_timestamp_sec.saturating_sub(self.received_timestamp_sec)
+            < (SIB_VALIDITY_DURATION_SEC as u64)
     }
 }
 
@@ -473,12 +490,10 @@ impl SystemInformationWirePdu {
         let cell_identity = u64::from_be_bytes([
             bytes[6], bytes[7], bytes[8], bytes[9], bytes[10], bytes[11], bytes[12], bytes[13],
         ]);
-        let tracking_area_code =
-            u32::from_be_bytes([bytes[14], bytes[15], bytes[16], bytes[17]]);
+        let tracking_area_code = u32::from_be_bytes([bytes[14], bytes[15], bytes[16], bytes[17]]);
         let mcc = u16::from_be_bytes([bytes[18], bytes[19]]);
         let mnc = u16::from_be_bytes([bytes[20], bytes[21]]);
-        let q_rx_lev_min_dbm =
-            f32::from_be_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]);
+        let q_rx_lev_min_dbm = f32::from_be_bytes([bytes[22], bytes[23], bytes[24], bytes[25]]);
         let si_window_length_slots = u16::from_be_bytes([bytes[26], bytes[27]]);
 
         Ok(Self {

@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-18 5G-Advanced Multi-SIM (MUSIM) & Dual-Stack Coordination Engine.
 
 use toy_tcpip::nr_musim_engine::{
-    MusimAssistanceInfo, MusimDeviceCapability, MusimEngine, MusimError, MusimGapConfig,
-    MusimLeaveAction, MusimLeaveCause, MusimPowerSharingServo, MusimRrcState,
-    MusimServicePriority, SimId, SimProfile, TemporaryLeaveState, DEFAULT_PCMAX_MW,
+    DEFAULT_PCMAX_MW, MusimAssistanceInfo, MusimDeviceCapability, MusimEngine, MusimError,
+    MusimGapConfig, MusimLeaveAction, MusimLeaveCause, MusimPowerSharingServo, MusimRrcState,
+    MusimServicePriority, SimId, SimProfile, TemporaryLeaveState,
 };
 
 #[test]
@@ -39,7 +39,7 @@ fn test_paging_frame_and_occasion_subframe_mapping() {
 
     // 3. Ns = 4 -> subframes 0, 4, 5, 9
     sim1.paging_occasions_ns = 4;
-    sim1.ue_id = 64 * 0; // i_s = 0 -> subframe 0
+    sim1.ue_id = 0; // i_s = 0 -> subframe 0
     assert_eq!(sim1.calculate_paging_occasion_subframe(), 0);
     sim1.ue_id = 64 * 1; // i_s = 1 -> subframe 4
     assert_eq!(sim1.calculate_paging_occasion_subframe(), 4);
@@ -141,7 +141,9 @@ fn test_temporary_leave_and_resume_state_machine() {
     );
 
     // 2. Return from leave
-    engine.resume_from_leave(SimId::SimA).expect("Resume succeeds");
+    engine
+        .resume_from_leave(SimId::SimA)
+        .expect("Resume succeeds");
     assert_eq!(engine.leave_state_a, TemporaryLeaveState::Active);
 
     // 3. If SIM A is active in Emergency call, leave request for normal voice on SIM B is rejected
@@ -228,7 +230,10 @@ fn test_error_handling_and_buffer_limits() {
 
     // Invalid negative PCMAX
     let servo_err = MusimPowerSharingServo::new(-10.0);
-    assert!(matches!(servo_err, Err(MusimError::InvalidConfiguration(_))));
+    assert!(matches!(
+        servo_err,
+        Err(MusimError::InvalidConfiguration(_))
+    ));
 
     // Error display
     let err_str = format!("{}", MusimError::SimNotFound(SimId::SimA));

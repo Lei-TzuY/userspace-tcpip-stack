@@ -108,22 +108,118 @@ pub struct CqiMcsEntry {
 /// Standard CQI table (TS 38.214 Table 5.2.2.1-2 + Rel-18 1024QAM extension).
 pub fn get_cqi_table() -> Vec<CqiMcsEntry> {
     vec![
-        CqiMcsEntry { cqi: 0,  modulation_order: 0,  code_rate_x1024: 0,    spectral_efficiency: 0.0,    mcs_index: 0 },
-        CqiMcsEntry { cqi: 1,  modulation_order: 2,  code_rate_x1024: 78,   spectral_efficiency: 0.1523, mcs_index: 0 },
-        CqiMcsEntry { cqi: 2,  modulation_order: 2,  code_rate_x1024: 120,  spectral_efficiency: 0.2344, mcs_index: 1 },
-        CqiMcsEntry { cqi: 3,  modulation_order: 2,  code_rate_x1024: 193,  spectral_efficiency: 0.3770, mcs_index: 3 },
-        CqiMcsEntry { cqi: 4,  modulation_order: 2,  code_rate_x1024: 308,  spectral_efficiency: 0.6016, mcs_index: 5 },
-        CqiMcsEntry { cqi: 5,  modulation_order: 2,  code_rate_x1024: 449,  spectral_efficiency: 0.8770, mcs_index: 7 },
-        CqiMcsEntry { cqi: 6,  modulation_order: 2,  code_rate_x1024: 602,  spectral_efficiency: 1.1758, mcs_index: 9 },
-        CqiMcsEntry { cqi: 7,  modulation_order: 4,  code_rate_x1024: 378,  spectral_efficiency: 1.4766, mcs_index: 11 },
-        CqiMcsEntry { cqi: 8,  modulation_order: 4,  code_rate_x1024: 490,  spectral_efficiency: 1.9141, mcs_index: 13 },
-        CqiMcsEntry { cqi: 9,  modulation_order: 4,  code_rate_x1024: 616,  spectral_efficiency: 2.4063, mcs_index: 15 },
-        CqiMcsEntry { cqi: 10, modulation_order: 6,  code_rate_x1024: 466,  spectral_efficiency: 2.7305, mcs_index: 18 },
-        CqiMcsEntry { cqi: 11, modulation_order: 6,  code_rate_x1024: 567,  spectral_efficiency: 3.3223, mcs_index: 20 },
-        CqiMcsEntry { cqi: 12, modulation_order: 6,  code_rate_x1024: 666,  spectral_efficiency: 3.9023, mcs_index: 22 },
-        CqiMcsEntry { cqi: 13, modulation_order: 6,  code_rate_x1024: 772,  spectral_efficiency: 4.5234, mcs_index: 24 },
-        CqiMcsEntry { cqi: 14, modulation_order: 8,  code_rate_x1024: 873,  spectral_efficiency: 5.1152, mcs_index: 26 },
-        CqiMcsEntry { cqi: 15, modulation_order: 10, code_rate_x1024: 948,  spectral_efficiency: 5.5547, mcs_index: 28 },
+        CqiMcsEntry {
+            cqi: 0,
+            modulation_order: 0,
+            code_rate_x1024: 0,
+            spectral_efficiency: 0.0,
+            mcs_index: 0,
+        },
+        CqiMcsEntry {
+            cqi: 1,
+            modulation_order: 2,
+            code_rate_x1024: 78,
+            spectral_efficiency: 0.1523,
+            mcs_index: 0,
+        },
+        CqiMcsEntry {
+            cqi: 2,
+            modulation_order: 2,
+            code_rate_x1024: 120,
+            spectral_efficiency: 0.2344,
+            mcs_index: 1,
+        },
+        CqiMcsEntry {
+            cqi: 3,
+            modulation_order: 2,
+            code_rate_x1024: 193,
+            spectral_efficiency: 0.3770,
+            mcs_index: 3,
+        },
+        CqiMcsEntry {
+            cqi: 4,
+            modulation_order: 2,
+            code_rate_x1024: 308,
+            spectral_efficiency: 0.6016,
+            mcs_index: 5,
+        },
+        CqiMcsEntry {
+            cqi: 5,
+            modulation_order: 2,
+            code_rate_x1024: 449,
+            spectral_efficiency: 0.8770,
+            mcs_index: 7,
+        },
+        CqiMcsEntry {
+            cqi: 6,
+            modulation_order: 2,
+            code_rate_x1024: 602,
+            spectral_efficiency: 1.1758,
+            mcs_index: 9,
+        },
+        CqiMcsEntry {
+            cqi: 7,
+            modulation_order: 4,
+            code_rate_x1024: 378,
+            spectral_efficiency: 1.4766,
+            mcs_index: 11,
+        },
+        CqiMcsEntry {
+            cqi: 8,
+            modulation_order: 4,
+            code_rate_x1024: 490,
+            spectral_efficiency: 1.9141,
+            mcs_index: 13,
+        },
+        CqiMcsEntry {
+            cqi: 9,
+            modulation_order: 4,
+            code_rate_x1024: 616,
+            spectral_efficiency: 2.4063,
+            mcs_index: 15,
+        },
+        CqiMcsEntry {
+            cqi: 10,
+            modulation_order: 6,
+            code_rate_x1024: 466,
+            spectral_efficiency: 2.7305,
+            mcs_index: 18,
+        },
+        CqiMcsEntry {
+            cqi: 11,
+            modulation_order: 6,
+            code_rate_x1024: 567,
+            spectral_efficiency: 3.3223,
+            mcs_index: 20,
+        },
+        CqiMcsEntry {
+            cqi: 12,
+            modulation_order: 6,
+            code_rate_x1024: 666,
+            spectral_efficiency: 3.9023,
+            mcs_index: 22,
+        },
+        CqiMcsEntry {
+            cqi: 13,
+            modulation_order: 6,
+            code_rate_x1024: 772,
+            spectral_efficiency: 4.5234,
+            mcs_index: 24,
+        },
+        CqiMcsEntry {
+            cqi: 14,
+            modulation_order: 8,
+            code_rate_x1024: 873,
+            spectral_efficiency: 5.1152,
+            mcs_index: 26,
+        },
+        CqiMcsEntry {
+            cqi: 15,
+            modulation_order: 10,
+            code_rate_x1024: 948,
+            spectral_efficiency: 5.5547,
+            mcs_index: 28,
+        },
     ]
 }
 
@@ -140,7 +236,7 @@ pub fn cqi_to_mcs(cqi: u8) -> Result<CqiMcsEntry, MacSchedError> {
 /// Simplified from TS 38.214 §5.1.3.2.
 pub fn compute_tbs(
     n_prb: usize,
-    n_re_per_prb: usize,  // typically 12 subcarriers * symbols_per_slot (minus DMRS)
+    n_re_per_prb: usize, // typically 12 subcarriers * symbols_per_slot (minus DMRS)
     mcs_entry: &CqiMcsEntry,
     n_layers: usize,
 ) -> usize {
@@ -182,8 +278,8 @@ pub enum HarqState {
 pub struct HarqProcess {
     pub id: u8,
     pub state: HarqState,
-    pub ndi: bool,         // New Data Indicator
-    pub rv: u8,            // Redundancy Version (0-3)
+    pub ndi: bool, // New Data Indicator
+    pub rv: u8,    // Redundancy Version (0-3)
     pub retx_count: u8,
     pub max_retx: u8,
     pub tbs: usize,
@@ -253,7 +349,7 @@ pub enum DrxState {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct QosParams {
     pub five_qi: u8,
-    pub priority_level: u8,       // 1 (highest) to 127 (lowest)
+    pub priority_level: u8, // 1 (highest) to 127 (lowest)
     pub packet_delay_budget_ms: u32,
     pub packet_error_rate_exp: u8, // 10^-N
     pub is_gbr: bool,
@@ -266,24 +362,40 @@ impl QosParams {
     pub fn from_5qi(five_qi: u8) -> Self {
         match five_qi {
             1 => QosParams {
-                five_qi: 1, priority_level: 20, packet_delay_budget_ms: 100,
-                packet_error_rate_exp: 2, is_gbr: true,
-                guaranteed_bitrate_kbps: 0, max_bitrate_kbps: 0,
+                five_qi: 1,
+                priority_level: 20,
+                packet_delay_budget_ms: 100,
+                packet_error_rate_exp: 2,
+                is_gbr: true,
+                guaranteed_bitrate_kbps: 0,
+                max_bitrate_kbps: 0,
             },
             5 => QosParams {
-                five_qi: 5, priority_level: 10, packet_delay_budget_ms: 100,
-                packet_error_rate_exp: 6, is_gbr: false,
-                guaranteed_bitrate_kbps: 0, max_bitrate_kbps: 0,
+                five_qi: 5,
+                priority_level: 10,
+                packet_delay_budget_ms: 100,
+                packet_error_rate_exp: 6,
+                is_gbr: false,
+                guaranteed_bitrate_kbps: 0,
+                max_bitrate_kbps: 0,
             },
             9 => QosParams {
-                five_qi: 9, priority_level: 90, packet_delay_budget_ms: 300,
-                packet_error_rate_exp: 6, is_gbr: false,
-                guaranteed_bitrate_kbps: 0, max_bitrate_kbps: 0,
+                five_qi: 9,
+                priority_level: 90,
+                packet_delay_budget_ms: 300,
+                packet_error_rate_exp: 6,
+                is_gbr: false,
+                guaranteed_bitrate_kbps: 0,
+                max_bitrate_kbps: 0,
             },
             _ => QosParams {
-                five_qi, priority_level: 50, packet_delay_budget_ms: 150,
-                packet_error_rate_exp: 3, is_gbr: false,
-                guaranteed_bitrate_kbps: 0, max_bitrate_kbps: 0,
+                five_qi,
+                priority_level: 50,
+                packet_delay_budget_ms: 150,
+                packet_error_rate_exp: 3,
+                is_gbr: false,
+                guaranteed_bitrate_kbps: 0,
+                max_bitrate_kbps: 0,
             },
         }
     }
@@ -298,7 +410,7 @@ pub struct UeContext {
     pub harq_processes: Vec<HarqProcess>,
     pub drx_state: DrxState,
     pub qos: QosParams,
-    pub avg_throughput: f64,  // For Proportional Fair metric (exponential moving average)
+    pub avg_throughput: f64, // For Proportional Fair metric (exponential moving average)
     pub last_scheduled_slot: u64,
     pub total_bytes_scheduled: u64,
 }
@@ -453,11 +565,11 @@ pub struct MacScheduler {
     pub algorithm: SchedulingAlgorithm,
     pub ue_contexts: Vec<UeContext>,
     pub total_prbs: usize,
-    pub n_re_per_prb: usize,  // Typically ~156 (12 SC * 14 symbols - DMRS overhead)
+    pub n_re_per_prb: usize, // Typically ~156 (12 SC * 14 symbols - DMRS overhead)
     pub n_layers: usize,
     pub current_slot: u64,
-    rr_index: usize,          // Round-robin pointer
-    pf_alpha: f64,            // PF throughput smoothing factor
+    rr_index: usize, // Round-robin pointer
+    pf_alpha: f64,   // PF throughput smoothing factor
 }
 
 impl MacScheduler {
@@ -510,7 +622,10 @@ impl MacScheduler {
         harq_id: u8,
         is_ack: bool,
     ) -> Result<(), MacSchedError> {
-        let ue = self.ue_contexts.iter_mut().find(|u| u.rnti == rnti)
+        let ue = self
+            .ue_contexts
+            .iter_mut()
+            .find(|u| u.rnti == rnti)
             .ok_or(MacSchedError::UeNotFound(rnti))?;
 
         if (harq_id as usize) < ue.harq_processes.len() {
@@ -669,8 +784,7 @@ impl MacScheduler {
             .iter()
             .enumerate()
             .filter(|(_, ue)| {
-                ue.is_schedulable()
-                    && (ue.buffer_size_bytes > 0 || ue.get_retx_harq().is_some())
+                ue.is_schedulable() && (ue.buffer_size_bytes > 0 || ue.get_retx_harq().is_some())
             })
             .map(|(i, ue)| (i, ue.cqi))
             .collect();
@@ -706,8 +820,7 @@ impl MacScheduler {
             .iter()
             .enumerate()
             .filter(|(_, ue)| {
-                ue.is_schedulable()
-                    && (ue.buffer_size_bytes > 0 || ue.get_retx_harq().is_some())
+                ue.is_schedulable() && (ue.buffer_size_bytes > 0 || ue.get_retx_harq().is_some())
             })
             .map(|(i, ue)| (i, ue.qos.priority_level))
             .collect();
@@ -936,25 +1049,29 @@ impl MacSchedWirePdu {
 
     pub fn deserialize(data: &[u8]) -> Result<Self, MacSchedError> {
         if data.len() < 15 {
-            return Err(MacSchedError::DeserializationError("Buffer too small".into()));
+            return Err(MacSchedError::DeserializationError(
+                "Buffer too small".into(),
+            ));
         }
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != MAC_SCHED_WIRE_MAGIC {
             return Err(MacSchedError::DeserializationError(format!(
-                "Invalid magic: 0x{:08X}", magic
+                "Invalid magic: 0x{:08X}",
+                magic
             )));
         }
 
         let slot_idx = u64::from_be_bytes([
-            data[4], data[5], data[6], data[7],
-            data[8], data[9], data[10], data[11],
+            data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11],
         ]);
         let num_grants = data[12];
         let payload_len = u16::from_be_bytes([data[13], data[14]]) as usize;
 
         if data.len() < 15 + payload_len + 2 {
-            return Err(MacSchedError::DeserializationError("Truncated payload".into()));
+            return Err(MacSchedError::DeserializationError(
+                "Truncated payload".into(),
+            ));
         }
 
         let payload = data[15..15 + payload_len].to_vec();
@@ -963,7 +1080,8 @@ impl MacSchedWirePdu {
 
         if rx_crc != expected_crc {
             return Err(MacSchedError::DeserializationError(format!(
-                "CRC mismatch: expected 0x{:04X}, got 0x{:04X}", expected_crc, rx_crc
+                "CRC mismatch: expected 0x{:04X}, got 0x{:04X}",
+                expected_crc, rx_crc
             )));
         }
 

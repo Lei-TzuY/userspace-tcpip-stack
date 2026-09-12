@@ -1,13 +1,13 @@
 //! Integration tests for 3GPP Release 18 RedCap Positioning & Frequency Hopping Virtual Wideband PRS Engine.
 
+use std::f64::consts::PI;
 use toy_tcpip::nr_redcap_positioning::{
     Anchor3D, Complex64, HopChannelMeasurement, IdftCirSynthesizer, MultilaterationSolver3D,
-    OnDemandPrsGrant, OnDemandPrsManager, OnDemandPrsState, PhaseContinuityType,
-    PosAccuracyClass, PrsFrequencyHopConfig, PrsGoldSequence, RedCapMultiRttMeasurement,
-    RedCapPosCapability, RedCapPosDeviceType, RedCapPositioningEngine, SuperResolutionToaEstimator,
-    VirtualWidebandSynthesizer, REDCAP_POS_SPEED_OF_LIGHT_M_S,
+    OnDemandPrsGrant, OnDemandPrsManager, OnDemandPrsState, PhaseContinuityType, PosAccuracyClass,
+    PrsFrequencyHopConfig, PrsGoldSequence, REDCAP_POS_SPEED_OF_LIGHT_M_S,
+    RedCapMultiRttMeasurement, RedCapPosCapability, RedCapPosDeviceType, RedCapPositioningEngine,
+    SuperResolutionToaEstimator, VirtualWidebandSynthesizer,
 };
-use std::f64::consts::PI;
 
 #[test]
 fn test_prs_gold_sequence_and_qpsk_mapping() {
@@ -18,7 +18,10 @@ fn test_prs_gold_sequence_and_qpsk_mapping() {
     for s in &symbols {
         let p = s.norm_sq();
         // QPSK power should be exactly 1.0 (1/sqrt(2)^2 + 1/sqrt(2)^2 = 0.5 + 0.5 = 1.0)
-        assert!((p - 1.0).abs() < 1e-9, "QPSK symbol magnitude should be 1.0, got {p}");
+        assert!(
+            (p - 1.0).abs() < 1e-9,
+            "QPSK symbol magnitude should be 1.0, got {p}"
+        );
         // Constellation points should have |re| == |im| == 1/sqrt(2)
         assert!((s.re.abs() - 1.0 / 2.0_f64.sqrt()).abs() < 1e-9);
         assert!((s.im.abs() - 1.0 / 2.0_f64.sqrt()).abs() < 1e-9);
@@ -140,7 +143,9 @@ fn test_on_demand_prs_power_saving_state_machine() {
         duration_slots: 16,
         hop_mask: 0x0F,
     };
-    manager.handle_grant(&grant).expect("Grant handling should succeed");
+    manager
+        .handle_grant(&grant)
+        .expect("Grant handling should succeed");
     assert_eq!(manager.state, OnDemandPrsState::ActiveBurst);
 
     // Clock ticks before burst completion
@@ -201,7 +206,11 @@ fn test_3d_multilateration_solver_and_dop_metrics() {
         total_err < 0.05,
         "3D Multilateration error too high: {total_err:.4} m (x_err: {err_x:.3}, y_err: {err_y:.3}, z_err: {err_z:.3})"
     );
-    assert!(estimate.dop.hdop < 4.0, "HDOP should be good: {}", estimate.dop.hdop);
+    assert!(
+        estimate.dop.hdop < 4.0,
+        "HDOP should be good: {}",
+        estimate.dop.hdop
+    );
     assert!(estimate.dop.vdop < 10.0, "VDOP: {}", estimate.dop.vdop);
 }
 
