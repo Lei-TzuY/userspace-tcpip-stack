@@ -355,6 +355,7 @@ pub mod nr_son_anr_mdt;
 pub mod nr_srap_relay;
 pub mod nr_ssb_pbch;
 pub mod nr_srs_processor;
+pub mod nr_timing_advance;
 pub mod nr_tsc_framework;
 pub mod nr_uav_aerial;
 pub mod nr_udc_engine;
