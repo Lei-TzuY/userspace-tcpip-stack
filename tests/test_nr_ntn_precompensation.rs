@@ -1,9 +1,8 @@
 //! Integration tests for 3GPP Rel-18 5G-Advanced NTN Ephemeris & Autonomous Pre-Compensation Engine.
 
 use toy_tcpip::nr_ntn_precompensation::{
-    GroundUeFix, NtnCellType, NtnEphemerisState, NtnOrbitType, NtnPrecompError,
-    NtnPrecompensationEngine, DEFAULT_NTN_MIN_ELEVATION_DEG, EARTH_RADIUS_METERS,
-    SPEED_OF_LIGHT_M_S,
+    DEFAULT_NTN_MIN_ELEVATION_DEG, EARTH_RADIUS_METERS, GroundUeFix, NtnCellType,
+    NtnEphemerisState, NtnOrbitType, NtnPrecompError, NtnPrecompensationEngine, SPEED_OF_LIGHT_M_S,
 };
 
 #[test]
@@ -107,10 +106,7 @@ fn test_approaching_and_receding_doppler_inversion() {
     assert!(m_app.radial_velocity_m_s < 0.0);
     assert!(m_app.doppler_shift_hz < 0.0); // f_D = v_rad/c * f_c < 0
     // Pre-compensation must exactly cancel out the Doppler shift: delta_f_UL = -f_D
-    assert_eq!(
-        m_app.doppler_precompensation_hz,
-        -m_app.doppler_shift_hz
-    );
+    assert_eq!(m_app.doppler_precompensation_hz, -m_app.doppler_shift_hz);
     assert!(m_app.doppler_precompensation_hz > 0.0);
 
     // 2. Receding satellite: in +Y direction with velocity in +Y direction
@@ -123,10 +119,7 @@ fn test_approaching_and_receding_doppler_inversion() {
     // Receding satellite: distance is increasing, radial velocity is positive
     assert!(m_rec.radial_velocity_m_s > 0.0);
     assert!(m_rec.doppler_shift_hz > 0.0);
-    assert_eq!(
-        m_rec.doppler_precompensation_hz,
-        -m_rec.doppler_shift_hz
-    );
+    assert_eq!(m_rec.doppler_precompensation_hz, -m_rec.doppler_shift_hz);
     assert!(m_rec.doppler_precompensation_hz < 0.0);
 
     // TA drift rate must match (2 / c) * radial_velocity
@@ -187,9 +180,7 @@ fn test_handover_prediction_modes() {
     });
     let m_moving = engine.calculate_precompensation(&ue, 0.0).unwrap();
     let expected_moving_dwell = 50_000.0 / 7500.0; // 6.666 s
-    assert!(
-        (m_moving.time_to_handover_s.unwrap() - expected_moving_dwell).abs() < 1e-2
-    );
+    assert!((m_moving.time_to_handover_s.unwrap() - expected_moving_dwell).abs() < 1e-2);
 
     // 3. Quasi-Earth-Fixed cell handover prediction (fixed dwell time 45s)
     engine.set_cell_type(NtnCellType::QuasiEarthFixed { dwell_time_s: 45.0 });

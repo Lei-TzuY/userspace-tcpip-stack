@@ -166,7 +166,12 @@ pub struct PrecodingMatrix8Tx {
 }
 
 impl PrecodingMatrix8Tx {
-    pub fn new(tpmi: u16, num_layers: usize, coherence: CodebookCoherenceSubset, entries: Vec<Complex64>) -> Self {
+    pub fn new(
+        tpmi: u16,
+        num_layers: usize,
+        coherence: CodebookCoherenceSubset,
+        entries: Vec<Complex64>,
+    ) -> Self {
         assert_eq!(entries.len(), 8 * num_layers);
         Self {
             tpmi,
@@ -427,11 +432,21 @@ pub struct Ul8TxMimoEngine {
 }
 
 impl Ul8TxMimoEngine {
-    pub fn new(panel: AntennaPanel8Tx, capability: CodebookCoherenceSubset, max_temp_c: f64) -> Self {
+    pub fn new(
+        panel: AntennaPanel8Tx,
+        capability: CodebookCoherenceSubset,
+        max_temp_c: f64,
+    ) -> Self {
         let codebook_1layer = match capability {
-            CodebookCoherenceSubset::FullCoherent => CodebookGenerator8Tx::generate_1layer_full_coherent(),
-            CodebookCoherenceSubset::PartialCoherent => CodebookGenerator8Tx::generate_1layer_partial_coherent(),
-            CodebookCoherenceSubset::NonCoherent => CodebookGenerator8Tx::generate_1layer_non_coherent(),
+            CodebookCoherenceSubset::FullCoherent => {
+                CodebookGenerator8Tx::generate_1layer_full_coherent()
+            }
+            CodebookCoherenceSubset::PartialCoherent => {
+                CodebookGenerator8Tx::generate_1layer_partial_coherent()
+            }
+            CodebookCoherenceSubset::NonCoherent => {
+                CodebookGenerator8Tx::generate_1layer_non_coherent()
+            }
         };
 
         let codebook_2layer = if capability == CodebookCoherenceSubset::FullCoherent {

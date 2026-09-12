@@ -10,8 +10,7 @@ use toy_tcpip::nr_sidelink_harq::{
 
 #[test]
 fn test_psfch_resource_mapping_and_cyclic_shifts() {
-    let config = PsfchResourceConfig::new(2, 2, 10, 50, 5)
-        .expect("Config creation should succeed");
+    let config = PsfchResourceConfig::new(2, 2, 10, 50, 5).expect("Config creation should succeed");
     let mapper = PsfchResourceMapper::new(config);
 
     // Transmission at slot 1, min delay 2 -> earliest slot 3 -> next multiple of 2 is slot 4
@@ -23,7 +22,13 @@ fn test_psfch_resource_mapping_and_cyclic_shifts() {
 
     // Option 1 mapping: Subchannel 2 -> PRB 10 + 2 = 12, CS = 0 for NACK
     let res_opt1 = mapper
-        .map_resource(1, 2, 0, SlHarqFeedbackScheme::Option1DistanceBasedNack, PsfchFeedbackReport::Nack)
+        .map_resource(
+            1,
+            2,
+            0,
+            SlHarqFeedbackScheme::Option1DistanceBasedNack,
+            PsfchFeedbackReport::Nack,
+        )
         .expect("Option 1 mapping should succeed");
     assert_eq!(res_opt1.slot_idx, 4);
     assert_eq!(res_opt1.prb_idx, 12);
@@ -31,15 +36,30 @@ fn test_psfch_resource_mapping_and_cyclic_shifts() {
 
     // Option 2 mapping: Member 0 and Member 1 on Subchannel 1
     let res_m0_ack = mapper
-        .map_resource(1, 1, 0, SlHarqFeedbackScheme::Option2AckNack, PsfchFeedbackReport::Ack)
+        .map_resource(
+            1,
+            1,
+            0,
+            SlHarqFeedbackScheme::Option2AckNack,
+            PsfchFeedbackReport::Ack,
+        )
         .expect("Member 0 mapping should succeed");
     let res_m0_nack = mapper
-        .map_resource(1, 1, 0, SlHarqFeedbackScheme::Option2AckNack, PsfchFeedbackReport::Nack)
+        .map_resource(
+            1,
+            1,
+            0,
+            SlHarqFeedbackScheme::Option2AckNack,
+            PsfchFeedbackReport::Nack,
+        )
         .expect("Member 0 mapping should succeed");
 
     // ACK and NACK for member 0 should share the same PRB but different CS (offset by 6)
     assert_eq!(res_m0_ack.prb_idx, res_m0_nack.prb_idx);
-    assert_eq!((res_m0_ack.cyclic_shift_idx + 6) % 12, res_m0_nack.cyclic_shift_idx);
+    assert_eq!(
+        (res_m0_ack.cyclic_shift_idx + 6) % 12,
+        res_m0_nack.cyclic_shift_idx
+    );
 }
 
 #[test]
@@ -49,7 +69,7 @@ fn test_groupcast_option1_distance_based_nack() {
     // 20m x 20m grid
     let tx_zone = SlZoneId::new(10, 10, 20.0, 20.0).unwrap();
     let rx_near = SlZoneId::new(11, 10, 20.0, 20.0).unwrap(); // distance = 20.0m
-    let rx_far = SlZoneId::new(20, 20, 20.0, 20.0).unwrap();  // distance = sqrt(10^2 + 10^2)*20 = ~282.8m
+    let rx_far = SlZoneId::new(20, 20, 20.0, 20.0).unwrap(); // distance = sqrt(10^2 + 10^2)*20 = ~282.8m
 
     let mcr_meters = 100.0;
 
@@ -77,11 +97,17 @@ fn test_dynamic_groupcast_mode_switching_cbr_and_size() {
 
     // Case 1: High channel congestion (CBR = 0.75 > 0.60) -> Fallback to Option 1
     let scheme_congested = adapter.select_scheme(4, 0.75, 10.0);
-    assert_eq!(scheme_congested, SlHarqFeedbackScheme::Option1DistanceBasedNack);
+    assert_eq!(
+        scheme_congested,
+        SlHarqFeedbackScheme::Option1DistanceBasedNack
+    );
 
     // Case 2: Large group size (12 members > 6) in clear channel -> Fallback to Option 1
     let scheme_large_group = adapter.select_scheme(12, 0.30, 10.0);
-    assert_eq!(scheme_large_group, SlHarqFeedbackScheme::Option1DistanceBasedNack);
+    assert_eq!(
+        scheme_large_group,
+        SlHarqFeedbackScheme::Option1DistanceBasedNack
+    );
 
     // Case 3: Small group (4 members) with tight latency (10 ms <= 15 ms) in clear channel -> Option 2
     let scheme_tight_platoon = adapter.select_scheme(4, 0.25, 10.0);
@@ -155,7 +181,7 @@ fn test_psfch_power_control_and_priority_resolution() {
     let (approved, dropped) = controller.arbitrate_candidates(&[cand1.clone(), cand2.clone()]);
     assert_eq!(approved.len(), 1);
     assert_eq!(approved[0].candidate_id, 101); // Higher priority kept
-    assert_eq!(dropped, vec![102]);           // Lower priority dropped
+    assert_eq!(dropped, vec![102]); // Lower priority dropped
 }
 
 #[test]
@@ -191,7 +217,10 @@ fn test_sidelink_harq_process_lifecycle_and_rv() {
 
     // Third NACK -> Exceeds max retransmissions -> Returns error and transitions to Failed
     let res = proc.handle_feedback(PsfchFeedbackReport::Nack);
-    assert!(matches!(res, Err(SlHarqError::MaxRetransmissionsReached { .. })));
+    assert!(matches!(
+        res,
+        Err(SlHarqError::MaxRetransmissionsReached { .. })
+    ));
     assert_eq!(proc.state, SlHarqState::Failed);
 }
 
@@ -210,7 +239,9 @@ fn test_end_to_end_sidelink_harq_engine_coordinator() {
     assert_eq!(engine.metrics.total_transmissions, 1);
 
     // Process receives ACK
-    engine.receive_feedback(5, PsfchFeedbackReport::Ack).unwrap();
+    engine
+        .receive_feedback(5, PsfchFeedbackReport::Ack)
+        .unwrap();
     assert_eq!(engine.metrics.acks_received, 1);
 
     let proc = engine.processes.get(&5).unwrap();

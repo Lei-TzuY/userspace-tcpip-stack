@@ -2,9 +2,9 @@
 //! Standards Reference: 3GPP TS 38.305, TS 38.331, TS 38.211, TS 38.213, TS 38.214 Rel-18.
 
 use toy_tcpip::nr_pput_positioning::{
-    HybridTdoaAoaSolver, PputBenchmarkEngine, PputCombSize, PputError, PputPositioningEngine,
-    PputPowerConfig, PputPowerController, PputResource, PputValidityCriteria, TaValidationState,
-    TaValidityTracker, TrpMeasurement, PPUT_SPEED_OF_LIGHT_M_S,
+    HybridTdoaAoaSolver, PPUT_SPEED_OF_LIGHT_M_S, PputBenchmarkEngine, PputCombSize, PputError,
+    PputPositioningEngine, PputPowerConfig, PputPowerController, PputResource,
+    PputValidityCriteria, TaValidationState, TaValidityTracker, TrpMeasurement,
 };
 
 #[test]
@@ -36,7 +36,10 @@ fn test_pput_resource_configuration_and_validation() {
     assert!(matches!(prb_zero, Err(PputError::InvalidBandwidth(0))));
 
     let prb_overflow = PputResource::new(4, PputCombSize::Comb4, 0, 0, 300, 2, 1, 1004);
-    assert!(matches!(prb_overflow, Err(PputError::InvalidBandwidth(300))));
+    assert!(matches!(
+        prb_overflow,
+        Err(PputError::InvalidBandwidth(300))
+    ));
 
     // 4. Invalid symbol count (valid: 1, 2, 4)
     let sym_err = PputResource::new(5, PputCombSize::Comb4, 0, 0, 48, 3, 1, 1005);
@@ -227,17 +230,8 @@ fn test_energy_and_latency_benchmarking() {
 
 #[test]
 fn test_end_to_end_pput_positioning_engine_coordinator() {
-    let res = PputResource::new(
-        1,
-        PputCombSize::Comb4,
-        0,
-        0,
-        48,
-        2,
-        1,
-        2024,
-    )
-    .expect("Valid P-PUT resource");
+    let res = PputResource::new(1, PputCombSize::Comb4, 0, 0, 48, 2, 1, 2024)
+        .expect("Valid P-PUT resource");
 
     let criteria = PputValidityCriteria {
         ta_validity_timer_ms: 6000,

@@ -12,8 +12,8 @@
 //! - Binary wire PDU framing and CRC-16 CCITT integrity validation
 
 use toy_tcpip::nr_l4s_dualq::{
-    compute_crc16, DualQConfig, DualQCoupledAqm, IpEcnField, L4sError, L4sPacket, L4sPacketAction,
-    NrL4sWirePdu, RanCongestionLevel, L4S_WIRE_MAGIC, L4S_WIRE_PDU_SIZE,
+    DualQConfig, DualQCoupledAqm, IpEcnField, L4S_WIRE_MAGIC, L4S_WIRE_PDU_SIZE, L4sError,
+    L4sPacket, L4sPacketAction, NrL4sWirePdu, RanCongestionLevel, compute_crc16,
 };
 
 #[test]
@@ -101,7 +101,7 @@ fn test_l4s_ramp_marking_low_latency() {
 fn test_classic_pi2_controller_and_coupling() {
     let mut config = DualQConfig::default();
     config.target_latency_classic_us = 10_000; // 10 ms target
-    config.update_interval_us = 16_000;        // 16 ms update interval
+    config.update_interval_us = 16_000; // 16 ms update interval
     config.pi2_alpha = 0.2;
     config.pi2_beta = 0.05;
     config.coupling_factor_k = 2.0;
@@ -115,7 +115,10 @@ fn test_classic_pi2_controller_and_coupling() {
     // Advance time beyond target latency (30 ms >> 10 ms) across multiple updates
     aqm.advance_time(16_000).unwrap();
     let p_c_step1 = aqm.classic_probability();
-    assert!(p_c_step1 > 0.0, "p_C should become positive due to delay > target");
+    assert!(
+        p_c_step1 > 0.0,
+        "p_C should become positive due to delay > target"
+    );
 
     let p_l_step1 = aqm.coupled_l4s_probability();
     // Coupled formula: p_L = min(1.0, 2.0 * (p_C)^2)
@@ -125,7 +128,10 @@ fn test_classic_pi2_controller_and_coupling() {
     // Advance again at 32 ms with sustained delay
     aqm.advance_time(32_000).unwrap();
     let p_c_step2 = aqm.classic_probability();
-    assert!(p_c_step2 > p_c_step1, "p_C should ramp up under sustained congestion");
+    assert!(
+        p_c_step2 > p_c_step1,
+        "p_C should ramp up under sustained congestion"
+    );
 }
 
 #[test]
@@ -166,8 +172,10 @@ fn test_deficit_round_robin_fair_scheduling() {
 
     // Populate both queues
     for i in 1..=6 {
-        aqm.enqueue(L4sPacket::new(i, 1, 1000, IpEcnField::Ect1, 0).unwrap()).unwrap();
-        aqm.enqueue(L4sPacket::new(100 + i, 2, 1000, IpEcnField::NotEct, 0).unwrap()).unwrap();
+        aqm.enqueue(L4sPacket::new(i, 1, 1000, IpEcnField::Ect1, 0).unwrap())
+            .unwrap();
+        aqm.enqueue(L4sPacket::new(100 + i, 2, 1000, IpEcnField::NotEct, 0).unwrap())
+            .unwrap();
     }
 
     let mut l4s_served = 0;
@@ -196,17 +204,35 @@ fn test_buffer_overflow_protection() {
     let mut aqm = DualQCoupledAqm::new(config);
 
     // Enqueue 1500 bytes into L4S queue (ok)
-    aqm.enqueue(L4sPacket::new(1, 1, 1500, IpEcnField::Ect1, 0).unwrap()).unwrap();
+    aqm.enqueue(L4sPacket::new(1, 1, 1500, IpEcnField::Ect1, 0).unwrap())
+        .unwrap();
 
     // Next 1000 bytes would exceed 2000 bytes limit -> overflow error!
-    let err = aqm.enqueue(L4sPacket::new(2, 1, 1000, IpEcnField::Ect1, 0).unwrap()).unwrap_err();
-    assert!(matches!(err, L4sError::BufferOverflow { queue: "L4S", capacity_bytes: 2000 }));
+    let err = aqm
+        .enqueue(L4sPacket::new(2, 1, 1000, IpEcnField::Ect1, 0).unwrap())
+        .unwrap_err();
+    assert!(matches!(
+        err,
+        L4sError::BufferOverflow {
+            queue: "L4S",
+            capacity_bytes: 2000
+        }
+    ));
     assert_eq!(aqm.stats().total_l4s_dropped, 1);
 
     // Same for classic queue
-    aqm.enqueue(L4sPacket::new(3, 1, 2500, IpEcnField::NotEct, 0).unwrap()).unwrap();
-    let err_c = aqm.enqueue(L4sPacket::new(4, 1, 1000, IpEcnField::NotEct, 0).unwrap()).unwrap_err();
-    assert!(matches!(err_c, L4sError::BufferOverflow { queue: "Classic", capacity_bytes: 3000 }));
+    aqm.enqueue(L4sPacket::new(3, 1, 2500, IpEcnField::NotEct, 0).unwrap())
+        .unwrap();
+    let err_c = aqm
+        .enqueue(L4sPacket::new(4, 1, 1000, IpEcnField::NotEct, 0).unwrap())
+        .unwrap_err();
+    assert!(matches!(
+        err_c,
+        L4sError::BufferOverflow {
+            queue: "Classic",
+            capacity_bytes: 3000
+        }
+    ));
     assert_eq!(aqm.stats().total_classic_dropped, 1);
 }
 
@@ -225,7 +251,13 @@ fn test_ran_feedback_reporting() {
 
     // Advance time backwards should return InvalidTimeSequence error
     let err_back = aqm.advance_time(50_000).unwrap_err();
-    assert!(matches!(err_back, L4sError::InvalidTimeSequence { current_us: 100_000, advance_to_us: 50_000 }));
+    assert!(matches!(
+        err_back,
+        L4sError::InvalidTimeSequence {
+            current_us: 100_000,
+            advance_to_us: 50_000
+        }
+    ));
 }
 
 #[test]

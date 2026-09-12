@@ -56,18 +56,40 @@ impl fmt::Display for PdcpDelayStatusError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidControlPduSize { needed, found } => {
-                write!(f, "Invalid control PDU size: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Invalid control PDU size: needed {} bytes, found {}",
+                    needed, found
+                )
             }
-            Self::InvalidDcBit(bit) => write!(f, "Invalid D/C bit (expected 0 for Control PDU, found {})", bit),
-            Self::InvalidPduType(pdu_type) => write!(f, "Invalid PDU Type (expected 0b010, found 0b{:03b})", pdu_type),
+            Self::InvalidDcBit(bit) => write!(
+                f,
+                "Invalid D/C bit (expected 0 for Control PDU, found {})",
+                bit
+            ),
+            Self::InvalidPduType(pdu_type) => write!(
+                f,
+                "Invalid PDU Type (expected 0b010, found 0b{:03b})",
+                pdu_type
+            ),
             Self::InvalidTriggerCode(code) => write!(f, "Invalid trigger code: {}", code),
-            Self::BufferOverflow { capacity } => write!(f, "PDCP SDU buffer overflow (capacity: {})", capacity),
+            Self::BufferOverflow { capacity } => {
+                write!(f, "PDCP SDU buffer overflow (capacity: {})", capacity)
+            }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -137,12 +159,12 @@ impl Default for PdcpDelayReportConfig {
     fn default() -> Self {
         Self {
             drb_id: 1,
-            discard_timer_us: Some(20_000),         // 20 ms (typical for XR video/audio)
-            excess_delay_threshold_us: 10_000,      // 10 ms excess delay threshold
-            report_interval_us: Some(5_000),        // 5 ms periodic reporting
-            hol_delay_threshold_us: Some(8_000),    // 8 ms HOL trigger
-            volume_threshold_bytes: Some(64_000),   // 64 KB buffer threshold
-            imminent_discard_window_us: 2_000,      // 2 ms imminent discard window
+            discard_timer_us: Some(20_000), // 20 ms (typical for XR video/audio)
+            excess_delay_threshold_us: 10_000, // 10 ms excess delay threshold
+            report_interval_us: Some(5_000), // 5 ms periodic reporting
+            hol_delay_threshold_us: Some(8_000), // 8 ms HOL trigger
+            volume_threshold_bytes: Some(64_000), // 64 KB buffer threshold
+            imminent_discard_window_us: 2_000, // 2 ms imminent discard window
             max_buffer_capacity: 1_000,
         }
     }
@@ -191,7 +213,11 @@ impl PdcpDelayStatusEngine {
     }
 
     /// Enqueues a new PDCP SDU with the current timestamp.
-    pub fn enqueue_sdu(&mut self, size_bytes: usize, priority: u8) -> Result<u32, PdcpDelayStatusError> {
+    pub fn enqueue_sdu(
+        &mut self,
+        size_bytes: usize,
+        priority: u8,
+    ) -> Result<u32, PdcpDelayStatusError> {
         if self.sdu_queue.len() >= self.config.max_buffer_capacity {
             return Err(PdcpDelayStatusError::BufferOverflow {
                 capacity: self.config.max_buffer_capacity,
@@ -251,8 +277,15 @@ impl PdcpDelayStatusEngine {
 
     /// Evaluates whether any reporting conditions are satisfied.
     pub fn evaluate_triggers(&mut self) -> Option<PdcpDelayStatusReport> {
-        let (hol_delay, total_bytes, pending_sdus, excess_bytes, excess_count, imminent_bytes, imminent_count) =
-            self.compute_telemetry();
+        let (
+            hol_delay,
+            total_bytes,
+            pending_sdus,
+            excess_bytes,
+            excess_count,
+            imminent_bytes,
+            imminent_count,
+        ) = self.compute_telemetry();
 
         let mut trigger = None;
 
@@ -306,8 +339,15 @@ impl PdcpDelayStatusEngine {
 
     /// Forces generation of a report (e.g. gNB poll).
     pub fn poll_report(&self) -> PdcpDelayStatusReport {
-        let (hol_delay, total_bytes, pending_sdus, excess_bytes, excess_count, imminent_bytes, imminent_count) =
-            self.compute_telemetry();
+        let (
+            hol_delay,
+            total_bytes,
+            pending_sdus,
+            excess_bytes,
+            excess_count,
+            imminent_bytes,
+            imminent_count,
+        ) = self.compute_telemetry();
 
         PdcpDelayStatusReport {
             drb_id: self.config.drb_id,
@@ -440,13 +480,16 @@ impl PdcpDelayStatusEngine {
         let hol_units = u16::from_be_bytes([bytes[2], bytes[3]]) as u64;
         let hol_delay_us = hol_units * 100;
 
-        let total_buffered_bytes = u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
+        let total_buffered_bytes =
+            u32::from_be_bytes([bytes[4], bytes[5], bytes[6], bytes[7]]) as usize;
         let total_pending_sdus = u16::from_be_bytes([bytes[8], bytes[9]]) as usize;
 
-        let excess_delay_bytes = u32::from_be_bytes([bytes[10], bytes[11], bytes[12], bytes[13]]) as usize;
+        let excess_delay_bytes =
+            u32::from_be_bytes([bytes[10], bytes[11], bytes[12], bytes[13]]) as usize;
         let excess_delay_count = u16::from_be_bytes([bytes[14], bytes[15]]) as usize;
 
-        let imminent_discard_bytes = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
+        let imminent_discard_bytes =
+            u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]) as usize;
         let imminent_discard_count = u16::from_be_bytes([bytes[20], bytes[21]]) as usize;
 
         Ok(PdcpDelayStatusReport {
@@ -501,19 +544,19 @@ pub struct NrPdcpDelayWirePdu {
 impl NrPdcpDelayWirePdu {
     pub fn to_wire_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(PDCP_DELAY_WIRE_PDU_SIZE);
-        buf.extend_from_slice(&PDCP_DELAY_WIRE_MAGIC.to_be_bytes());       // 4 bytes
-        buf.extend_from_slice(&self.sfn.to_be_bytes());                    // 2 bytes
-        buf.extend_from_slice(&self.slot.to_be_bytes());                   // 2 bytes
-        buf.push(self.drb_id);                                             // 1 byte
-        buf.push(self.trigger_code);                                       // 1 byte
-        buf.extend_from_slice(&self.hol_delay_units.to_be_bytes());         // 2 bytes
-        buf.extend_from_slice(&self.total_volume_bytes.to_be_bytes());     // 4 bytes
-        buf.extend_from_slice(&self.pending_sdus.to_be_bytes());           // 2 bytes
-        buf.extend_from_slice(&self.excess_volume_bytes.to_be_bytes());    // 4 bytes
-        buf.extend_from_slice(&self.discarded_sdus.to_be_bytes());         // 2 bytes
+        buf.extend_from_slice(&PDCP_DELAY_WIRE_MAGIC.to_be_bytes()); // 4 bytes
+        buf.extend_from_slice(&self.sfn.to_be_bytes()); // 2 bytes
+        buf.extend_from_slice(&self.slot.to_be_bytes()); // 2 bytes
+        buf.push(self.drb_id); // 1 byte
+        buf.push(self.trigger_code); // 1 byte
+        buf.extend_from_slice(&self.hol_delay_units.to_be_bytes()); // 2 bytes
+        buf.extend_from_slice(&self.total_volume_bytes.to_be_bytes()); // 4 bytes
+        buf.extend_from_slice(&self.pending_sdus.to_be_bytes()); // 2 bytes
+        buf.extend_from_slice(&self.excess_volume_bytes.to_be_bytes()); // 4 bytes
+        buf.extend_from_slice(&self.discarded_sdus.to_be_bytes()); // 2 bytes
 
         let crc = compute_crc16(&buf);
-        buf.extend_from_slice(&crc.to_be_bytes());                         // 2 bytes (total 26 bytes)
+        buf.extend_from_slice(&crc.to_be_bytes()); // 2 bytes (total 26 bytes)
         buf
     }
 

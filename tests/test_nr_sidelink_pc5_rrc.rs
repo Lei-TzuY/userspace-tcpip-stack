@@ -25,7 +25,11 @@ fn test_pc5_rrc_wire_codec_and_crc() {
 
     let decoded = Pc5RrcMessage::decode_wire(&wire_bytes).expect("Decode RrcReconfiguration");
     match decoded {
-        Pc5RrcMessage::RrcReconfiguration { transaction_id, slrbs_to_add, slrbs_to_release } => {
+        Pc5RrcMessage::RrcReconfiguration {
+            transaction_id,
+            slrbs_to_add,
+            slrbs_to_release,
+        } => {
             assert_eq!(transaction_id, 2);
             assert_eq!(slrbs_to_add.len(), 2);
             assert_eq!(slrbs_to_add[0].slrb_id, 1);
@@ -52,7 +56,11 @@ fn test_pc5_rrc_wire_codec_and_crc() {
     let mib_wire = mib.encode_wire();
     let mib_decoded = Pc5RrcMessage::decode_wire(&mib_wire).expect("Decode MIB-SL");
     match mib_decoded {
-        Pc5RrcMessage::MasterInformationBlockSidelink { direct_frame_number, direct_subframe_number, in_coverage } => {
+        Pc5RrcMessage::MasterInformationBlockSidelink {
+            direct_frame_number,
+            direct_subframe_number,
+            in_coverage,
+        } => {
             assert_eq!(direct_frame_number, 512);
             assert_eq!(direct_subframe_number, 7);
             assert_eq!(in_coverage, true);
@@ -72,7 +80,9 @@ fn test_pc5_rrc_connection_lifecycle() {
     assert!(engine.get_peer(peer_id).is_none());
 
     // 1. Initiate connection
-    engine.initiate_connection(peer_id).expect("Initiate PC5-RRC connection");
+    engine
+        .initiate_connection(peer_id)
+        .expect("Initiate PC5-RRC connection");
     let peer = engine.get_peer(peer_id).expect("Peer context created");
     assert_eq!(peer.state, Pc5RrcState::Connected);
     assert_eq!(engine.telemetry().connections_established, 1);
@@ -99,7 +109,11 @@ fn test_slrb_configuration_handshake() {
     let slrb1 = SlrbConfig::new_am(1, 10, 1);
     let slrb2 = SlrbConfig::new_um(2, 20, 2);
     let reconfig_msg = ue_a
-        .prepare_reconfiguration(ue_b.local_l2_id(), vec![slrb1.clone(), slrb2.clone()], vec![])
+        .prepare_reconfiguration(
+            ue_b.local_l2_id(),
+            vec![slrb1.clone(), slrb2.clone()],
+            vec![],
+        )
         .expect("UE A prepare reconfig");
 
     let tx_id = match &reconfig_msg {
@@ -107,26 +121,54 @@ fn test_slrb_configuration_handshake() {
         _ => panic!("Expected RrcReconfiguration"),
     };
 
-    assert_eq!(ue_a.get_peer(ue_b.local_l2_id()).unwrap().state, Pc5RrcState::Reconfiguring);
+    assert_eq!(
+        ue_a.get_peer(ue_b.local_l2_id()).unwrap().state,
+        Pc5RrcState::Reconfiguring
+    );
 
     // 2. UE B processes incoming reconfiguration and replies with Complete
     let complete_msg = ue_b
-        .process_reconfiguration(ue_a.local_l2_id(), tx_id, vec![slrb1.clone(), slrb2.clone()], vec![])
+        .process_reconfiguration(
+            ue_a.local_l2_id(),
+            tx_id,
+            vec![slrb1.clone(), slrb2.clone()],
+            vec![],
+        )
         .expect("UE B process reconfig");
 
-    assert_eq!(ue_b.get_peer(ue_a.local_l2_id()).unwrap().active_slrbs.len(), 2);
+    assert_eq!(
+        ue_b.get_peer(ue_a.local_l2_id())
+            .unwrap()
+            .active_slrbs
+            .len(),
+        2
+    );
 
     // 3. UE A receives ReconfigurationComplete and finalizes its local state
     match complete_msg {
         Pc5RrcMessage::RrcReconfigurationComplete { transaction_id } => {
-            ue_a.process_reconfiguration_complete(ue_b.local_l2_id(), transaction_id, vec![slrb1, slrb2], vec![])
-                .expect("UE A finalize reconfig");
+            ue_a.process_reconfiguration_complete(
+                ue_b.local_l2_id(),
+                transaction_id,
+                vec![slrb1, slrb2],
+                vec![],
+            )
+            .expect("UE A finalize reconfig");
         }
         _ => panic!("Expected RrcReconfigurationComplete"),
     }
 
-    assert_eq!(ue_a.get_peer(ue_b.local_l2_id()).unwrap().state, Pc5RrcState::Connected);
-    assert_eq!(ue_a.get_peer(ue_b.local_l2_id()).unwrap().active_slrbs.len(), 2);
+    assert_eq!(
+        ue_a.get_peer(ue_b.local_l2_id()).unwrap().state,
+        Pc5RrcState::Connected
+    );
+    assert_eq!(
+        ue_a.get_peer(ue_b.local_l2_id())
+            .unwrap()
+            .active_slrbs
+            .len(),
+        2
+    );
     assert_eq!(ue_a.telemetry().reconfigurations_completed, 1);
     assert_eq!(ue_b.telemetry().reconfigurations_completed, 1);
 }
@@ -158,7 +200,8 @@ fn test_ue_capability_transfer_handshake() {
     };
 
     // 3. UE A processes UE B's capability information
-    ue_a.process_capability_information(ue_b.local_l2_id(), b_caps.clone()).expect("Process caps");
+    ue_a.process_capability_information(ue_b.local_l2_id(), b_caps.clone())
+        .expect("Process caps");
 
     let peer = ue_a.get_peer(ue_b.local_l2_id()).unwrap();
     assert_eq!(peer.peer_capabilities, Some(b_caps));
@@ -177,19 +220,49 @@ fn test_sidelink_measurement_reporting_and_l3_filter() {
     let alpha = 0.5f32; // Filter coefficient
 
     // Report 1: -80.0 dBm -> initial filtered value = -80.0 dBm
-    let report1 = SlMeasurementReport { peer_rsrp_dbm: -80.0, cbr: 0.25, sl_cqi: 12, sl_ri: 1 };
-    engine.process_measurement_report(peer_id, report1, alpha).unwrap();
-    assert_eq!(engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm, Some(-80.0));
+    let report1 = SlMeasurementReport {
+        peer_rsrp_dbm: -80.0,
+        cbr: 0.25,
+        sl_cqi: 12,
+        sl_ri: 1,
+    };
+    engine
+        .process_measurement_report(peer_id, report1, alpha)
+        .unwrap();
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm,
+        Some(-80.0)
+    );
 
     // Report 2: -70.0 dBm -> 0.5 * (-80) + 0.5 * (-70) = -75.0 dBm
-    let report2 = SlMeasurementReport { peer_rsrp_dbm: -70.0, cbr: 0.30, sl_cqi: 14, sl_ri: 2 };
-    engine.process_measurement_report(peer_id, report2, alpha).unwrap();
-    assert_eq!(engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm, Some(-75.0));
+    let report2 = SlMeasurementReport {
+        peer_rsrp_dbm: -70.0,
+        cbr: 0.30,
+        sl_cqi: 14,
+        sl_ri: 2,
+    };
+    engine
+        .process_measurement_report(peer_id, report2, alpha)
+        .unwrap();
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm,
+        Some(-75.0)
+    );
 
     // Report 3: -90.0 dBm -> 0.5 * (-75) + 0.5 * (-90) = -82.5 dBm
-    let report3 = SlMeasurementReport { peer_rsrp_dbm: -90.0, cbr: 0.40, sl_cqi: 10, sl_ri: 1 };
-    engine.process_measurement_report(peer_id, report3, alpha).unwrap();
-    assert_eq!(engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm, Some(-82.5));
+    let report3 = SlMeasurementReport {
+        peer_rsrp_dbm: -90.0,
+        cbr: 0.40,
+        sl_cqi: 10,
+        sl_ri: 1,
+    };
+    engine
+        .process_measurement_report(peer_id, report3, alpha)
+        .unwrap();
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().filtered_rsrp_dbm,
+        Some(-82.5)
+    );
     assert_eq!(engine.telemetry().measurement_reports_processed, 3);
 }
 
@@ -204,24 +277,49 @@ fn test_sidelink_radio_link_failure_rlc_max_retx() {
 
     // Configure SLRB 1 with max_retx_threshold = 4
     let mut slrb = SlrbConfig::new_am(1, 10, 1);
-    slrb.rlc_mode = SlRlcMode::Acknowledged { max_retx_threshold: 4 };
+    slrb.rlc_mode = SlRlcMode::Acknowledged {
+        max_retx_threshold: 4,
+    };
 
-    engine.process_reconfiguration(peer_id, 0, vec![slrb], vec![]).unwrap();
+    engine
+        .process_reconfiguration(peer_id, 0, vec![slrb], vec![])
+        .unwrap();
 
     // 1st, 2nd, 3rd failures -> below threshold
-    assert_eq!(engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(), false);
-    assert_eq!(engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(), false);
-    assert_eq!(engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(), false);
-    assert_eq!(engine.get_peer(peer_id).unwrap().state, Pc5RrcState::Connected);
+    assert_eq!(
+        engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(),
+        false
+    );
+    assert_eq!(
+        engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(),
+        false
+    );
+    assert_eq!(
+        engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(),
+        false
+    );
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().state,
+        Pc5RrcState::Connected
+    );
 
     // 4th failure -> triggers SL-RLF!
-    assert_eq!(engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(), true);
-    assert_eq!(engine.get_peer(peer_id).unwrap().state, Pc5RrcState::RlfDetected);
+    assert_eq!(
+        engine.notify_rlc_transmission_failure(peer_id, 1).unwrap(),
+        true
+    );
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().state,
+        Pc5RrcState::RlfDetected
+    );
     assert_eq!(engine.telemetry().sl_rlf_events, 1);
 
     // Resetting on success clears counter
     engine.notify_rlc_transmission_success(peer_id);
-    assert_eq!(engine.get_peer(peer_id).unwrap().consecutive_rlc_failures, 0);
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().consecutive_rlc_failures,
+        0
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -234,7 +332,9 @@ fn test_t400_response_timer_timeout_sl_rlf() {
     engine.initiate_connection(peer_id).unwrap();
 
     // Prepare capability enquiry which starts T400 = 1000 ms
-    engine.prepare_capability_enquiry(peer_id, vec![47]).unwrap();
+    engine
+        .prepare_capability_enquiry(peer_id, vec![47])
+        .unwrap();
 
     // Advance 500 ms -> no timeout
     let timeouts = engine.advance_time_ms(500);
@@ -244,7 +344,10 @@ fn test_t400_response_timer_timeout_sl_rlf() {
     let timeouts2 = engine.advance_time_ms(600);
     assert_eq!(timeouts2.len(), 1);
     assert_eq!(timeouts2[0].0, peer_id);
-    assert_eq!(engine.get_peer(peer_id).unwrap().state, Pc5RrcState::RlfDetected);
+    assert_eq!(
+        engine.get_peer(peer_id).unwrap().state,
+        Pc5RrcState::RlfDetected
+    );
     assert_eq!(engine.telemetry().sl_rlf_events, 1);
 }
 

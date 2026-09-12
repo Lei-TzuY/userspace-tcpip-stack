@@ -9,9 +9,9 @@
 //! - Binary wire framing (`CellSearchWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_cell_search::{
-    apply_cfo_correction, compute_ss_measurements, detect_pss, detect_ssb_beam_index, detect_sss,
-    estimate_fractional_cfo, generate_pss_sequence, generate_sss_sequence, CellSearchError,
-    CellSearchWirePdu, Complex32, SYNC_SEQUENCE_LENGTH,
+    CellSearchError, CellSearchWirePdu, Complex32, SYNC_SEQUENCE_LENGTH, apply_cfo_correction,
+    compute_ss_measurements, detect_pss, detect_ssb_beam_index, detect_sss,
+    estimate_fractional_cfo, generate_pss_sequence, generate_sss_sequence,
 };
 
 // ---------------------------------------------------------------------------
@@ -38,16 +38,43 @@ fn test_pss_sequence_properties_and_orthogonality() {
     assert_eq!(auto_corr0, 127);
 
     // Cross-correlation between different PSS sequences must be low
-    let cross_01: i32 = pss0.iter().zip(pss1.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum();
-    let cross_02: i32 = pss0.iter().zip(pss2.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum();
-    let cross_12: i32 = pss1.iter().zip(pss2.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum();
+    let cross_01: i32 = pss0
+        .iter()
+        .zip(pss1.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum();
+    let cross_02: i32 = pss0
+        .iter()
+        .zip(pss2.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum();
+    let cross_12: i32 = pss1
+        .iter()
+        .zip(pss2.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum();
 
-    assert!(cross_01.abs() <= 35, "Cross-correlation between PSS 0 and 1 must be small: {}", cross_01);
-    assert!(cross_02.abs() <= 35, "Cross-correlation between PSS 0 and 2 must be small: {}", cross_02);
-    assert!(cross_12.abs() <= 35, "Cross-correlation between PSS 1 and 2 must be small: {}", cross_12);
+    assert!(
+        cross_01.abs() <= 35,
+        "Cross-correlation between PSS 0 and 1 must be small: {}",
+        cross_01
+    );
+    assert!(
+        cross_02.abs() <= 35,
+        "Cross-correlation between PSS 0 and 2 must be small: {}",
+        cross_02
+    );
+    assert!(
+        cross_12.abs() <= 35,
+        "Cross-correlation between PSS 1 and 2 must be small: {}",
+        cross_12
+    );
 
     // Invalid N_ID^(2) returns error
-    assert_eq!(generate_pss_sequence(3), Err(CellSearchError::InvalidNid2(3)));
+    assert_eq!(
+        generate_pss_sequence(3),
+        Err(CellSearchError::InvalidNid2(3))
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -77,7 +104,11 @@ fn test_pss_sliding_cross_correlation_and_timing_detection() {
     let result = detect_pss(&rx_buf, 100, 3.0).unwrap();
     assert_eq!(result.timing_offset, target_offset);
     assert_eq!(result.nid2, target_nid2);
-    assert!(result.pslr > 5.0, "PSLR must be high on true peak: {}", result.pslr);
+    assert!(
+        result.pslr > 5.0,
+        "PSLR must be high on true peak: {}",
+        result.pslr
+    );
 }
 
 #[test]
@@ -137,9 +168,9 @@ fn test_cfo_estimation_and_phase_rotation() {
 #[test]
 fn test_sss_detection_and_full_pci_derivation() {
     let test_cases = [
-        (0u16, 0u8, 0u16),       // PCI = 0
-        (166u16, 2u8, 500u16),   // PCI = 3 * 166 + 2 = 500
-        (335u16, 2u8, 1007u16),  // PCI = 3 * 335 + 2 = 1007
+        (0u16, 0u8, 0u16),      // PCI = 0
+        (166u16, 2u8, 500u16),  // PCI = 3 * 166 + 2 = 500
+        (335u16, 2u8, 1007u16), // PCI = 3 * 335 + 2 = 1007
     ];
 
     for (target_nid1, nid2, expected_pci) in test_cases {

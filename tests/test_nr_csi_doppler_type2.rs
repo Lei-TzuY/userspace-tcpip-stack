@@ -114,15 +114,11 @@ fn test_channel_compression_and_reconstruction() {
     // H(t, f, port) = e^{j 2pi * 1 * t / nt} * e^{-j 2pi * 1 * f / n3} * spatial_beam[0]
     let mut channel = vec![vec![vec![Complex64::ZERO; ports]; n3]; nt];
     for t in 0..nt {
-        let doppler_term = Complex64::from_polar(
-            1.0,
-            2.0 * std::f64::consts::PI * (t as f64) / (nt as f64),
-        );
+        let doppler_term =
+            Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * (t as f64) / (nt as f64));
         for f in 0..n3 {
-            let delay_term = Complex64::from_polar(
-                1.0,
-                -2.0 * std::f64::consts::PI * (f as f64) / (n3 as f64),
-            );
+            let delay_term =
+                Complex64::from_polar(1.0, -2.0 * std::f64::consts::PI * (f as f64) / (n3 as f64));
             for p in 0..ports {
                 let half_p = p % 4;
                 let spatial_term = engine.spatial_bases[0][half_p];
@@ -147,7 +143,11 @@ fn test_channel_compression_and_reconstruction() {
 
     // Reconstructed channel must have high similarity (GCS > 0.90)
     assert!(gcs > 0.90, "Expected GCS > 0.90, got {:.4}", gcs);
-    assert!(nmse_db < -5.0, "Expected NMSE < -5 dB, got {:.2} dB", nmse_db);
+    assert!(
+        nmse_db < -5.0,
+        "Expected NMSE < -5 dB, got {:.2} dB",
+        nmse_db
+    );
 }
 
 #[test]
@@ -172,10 +172,8 @@ fn test_future_slot_extrapolation_mitigating_channel_aging() {
     // Path 2: Beam 1 with rotating Doppler (k = 1)
     let mut channel = vec![vec![vec![Complex64::ZERO; ports]; n3]; nt];
     for t in 0..nt {
-        let doppler_term = Complex64::from_polar(
-            1.0,
-            2.0 * std::f64::consts::PI * (t as f64) / (nt as f64),
-        );
+        let doppler_term =
+            Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * (t as f64) / (nt as f64));
         for f in 0..n3 {
             for p in 0..ports {
                 let half_p = p % 4;
@@ -234,7 +232,10 @@ fn test_dimension_and_boundary_error_handling() {
     // 1. Empty/truncated channel tensor returns DimensionMismatch
     let truncated_channel: Vec<Vec<Vec<Complex64>>> = vec![];
     let err = engine.compress_channel(&truncated_channel);
-    assert!(matches!(err, Err(DopplerType2Error::DimensionMismatch { .. })));
+    assert!(matches!(
+        err,
+        Err(DopplerType2Error::DimensionMismatch { .. })
+    ));
 
     // 2. All zero channel returns ZeroEnergyChannel
     let zero_channel = vec![vec![vec![Complex64::ZERO; 16]; 8]; 8];

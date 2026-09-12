@@ -1,10 +1,10 @@
 //! Integration tests for 3GPP Rel-18/19 PUSCH Processor, UCI Multiplexing & Frequency Hopping Engine.
 
 use toy_tcpip::nr_pusch_processor::{
+    FrequencyHoppingConfig, FrequencyHoppingMode, PUSCH_WIRE_MAGIC, PuschModulation,
+    PuschRepetitionScheme, PuschSlotGrid, PuschWirePdu, ReType, SYMBOLS_PER_SLOT, UciOnPuschConfig,
     calculate_pusch_prb_allocation, calculate_uci_on_pusch_symbols, schedule_pusch_repetitions,
-    uci_crc_length, FrequencyHoppingConfig, FrequencyHoppingMode, PuschModulation,
-    PuschRepetitionScheme, PuschSlotGrid, PuschWirePdu, ReType, UciOnPuschConfig, PUSCH_WIRE_MAGIC,
-    SYMBOLS_PER_SLOT,
+    uci_crc_length,
 };
 
 #[test]
@@ -62,8 +62,8 @@ fn test_uci_q_prime_harq_ack_calculation_and_alpha_clamping() {
 #[test]
 fn test_uci_q_prime_csi1_and_csi2_allocation() {
     let cfg = UciOnPuschConfig {
-        o_ack_bits: 2,  // L = 0
-        o_csi1_bits: 8, // L = 6
+        o_ack_bits: 2,   // L = 0
+        o_csi1_bits: 8,  // L = 6
         o_csi2_bits: 14, // L = 11
         beta_offset_ack_milli: 1500,
         beta_offset_csi1_milli: 1200,

@@ -21,23 +21,65 @@ fn test_crc16_integrity() {
 
 #[test]
 fn test_failure_causes_from_u8() {
-    assert_eq!(McgFailureCause::from_u8(1).unwrap(), McgFailureCause::T310Expiry);
-    assert_eq!(McgFailureCause::from_u8(2).unwrap(), McgFailureCause::RandomAccessProblem);
-    assert_eq!(McgFailureCause::from_u8(3).unwrap(), McgFailureCause::RlcMaxNumRetx);
-    assert_eq!(McgFailureCause::from_u8(4).unwrap(), McgFailureCause::SynchReconfigFailureMcg);
-    assert_eq!(McgFailureCause::from_u8(5).unwrap(), McgFailureCause::ScgLbtFailure);
-    assert_eq!(McgFailureCause::from_u8(6).unwrap(), McgFailureCause::BeamFailureRecoveryFailure);
-    assert_eq!(McgFailureCause::from_u8(7).unwrap(), McgFailureCause::T312Expiry);
+    assert_eq!(
+        McgFailureCause::from_u8(1).unwrap(),
+        McgFailureCause::T310Expiry
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(2).unwrap(),
+        McgFailureCause::RandomAccessProblem
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(3).unwrap(),
+        McgFailureCause::RlcMaxNumRetx
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(4).unwrap(),
+        McgFailureCause::SynchReconfigFailureMcg
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(5).unwrap(),
+        McgFailureCause::ScgLbtFailure
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(6).unwrap(),
+        McgFailureCause::BeamFailureRecoveryFailure
+    );
+    assert_eq!(
+        McgFailureCause::from_u8(7).unwrap(),
+        McgFailureCause::T312Expiry
+    );
     assert!(McgFailureCause::from_u8(0).is_err());
     assert!(McgFailureCause::from_u8(8).is_err());
 
-    assert_eq!(ScgFailureCause::from_u8(1).unwrap(), ScgFailureCause::T310Expiry);
-    assert_eq!(ScgFailureCause::from_u8(2).unwrap(), ScgFailureCause::SynchReconfigFailureScg);
-    assert_eq!(ScgFailureCause::from_u8(3).unwrap(), ScgFailureCause::RandomAccessProblem);
-    assert_eq!(ScgFailureCause::from_u8(4).unwrap(), ScgFailureCause::RlcMaxNumRetx);
-    assert_eq!(ScgFailureCause::from_u8(5).unwrap(), ScgFailureCause::ScgChangeFailure);
-    assert_eq!(ScgFailureCause::from_u8(6).unwrap(), ScgFailureCause::ScgLbtFailure);
-    assert_eq!(ScgFailureCause::from_u8(7).unwrap(), ScgFailureCause::BeamFailureRecoveryFailure);
+    assert_eq!(
+        ScgFailureCause::from_u8(1).unwrap(),
+        ScgFailureCause::T310Expiry
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(2).unwrap(),
+        ScgFailureCause::SynchReconfigFailureScg
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(3).unwrap(),
+        ScgFailureCause::RandomAccessProblem
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(4).unwrap(),
+        ScgFailureCause::RlcMaxNumRetx
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(5).unwrap(),
+        ScgFailureCause::ScgChangeFailure
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(6).unwrap(),
+        ScgFailureCause::ScgLbtFailure
+    );
+    assert_eq!(
+        ScgFailureCause::from_u8(7).unwrap(),
+        ScgFailureCause::BeamFailureRecoveryFailure
+    );
     assert!(ScgFailureCause::from_u8(0).is_err());
     assert!(ScgFailureCause::from_u8(99).is_err());
 }
@@ -138,7 +180,10 @@ fn test_scg_failure_information_codec_and_crc() {
     assert_eq!(wire[2], 0x12);
 
     let decoded = ScgFailureInformation::decode_wire(&wire).expect("scg decode failed");
-    assert_eq!(decoded.failure_cause, ScgFailureCause::BeamFailureRecoveryFailure);
+    assert_eq!(
+        decoded.failure_cause,
+        ScgFailureCause::BeamFailureRecoveryFailure
+    );
     assert_eq!(decoded.failed_pscell_pci, 201);
     assert_eq!(decoded.measurements.len(), 1);
     assert_eq!(decoded.measurements[0].pci, 201);
@@ -179,7 +224,9 @@ fn test_fast_mcg_recovery_trigger_and_completion() {
     assert_eq!(engine.current_time_ms(), 8);
 
     // Complete recovery with handover/reconfig to PCell 15
-    let duration = engine.complete_mcg_recovery(15).expect("complete recovery failed");
+    let duration = engine
+        .complete_mcg_recovery(15)
+        .expect("complete recovery failed");
     assert_eq!(duration, 8);
     assert_eq!(engine.pcell_pci(), 15);
     assert_eq!(engine.mcg_status(), CellGroupStatus::NormalActive);
@@ -235,7 +282,10 @@ fn test_t316_expiry_legacy_rrc_reestablishment_fallback() {
         ret2,
         Some(MrdcRecoveryError::RecoveryTimerExpired(name)) if name == "T316"
     ));
-    assert_eq!(engine.mcg_status(), CellGroupStatus::LegacyRrcReestablishment);
+    assert_eq!(
+        engine.mcg_status(),
+        CellGroupStatus::LegacyRrcReestablishment
+    );
 
     let tel = engine.telemetry();
     assert_eq!(tel.mcg_failures_detected, 1);

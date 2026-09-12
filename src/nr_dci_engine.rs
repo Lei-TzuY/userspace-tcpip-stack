@@ -48,39 +48,82 @@ pub const MAX_NR_PRBS: u16 = 275;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DciError {
     InvalidBwpSize(u16),
-    InvalidPrbRange { start: u16, length: u16, bwp_size: u16 },
-    InvalidRiv { riv: u32, bwp_size: u16 },
+    InvalidPrbRange {
+        start: u16,
+        length: u16,
+        bwp_size: u16,
+    },
+    InvalidRiv {
+        riv: u32,
+        bwp_size: u16,
+    },
     InvalidBitWidth(usize),
-    BufferUnderflow { needed_bits: usize, available_bits: usize },
+    BufferUnderflow {
+        needed_bits: usize,
+        available_bits: usize,
+    },
     InvalidRnti(String),
-    CrcMismatch { expected: u32, computed: u32 },
+    CrcMismatch {
+        expected: u32,
+        computed: u32,
+    },
     InvalidWireMagic(u32),
-    WirePayloadTooShort { needed: usize, found: usize },
+    WirePayloadTooShort {
+        needed: usize,
+        found: usize,
+    },
     ForbiddenPayloadSize(usize),
-    FieldOutOfRange { field: &'static str, value: u64, max: u64 },
+    FieldOutOfRange {
+        field: &'static str,
+        value: u64,
+        max: u64,
+    },
 }
 
 impl fmt::Display for DciError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidBwpSize(s) => write!(f, "Invalid BWP size: {} (must be 1..275)", s),
-            Self::InvalidPrbRange { start, length, bwp_size } => {
-                write!(f, "Invalid PRB range: start={}, len={} in BWP size {}", start, length, bwp_size)
+            Self::InvalidPrbRange {
+                start,
+                length,
+                bwp_size,
+            } => {
+                write!(
+                    f,
+                    "Invalid PRB range: start={}, len={} in BWP size {}",
+                    start, length, bwp_size
+                )
             }
             Self::InvalidRiv { riv, bwp_size } => {
                 write!(f, "Invalid RIV {} for BWP size {}", riv, bwp_size)
             }
             Self::InvalidBitWidth(w) => write!(f, "Invalid bit width: {} (must be 1..64)", w),
-            Self::BufferUnderflow { needed_bits, available_bits } => {
-                write!(f, "Buffer underflow: needed {} bits, available {}", needed_bits, available_bits)
+            Self::BufferUnderflow {
+                needed_bits,
+                available_bits,
+            } => {
+                write!(
+                    f,
+                    "Buffer underflow: needed {} bits, available {}",
+                    needed_bits, available_bits
+                )
             }
             Self::InvalidRnti(msg) => write!(f, "Invalid RNTI: {}", msg),
             Self::CrcMismatch { expected, computed } => {
-                write!(f, "CRC mismatch: expected 0x{:06X}, computed 0x{:06X}", expected, computed)
+                write!(
+                    f,
+                    "CRC mismatch: expected 0x{:06X}, computed 0x{:06X}",
+                    expected, computed
+                )
             }
             Self::InvalidWireMagic(m) => write!(f, "Invalid DCI wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::ForbiddenPayloadSize(s) => write!(f, "Forbidden DCI size: {} bits", s),
             Self::FieldOutOfRange { field, value, max } => {
@@ -1028,10 +1071,7 @@ impl DciFormat2_4 {
 /// 1. Appends zeros to DCI 0_0 if its size is less than DCI 1_0.
 /// 2. If the payload size equals one of the forbidden/ambiguous sizes (12, 16, 20, 24, 26, 32, 40, 44, 56),
 ///    appends one additional zero bit.
-pub fn align_dci_0_0_and_1_0(
-    writer_0_0: &mut BitWriter,
-    writer_1_0: &mut BitWriter,
-) {
+pub fn align_dci_0_0_and_1_0(writer_0_0: &mut BitWriter, writer_1_0: &mut BitWriter) {
     let len_0_0 = writer_0_0.len();
     let len_1_0 = writer_1_0.len();
 

@@ -117,11 +117,22 @@ impl std::fmt::Display for MtrpError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidPci(pci) => write!(f, "Invalid Physical Cell ID: {}", pci),
-            Self::InvalidPrbAllocation { requested, available } => {
-                write!(f, "Invalid PRB allocation: requested {}, available {}", requested, available)
+            Self::InvalidPrbAllocation {
+                requested,
+                available,
+            } => {
+                write!(
+                    f,
+                    "Invalid PRB allocation: requested {}, available {}",
+                    requested, available
+                )
             }
             Self::InvalidSymbolAllocation { start, count } => {
-                write!(f, "Invalid symbol allocation: start {}, count {}", start, count)
+                write!(
+                    f,
+                    "Invalid symbol allocation: start {}, count {}",
+                    start, count
+                )
             }
             Self::TrpNotFound(pool) => write!(f, "TRP with {:?} not found", pool),
             Self::BothTrpsFailed => write!(f, "Catastrophic failure: both TRPs are unavailable"),
@@ -405,7 +416,12 @@ impl MtrpEngine {
     }
 
     /// Update radio link SINR and path loss for a specific TRP.
-    pub fn update_trp_measurements(&mut self, pool: CoresetPoolId, sinr_db: f64, path_loss_db: f64) {
+    pub fn update_trp_measurements(
+        &mut self,
+        pool: CoresetPoolId,
+        sinr_db: f64,
+        path_loss_db: f64,
+    ) {
         let trp = self.get_trp_mut(pool);
         trp.channel_sinr_db = sinr_db;
         trp.path_loss_db = path_loss_db;
@@ -667,9 +683,7 @@ impl MtrpEngine {
 
             if current_count >= self.bfi_threshold {
                 let is_serving = self.trps[trp_idx].is_serving_cell;
-                self.trps[trp_idx].link_state = TrpLinkState::BeamFailure {
-                    candidate_beam,
-                };
+                self.trps[trp_idx].link_state = TrpLinkState::BeamFailure { candidate_beam };
                 self.stats_bfr_events += 1;
 
                 Some(MtrpBfrMacCe {
@@ -748,9 +762,7 @@ mod tests {
     #[test]
     fn test_pdsch_fdm_scheme2a_scheduling() {
         let mut engine = MtrpEngine::new(10, 20).unwrap();
-        engine.set_scheme(MtrpScheme::FdmScheme2a {
-            prb_chunk_size: 25,
-        });
+        engine.set_scheme(MtrpScheme::FdmScheme2a { prb_chunk_size: 25 });
 
         let bundle = engine.schedule_pdsch(800, 20, 50).unwrap();
         assert_eq!(bundle.legs.len(), 2);
@@ -768,8 +780,16 @@ mod tests {
         engine.bfi_threshold = 3;
 
         // Feed bad RSRP measurements to TRP 1
-        assert!(engine.evaluate_bfi(CoresetPoolId::Pool1, -110.0, None).is_none());
-        assert!(engine.evaluate_bfi(CoresetPoolId::Pool1, -112.0, None).is_none());
+        assert!(
+            engine
+                .evaluate_bfi(CoresetPoolId::Pool1, -110.0, None)
+                .is_none()
+        );
+        assert!(
+            engine
+                .evaluate_bfi(CoresetPoolId::Pool1, -112.0, None)
+                .is_none()
+        );
 
         // 3rd failure reaches threshold, must trigger BFR MAC CE
         let mac_ce = engine

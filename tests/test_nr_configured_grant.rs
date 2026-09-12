@@ -9,9 +9,9 @@
 //! - Binary wire framing (`ConfiguredGrantWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_configured_grant::{
-    compute_cg_harq_proc_id, CgError, ConfiguredGrantConfig, ConfiguredGrantManager,
-    ConfiguredGrantStatus, ConfiguredGrantType, ConfiguredGrantWirePdu, DciCsRnti,
-    RedundancyVersionSequence, RepetitionK, UplinkResourceAllocation,
+    CgError, ConfiguredGrantConfig, ConfiguredGrantManager, ConfiguredGrantStatus,
+    ConfiguredGrantType, ConfiguredGrantWirePdu, DciCsRnti, RedundancyVersionSequence, RepetitionK,
+    UplinkResourceAllocation, compute_cg_harq_proc_id,
 };
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,8 @@ fn test_type2_configured_grant_activation_and_release() {
         num_prbs: 25,
     };
 
-    mgr.activate_type2(2, &act_dci).expect("Failed to activate Type 2");
+    mgr.activate_type2(2, &act_dci)
+        .expect("Failed to activate Type 2");
     assert_eq!(mgr.get_status(2), Some(ConfiguredGrantStatus::Active));
 
     // Now occasion is scheduled
@@ -131,7 +132,8 @@ fn test_type2_configured_grant_activation_and_release() {
         num_prbs: 0,
     };
 
-    mgr.release_type2(2, &rel_dci).expect("Failed to release Type 2");
+    mgr.release_type2(2, &rel_dci)
+        .expect("Failed to release Type 2");
     assert_eq!(mgr.get_status(2), Some(ConfiguredGrantStatus::Suspended));
     assert!(mgr.evaluate_occasion(0, 0, 0).is_none());
 }
@@ -174,13 +176,19 @@ fn test_type2_dci_validation_failures() {
     let mut bad_ndi_dci = bad_rnti_dci;
     bad_ndi_dci.cs_rnti = 0x8001;
     bad_ndi_dci.ndi = 1;
-    assert_eq!(mgr.activate_type2(3, &bad_ndi_dci), Err(CgError::DciNdiNotZero));
+    assert_eq!(
+        mgr.activate_type2(3, &bad_ndi_dci),
+        Err(CgError::DciNdiNotZero)
+    );
 
     // 3. RV != 0
     let mut bad_rv_dci = bad_rnti_dci;
     bad_rv_dci.cs_rnti = 0x8001;
     bad_rv_dci.rv = 2;
-    assert_eq!(mgr.activate_type2(3, &bad_rv_dci), Err(CgError::DciRvNotZero));
+    assert_eq!(
+        mgr.activate_type2(3, &bad_rv_dci),
+        Err(CgError::DciRvNotZero)
+    );
 
     // 4. HARQ process ID != 0 for activation
     let mut bad_harq_dci = bad_rnti_dci;
@@ -223,28 +231,52 @@ fn test_harq_process_id_computation_formula() {
 
     // SFN 0, Slot 0, Symbol 0 -> current_symbol = 0 -> (0 / 14) % 8 + 2 = 2
     let hid0 = compute_cg_harq_proc_id(
-        0, 0, 0, slots_per_frame, periodicity_symbols, nrof_harq_processes, harq_proc_id_offset,
+        0,
+        0,
+        0,
+        slots_per_frame,
+        periodicity_symbols,
+        nrof_harq_processes,
+        harq_proc_id_offset,
     )
     .unwrap();
     assert_eq!(hid0, 2);
 
     // SFN 0, Slot 1, Symbol 0 -> current_symbol = 14 -> (14 / 14) % 8 + 2 = 3
     let hid1 = compute_cg_harq_proc_id(
-        0, 1, 0, slots_per_frame, periodicity_symbols, nrof_harq_processes, harq_proc_id_offset,
+        0,
+        1,
+        0,
+        slots_per_frame,
+        periodicity_symbols,
+        nrof_harq_processes,
+        harq_proc_id_offset,
     )
     .unwrap();
     assert_eq!(hid1, 3);
 
     // SFN 0, Slot 7, Symbol 0 -> (7) % 8 + 2 = 9
     let hid7 = compute_cg_harq_proc_id(
-        0, 7, 0, slots_per_frame, periodicity_symbols, nrof_harq_processes, harq_proc_id_offset,
+        0,
+        7,
+        0,
+        slots_per_frame,
+        periodicity_symbols,
+        nrof_harq_processes,
+        harq_proc_id_offset,
     )
     .unwrap();
     assert_eq!(hid7, 9);
 
     // SFN 0, Slot 8, Symbol 0 -> (8) % 8 + 2 = 2 (wrapped!)
     let hid8 = compute_cg_harq_proc_id(
-        0, 8, 0, slots_per_frame, periodicity_symbols, nrof_harq_processes, harq_proc_id_offset,
+        0,
+        8,
+        0,
+        slots_per_frame,
+        periodicity_symbols,
+        nrof_harq_processes,
+        harq_proc_id_offset,
     )
     .unwrap();
     assert_eq!(hid8, 2);

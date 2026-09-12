@@ -76,33 +76,60 @@ fn test_semi_orthogonal_user_selection() {
     // 4 perfectly orthogonal users (canonical basis in C^4)
     let ue1 = UeChannelState {
         ue_id: 1,
-        channel_vector: vec![Complex64::ONE, Complex64::ZERO, Complex64::ZERO, Complex64::ZERO],
+        channel_vector: vec![
+            Complex64::ONE,
+            Complex64::ZERO,
+            Complex64::ZERO,
+            Complex64::ZERO,
+        ],
         cqi: 15,
     };
     let ue2 = UeChannelState {
         ue_id: 2,
-        channel_vector: vec![Complex64::ZERO, Complex64::ONE, Complex64::ZERO, Complex64::ZERO],
+        channel_vector: vec![
+            Complex64::ZERO,
+            Complex64::ONE,
+            Complex64::ZERO,
+            Complex64::ZERO,
+        ],
         cqi: 14,
     };
     let ue3 = UeChannelState {
         ue_id: 3,
-        channel_vector: vec![Complex64::ZERO, Complex64::ZERO, Complex64::ONE, Complex64::ZERO],
+        channel_vector: vec![
+            Complex64::ZERO,
+            Complex64::ZERO,
+            Complex64::ONE,
+            Complex64::ZERO,
+        ],
         cqi: 13,
     };
     let ue4 = UeChannelState {
         ue_id: 4,
-        channel_vector: vec![Complex64::ZERO, Complex64::ZERO, Complex64::ZERO, Complex64::ONE],
+        channel_vector: vec![
+            Complex64::ZERO,
+            Complex64::ZERO,
+            Complex64::ZERO,
+            Complex64::ONE,
+        ],
         cqi: 12,
     };
     // Collinear user to ue1 (should be discarded by SUS)
     let ue_collinear = UeChannelState {
         ue_id: 5,
-        channel_vector: vec![Complex64::new(0.99, 0.0), Complex64::new(0.01, 0.0), Complex64::ZERO, Complex64::ZERO],
+        channel_vector: vec![
+            Complex64::new(0.99, 0.0),
+            Complex64::new(0.01, 0.0),
+            Complex64::ZERO,
+            Complex64::ZERO,
+        ],
         cqi: 15,
     };
 
     let candidates = vec![ue1, ue_collinear, ue2, ue3, ue4];
-    let selected = engine.select_semi_orthogonal_users(&candidates, 4).expect("SUS failed");
+    let selected = engine
+        .select_semi_orthogonal_users(&candidates, 4)
+        .expect("SUS failed");
 
     // Must select 4 users and MUST NOT select candidate index 1 (collinear UE 5)
     assert_eq!(selected.len(), 4);
@@ -142,21 +169,42 @@ fn test_zero_forcing_interference_nulling() {
     // Inter-user interference check:
     // User 1 signal through User 2 precoder (h1^H * w2) should be approximately ZERO
     let cross_talk_12 = complex_vector_inner_product(&h1, w2).abs();
-    assert!(cross_talk_12 < 1e-6, "Cross-talk 1->2 was {}, expected ~0", cross_talk_12);
+    assert!(
+        cross_talk_12 < 1e-6,
+        "Cross-talk 1->2 was {}, expected ~0",
+        cross_talk_12
+    );
 
     // User 2 signal through User 1 precoder (h2^H * w1) should be approximately ZERO
     let cross_talk_21 = complex_vector_inner_product(&h2, w1).abs();
-    assert!(cross_talk_21 < 1e-6, "Cross-talk 2->1 was {}, expected ~0", cross_talk_21);
+    assert!(
+        cross_talk_21 < 1e-6,
+        "Cross-talk 2->1 was {}, expected ~0",
+        cross_talk_21
+    );
 }
 
 #[test]
 fn test_regularized_zero_forcing_and_mrt() {
     let engine = NrMuMimoEngine::new(4, DmrsConfigType::Type1);
-    let h1 = vec![Complex64::ONE, Complex64::ZERO, Complex64::ZERO, Complex64::ZERO];
-    let h2 = vec![Complex64::ZERO, Complex64::ONE, Complex64::ZERO, Complex64::ZERO];
+    let h1 = vec![
+        Complex64::ONE,
+        Complex64::ZERO,
+        Complex64::ZERO,
+        Complex64::ZERO,
+    ];
+    let h2 = vec![
+        Complex64::ZERO,
+        Complex64::ONE,
+        Complex64::ZERO,
+        Complex64::ZERO,
+    ];
 
     let rzf_w = engine
-        .compute_precoding_weights(&[h1.clone(), h2.clone()], PrecodingScheme::RegularizedZeroForcing)
+        .compute_precoding_weights(
+            &[h1.clone(), h2.clone()],
+            PrecodingScheme::RegularizedZeroForcing,
+        )
         .expect("RZF failed");
     assert_eq!(rzf_w.len(), 2);
     assert!((complex_vector_norm(&rzf_w[0]) - 1.0).abs() < 1e-6);
@@ -193,7 +241,11 @@ fn test_mu_mimo_scheduling_capacity_gain() {
     assert!(!result.fallback_to_su_mimo);
 
     // MU-MIMO sum-rate should deliver significant capacity gain (> 2.0x) over SU-MIMO
-    assert!(result.capacity_gain_ratio > 2.0, "Capacity gain was {}", result.capacity_gain_ratio);
+    assert!(
+        result.capacity_gain_ratio > 2.0,
+        "Capacity gain was {}",
+        result.capacity_gain_ratio
+    );
 
     // Check orthogonal DMRS ports: 1000, 1001, 1002, 1003
     for (idx, user) in result.paired_users.iter().enumerate() {
@@ -216,11 +268,28 @@ fn test_mu_mimo_fallback_on_collinear_users() {
     let mut engine = NrMuMimoEngine::new(4, DmrsConfigType::Type1);
 
     // 3 completely collinear users
-    let base_ch = vec![Complex64::ONE, Complex64::new(0.5, 0.5), Complex64::ZERO, Complex64::ZERO];
+    let base_ch = vec![
+        Complex64::ONE,
+        Complex64::new(0.5, 0.5),
+        Complex64::ZERO,
+        Complex64::ZERO,
+    ];
     let candidates = vec![
-        UeChannelState { ue_id: 1, channel_vector: base_ch.clone(), cqi: 10 },
-        UeChannelState { ue_id: 2, channel_vector: base_ch.clone(), cqi: 10 },
-        UeChannelState { ue_id: 3, channel_vector: base_ch, cqi: 10 },
+        UeChannelState {
+            ue_id: 1,
+            channel_vector: base_ch.clone(),
+            cqi: 10,
+        },
+        UeChannelState {
+            ue_id: 2,
+            channel_vector: base_ch.clone(),
+            cqi: 10,
+        },
+        UeChannelState {
+            ue_id: 3,
+            channel_vector: base_ch,
+            cqi: 10,
+        },
     ];
 
     let result = engine
@@ -275,7 +344,10 @@ fn test_grant_wire_codec_and_crc() {
     assert_eq!(decoded.slot_number, 108);
     assert_eq!(decoded.prb_start, 0);
     assert_eq!(decoded.prb_count, 51);
-    assert_eq!(decoded.precoding_scheme, PrecodingScheme::RegularizedZeroForcing);
+    assert_eq!(
+        decoded.precoding_scheme,
+        PrecodingScheme::RegularizedZeroForcing
+    );
     assert_eq!(decoded.allocations.len(), 2);
     assert_eq!(decoded.allocations[0].ue_id, 501);
     assert_eq!(decoded.allocations[1].ue_id, 502);

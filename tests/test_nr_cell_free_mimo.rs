@@ -92,13 +92,17 @@ fn test_3gpp_pathloss_and_dynamic_cluster_formation() {
 
     engine.update_user_clusters();
 
-    let cluster_101 = engine.get_user_cluster(101).expect("Cluster for UE 101 must exist");
+    let cluster_101 = engine
+        .get_user_cluster(101)
+        .expect("Cluster for UE 101 must exist");
     assert_eq!(cluster_101.ue_id, 101);
     // AP 1 should be primary serving AP
     assert_eq!(cluster_101.serving_ap_ids[0], 1);
     assert!(cluster_101.serving_ap_ids.len() >= 2);
 
-    let cluster_102 = engine.get_user_cluster(102).expect("Cluster for UE 102 must exist");
+    let cluster_102 = engine
+        .get_user_cluster(102)
+        .expect("Cluster for UE 102 must exist");
     assert_eq!(cluster_102.ue_id, 102);
     // All 4 APs are equidistant (approx 70m) to center UE 102, so all 4 should be included
     assert_eq!(cluster_102.serving_ap_ids.len(), 4);
@@ -385,7 +389,8 @@ fn test_wire_codec_and_crc16() {
     let wire = pdu.encode_wire();
     assert_eq!(&wire[0..4], &CELL_FREE_WIRE_MAGIC);
 
-    let decoded = CellFreeFronthaulPdu::decode_wire(&wire).expect("Decoding wire frame must succeed");
+    let decoded =
+        CellFreeFronthaulPdu::decode_wire(&wire).expect("Decoding wire frame must succeed");
     assert_eq!(decoded.ap_id, 10);
     assert_eq!(decoded.ue_id, 202);
     assert_eq!(decoded.slot_number, 1540);

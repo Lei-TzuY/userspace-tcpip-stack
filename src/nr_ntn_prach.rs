@@ -208,7 +208,11 @@ impl Sib19NtnConfig {
 
 /// Generate frequency-domain or time-domain Zadoff-Chu sequence (TS 38.211 §6.3.3.1).
 /// x_u(n) = exp(-j * pi * u * n * (n + 1) / L_RA) for n = 0..L_RA-1
-pub fn generate_zadoff_chu_sequence(u: u16, n_cs: u16, seq_length: PrachSequenceLength) -> Vec<Complex64> {
+pub fn generate_zadoff_chu_sequence(
+    u: u16,
+    n_cs: u16,
+    seq_length: PrachSequenceLength,
+) -> Vec<Complex64> {
     let l_ra = seq_length as u16;
     let l_ra_f = l_ra as f64;
     let u_f = u as f64;
@@ -396,7 +400,8 @@ impl NtnPrachEngine {
 
             for (n, zc_sample) in base_zc.iter().enumerate() {
                 let t = (n as f64) * dt_step;
-                let hop_rotator = Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * hop_freq_hz * t);
+                let hop_rotator =
+                    Complex64::from_polar(1.0, 2.0 * std::f64::consts::PI * hop_freq_hz * t);
                 symbols.push(zc_sample.mul(&hop_rotator));
             }
         }

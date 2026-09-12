@@ -28,7 +28,10 @@ pub enum SlHarqError {
     /// HARQ process ID not found or already closed.
     ProcessNotFound(u8),
     /// Maximum retransmissions reached for this process.
-    MaxRetransmissionsReached { process_id: u8, max_retransmissions: u8 },
+    MaxRetransmissionsReached {
+        process_id: u8,
+        max_retransmissions: u8,
+    },
     /// Power control computation error.
     PowerControlError(String),
     /// Invalid geographic Zone ID or coordinate.
@@ -40,7 +43,10 @@ pub enum SlHarqError {
 impl fmt::Display for SlHarqError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            SlHarqError::InvalidSubchannel { subchannel, max_allowed } => {
+            SlHarqError::InvalidSubchannel {
+                subchannel,
+                max_allowed,
+            } => {
                 write!(
                     f,
                     "Invalid subchannel index {subchannel} (max configured: {max_allowed})"
@@ -48,12 +54,18 @@ impl fmt::Display for SlHarqError {
             }
             SlHarqError::InvalidSlot(slot) => write!(f, "Invalid sidelink slot: {slot}"),
             SlHarqError::InvalidPrbIndex { prb, max_allowed } => {
-                write!(f, "PRB index {prb} exceeds PSFCH PRB set size {max_allowed}")
+                write!(
+                    f,
+                    "PRB index {prb} exceeds PSFCH PRB set size {max_allowed}"
+                )
             }
             SlHarqError::ProcessNotFound(pid) => {
                 write!(f, "Sidelink HARQ process {pid} not found or inactive")
             }
-            SlHarqError::MaxRetransmissionsReached { process_id, max_retransmissions } => {
+            SlHarqError::MaxRetransmissionsReached {
+                process_id,
+                max_retransmissions,
+            } => {
                 write!(
                     f,
                     "Process {process_id} reached maximum retransmission limit ({max_retransmissions})"
@@ -418,10 +430,7 @@ impl SidelinkHarqCodebookGenerator {
     }
 
     /// Generates Type-1 Semi-Static HARQ Codebook bitmap for $N$ candidate occasions.
-    pub fn generate_type1_codebook(
-        &self,
-        occasions: &[Option<PsfchFeedbackReport>],
-    ) -> Vec<bool> {
+    pub fn generate_type1_codebook(&self, occasions: &[Option<PsfchFeedbackReport>]) -> Vec<bool> {
         let mut bits = Vec::with_capacity(occasions.len());
         for occ in occasions {
             match occ {
@@ -670,12 +679,7 @@ impl SidelinkHarqEngine {
     }
 
     /// Register a new HARQ process.
-    pub fn register_process(
-        &mut self,
-        process_id: u8,
-        max_retransmissions: u8,
-        pppp_priority: u8,
-    ) {
+    pub fn register_process(&mut self, process_id: u8, max_retransmissions: u8, pppp_priority: u8) {
         self.processes.insert(
             process_id,
             SlHarqProcess::new(process_id, max_retransmissions, pppp_priority),
@@ -683,11 +687,7 @@ impl SidelinkHarqEngine {
     }
 
     /// Initiate sidelink transmission on a process.
-    pub fn transmit_tb(
-        &mut self,
-        process_id: u8,
-        pssch_slot: u32,
-    ) -> Result<u32, SlHarqError> {
+    pub fn transmit_tb(&mut self, process_id: u8, pssch_slot: u32) -> Result<u32, SlHarqError> {
         let psfch_slot = self.resource_mapper.map_pssch_to_psfch_slot(pssch_slot);
         let proc = self
             .processes

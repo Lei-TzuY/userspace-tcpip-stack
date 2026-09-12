@@ -47,13 +47,22 @@ impl fmt::Display for NtnCovError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             NtnCovError::InvalidElevationAngle(el) => {
-                write!(f, "Invalid satellite elevation angle: {el:.2}° (valid: 0.0°..90.0°)")
+                write!(
+                    f,
+                    "Invalid satellite elevation angle: {el:.2}° (valid: 0.0°..90.0°)"
+                )
             }
             NtnCovError::InvalidRepetitionFactor(k) => {
-                write!(f, "Unsupported repetition factor: {k} (valid: 1, 2, 4, 8, 16, 32)")
+                write!(
+                    f,
+                    "Unsupported repetition factor: {k} (valid: 1, 2, 4, 8, 16, 32)"
+                )
             }
             NtnCovError::InvalidBundleSize(b) => {
-                write!(f, "Unsupported DMRS bundle size: {b} slots (valid: 2, 4, 8, 16, 32)")
+                write!(
+                    f,
+                    "Unsupported DMRS bundle size: {b} slots (valid: 2, 4, 8, 16, 32)"
+                )
             }
             NtnCovError::PhaseDiscontinuityDetected(msg) => {
                 write!(f, "DMRS bundling phase continuity broken: {msg}")
@@ -469,7 +478,10 @@ impl NtnSlantRangeAdaptiveServo {
     /// - Recommended DMRS bundle size.
     /// - Recommended UE transmit power in dBm.
     /// - Estimated Link Margin in dB (positive = surplus, negative = deficit).
-    pub fn adapt_for_elevation(&self, elevation_deg: f64) -> Result<(u8, u8, f64, f64), NtnCovError> {
+    pub fn adapt_for_elevation(
+        &self,
+        elevation_deg: f64,
+    ) -> Result<(u8, u8, f64, f64), NtnCovError> {
         let total_pl_db = self.geometry.total_pathloss_db(elevation_deg)?;
 
         // Standard satellite link budget (3GPP TR 38.821 / TR 38.811):
@@ -578,12 +590,9 @@ impl NtnCoverageEngine {
         self.metrics.total_transmitted_slots += 1;
 
         let prb_offset = self.hop_generator.get_prb_offset(slot_idx);
-        let bundle_status = self.dmrs_auditor.audit_slot(
-            slot_idx,
-            power_dbm,
-            prb_offset,
-            phase_drift_rad,
-        );
+        let bundle_status =
+            self.dmrs_auditor
+                .audit_slot(slot_idx, power_dbm, prb_offset, phase_drift_rad);
 
         if bundle_status.is_bundled_with_prev {
             self.metrics.dmrs_bundled_slots += 1;

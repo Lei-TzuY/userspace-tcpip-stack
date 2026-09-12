@@ -25,7 +25,10 @@ fn test_multi_panel_initialization_and_states() {
     let p4 = AntennaPanelConfig::new(4, 2, 0.0, 0.0);
     assert!(matches!(
         engine.add_panel(p4),
-        Err(StxpError::PanelCapacityExceeded { max: 4, attempted: 5 })
+        Err(StxpError::PanelCapacityExceeded {
+            max: 4,
+            attempted: 5
+        })
     ));
 
     // Verify initial active state
@@ -37,7 +40,11 @@ fn test_multi_panel_initialization_and_states() {
     assert_eq!(engine.panel_state(2).unwrap(), PanelState::Standby);
     assert!(!engine.panel_state(2).unwrap().is_available_for_tx());
 
-    assert!(engine.set_panel_state(3, PanelState::ThermalShutdown).is_ok());
+    assert!(
+        engine
+            .set_panel_state(3, PanelState::ThermalShutdown)
+            .is_ok()
+    );
     assert_eq!(engine.panel_state(3).unwrap(), PanelState::ThermalShutdown);
     assert!(!engine.panel_state(3).unwrap().is_available_for_tx());
 
@@ -128,7 +135,10 @@ fn test_cross_panel_total_power_scaling_and_priority_preservation() {
 
     let result = engine.evaluate_stxp_slot(&[req0, req1], 100).unwrap();
     assert!(result.power_scaled);
-    assert_eq!(result.tx_case, Some(StxpTransmissionCase::SimultaneousPuschPucch));
+    assert_eq!(
+        result.tx_case,
+        Some(StxpTransmissionCase::SimultaneousPuschPucch)
+    );
 
     // Total transmitted power should be bounded by 100 mW (20 dBm)
     assert!(result.total_transmitted_power_mw <= result.p_cmax_total_mw + 1e-4);
@@ -196,8 +206,12 @@ fn test_mpe_p_mpr_and_sar_protection() {
 #[test]
 fn test_inter_panel_isolation_enforcement() {
     let mut engine = NrMultiPanelStxpEngine::new(23.0);
-    engine.add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0)).unwrap();
-    engine.add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0)).unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0))
+        .unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0))
+        .unwrap();
 
     // Degrading isolation below 15 dB (e.g. damaged chassis / conductive casing)
     engine.set_inter_panel_isolation_db(10.0);
@@ -237,8 +251,12 @@ fn test_inter_panel_isolation_enforcement() {
 #[test]
 fn test_mp_phr_binary_wire_codec_and_crc16() {
     let mut engine = NrMultiPanelStxpEngine::new(23.0);
-    engine.add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0)).unwrap();
-    engine.add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0)).unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0))
+        .unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0))
+        .unwrap();
     engine.update_proximity_sensor(1, 1.5, 1.2).unwrap(); // Trigger MPE on Panel 1
 
     let report = engine.generate_mp_phr_report(1001, 1726000000).unwrap();
@@ -275,8 +293,12 @@ fn test_mp_phr_binary_wire_codec_and_crc16() {
 #[test]
 fn test_stxp_telemetry_and_throughput_boost() {
     let mut engine = NrMultiPanelStxpEngine::new(23.0);
-    engine.add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0)).unwrap();
-    engine.add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0)).unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(0, 2, 0.0, 0.0))
+        .unwrap();
+    engine
+        .add_panel(AntennaPanelConfig::new(1, 2, 180.0, 0.0))
+        .unwrap();
 
     let req0 = PanelTransmissionRequest {
         panel_id: 0,
@@ -299,7 +321,9 @@ fn test_stxp_telemetry_and_throughput_boost() {
     engine.evaluate_stxp_slot(&[req0.clone()], 1).unwrap();
 
     // Slot 2: Multi panel
-    engine.evaluate_stxp_slot(&[req0.clone(), req1.clone()], 2).unwrap();
+    engine
+        .evaluate_stxp_slot(&[req0.clone(), req1.clone()], 2)
+        .unwrap();
 
     // Slot 3: Multi panel
     engine.evaluate_stxp_slot(&[req0, req1], 3).unwrap();
@@ -317,12 +341,21 @@ fn test_error_display() {
     let e1 = StxpError::PanelNotFound(3);
     assert!(format!("{}", e1).contains("Panel ID 3 not found"));
 
-    let e2 = StxpError::PanelCapacityExceeded { max: 4, attempted: 5 };
+    let e2 = StxpError::PanelCapacityExceeded {
+        max: 4,
+        attempted: 5,
+    };
     assert!(format!("{}", e2).contains("capacity exceeded"));
 
-    let e3 = StxpError::IsolationTooLow { isolation_db: 12.0, required_db: 15.0 };
+    let e3 = StxpError::IsolationTooLow {
+        isolation_db: 12.0,
+        required_db: 15.0,
+    };
     assert!(format!("{}", e3).contains("isolation 12.0 dB"));
 
-    let e4 = StxpError::ChecksumMismatch { expected: 0x1234, calculated: 0x5678 };
+    let e4 = StxpError::ChecksumMismatch {
+        expected: 0x1234,
+        calculated: 0x5678,
+    };
     assert!(format!("{}", e4).contains("0x1234"));
 }

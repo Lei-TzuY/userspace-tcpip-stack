@@ -47,16 +47,30 @@ impl fmt::Display for MrdcError {
         match self {
             Self::InvalidThreshold(t) => write!(f, "Invalid UL data split threshold: {} bytes", t),
             Self::InvalidRatio { mcg, scg } => {
-                write!(f, "Invalid split ratio: MCG={}, SCG={} (sum must be > 0)", mcg, scg)
+                write!(
+                    f,
+                    "Invalid split ratio: MCG={}, SCG={} (sum must be > 0)",
+                    mcg, scg
+                )
             }
             Self::ScgDeactivated => write!(f, "SCG is currently deactivated for power saving"),
-            Self::BufferFull { capacity } => write!(f, "Reordering buffer is full: capacity {}", capacity),
+            Self::BufferFull { capacity } => {
+                write!(f, "Reordering buffer is full: capacity {}", capacity)
+            }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -206,7 +220,10 @@ impl MrdcSplitBearerEngine {
         self.next_sn = self.next_sn.wrapping_add(1);
 
         // 1. If duplication is active and configured, clone to both legs
-        if self.duplication_active && self.config.duplication_configured && self.scg_state == ScgState::Active {
+        if self.duplication_active
+            && self.config.duplication_configured
+            && self.scg_state == ScgState::Active
+        {
             return OutgoingPdu {
                 sn,
                 path: TransmissionPath::DuplicatedBoth,
@@ -247,17 +264,25 @@ impl MrdcSplitBearerEngine {
                     self.rr_counter = self.rr_counter.wrapping_add(1);
                     path
                 }
-                SplitPolicy::ProportionalLoad { mcg_ratio, scg_ratio } => {
+                SplitPolicy::ProportionalLoad {
+                    mcg_ratio,
+                    scg_ratio,
+                } => {
                     let total = (mcg_ratio as usize) + (scg_ratio as usize);
-                    let path = if total == 0 || (self.proportional_step % total) < (mcg_ratio as usize) {
-                        TransmissionPath::McgOnly
-                    } else {
-                        TransmissionPath::ScgOnly
-                    };
-                    self.proportional_step = (self.proportional_step + 1) % if total > 0 { total } else { 1 };
+                    let path =
+                        if total == 0 || (self.proportional_step % total) < (mcg_ratio as usize) {
+                            TransmissionPath::McgOnly
+                        } else {
+                            TransmissionPath::ScgOnly
+                        };
+                    self.proportional_step =
+                        (self.proportional_step + 1) % if total > 0 { total } else { 1 };
                     path
                 }
-                SplitPolicy::LatencyOptimal { mcg_rtt_ms, scg_rtt_ms } => {
+                SplitPolicy::LatencyOptimal {
+                    mcg_rtt_ms,
+                    scg_rtt_ms,
+                } => {
                     if mcg_rtt_ms <= scg_rtt_ms {
                         TransmissionPath::McgOnly
                     } else {

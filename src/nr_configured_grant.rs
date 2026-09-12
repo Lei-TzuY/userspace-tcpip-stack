@@ -67,23 +67,43 @@ impl fmt::Display for CgError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ConfigNotFound(id) => write!(f, "Configured Grant config {} not found", id),
-            Self::ConfigAlreadyExists(id) => write!(f, "Configured Grant config {} already exists", id),
-            Self::MaxConfigsExceeded => write!(f, "Exceeded maximum active CG configs ({})", MAX_CG_CONFIGS),
+            Self::ConfigAlreadyExists(id) => {
+                write!(f, "Configured Grant config {} already exists", id)
+            }
+            Self::MaxConfigsExceeded => {
+                write!(f, "Exceeded maximum active CG configs ({})", MAX_CG_CONFIGS)
+            }
             Self::InvalidPeriodicity(p) => write!(f, "Invalid periodicity {} symbols", p),
             Self::InvalidHarqProcessCount(n) => write!(f, "Invalid HARQ process count {}", n),
-            Self::MissingResourceAllocation => write!(f, "Missing resource allocation for Type 1 grant"),
-            Self::GrantNotActive(id) => write!(f, "Configured grant {} is currently not active", id),
+            Self::MissingResourceAllocation => {
+                write!(f, "Missing resource allocation for Type 1 grant")
+            }
+            Self::GrantNotActive(id) => {
+                write!(f, "Configured grant {} is currently not active", id)
+            }
             Self::InvalidCsRnti(rnti) => write!(f, "Invalid CS-RNTI: 0x{:04X}", rnti),
             Self::DciNdiNotZero => write!(f, "DCI NDI is not 0 for CG activation/release"),
             Self::DciRvNotZero => write!(f, "DCI RV is not '00' for CG activation/release"),
-            Self::DciHarqProcInvalid(h) => write!(f, "DCI HARQ process ID {} invalid for activation/release", h),
+            Self::DciHarqProcInvalid(h) => write!(
+                f,
+                "DCI HARQ process ID {} invalid for activation/release",
+                h
+            ),
             Self::DciFdraInvalid => write!(f, "DCI FDRA invalid for release indication"),
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -326,7 +346,9 @@ impl ConfiguredGrantManager {
 
         let (status, active_resource) = match config.grant_type {
             ConfiguredGrantType::Type1 => {
-                let res = config.resource_allocation.ok_or(CgError::MissingResourceAllocation)?;
+                let res = config
+                    .resource_allocation
+                    .ok_or(CgError::MissingResourceAllocation)?;
                 (ConfiguredGrantStatus::Active, Some(res))
             }
             ConfiguredGrantType::Type2 => (ConfiguredGrantStatus::Suspended, None),
@@ -347,7 +369,10 @@ impl ConfiguredGrantManager {
     /// Activates a Type 2 Configured Grant via validated DCI.
     pub fn activate_type2(&mut self, config_id: u8, dci: &DciCsRnti) -> Result<(), CgError> {
         let resource = validate_type2_activation(dci)?;
-        let state = self.configs.get_mut(&config_id).ok_or(CgError::ConfigNotFound(config_id))?;
+        let state = self
+            .configs
+            .get_mut(&config_id)
+            .ok_or(CgError::ConfigNotFound(config_id))?;
         state.status = ConfiguredGrantStatus::Active;
         state.active_resource = Some(resource);
         Ok(())
@@ -356,7 +381,10 @@ impl ConfiguredGrantManager {
     /// Releases a Type 2 Configured Grant via validated DCI.
     pub fn release_type2(&mut self, config_id: u8, dci: &DciCsRnti) -> Result<(), CgError> {
         validate_type2_release(dci)?;
-        let state = self.configs.get_mut(&config_id).ok_or(CgError::ConfigNotFound(config_id))?;
+        let state = self
+            .configs
+            .get_mut(&config_id)
+            .ok_or(CgError::ConfigNotFound(config_id))?;
         state.status = ConfiguredGrantStatus::Suspended;
         state.active_resource = None;
         Ok(())
@@ -465,19 +493,19 @@ impl ConfiguredGrantWirePdu {
     pub fn to_wire_bytes(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(20);
         buf.extend_from_slice(&CG_WIRE_MAGIC.to_be_bytes()); // 4 bytes
-        buf.push(self.config_id);                             // 1 byte
-        buf.push(self.grant_type);                            // 1 byte
-        buf.extend_from_slice(&self.sfn.to_be_bytes());       // 2 bytes
-        buf.extend_from_slice(&self.slot.to_be_bytes());      // 2 bytes
-        buf.push(self.symbol);                                // 1 byte
-        buf.push(self.harq_proc_id);                          // 1 byte
-        buf.push(self.rv);                                    // 1 byte
+        buf.push(self.config_id); // 1 byte
+        buf.push(self.grant_type); // 1 byte
+        buf.extend_from_slice(&self.sfn.to_be_bytes()); // 2 bytes
+        buf.extend_from_slice(&self.slot.to_be_bytes()); // 2 bytes
+        buf.push(self.symbol); // 1 byte
+        buf.push(self.harq_proc_id); // 1 byte
+        buf.push(self.rv); // 1 byte
         buf.extend_from_slice(&self.start_prb.to_be_bytes()); // 2 bytes
-        buf.extend_from_slice(&self.num_prbs.to_be_bytes());  // 2 bytes
-        buf.push(self.mcs);                                   // 1 byte
+        buf.extend_from_slice(&self.num_prbs.to_be_bytes()); // 2 bytes
+        buf.push(self.mcs); // 1 byte
 
         let crc = compute_crc16(&buf);
-        buf.extend_from_slice(&crc.to_be_bytes());            // 2 bytes (total 20 bytes)
+        buf.extend_from_slice(&crc.to_be_bytes()); // 2 bytes (total 20 bytes)
         buf
     }
 

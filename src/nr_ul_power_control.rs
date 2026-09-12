@@ -46,13 +46,13 @@ pub enum TpcMode {
 /// Uplink channel priority for simultaneous transmission power scaling (TS 38.213 §7.5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ChannelPriority {
-    Prach = 1,              // Priority 1 (highest)
-    PucchHarqAckSr = 2,     // Priority 2: PUCCH with HARQ-ACK and/or SR
-    PuschHarqAck = 3,       // Priority 3: PUSCH with HARQ-ACK
-    PucchCsi = 4,           // Priority 4: PUCCH with CSI
-    PuschCsi = 5,           // Priority 5: PUSCH with CSI
-    PuschDataOnly = 6,      // Priority 6: PUSCH with data only
-    Srs = 7,                // Priority 7: Sounding Reference Signal
+    Prach = 1,          // Priority 1 (highest)
+    PucchHarqAckSr = 2, // Priority 2: PUCCH with HARQ-ACK and/or SR
+    PuschHarqAck = 3,   // Priority 3: PUSCH with HARQ-ACK
+    PucchCsi = 4,       // Priority 4: PUCCH with CSI
+    PuschCsi = 5,       // Priority 5: PUSCH with CSI
+    PuschDataOnly = 6,  // Priority 6: PUSCH with data only
+    Srs = 7,            // Priority 7: Sounding Reference Signal
 }
 
 /// PUCCH Format for power offset determination.
@@ -93,7 +93,9 @@ impl fmt::Display for PowerControlError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PowerControlError::InvalidPrbCount(prb) => write!(f, "Invalid PRB count: {}", prb),
-            PowerControlError::InvalidAlpha(a) => write!(f, "Invalid alpha factor {} (must be 0.0..1.0)", a),
+            PowerControlError::InvalidAlpha(a) => {
+                write!(f, "Invalid alpha factor {} (must be 0.0..1.0)", a)
+            }
             PowerControlError::InvalidPmax(p) => write!(f, "Invalid P_CMAX: {} dBm", p),
             PowerControlError::InvalidPathloss(pl) => write!(f, "Invalid pathloss: {} dB", pl),
             PowerControlError::SerializationError(e) => write!(f, "Serialization error: {}", e),
@@ -115,11 +117,7 @@ pub fn dbm_to_mw(dbm: f64) -> f64 {
 
 /// Converts power in linear milliwatts (mW) to dBm.
 pub fn mw_to_dbm(mw: f64) -> f64 {
-    if mw <= 0.0 {
-        -140.0
-    } else {
-        10.0 * mw.log10()
-    }
+    if mw <= 0.0 { -140.0 } else { 10.0 * mw.log10() }
 }
 
 // ---------------------------------------------------------------------------
@@ -204,8 +202,8 @@ pub fn calculate_pusch_power(
 /// Configuration parameters for PUCCH power control (TS 38.213 §7.2.1).
 #[derive(Debug, Clone, PartialEq)]
 pub struct PucchPowerConfig {
-    pub p_o_pucch_dbm: f64,  // Nominal + UE-specific, e.g. -100 dBm
-    pub p_cmax_dbm: f64,     // e.g. 23.0 dBm
+    pub p_o_pucch_dbm: f64, // Nominal + UE-specific, e.g. -100 dBm
+    pub p_cmax_dbm: f64,    // e.g. 23.0 dBm
     pub numerology_mu: u8,
 }
 
@@ -226,7 +224,8 @@ pub fn calculate_pucch_power(
     let delta_f = format.default_delta_f_db();
 
     // In TS 38.213 §7.2.1, PUCCH pathloss compensation is full (alpha = 1.0)
-    let computed = cfg.p_o_pucch_dbm + bw_term + pathloss_db + delta_f + delta_tf_db + tpc_loop_val_db;
+    let computed =
+        cfg.p_o_pucch_dbm + bw_term + pathloss_db + delta_f + delta_tf_db + tpc_loop_val_db;
     Ok(computed.min(cfg.p_cmax_dbm))
 }
 
@@ -238,7 +237,11 @@ pub fn calculate_prach_power(
     pathloss_db: f64,
     p_cmax_dbm: f64,
 ) -> f64 {
-    let ramp_count = if transmission_counter > 0 { transmission_counter - 1 } else { 0 };
+    let ramp_count = if transmission_counter > 0 {
+        transmission_counter - 1
+    } else {
+        0
+    };
     let preamble_target = preamble_initial_target_dbm + (ramp_count as f64) * ramping_step_db;
     let computed = preamble_target + pathloss_db;
     computed.min(p_cmax_dbm)
@@ -449,7 +452,9 @@ impl UlPowerControlWirePdu {
 
     pub fn deserialize(data: &[u8]) -> Result<Self, PowerControlError> {
         if data.len() < 20 {
-            return Err(PowerControlError::DeserializationError("Buffer too small".into()));
+            return Err(PowerControlError::DeserializationError(
+                "Buffer too small".into(),
+            ));
         }
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
@@ -469,7 +474,9 @@ impl UlPowerControlWirePdu {
         let payload_len = u16::from_be_bytes([data[17], data[18]]) as usize;
 
         if data.len() < 19 + payload_len + 2 {
-            return Err(PowerControlError::DeserializationError("Truncated payload".into()));
+            return Err(PowerControlError::DeserializationError(
+                "Truncated payload".into(),
+            ));
         }
 
         let payload = data[19..19 + payload_len].to_vec();

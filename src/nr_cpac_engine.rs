@@ -144,7 +144,11 @@ impl std::fmt::Display for CpacError {
             Self::DuplicateCandidateId(id) => write!(f, "CPAC candidate ID {} already exists", id),
             Self::InvalidConfiguration(msg) => write!(f, "Invalid CPAC configuration: {}", msg),
             Self::BufferTooShort { expected, actual } => {
-                write!(f, "Buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
         }
     }
@@ -339,7 +343,8 @@ impl CpacEngine {
 
         let cid = candidate.candidate_id;
         self.candidates.insert(cid, candidate);
-        self.candidate_states.insert(cid, CpacCandidateState::Configured);
+        self.candidate_states
+            .insert(cid, CpacCandidateState::Configured);
         Ok(())
     }
 
@@ -378,7 +383,8 @@ impl CpacEngine {
                 Some(m) => m.rsrp_dbm,
                 None => {
                     // No measurement; reset condition state
-                    self.candidate_states.insert(cid, CpacCandidateState::Configured);
+                    self.candidate_states
+                        .insert(cid, CpacCandidateState::Configured);
                     continue;
                 }
             };
@@ -413,12 +419,20 @@ impl CpacEngine {
                     let s_rsrp = serving_rsrp.unwrap_or(-140.0);
                     let satisfied = s_rsrp <= (*thresh1_dbm - *hysteresis_db)
                         && cand_rsrp >= (*thresh2_dbm + *hysteresis_db);
-                    (satisfied, *ttt_ms, "Event A5 (Serving bad and Candidate good)")
+                    (
+                        satisfied,
+                        *ttt_ms,
+                        "Event A5 (Serving bad and Candidate good)",
+                    )
                 }
             };
 
             // Update candidate state and test TTT expiration
-            let state = self.candidate_states.get(&cid).cloned().unwrap_or(CpacCandidateState::Configured);
+            let state = self
+                .candidate_states
+                .get(&cid)
+                .cloned()
+                .unwrap_or(CpacCandidateState::Configured);
 
             if condition_satisfied {
                 match state {
@@ -434,7 +448,8 @@ impl CpacEngine {
                     CpacCandidateState::ConditionMet { first_triggered_ms } => {
                         if now_ms >= first_triggered_ms + ttt_ms {
                             // TTT expired: candidate is ready for immediate execution
-                            self.candidate_states.insert(cid, CpacCandidateState::Executing);
+                            self.candidate_states
+                                .insert(cid, CpacCandidateState::Executing);
                             self.stats_executions_triggered += 1;
 
                             let proc_type = if self.active_pscell.is_some() {
@@ -459,7 +474,8 @@ impl CpacEngine {
                 }
             } else {
                 // Condition fell below threshold; reset to Configured
-                self.candidate_states.insert(cid, CpacCandidateState::Configured);
+                self.candidate_states
+                    .insert(cid, CpacCandidateState::Configured);
             }
         }
 
@@ -482,7 +498,8 @@ impl CpacEngine {
             arfcn: executed_candidate.arfcn,
             sn_id: executed_candidate.sn_id,
         });
-        self.candidate_states.insert(executed_candidate_id, CpacCandidateState::Completed);
+        self.candidate_states
+            .insert(executed_candidate_id, CpacCandidateState::Completed);
 
         // Notify target SN of execution
         notifications.push(XnApCpacMessage::CpacExecutionNotification {
@@ -501,7 +518,8 @@ impl CpacEngine {
         remaining_cids.sort();
         for cid in remaining_cids {
             let candidate = &self.candidates[&cid];
-            self.candidate_states.insert(cid, CpacCandidateState::Cancelled);
+            self.candidate_states
+                .insert(cid, CpacCandidateState::Cancelled);
             notifications.push(XnApCpacMessage::CpacCancelNotification {
                 ue_id: self.ue_id,
                 cancelled_pci: candidate.pci,
@@ -525,7 +543,10 @@ impl CpacEngine {
         for (&cid, candidate) in &self.candidates {
             if let Some(m) = measurements.iter().find(|m| m.pci == candidate.pci) {
                 if m.rsrp_dbm >= DEFAULT_A4_THRESHOLD_DBM {
-                    if best_cand.as_ref().map_or(true, |(_, best_rsrp, _)| m.rsrp_dbm > *best_rsrp) {
+                    if best_cand
+                        .as_ref()
+                        .map_or(true, |(_, best_rsrp, _)| m.rsrp_dbm > *best_rsrp)
+                    {
                         best_cand = Some((cid, m.rsrp_dbm, candidate));
                     }
                 }
@@ -533,7 +554,8 @@ impl CpacEngine {
         }
 
         if let Some((cid, _, candidate)) = best_cand {
-            self.candidate_states.insert(cid, CpacCandidateState::Executing);
+            self.candidate_states
+                .insert(cid, CpacCandidateState::Executing);
             self.stats_executions_triggered += 1;
 
             Some(CpacExecutionDecision {
@@ -601,6 +623,9 @@ mod tests {
             ssb_index: Some(0),
             scg_rrc_reconfig: vec![],
         };
-        assert!(matches!(engine.add_candidate(overflow), Err(CpacError::CandidateLimitExceeded(_))));
+        assert!(matches!(
+            engine.add_candidate(overflow),
+            Err(CpacError::CandidateLimitExceeded(_))
+        ));
     }
 }

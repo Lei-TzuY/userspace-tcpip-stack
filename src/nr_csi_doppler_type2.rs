@@ -204,11 +204,19 @@ impl std::fmt::Display for DopplerType2Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::DimensionMismatch { expected, actual } => {
-                write!(f, "Dimension mismatch: expected {}, got {}", expected, actual)
+                write!(
+                    f,
+                    "Dimension mismatch: expected {}, got {}",
+                    expected, actual
+                )
             }
             Self::InvalidConfiguration(msg) => write!(f, "Invalid Doppler Type II config: {}", msg),
             Self::BufferTooShort { expected, actual } => {
-                write!(f, "Buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "Buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
             Self::ZeroEnergyChannel => write!(f, "Channel tensor has zero energy"),
         }
@@ -304,9 +312,9 @@ impl DopplerType2Engine {
                 let norm = 1.0 / ((n1 * n2) as f64).sqrt();
                 for x2 in 0..n2 {
                     for x1 in 0..n1 {
-                        let phase = 2.0 * std::f64::consts::PI
-                            * ((x1 * m1) as f64 / (n1 as f64)
-                                + (x2 * m2) as f64 / (n2 as f64));
+                        let phase = 2.0
+                            * std::f64::consts::PI
+                            * ((x1 * m1) as f64 / (n1 as f64) + (x2 * m2) as f64 / (n2 as f64));
                         beam.push(Complex64::from_polar(norm, phase));
                     }
                 }
@@ -492,12 +500,14 @@ impl DopplerType2Engine {
             let c = coeff.complex_value;
 
             // Delay phase: $F_m(f) = \frac{1}{\sqrt{N_3}} e^{-j 2\pi f m / N_3}$
-            let delay_phase = -2.0 * std::f64::consts::PI * ((subband_idx * m) as f64) / (n3 as f64);
+            let delay_phase =
+                -2.0 * std::f64::consts::PI * ((subband_idx * m) as f64) / (n3 as f64);
             let delay_val = Complex64::from_polar(1.0 / (n3 as f64).sqrt(), delay_phase);
 
             // Doppler phase for arbitrary target_slot $t$:
             // $D_k(t) = \frac{1}{\sqrt{N_t}} e^{j 2\pi t k / N_t}$
-            let doppler_phase = 2.0 * std::f64::consts::PI * ((target_slot * k) as f64) / (nt as f64);
+            let doppler_phase =
+                2.0 * std::f64::consts::PI * ((target_slot * k) as f64) / (nt as f64);
             let doppler_val = Complex64::from_polar(1.0 / (nt as f64).sqrt(), doppler_phase);
 
             let time_freq_term = c.mul(delay_val).mul(doppler_val);

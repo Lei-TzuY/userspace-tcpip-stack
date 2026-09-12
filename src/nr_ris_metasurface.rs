@@ -423,7 +423,10 @@ impl RisEngine {
         let mut cascaded_sum = ComplexPhasor::zero();
         let total = self.config.total_elements();
 
-        for idx in 0..total.min(gnb_to_ris_channels.len()).min(ris_to_ue_channels.len()) {
+        for idx in 0..total
+            .min(gnb_to_ris_channels.len())
+            .min(ris_to_ue_channels.len())
+        {
             let g = gnb_to_ris_channels[idx];
             let f = ris_to_ue_channels[idx];
             let beta = self.element_amplitudes[idx];
@@ -525,8 +528,7 @@ mod tests {
         let ris_to_ue = vec![ComplexPhasor::from_polar(0.1, 0.4); 16];
 
         // Before optimization, zero phases
-        let (_, gain_before) =
-            engine.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
+        let (_, gain_before) = engine.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
 
         // Optimize for coherent alignment
         engine.optimize_coherent_alignment(direct, &gnb_to_ris, &ris_to_ue);

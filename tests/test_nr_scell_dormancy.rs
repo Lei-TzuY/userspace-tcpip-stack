@@ -5,10 +5,10 @@
 
 use std::collections::HashMap;
 use toy_tcpip::nr_scell_dormancy::{
-    DciDormancyFormat, FastSCellDormancyEngine, SCellConfig, SCellError, SCellState,
-    TransitionCause, COLD_ACTIVATION_LATENCY_MS, L1_DCI_ACTIVATION_LATENCY_MS,
-    LCID_SCELL_ACT_DEACT_1_OCTET, LCID_SCELL_ACT_DEACT_4_OCTET,
-    LCID_SCELL_DORMANCY_1_OCTET, LCID_SCELL_DORMANCY_4_OCTET,
+    COLD_ACTIVATION_LATENCY_MS, DciDormancyFormat, FastSCellDormancyEngine,
+    L1_DCI_ACTIVATION_LATENCY_MS, LCID_SCELL_ACT_DEACT_1_OCTET, LCID_SCELL_ACT_DEACT_4_OCTET,
+    LCID_SCELL_DORMANCY_1_OCTET, LCID_SCELL_DORMANCY_4_OCTET, SCellConfig, SCellError, SCellState,
+    TransitionCause,
 };
 
 // ---------------------------------------------------------------------------
@@ -41,7 +41,10 @@ fn test_scell_registration_and_validation() {
 
     // Duplicate registration rejected
     let duplicate_cfg = SCellConfig::new(1, 1, None).unwrap();
-    assert_eq!(engine.add_scell(duplicate_cfg), Err(SCellError::SCellAlreadyExists(1)));
+    assert_eq!(
+        engine.add_scell(duplicate_cfg),
+        Err(SCellError::SCellAlreadyExists(1))
+    );
 
     // Invalid group ID (valid is 0..3)
     let cfg_bad_group = SCellConfig::new(2, 1, None).unwrap().with_group(4);
@@ -78,9 +81,18 @@ fn test_mac_ce_activation_deactivation_codec() {
         .expect("Decode 1-octet MAC CE");
 
     assert_eq!(transitions.len(), 2);
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine.get_state(3).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine.get_state(2).unwrap().current_state, SCellState::Deactivated);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine.get_state(3).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine.get_state(2).unwrap().current_state,
+        SCellState::Deactivated
+    );
 
     // 2. Test 4-Octet MAC CE (LCID 61): Activate SCell 12 and 20
     let mut engine_wide = FastSCellDormancyEngine::new();
@@ -103,8 +115,14 @@ fn test_mac_ce_activation_deactivation_codec() {
         .expect("Decode 4-octet MAC CE");
 
     assert_eq!(transitions4.len(), 2);
-    assert_eq!(engine_wide.get_state(12).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine_wide.get_state(20).unwrap().current_state, SCellState::Activated);
+    assert_eq!(
+        engine_wide.get_state(12).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine_wide.get_state(20).unwrap().current_state,
+        SCellState::Activated
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -141,10 +159,19 @@ fn test_mac_ce_dormancy_codec() {
         .expect("Decode 1-octet Dormancy MAC CE");
 
     assert_eq!(transitions.len(), 3); // SCell 3 was already Deactivated
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine.get_state(2).unwrap().current_state, SCellState::Dormant);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine.get_state(2).unwrap().current_state,
+        SCellState::Dormant
+    );
     assert_eq!(engine.get_state(2).unwrap().current_bwp_id, 2); // switched to dormant BWP
-    assert_eq!(engine.get_state(4).unwrap().current_state, SCellState::Dormant);
+    assert_eq!(
+        engine.get_state(4).unwrap().current_state,
+        SCellState::Dormant
+    );
 
     // 4-Octet Dormancy MAC CE test (LCID 51)
     let mut engine16 = FastSCellDormancyEngine::new();
@@ -166,8 +193,14 @@ fn test_mac_ce_dormancy_codec() {
         .expect("Decode 4-octet Dormancy MAC CE");
 
     assert_eq!(trans16.len(), 2);
-    assert_eq!(engine16.get_state(5).unwrap().current_state, SCellState::Dormant);
-    assert_eq!(engine16.get_state(10).unwrap().current_state, SCellState::Activated);
+    assert_eq!(
+        engine16.get_state(5).unwrap().current_state,
+        SCellState::Dormant
+    );
+    assert_eq!(
+        engine16.get_state(10).unwrap().current_state,
+        SCellState::Activated
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -182,17 +215,30 @@ fn test_fast_l1_dci_dormancy_switching_and_latency() {
     engine.add_scell(cfg2).unwrap();
 
     // 1. Check activation latency when Deactivated (cold start)
-    assert_eq!(engine.predict_activation_latency_ms(1).unwrap(), COLD_ACTIVATION_LATENCY_MS);
+    assert_eq!(
+        engine.predict_activation_latency_ms(1).unwrap(),
+        COLD_ACTIVATION_LATENCY_MS
+    );
 
     // 2. Transition SCell 1 and 2 to Dormant via MAC CE
     let mut target = HashMap::new();
     target.insert(1, SCellState::Dormant);
     target.insert(2, SCellState::Dormant);
-    let payload = engine.encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target).unwrap();
-    engine.decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload).unwrap();
+    let payload = engine
+        .encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target)
+        .unwrap();
+    engine
+        .decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload)
+        .unwrap();
 
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Dormant);
-    assert_eq!(engine.predict_activation_latency_ms(1).unwrap(), L1_DCI_ACTIVATION_LATENCY_MS);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Dormant
+    );
+    assert_eq!(
+        engine.predict_activation_latency_ms(1).unwrap(),
+        L1_DCI_ACTIVATION_LATENCY_MS
+    );
 
     // 3. Send L1 DCI 1_1: Bit 0 = 1 (Activate SCell 1), Bit 1 = 0 (Keep SCell 2 Dormant)
     let bitmap = 0b01; // Bit 0 is 1, Bit 1 is 0
@@ -205,7 +251,10 @@ fn test_fast_l1_dci_dormancy_switching_and_latency() {
     assert_eq!(transitions[0].scell_id, 1);
     assert_eq!(transitions[0].new_state, SCellState::Activated);
     assert_eq!(transitions[0].active_bwp_id, 10);
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
     assert_eq!(engine.predict_activation_latency_ms(1).unwrap(), 0); // Already active
 
     // 4. Send L1 DCI 0_1: Bit 0 = 0 (Switch SCell 1 to Dormant)
@@ -228,11 +277,23 @@ fn test_synchronized_scell_group_dormancy() {
     let mut engine = FastSCellDormancyEngine::new();
 
     // Group 0: SCell 1 & SCell 2 (e.g. FR1 Component Carriers)
-    let cfg1 = SCellConfig::new(1, 1, Some(2)).unwrap().with_group(0).unwrap();
-    let cfg2 = SCellConfig::new(2, 1, Some(2)).unwrap().with_group(0).unwrap();
+    let cfg1 = SCellConfig::new(1, 1, Some(2))
+        .unwrap()
+        .with_group(0)
+        .unwrap();
+    let cfg2 = SCellConfig::new(2, 1, Some(2))
+        .unwrap()
+        .with_group(0)
+        .unwrap();
     // Group 1: SCell 3 & SCell 4 (e.g. FR2 mmWave Component Carriers)
-    let cfg3 = SCellConfig::new(3, 1, Some(2)).unwrap().with_group(1).unwrap();
-    let cfg4 = SCellConfig::new(4, 1, Some(2)).unwrap().with_group(1).unwrap();
+    let cfg3 = SCellConfig::new(3, 1, Some(2))
+        .unwrap()
+        .with_group(1)
+        .unwrap();
+    let cfg4 = SCellConfig::new(4, 1, Some(2))
+        .unwrap()
+        .with_group(1)
+        .unwrap();
 
     engine.add_scell(cfg1).unwrap();
     engine.add_scell(cfg2).unwrap();
@@ -244,8 +305,12 @@ fn test_synchronized_scell_group_dormancy() {
     for id in 1..=4 {
         target.insert(id, SCellState::Dormant);
     }
-    let payload = engine.encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target).unwrap();
-    engine.decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload).unwrap();
+    let payload = engine
+        .encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target)
+        .unwrap();
+    engine
+        .decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload)
+        .unwrap();
 
     // Send DCI 2_6 targeting SCell Groups:
     // Bit 0 (Group 0) = 1 (Activate SCell 1 & 2)
@@ -253,14 +318,31 @@ fn test_synchronized_scell_group_dormancy() {
     let group_bitmap = 0b01;
     let group_ids = [0, 1];
     let trans = engine
-        .process_l1_dci_dormancy(DciDormancyFormat::Dci2_6, group_bitmap, Some(&group_ids), true)
+        .process_l1_dci_dormancy(
+            DciDormancyFormat::Dci2_6,
+            group_bitmap,
+            Some(&group_ids),
+            true,
+        )
         .expect("Process group DCI");
 
     assert_eq!(trans.len(), 2);
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine.get_state(2).unwrap().current_state, SCellState::Activated);
-    assert_eq!(engine.get_state(3).unwrap().current_state, SCellState::Dormant);
-    assert_eq!(engine.get_state(4).unwrap().current_state, SCellState::Dormant);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine.get_state(2).unwrap().current_state,
+        SCellState::Activated
+    );
+    assert_eq!(
+        engine.get_state(3).unwrap().current_state,
+        SCellState::Dormant
+    );
+    assert_eq!(
+        engine.get_state(4).unwrap().current_state,
+        SCellState::Dormant
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -277,26 +359,38 @@ fn test_dual_timers_expiry() {
 
     // Activate SCell 1 via traffic demand
     engine.request_traffic_activation(1).unwrap();
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
 
     // Advance 20 ms -> both timers running, no expiry
     let t1 = engine.advance_time_ms(20);
     assert!(t1.is_empty());
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Activated);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Activated
+    );
 
     // Advance another 20 ms (total 40 ms) -> dormancy timer expires!
     let t2 = engine.advance_time_ms(20);
     assert_eq!(t2.len(), 1);
     assert_eq!(t2[0].cause, TransitionCause::DormancyTimerExpiry);
     assert_eq!(t2[0].new_state, SCellState::Dormant);
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Dormant);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Dormant
+    );
 
     // Advance 160 ms -> deactivation timer (restarted upon entering dormancy) expires!
     let t3 = engine.advance_time_ms(160);
     assert_eq!(t3.len(), 1);
     assert_eq!(t3[0].cause, TransitionCause::DeactivationTimerExpiry);
     assert_eq!(t3[0].new_state, SCellState::Deactivated);
-    assert_eq!(engine.get_state(1).unwrap().current_state, SCellState::Deactivated);
+    assert_eq!(
+        engine.get_state(1).unwrap().current_state,
+        SCellState::Deactivated
+    );
 
     // Check telemetry
     let telem = engine.telemetry();
@@ -316,8 +410,12 @@ fn test_cqi_reporting_in_dormancy() {
     // Put cell in Dormant state
     let mut target = HashMap::new();
     target.insert(1, SCellState::Dormant);
-    let payload = engine.encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target).unwrap();
-    engine.decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload).unwrap();
+    let payload = engine
+        .encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target)
+        .unwrap();
+    engine
+        .decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload)
+        .unwrap();
 
     // Record periodic CQI reports while dormant
     for cqi in 10..=15 {
@@ -338,7 +436,9 @@ fn test_energy_savings_and_power_model() {
     let mut engine = FastSCellDormancyEngine::new();
     // Configure with standard power: 850 mW active, 160 mW dormant, 15 mW deactivated
     // Disable auto-deactivation timer to test deterministic multi-second intervals
-    let cfg = SCellConfig::new(1, 1, Some(2)).unwrap().with_timers(0, None);
+    let cfg = SCellConfig::new(1, 1, Some(2))
+        .unwrap()
+        .with_timers(0, None);
     engine.add_scell(cfg).unwrap();
 
     // 1. Initial deactivated: 15 mW
@@ -348,15 +448,21 @@ fn test_energy_savings_and_power_model() {
     // 2. Transition to Dormant: 160 mW
     let mut target = HashMap::new();
     target.insert(1, SCellState::Dormant);
-    let payload = engine.encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target).unwrap();
-    engine.decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload).unwrap();
+    let payload = engine
+        .encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target)
+        .unwrap();
+    engine
+        .decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload)
+        .unwrap();
     assert_eq!(engine.current_power_draw_mw(), 160.0);
     engine.advance_time_ms(3000); // 3 sec in dormant
 
     // 3. Fast L1 DCI activation: 850 mW
     let bitmap = 0b01;
     let ids = [1];
-    engine.process_l1_dci_dormancy(DciDormancyFormat::Dci1_1, bitmap, Some(&ids), false).unwrap();
+    engine
+        .process_l1_dci_dormancy(DciDormancyFormat::Dci1_1, bitmap, Some(&ids), false)
+        .unwrap();
     assert_eq!(engine.current_power_draw_mw(), 850.0);
     engine.advance_time_ms(1000); // 1 sec in active
 
@@ -368,7 +474,11 @@ fn test_energy_savings_and_power_model() {
 
     // Energy savings should be substantial (> 65%) compared to baseline of 850 mW continuous
     let savings = telem.energy_savings_percentage();
-    assert!(savings > 65.0, "Energy savings should exceed 65%, got {:.2}%", savings);
+    assert!(
+        savings > 65.0,
+        "Energy savings should exceed 65%, got {:.2}%",
+        savings
+    );
 
     let duty_cycle = telem.power_save_duty_cycle();
     assert_eq!(duty_cycle, 0.80); // 4000 ms power save / 5000 ms total = 80%
@@ -387,14 +497,19 @@ fn test_edge_cases_and_error_handling() {
 
     let mut target = HashMap::new();
     target.insert(2, SCellState::Dormant);
-    let payload = engine.encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target).unwrap();
+    let payload = engine
+        .encode_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &target)
+        .unwrap();
     let err = engine.decode_and_apply_mac_ce(LCID_SCELL_DORMANCY_1_OCTET, &payload);
     assert!(matches!(err, Err(SCellError::InvalidBwpConfiguration(_))));
 
     // MAC CE buffer too short
     let short_buf: [u8; 2] = [0, 0];
     let err_short = engine.decode_and_apply_mac_ce(LCID_SCELL_ACT_DEACT_4_OCTET, &short_buf);
-    assert!(matches!(err_short, Err(SCellError::MacCeBufferTooShort { .. })));
+    assert!(matches!(
+        err_short,
+        Err(SCellError::MacCeBufferTooShort { .. })
+    ));
 
     // Unsupported LCID
     let err_lcid = engine.decode_and_apply_mac_ce(99, &[0]);
@@ -402,5 +517,8 @@ fn test_edge_cases_and_error_handling() {
 
     // Unknown SCell query
     assert!(engine.get_state(99).is_none());
-    assert_eq!(engine.predict_activation_latency_ms(99), Err(SCellError::SCellNotFound(99)));
+    assert_eq!(
+        engine.predict_activation_latency_ms(99),
+        Err(SCellError::SCellNotFound(99))
+    );
 }

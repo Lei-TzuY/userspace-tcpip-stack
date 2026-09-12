@@ -142,11 +142,11 @@ impl UeCarrierConfig {
     /// Computes the configured maximum output power $P_{\mathrm{CMAX},c}$ in dBm according to TS 38.101-1 §6.2.4.
     pub fn compute_pcmax(&self, power_class: UePowerClass) -> f64 {
         let p_power_class = power_class.nominal_max_power_dbm();
-        
+
         // P_CMAX_L = min(P_EMAX - Delta_TC, P_PowerClass - max(MPR + A_MPR, P_MPR) - Delta_TC)
         let total_mpr = (self.mpr_db + self.a_mpr_db).max(self.p_mpr_db);
-        let p_cmax_l = (self.p_emax_dbm - self.delta_tc_db)
-            .min(p_power_class - total_mpr - self.delta_tc_db);
+        let p_cmax_l =
+            (self.p_emax_dbm - self.delta_tc_db).min(p_power_class - total_mpr - self.delta_tc_db);
 
         // P_CMAX_H = min(P_EMAX, P_PowerClass)
         let p_cmax_h = self.p_emax_dbm.min(p_power_class);
@@ -217,23 +217,45 @@ impl UplinkChannelType {
     pub fn sub_tier_priority(&self) -> u8 {
         match self {
             UplinkChannelType::Prach { is_handover_or_bfr } => {
-                if *is_handover_or_bfr { 0 } else { 1 }
+                if *is_handover_or_bfr {
+                    0
+                } else {
+                    1
+                }
             }
             UplinkChannelType::PucchHarqAckSr { has_bfr_sr, has_sr } => {
-                if *has_bfr_sr { 0 } else if *has_sr { 1 } else { 2 }
+                if *has_bfr_sr {
+                    0
+                } else if *has_sr {
+                    1
+                } else {
+                    2
+                }
             }
             UplinkChannelType::PucchCsi { is_aperiodic } => {
-                if *is_aperiodic { 0 } else { 1 }
+                if *is_aperiodic {
+                    0
+                } else {
+                    1
+                }
             }
             UplinkChannelType::PuschWithUci { has_harq_ack } => {
-                if *has_harq_ack { 0 } else { 1 }
+                if *has_harq_ack {
+                    0
+                } else {
+                    1
+                }
             }
             UplinkChannelType::PuschDataOnly { mcs } => {
                 // Higher MCS prioritized slightly or standard tie
                 255 - *mcs
             }
             UplinkChannelType::Srs { is_aperiodic } => {
-                if *is_aperiodic { 0 } else { 1 }
+                if *is_aperiodic {
+                    0
+                } else {
+                    1
+                }
             }
         }
     }
@@ -354,7 +376,8 @@ impl SarGovernor {
     /// Computes the maximum allowed instantaneous power in mW for a planned slot of `duration_us`.
     pub fn get_allowed_power_mw(&mut self, duration_us: u64, current_time_us: u64) -> f64 {
         self.prune_old_records(current_time_us);
-        let remaining_energy = (self.max_energy_budget_joules - self.accumulated_energy_joules).max(0.0);
+        let remaining_energy =
+            (self.max_energy_budget_joules - self.accumulated_energy_joules).max(0.0);
         let duration_seconds = duration_us as f64 * 1e-6;
         if duration_seconds <= 0.0 {
             0.0
@@ -441,7 +464,11 @@ impl PowerControlLoop {
         let m_rb = prb_count.max(1) as f64;
         let bandwidth_term = 10.0 * m_rb.log10();
         let p_o = self.p_o_nominal_dbm + self.p_o_ue_dbm;
-        let target_power = p_o + bandwidth_term + (self.alpha * self.path_loss_db) + self.delta_tf_db + self.tpc_accumulator_db;
+        let target_power = p_o
+            + bandwidth_term
+            + (self.alpha * self.path_loss_db)
+            + self.delta_tf_db
+            + self.tpc_accumulator_db;
         target_power.min(pcmax_dbm)
     }
 }
@@ -540,7 +567,10 @@ impl fmt::Display for DpsError {
             DpsError::InvalidCarrierConfig(msg) => write!(f, "Invalid carrier config: {msg}"),
             DpsError::InvalidPowerAllocation(msg) => write!(f, "Invalid power allocation: {msg}"),
             DpsError::SarViolation { current_ratio } => {
-                write!(f, "SAR exposure limit violated: {current_ratio}% of energy budget")
+                write!(
+                    f,
+                    "SAR exposure limit violated: {current_ratio}% of energy budget"
+                )
             }
             DpsError::BufferOverflow(msg) => write!(f, "Buffer overflow: {msg}"),
             DpsError::EncodingError(msg) => write!(f, "PHR MAC CE encoding error: {msg}"),
@@ -634,7 +664,9 @@ impl DpsArbiter {
 
         // 1. Calculate physical and regulatory power ceilings
         let hw_ceiling_mw = self.get_total_pcmax_mw();
-        let sar_ceiling_mw = self.sar_governor.get_allowed_power_mw(slot_duration_us, current_time_us);
+        let sar_ceiling_mw = self
+            .sar_governor
+            .get_allowed_power_mw(slot_duration_us, current_time_us);
         let mut active_ceiling_mw = hw_ceiling_mw.min(sar_ceiling_mw);
 
         // 2. Handle Semi-Static vs Dynamic vs Lookahead mode adjustments
@@ -652,7 +684,9 @@ impl DpsArbiter {
                     scg_ceiling_mw,
                 );
             }
-            DpsMode::LookaheadEnhanced { smoothing_factor, .. } => {
+            DpsMode::LookaheadEnhanced {
+                smoothing_factor, ..
+            } => {
                 // Smooth power jumps if last epoch was heavily loaded
                 if self.last_allocated_power_mw > 0.0 {
                     let smoothed = (self.last_allocated_power_mw * *smoothing_factor)
@@ -664,7 +698,10 @@ impl DpsArbiter {
         }
 
         // 3. Collect requested linear powers
-        let total_requested_mw: f64 = requests.iter().map(|r| dbm_to_mw(r.requested_power_dbm)).sum();
+        let total_requested_mw: f64 = requests
+            .iter()
+            .map(|r| dbm_to_mw(r.requested_power_dbm))
+            .sum();
 
         // 4. If within ceiling, full grant
         if total_requested_mw <= active_ceiling_mw + 1e-6 {
@@ -680,7 +717,11 @@ impl DpsArbiter {
                 });
             }
 
-            self.sar_governor.record_emission(total_requested_mw, slot_duration_us, current_time_us);
+            self.sar_governor.record_emission(
+                total_requested_mw,
+                slot_duration_us,
+                current_time_us,
+            );
             self.last_allocated_power_mw = total_requested_mw;
 
             return Ok(DpsArbitrationResult {
@@ -695,7 +736,8 @@ impl DpsArbiter {
 
         // 5. Power deficit: Apply strict TS 38.213 §7.5.3 Priority Hierarchy
         // Sort indices by (priority_tier ASC, sub_tier_priority ASC, carrier_id ASC)
-        let mut indexed_requests: Vec<(usize, &TransmissionRequest)> = requests.iter().enumerate().collect();
+        let mut indexed_requests: Vec<(usize, &TransmissionRequest)> =
+            requests.iter().enumerate().collect();
         indexed_requests.sort_by(|(_, a), (_, b)| {
             a.channel_type
                 .priority_tier()
@@ -755,7 +797,8 @@ impl DpsArbiter {
             });
         }
 
-        self.sar_governor.record_emission(total_allocated_mw, slot_duration_us, current_time_us);
+        self.sar_governor
+            .record_emission(total_allocated_mw, slot_duration_us, current_time_us);
         self.last_allocated_power_mw = total_allocated_mw;
 
         Ok(DpsArbitrationResult {
@@ -795,7 +838,10 @@ impl DpsArbiter {
 
         let mut channels = vec![None; requests.len()];
         let mut total_allocated_mw = 0.0;
-        let total_requested_mw: f64 = requests.iter().map(|r| dbm_to_mw(r.requested_power_dbm)).sum();
+        let total_requested_mw: f64 = requests
+            .iter()
+            .map(|r| dbm_to_mw(r.requested_power_dbm))
+            .sum();
 
         // Arbitrate MCG
         Self::arbitrate_group_partition(
@@ -816,7 +862,8 @@ impl DpsArbiter {
         let final_channels: Vec<ArbitratedTransmission> = channels.into_iter().flatten().collect();
         let curtailment = total_allocated_mw < (total_requested_mw - 1e-4);
 
-        self.sar_governor.record_emission(total_allocated_mw, slot_duration_us, current_time_us);
+        self.sar_governor
+            .record_emission(total_allocated_mw, slot_duration_us, current_time_us);
         self.last_allocated_power_mw = total_allocated_mw;
 
         Ok(DpsArbitrationResult {
@@ -835,7 +882,10 @@ impl DpsArbiter {
         out_channels: &mut [Option<ArbitratedTransmission>],
         total_allocated_mw: &mut f64,
     ) {
-        let group_requested_mw: f64 = group_reqs.iter().map(|(_, r)| dbm_to_mw(r.requested_power_dbm)).sum();
+        let group_requested_mw: f64 = group_reqs
+            .iter()
+            .map(|(_, r)| dbm_to_mw(r.requested_power_dbm))
+            .sum();
 
         if group_requested_mw <= ceiling_mw + 1e-6 {
             for &(orig_idx, req) in group_reqs {
@@ -972,7 +1022,9 @@ impl DpsArbiter {
 
             let pcmax_dbm = if !is_virtual {
                 if offset >= bytes.len() {
-                    return Err(DpsError::DecodingError("Truncated PCMAX octet in PHR MAC CE"));
+                    return Err(DpsError::DecodingError(
+                        "Truncated PCMAX octet in PHR MAC CE",
+                    ));
                 }
                 let pcmax_octet = bytes[offset];
                 offset += 1;

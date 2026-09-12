@@ -68,9 +68,9 @@ pub enum SrsUsage {
 /// Antenna Switching Capability mode (TS 38.214 §6.2.1.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AntennaSwitchingMode {
-    OneTxTwoRx,   // 1T2R: 2 sounding instances
-    OneTxFourRx,  // 1T4R: 4 sounding instances
-    TwoTxFourRx,  // 2T4R: 2 sounding instances with 2 ports each
+    OneTxTwoRx,  // 1T2R: 2 sounding instances
+    OneTxFourRx, // 1T4R: 4 sounding instances
+    TwoTxFourRx, // 2T4R: 2 sounding instances with 2 ports each
 }
 
 /// Errors encountered in SRS operations.
@@ -95,7 +95,11 @@ impl fmt::Display for SrsError {
                 write!(f, "Invalid cyclic shift {} (max {})", cs, max)
             }
             SrsError::InvalidBandwidthConfig { c_srs, b_srs } => {
-                write!(f, "Invalid SRS bandwidth config: C_SRS={}, B_SRS={}", c_srs, b_srs)
+                write!(
+                    f,
+                    "Invalid SRS bandwidth config: C_SRS={}, B_SRS={}",
+                    c_srs, b_srs
+                )
             }
             SrsError::InvalidSequenceLength(len) => write!(f, "Invalid sequence length: {}", len),
             SrsError::AntennaMismatch(msg) => write!(f, "Antenna mismatch: {}", msg),
@@ -134,7 +138,10 @@ impl Complex64 {
     }
 
     pub fn conj(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 
     pub fn mul(&self, rhs: &Complex64) -> Self {
@@ -200,7 +207,12 @@ pub fn generate_zc_srs_sequence(
         let n_zc = largest_prime_less_than(m_sc);
         let q_bar = (n_zc as f64) * ((u_group % 30) as f64 + 1.0) / 31.0;
         let q_root = (q_bar + 0.5).floor() as i64
-            + (v_seq as i64) * if ((2.0 * q_bar).floor() as i64) % 2 == 0 { 1 } else { -1 };
+            + (v_seq as i64)
+                * if ((2.0 * q_bar).floor() as i64) % 2 == 0 {
+                    1
+                } else {
+                    -1
+                };
 
         let mut seq = Vec::with_capacity(m_sc);
         for n in 0..m_sc {
@@ -216,9 +228,12 @@ pub fn generate_zc_srs_sequence(
         let base_phases: &[i8] = match m_sc {
             6 => &[-1, 1, 3, -3, 1, -1],
             12 => &[1, -1, 3, 1, 1, -1, -1, -1, 1, 3, -3, 1],
-            18 => &[-1, 3, -1, -3, 3, 1, -3, -1, 3, -3, 3, -1, 1, 3, 1, -1, -3, 3],
+            18 => &[
+                -1, 3, -1, -3, 3, 1, -3, -1, 3, -3, 3, -1, 1, 3, 1, -1, -3, 3,
+            ],
             24 => &[
-                -1, -3, 3, -1, 3, 1, 3, -1, 1, -3, -1, -3, -1, 1, 3, -3, -1, -3, 3, 3, 3, -3, -3, -3,
+                -1, -3, 3, -1, 3, 1, 3, -1, 1, -3, -1, -3, -1, 1, 3, -3, -1, -3, 3, 3, 3, -3, -3,
+                -3,
             ],
             _ => &[-1, 1, 3, -3, 1, -1],
         };
@@ -411,11 +426,7 @@ impl SrsAntennaManager {
             AntennaSwitchingMode::OneTxFourRx => vec![n_srs % 4],
             AntennaSwitchingMode::TwoTxFourRx => {
                 let pair = n_srs % 2;
-                if pair == 0 {
-                    vec![0, 1]
-                } else {
-                    vec![2, 3]
-                }
+                if pair == 0 { vec![0, 1] } else { vec![2, 3] }
             }
         }
     }
@@ -514,7 +525,10 @@ impl SrsWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != SRS_WIRE_MAGIC {
-            return Err(SrsError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(SrsError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let srs_instance = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);

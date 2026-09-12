@@ -46,7 +46,10 @@ pub enum TimingAdvanceStatus {
     /// TA is fully verified and valid (RACH-less switch permitted).
     Verified { ta_offset_chips: u32 },
     /// Early TA estimated from source cell relative propagation delay or GNSS.
-    EstimatedEarly { ta_offset_chips: u32, uncertainty_chips: u16 },
+    EstimatedEarly {
+        ta_offset_chips: u32,
+        uncertainty_chips: u16,
+    },
     /// TA is unaligned or expired; Contention-Free Random Access (CFRA) is mandatory.
     UnalignedRachRequired,
 }
@@ -74,7 +77,10 @@ pub enum LtmState {
     /// Switch completed successfully; connected to new serving cell.
     ConnectedTarget { active_candidate_id: u8 },
     /// Switch failed (e.g. beam failure or preamble timeout); falling back to source cell.
-    FallbackRecovery { failed_candidate_id: u8, reason: String },
+    FallbackRecovery {
+        failed_candidate_id: u8,
+        reason: String,
+    },
 }
 
 /// Errors raised during LTM operation and cell switching.
@@ -99,7 +105,11 @@ impl fmt::Display for LtmError {
                 write!(f, "LTM Candidate ID {} already configured", id)
             }
             Self::MaxCandidatesExceeded(count) => {
-                write!(f, "Max LTM candidates exceeded ({}/{})", count, MAX_LTM_CANDIDATES)
+                write!(
+                    f,
+                    "Max LTM candidates exceeded ({}/{})",
+                    count, MAX_LTM_CANDIDATES
+                )
             }
             Self::InvalidMacCeLength(len) => {
                 write!(f, "Invalid LTM MAC CE byte length: {}", len)
@@ -108,7 +118,11 @@ impl fmt::Display for LtmError {
             Self::NotInSwitchingState => write!(f, "UE is not currently executing a switch"),
             Self::NoActiveServingCell => write!(f, "No active serving cell configured"),
             Self::TargetBeamUnusable { rsrp_dbm } => {
-                write!(f, "Target beam RSRP too low for switch: {:.1} dBm", rsrp_dbm)
+                write!(
+                    f,
+                    "Target beam RSRP too low for switch: {:.1} dBm",
+                    rsrp_dbm
+                )
             }
             Self::SwitchTimeout { elapsed_ms } => {
                 write!(f, "LTM switch exceeded time budget ({} ms)", elapsed_ms)
@@ -184,7 +198,9 @@ impl LtmCandidateCell {
 
     /// Set verified Timing Advance for RACH-less switching.
     pub fn with_verified_ta(mut self, ta_chips: u32) -> Self {
-        self.ta_status = TimingAdvanceStatus::Verified { ta_offset_chips: ta_chips };
+        self.ta_status = TimingAdvanceStatus::Verified {
+            ta_offset_chips: ta_chips,
+        };
         self
     }
 
@@ -532,8 +548,8 @@ mod tests {
     fn test_ltm_rachless_cell_switch_execution() {
         let mut engine = LtmMobilityEngine::new(100, 0x1234, 3_500_000);
 
-        let candidate = LtmCandidateCell::new(1, 202, 3_500_000, 0xAAAA, vec![4, 5])
-            .with_verified_ta(64);
+        let candidate =
+            LtmCandidateCell::new(1, 202, 3_500_000, 0xAAAA, vec![4, 5]).with_verified_ta(64);
 
         engine.add_candidate(candidate).unwrap();
         engine
@@ -545,7 +561,10 @@ mod tests {
 
         assert!(result.success);
         assert_eq!(result.mode, LtmSwitchMode::Rachless);
-        assert_eq!(result.interruption_latency_ms, LTM_RACHLESS_SWITCH_LATENCY_MS);
+        assert_eq!(
+            result.interruption_latency_ms,
+            LTM_RACHLESS_SWITCH_LATENCY_MS
+        );
         assert_eq!(engine.serving_pci, 202);
         assert_eq!(engine.serving_c_rnti, 0xAAAA);
         assert_eq!(engine.serving_tci_id, 4);
@@ -557,8 +576,8 @@ mod tests {
         let mut engine = LtmMobilityEngine::new(100, 0x1234, 3_500_000);
 
         // Candidate without verified TA
-        let candidate = LtmCandidateCell::new(2, 303, 3_500_000, 0xBBBB, vec![0, 1])
-            .with_cfra(24, 1);
+        let candidate =
+            LtmCandidateCell::new(2, 303, 3_500_000, 0xBBBB, vec![0, 1]).with_cfra(24, 1);
 
         assert!(!candidate.supports_rachless());
         engine.add_candidate(candidate).unwrap();
@@ -581,8 +600,8 @@ mod tests {
     fn test_ltm_switch_fallback_when_target_beam_degraded() {
         let mut engine = LtmMobilityEngine::new(100, 0x1234, 3_500_000);
 
-        let candidate = LtmCandidateCell::new(3, 404, 3_500_000, 0xCCCC, vec![2])
-            .with_verified_ta(32);
+        let candidate =
+            LtmCandidateCell::new(3, 404, 3_500_000, 0xCCCC, vec![2]).with_verified_ta(32);
 
         engine.add_candidate(candidate).unwrap();
         // Target beam degraded heavily (-125 dBm < -110 dBm threshold)

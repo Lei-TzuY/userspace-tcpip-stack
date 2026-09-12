@@ -20,7 +20,7 @@ fn test_coreset_configuration_and_reg_mapping_non_interleaved() {
 
     assert_eq!(coreset.total_prbs(), 24);
     assert_eq!(coreset.total_regs(), 48); // 24 PRBs * 2 symbols
-    assert_eq!(coreset.total_cces(), 8);  // 48 REGs / 6 = 8 CCEs
+    assert_eq!(coreset.total_cces(), 8); // 48 REGs / 6 = 8 CCEs
 
     // CCE 0 -> REGs 0..=5
     let regs_cce0 = coreset.map_cce_to_regs(0).unwrap();
@@ -49,7 +49,7 @@ fn test_coreset_cce_to_reg_interleaved_permutation() {
         bitmap,
         duration,
         CceRegMapping::Interleaved {
-            reg_bundle_size: 2, // L = 2
+            reg_bundle_size: 2,  // L = 2
             interleaver_size: 2, // R = 2
             shift_index: 0,
         },
@@ -66,11 +66,7 @@ fn test_coreset_cce_to_reg_interleaved_permutation() {
         let regs = coreset.map_cce_to_regs(cce_idx).unwrap();
         assert_eq!(regs.len(), 6);
         for &reg in &regs {
-            assert!(
-                (reg as usize) < 48,
-                "REG index {} out of bounds",
-                reg
-            );
+            assert!((reg as usize) < 48, "REG index {} out of bounds", reg);
             assert!(
                 !reg_covered[reg as usize],
                 "REG {} duplicated across CCEs",
@@ -137,15 +133,9 @@ fn test_candidate_cce_index_common_vs_ue_specific() {
     };
 
     for cand_idx in 0..candidates.al4 {
-        let cce = compute_candidate_cce_index(
-            &css,
-            &coreset,
-            AggregationLevel::L4,
-            cand_idx,
-            0,
-            0x1000,
-        )
-        .unwrap();
+        let cce =
+            compute_candidate_cce_index(&css, &coreset, AggregationLevel::L4, cand_idx, 0, 0x1000)
+                .unwrap();
 
         // Must be multiple of L=4
         assert_eq!(cce % 4, 0);
@@ -165,25 +155,11 @@ fn test_candidate_cce_index_common_vs_ue_specific() {
         sssg_id: 0,
     };
 
-    let cce_slot0 = compute_candidate_cce_index(
-        &uss,
-        &coreset,
-        AggregationLevel::L2,
-        0,
-        0,
-        0x55AA,
-    )
-    .unwrap();
+    let cce_slot0 =
+        compute_candidate_cce_index(&uss, &coreset, AggregationLevel::L2, 0, 0, 0x55AA).unwrap();
 
-    let cce_slot1 = compute_candidate_cce_index(
-        &uss,
-        &coreset,
-        AggregationLevel::L2,
-        0,
-        1,
-        0x55AA,
-    )
-    .unwrap();
+    let cce_slot1 =
+        compute_candidate_cce_index(&uss, &coreset, AggregationLevel::L2, 0, 1, 0x55AA).unwrap();
 
     // Start CCE must be aligned to L=2
     assert_eq!(cce_slot0 % 2, 0);
@@ -298,7 +274,10 @@ fn test_slot_blind_decoding_and_cce_budget_limits() {
 
     assert!(matches!(
         audit_slot_monitoring_budget(&[ss_overloaded], &coreset, 0, 1),
-        Err(PdcchError::BlindDecodingBudgetExceeded { count: 42, limit: 36 })
+        Err(PdcchError::BlindDecodingBudgetExceeded {
+            count: 42,
+            limit: 36
+        })
     ));
 }
 

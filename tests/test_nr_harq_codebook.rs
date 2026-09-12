@@ -77,7 +77,14 @@ fn test_type2_dynamic_codebook_with_dai() {
         occ.counter_dai = i % DAI_COUNTER_MODULO;
         occ.total_dai = 3;
         occ.set_ack(0, HarqAckBit::Ack);
-        occ.set_ack(1, if i % 2 == 0 { HarqAckBit::Ack } else { HarqAckBit::Nack });
+        occ.set_ack(
+            1,
+            if i % 2 == 0 {
+                HarqAckBit::Ack
+            } else {
+                HarqAckBit::Nack
+            },
+        );
         engine.add_occasion(occ).unwrap();
     }
 
@@ -113,8 +120,7 @@ fn test_multi_trp_separate_sub_codebooks() {
         harq_ack_mode: MultiTrpHarqAckMode::Separate,
     };
 
-    let mut engine =
-        HarqCodebookEngine::new_multi_trp(type2_config, mtrp_config).unwrap();
+    let mut engine = HarqCodebookEngine::new_multi_trp(type2_config, mtrp_config).unwrap();
 
     // Add 2 TRP0 occasions and 2 TRP1 occasions.
     for i in 0..2u8 {
@@ -127,7 +133,14 @@ fn test_multi_trp_separate_sub_codebooks() {
         let mut occ1 = PdschOccasion::new_dynamic(0, i as u16, i + 2, 1);
         occ1.trp_index = Some(TrpIndex::Trp1);
         occ1.counter_dai = i;
-        occ1.set_ack(0, if i == 0 { HarqAckBit::Ack } else { HarqAckBit::Nack });
+        occ1.set_ack(
+            0,
+            if i == 0 {
+                HarqAckBit::Ack
+            } else {
+                HarqAckBit::Nack
+            },
+        );
         engine.add_occasion(occ1).unwrap();
     }
 
@@ -161,8 +174,7 @@ fn test_multi_trp_joint_codebook() {
         harq_ack_mode: MultiTrpHarqAckMode::Joint,
     };
 
-    let mut engine =
-        HarqCodebookEngine::new_multi_trp(type2_config, mtrp_config).unwrap();
+    let mut engine = HarqCodebookEngine::new_multi_trp(type2_config, mtrp_config).unwrap();
 
     // TRP0: ACK, ACK, NACK
     // TRP1: ACK, NACK, ACK
@@ -366,10 +378,7 @@ fn test_one_shot_multi_cell_codebook() {
     let mut cell1_occ1 = PdschOccasion::new_dynamic(1, 0, 0, 1);
     cell1_occ1.set_ack(0, HarqAckBit::Ack);
 
-    let occasions_by_cell = vec![
-        vec![cell0_occ1, cell0_occ2],
-        vec![cell1_occ1],
-    ];
+    let occasions_by_cell = vec![vec![cell0_occ1, cell0_occ2], vec![cell1_occ1]];
 
     let codebook = encode_one_shot_multi_cell(&occasions_by_cell, 1).unwrap();
 

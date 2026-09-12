@@ -86,11 +86,22 @@ pub enum RlfCause {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RlmState {
     NormalInSync,
-    OutOfSyncCounting { count: usize },
-    DegradedT310Running { remaining_ms: u32 },
-    FastRecoveryT312Running { t310_remaining_ms: u32, t312_remaining_ms: u32 },
-    RadioLinkFailureDeclared { cause: RlfCause },
-    ReEstablishingT311Running { remaining_ms: u32 },
+    OutOfSyncCounting {
+        count: usize,
+    },
+    DegradedT310Running {
+        remaining_ms: u32,
+    },
+    FastRecoveryT312Running {
+        t310_remaining_ms: u32,
+        t312_remaining_ms: u32,
+    },
+    RadioLinkFailureDeclared {
+        cause: RlfCause,
+    },
+    ReEstablishingT311Running {
+        remaining_ms: u32,
+    },
 }
 
 /// Errors encountered in RLM operations.
@@ -107,11 +118,17 @@ pub enum RlmError {
 impl fmt::Display for RlmError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RlmError::NoReferenceSignalsConfigured => write!(f, "No RLM reference signals configured"),
+            RlmError::NoReferenceSignalsConfigured => {
+                write!(f, "No RLM reference signals configured")
+            }
             RlmError::InvalidTimerDuration(ms) => write!(f, "Invalid timer duration: {} ms", ms),
             RlmError::InvalidCounterValue(c) => write!(f, "Invalid counter value: {}", c),
             RlmError::InvalidThreshold { q_out, q_in } => {
-                write!(f, "Invalid thresholds: Q_out ({}) must be < Q_in ({})", q_out, q_in)
+                write!(
+                    f,
+                    "Invalid thresholds: Q_out ({}) must be < Q_in ({})",
+                    q_out, q_in
+                )
             }
             RlmError::SerializationError(e) => write!(f, "RLM serialization error: {}", e),
             RlmError::DeserializationError(e) => write!(f, "RLM deserialization error: {}", e),
@@ -277,7 +294,9 @@ impl NrRlmEngine {
                                 remaining_ms: self.config.t310_ms,
                             };
                         } else {
-                            self.state = RlmState::OutOfSyncCounting { count: self.oos_counter };
+                            self.state = RlmState::OutOfSyncCounting {
+                                count: self.oos_counter,
+                            };
                         }
                     }
                     RlmState::OutOfSyncCounting { mut count } => {
@@ -297,7 +316,8 @@ impl NrRlmEngine {
                     RlmState::FastRecoveryT312Running { .. } => {
                         // T312 continues running
                     }
-                    RlmState::RadioLinkFailureDeclared { .. } | RlmState::ReEstablishingT311Running { .. } => {
+                    RlmState::RadioLinkFailureDeclared { .. }
+                    | RlmState::ReEstablishingT311Running { .. } => {
                         // Already failed / re-establishing
                     }
                 }
@@ -309,7 +329,8 @@ impl NrRlmEngine {
                         self.state = RlmState::NormalInSync;
                         self.is_counter = 0;
                     }
-                    RlmState::DegradedT310Running { .. } | RlmState::FastRecoveryT312Running { .. } => {
+                    RlmState::DegradedT310Running { .. }
+                    | RlmState::FastRecoveryT312Running { .. } => {
                         self.is_counter += 1;
                         if self.is_counter >= self.config.n311 {
                             // Link recovered!
@@ -465,7 +486,10 @@ impl RlmWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != RLM_WIRE_MAGIC {
-            return Err(RlmError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(RlmError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let timestamp_ms = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);

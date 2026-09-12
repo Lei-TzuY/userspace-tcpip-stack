@@ -9,9 +9,9 @@
 //! 6. MAC CE bitfield serialization/deserialization fidelity and boundary validations.
 
 use toy_tcpip::nr_mtrp_engine::{
-    CoresetPoolId, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
-    TrpLinkState, DEFAULT_MTRP_BFI_THRESHOLD, DEFAULT_MTRP_Q_OUT_DBM, MAC_LCID_MTRP_BFR,
-    MAX_MTRP_TRPS,
+    CoresetPoolId, DEFAULT_MTRP_BFI_THRESHOLD, DEFAULT_MTRP_Q_OUT_DBM, MAC_LCID_MTRP_BFR,
+    MAX_MTRP_TRPS, MtrpBfrMacCe, MtrpDciMode, MtrpEngine, MtrpError, MtrpHarqMode, MtrpScheme,
+    TrpLinkState,
 };
 
 #[test]
@@ -123,12 +123,16 @@ fn test_independent_trp_beam_failure_and_resilient_survivor_traffic() {
     assert_eq!(bundle_initial.legs.len(), 4); // TdmScheme1a with 2 reps per TRP = 4 legs
 
     // Trigger BFI on TRP 0 (Serving cell)
-    assert!(engine
-        .evaluate_bfi(CoresetPoolId::Pool0, DEFAULT_MTRP_Q_OUT_DBM - 5.0, None)
-        .is_none());
-    assert!(engine
-        .evaluate_bfi(CoresetPoolId::Pool0, DEFAULT_MTRP_Q_OUT_DBM - 7.0, None)
-        .is_none());
+    assert!(
+        engine
+            .evaluate_bfi(CoresetPoolId::Pool0, DEFAULT_MTRP_Q_OUT_DBM - 5.0, None)
+            .is_none()
+    );
+    assert!(
+        engine
+            .evaluate_bfi(CoresetPoolId::Pool0, DEFAULT_MTRP_Q_OUT_DBM - 7.0, None)
+            .is_none()
+    );
 
     // 3rd instance triggers BFR MAC CE on TRP 0 with candidate beam #28
     let bfr_ce = engine

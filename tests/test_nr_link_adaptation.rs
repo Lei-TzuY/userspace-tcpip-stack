@@ -9,10 +9,10 @@
 //! - Binary wire framing (`CsiReportWirePdu`) with CRC-16 CCITT validation.
 
 use toy_tcpip::nr_link_adaptation::{
-    compute_eesm_effective_sinr, generate_csi_report, select_cqi, select_rank_indicator,
-    select_type1_pmi_rank1, AntennaPanelGeometry, CqiTableType, CsiReportWirePdu,
-    LinkAdaptationError, NrModulation, OllaController, PmiSelection, CQI_TABLE_1, CQI_TABLE_2,
-    CQI_TABLE_3, DEFAULT_OLLA_STEP_UP_DB, DEFAULT_TARGET_BLER,
+    AntennaPanelGeometry, CQI_TABLE_1, CQI_TABLE_2, CQI_TABLE_3, CqiTableType, CsiReportWirePdu,
+    DEFAULT_OLLA_STEP_UP_DB, DEFAULT_TARGET_BLER, LinkAdaptationError, NrModulation,
+    OllaController, PmiSelection, compute_eesm_effective_sinr, generate_csi_report, select_cqi,
+    select_rank_indicator, select_type1_pmi_rank1,
 };
 
 // ---------------------------------------------------------------------------
@@ -107,7 +107,12 @@ fn test_eesm_effective_sinr_frequency_selective_channel() {
 
     let arith_mean = (15.0 * 3.0 - 5.0) / 4.0; // 10.0 dB
     // Because deep fades dominate the error probability, EESM gives a lower effective SINR than arithmetic mean
-    assert!(eff < arith_mean, "EESM effective SINR ({}) must be less than arithmetic mean ({})", eff, arith_mean);
+    assert!(
+        eff < arith_mean,
+        "EESM effective SINR ({}) must be less than arithmetic mean ({})",
+        eff,
+        arith_mean
+    );
     assert!(eff > -5.0);
 }
 
@@ -129,12 +134,18 @@ fn test_rank_indicator_selection_los_and_rich_scattering() {
     // Case 1: Line-of-sight / rank-1 channel (first eigenvalue is huge, second is near zero)
     let los_eigenvalues = [20.0, 0.001];
     let rank_los = select_rank_indicator(&los_eigenvalues, 2, 15.0).unwrap();
-    assert_eq!(rank_los, 1, "Rank 1 must be selected for ill-conditioned/LOS channel");
+    assert_eq!(
+        rank_los, 1,
+        "Rank 1 must be selected for ill-conditioned/LOS channel"
+    );
 
     // Case 2: Rich scattering MIMO channel (both eigenvalues strong and balanced) at high SNR
     let scattering_eigenvalues = [10.0, 8.5];
     let rank_scat = select_rank_indicator(&scattering_eigenvalues, 2, 20.0).unwrap();
-    assert_eq!(rank_scat, 2, "Rank 2 must be selected for rich scattering channel at high SNR");
+    assert_eq!(
+        rank_scat, 2,
+        "Rank 2 must be selected for rich scattering channel at high SNR"
+    );
 
     // Case 3: Same channel at very low SNR (-5 dB) -> falls back to Rank 1 for robustness
     let rank_low_snr = select_rank_indicator(&scattering_eigenvalues, 2, -5.0).unwrap();
@@ -162,12 +173,7 @@ fn test_type1_single_panel_pmi_selection() {
     // pol 2: phi * [v0, v1] = [(0, 1), (-1, 0)]
     // Full precoder W = [(1, 0), (0, 1), (0, 1), (-1, 0)]
     // Conjugate matched channel H = W^H = [(1, 0), (0, -1), (0, -1), (-1, 0)]
-    let matched_h_row = vec![
-        (1.0, 0.0),
-        (0.0, -1.0),
-        (0.0, -1.0),
-        (-1.0, 0.0),
-    ];
+    let matched_h_row = vec![(1.0, 0.0), (0.0, -1.0), (0.0, -1.0), (-1.0, 0.0)];
     let channel_taps = vec![vec![matched_h_row]]; // 1 subband, 1 Rx antenna, 4 Tx ports
 
     let pmi = select_type1_pmi_rank1(&channel_taps, panel).unwrap();
@@ -183,15 +189,13 @@ fn test_type1_single_panel_pmi_selection() {
 #[test]
 fn test_csi_report_generation() {
     let subband_sinrs = [8.5, 9.0, 14.5, 5.0]; // Subbands with varying channel quality
-    let pmi = PmiSelection { beam_l: 1, beam_m: 0, cophase_n: 2 };
+    let pmi = PmiSelection {
+        beam_l: 1,
+        beam_m: 0,
+        cophase_n: 2,
+    };
 
-    let report = generate_csi_report(
-        &subband_sinrs,
-        1,
-        pmi,
-        CqiTableType::Table1_64Qam,
-    )
-    .unwrap();
+    let report = generate_csi_report(&subband_sinrs, 1, pmi, CqiTableType::Table1_64Qam).unwrap();
 
     assert_eq!(report.rank_indicator, 1);
     assert_eq!(report.pmi, pmi);

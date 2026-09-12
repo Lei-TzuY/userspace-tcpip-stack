@@ -1,9 +1,9 @@
 //! Integration tests for 3GPP Rel-18 Sidelink PC5-S Unicast Session & Direct Security Engine.
 
 use toy_tcpip::nr_sidelink_pc5s::{
-    hmac_sha256, kdf_3gpp, Pc5QosFlow, Pc5SecurityContext, Pc5sEngine, Pc5sLinkState,
-    Pc5sMessage, Pc5sRejectCause, Sha256, SidelinkCipheringAlgorithm, SidelinkIntegrityAlgorithm,
-    DEFAULT_T4111_KEEPALIVE_MS, DEFAULT_T4112_TIMEOUT_MS, MAX_PC5S_RETRANSMISSIONS,
+    DEFAULT_T4111_KEEPALIVE_MS, DEFAULT_T4112_TIMEOUT_MS, MAX_PC5S_RETRANSMISSIONS, Pc5QosFlow,
+    Pc5SecurityContext, Pc5sEngine, Pc5sLinkState, Pc5sMessage, Pc5sRejectCause, Sha256,
+    SidelinkCipheringAlgorithm, SidelinkIntegrityAlgorithm, hmac_sha256, kdf_3gpp,
 };
 
 #[test]
@@ -141,7 +141,8 @@ fn test_end_to_end_unicast_link_establishment_handshake() {
         pc5_5qi: 50,
         range_meters: 200,
     }];
-    let (ue1_link_id, dcr) = ue1.initiate_link(ue2_l2_id, 0xBEEF, qos_flows, initiator_nonce, now_ms);
+    let (ue1_link_id, dcr) =
+        ue1.initiate_link(ue2_l2_id, 0xBEEF, qos_flows, initiator_nonce, now_ms);
     assert_eq!(ue1_link_id, 1);
     assert_eq!(
         ue1.links[&ue1_link_id].state,
@@ -182,9 +183,7 @@ fn test_end_to_end_unicast_link_establishment_handshake() {
     assert_eq!(sec1.integrity_algorithm, SidelinkIntegrityAlgorithm::Nia2);
 
     match dca {
-        Pc5sMessage::DirectCommunicationAccept {
-            admitted_pqfis, ..
-        } => {
+        Pc5sMessage::DirectCommunicationAccept { admitted_pqfis, .. } => {
             assert_eq!(admitted_pqfis, vec![5]);
         }
         _ => panic!("Expected DirectCommunicationAccept"),

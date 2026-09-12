@@ -118,7 +118,11 @@ impl PhysicalCellId {
         }
         let n_id_1 = pci / 3;
         let n_id_2 = (pci % 3) as u8;
-        Ok(Self { pci, n_id_1, n_id_2 })
+        Ok(Self {
+            pci,
+            n_id_1,
+            n_id_2,
+        })
     }
 
     pub fn from_components(n_id_1: u16, n_id_2: u8) -> Result<Self, SsbError> {
@@ -129,7 +133,11 @@ impl PhysicalCellId {
             return Err(SsbError::InvalidNid2(n_id_2));
         }
         let pci = 3 * n_id_1 + n_id_2 as u16;
-        Ok(Self { pci, n_id_1, n_id_2 })
+        Ok(Self {
+            pci,
+            n_id_1,
+            n_id_2,
+        })
     }
 
     pub fn v_shift(&self) -> usize {
@@ -263,14 +271,14 @@ pub fn generate_pbch_dmrs(
 /// 3GPP MasterInformationBlock (MIB) payload (TS 38.331 §6.2.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SsbMib {
-    pub system_frame_number_msb: u8, // 6 bits (SFN bits 9..4)
+    pub system_frame_number_msb: u8,   // 6 bits (SFN bits 9..4)
     pub subcarrier_spacing_common: u8, // 1 bit (0: 15/60 kHz, 1: 30/120 kHz)
-    pub ssb_subcarrier_offset: u8,    // 4 bits (k_SSB 4 LSBs)
-    pub dmrs_type_a_position: u8,     // 1 bit (0: pos2, 1: pos3)
-    pub pdcch_config_sib1: u8,        // 8 bits (CORESET#0 + SearchSpace#0)
-    pub cell_barred: bool,            // 1 bit
-    pub intra_freq_reselection: bool, // 1 bit
-    pub spare: u8,                    // 1 bit
+    pub ssb_subcarrier_offset: u8,     // 4 bits (k_SSB 4 LSBs)
+    pub dmrs_type_a_position: u8,      // 1 bit (0: pos2, 1: pos3)
+    pub pdcch_config_sib1: u8,         // 8 bits (CORESET#0 + SearchSpace#0)
+    pub cell_barred: bool,             // 1 bit
+    pub intra_freq_reselection: bool,  // 1 bit
+    pub spare: u8,                     // 1 bit
 }
 
 impl SsbMib {
@@ -298,7 +306,9 @@ impl SsbMib {
     /// Deserializes from 24 binary bits.
     pub fn from_bits(bits: &[u8]) -> Result<Self, SsbError> {
         if bits.len() < 24 {
-            return Err(SsbError::DeserializationError("MIB bitstream too short".into()));
+            return Err(SsbError::DeserializationError(
+                "MIB bitstream too short".into(),
+            ));
         }
 
         // bits[0] is the choice prefix
@@ -337,9 +347,9 @@ impl SsbMib {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PbchPayload {
     pub mib: SsbMib,
-    pub sfn_lsb: u8,          // 4 bits (SFN bits 3..0)
-    pub half_frame_bit: u8,   // 1 bit
-    pub ssb_index_msb: u8,    // 3 bits (in FR2/FR3) or k_SSB MSB (FR1)
+    pub sfn_lsb: u8,        // 4 bits (SFN bits 3..0)
+    pub half_frame_bit: u8, // 1 bit
+    pub ssb_index_msb: u8,  // 3 bits (in FR2/FR3) or k_SSB MSB (FR1)
 }
 
 impl PbchPayload {
@@ -490,7 +500,11 @@ impl SsbResourceGrid {
 
     /// Counts total REs of a given type.
     pub fn count_re_type(&self, target: SsbReType) -> usize {
-        self.grid.iter().flat_map(|r| r.iter()).filter(|&&re| re == target).count()
+        self.grid
+            .iter()
+            .flat_map(|r| r.iter())
+            .filter(|&&re| re == target)
+            .count()
     }
 }
 
@@ -551,7 +565,11 @@ impl SsbBurstManager {
         measurements
             .iter()
             .filter(|m| self.is_ssb_transmitted(m.ssb_index) && m.ss_rsrp_dbm >= rsrp_threshold_dbm)
-            .max_by(|a, b| a.ss_rsrp_dbm.partial_cmp(&b.ss_rsrp_dbm).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.ss_rsrp_dbm
+                    .partial_cmp(&b.ss_rsrp_dbm)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .copied()
     }
 }
@@ -617,7 +635,10 @@ impl SsbWirePdu {
 
         let magic = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
         if magic != SSB_WIRE_MAGIC {
-            return Err(SsbError::DeserializationError(format!("Invalid magic: 0x{:08X}", magic)));
+            return Err(SsbError::DeserializationError(format!(
+                "Invalid magic: 0x{:08X}",
+                magic
+            )));
         }
 
         let pci = u16::from_be_bytes([data[4], data[5]]);

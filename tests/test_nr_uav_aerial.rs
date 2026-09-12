@@ -10,9 +10,9 @@
 
 use toy_tcpip::nr_uav_aerial::{
     AerialInterferenceMeasurement, AerialPowerControl, AerialUeEngine, AerialUeError,
-    BroadcastRemoteId, FlightPathInfoReport, FlightWaypoint, HeightReportingConfig,
-    HeightReportingEvent, UasAuthorizationStatus, DEFAULT_HEIGHT_H1_THRESHOLD_M,
-    DEFAULT_HEIGHT_H2_THRESHOLD_M, MAX_FLIGHT_WAYPOINTS,
+    BroadcastRemoteId, DEFAULT_HEIGHT_H1_THRESHOLD_M, DEFAULT_HEIGHT_H2_THRESHOLD_M,
+    FlightPathInfoReport, FlightWaypoint, HeightReportingConfig, HeightReportingEvent,
+    MAX_FLIGHT_WAYPOINTS, UasAuthorizationStatus,
 };
 
 #[test]
@@ -103,8 +103,7 @@ fn test_height_events_h1_and_h2_with_hysteresis() {
 
 #[test]
 fn test_altitude_adaptive_power_control_backoff() {
-    let mut engine =
-        AerialUeEngine::new(FlightWaypoint::new(24.0, 121.0, 0.0, 100).unwrap());
+    let mut engine = AerialUeEngine::new(FlightWaypoint::new(24.0, 121.0, 0.0, 100).unwrap());
     engine.power_control = AerialPowerControl {
         p0_nominal_dbm: -75.0,
         alpha_ground: 0.8,
@@ -134,12 +133,7 @@ fn test_airborne_sidelobe_pollution_detection() {
     let normal_interf = AerialInterferenceMeasurement {
         serving_pci: 101,
         serving_rsrp_dbm: -75.0,
-        neighbor_rsrps: vec![
-            (102, -78.0),
-            (103, -92.0),
-            (104, -96.0),
-            (105, -100.0),
-        ],
+        neighbor_rsrps: vec![(102, -78.0), (103, -92.0), (104, -96.0), (105, -100.0)],
     };
     assert_eq!(normal_interf.count_strong_interferers(6.0), 1);
     assert!(!normal_interf.is_sidelobe_polluted());
@@ -149,12 +143,7 @@ fn test_airborne_sidelobe_pollution_detection() {
     let polluted_interf = AerialInterferenceMeasurement {
         serving_pci: 101,
         serving_rsrp_dbm: -80.0,
-        neighbor_rsrps: vec![
-            (201, -81.0),
-            (202, -82.0),
-            (203, -83.0),
-            (204, -84.0),
-        ],
+        neighbor_rsrps: vec![(201, -81.0), (202, -82.0), (203, -83.0), (204, -84.0)],
     };
     assert_eq!(polluted_interf.count_strong_interferers(6.0), 4);
     assert!(polluted_interf.is_sidelobe_polluted());

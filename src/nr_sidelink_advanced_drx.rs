@@ -42,7 +42,8 @@ pub const SUBFRAMES_PER_FRAME: u16 = 10;
 pub const MAX_FRAMES_PER_CYCLE: u16 = 1024;
 
 /// Total subframes in a full 1024-frame cycle (10240 subframes).
-pub const TOTAL_SUBFRAMES_PER_CYCLE: u32 = (MAX_FRAMES_PER_CYCLE as u32) * (SUBFRAMES_PER_FRAME as u32);
+pub const TOTAL_SUBFRAMES_PER_CYCLE: u32 =
+    (MAX_FRAMES_PER_CYCLE as u32) * (SUBFRAMES_PER_FRAME as u32);
 
 /// Standard CRC-8 polynomial: $x^8 + x^2 + x + 1$ (0x07).
 pub const CRC8_POLYNOMIAL: u8 = 0x07;
@@ -343,7 +344,8 @@ impl Fr2BeamDrxSweeper {
 
     /// Computes active spatial Rx beam index for an active on-duration subframe offset.
     pub fn get_beam_index(&self, active_subframe_offset: u16) -> u8 {
-        let beam = (active_subframe_offset / self.subframes_per_beam as u16) % (self.total_beams as u16);
+        let beam =
+            (active_subframe_offset / self.subframes_per_beam as u16) % (self.total_beams as u16);
         beam as u8
     }
 }
@@ -511,7 +513,8 @@ impl SidelinkAdvancedDrxEngine {
     pub fn is_uu_active(&self, sfn: u16, subframe: u8) -> bool {
         let total_subframe = ((sfn as u32) * 10 + (subframe as u32)) as u16;
         let cycle = self.uu_config.cycle_ms.max(1);
-        let subframe_in_cycle = (total_subframe + cycle - (self.uu_config.start_offset_ms % cycle)) % cycle;
+        let subframe_in_cycle =
+            (total_subframe + cycle - (self.uu_config.start_offset_ms % cycle)) % cycle;
 
         let in_on_duration = subframe_in_cycle < self.uu_config.on_duration_ms;
         let in_inactivity = self.uu_inactivity_remaining > 0;
@@ -524,7 +527,8 @@ impl SidelinkAdvancedDrxEngine {
         let (dfn, dfn_subframe) = self.aligner.sfn_to_dfn(sfn, subframe);
         let total_dfn_subframe = ((dfn as u32) * 10 + (dfn_subframe as u32)) as u16;
         let cycle = self.sl_config.sl_cycle_ms.max(1);
-        let subframe_in_cycle = (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
+        let subframe_in_cycle =
+            (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
 
         let in_on_duration_nominal = subframe_in_cycle < self.sl_config.sl_on_duration_ms;
 
@@ -550,7 +554,8 @@ impl SidelinkAdvancedDrxEngine {
         let (dfn, dfn_subframe) = self.aligner.sfn_to_dfn(sfn, subframe);
         let total_dfn_subframe = ((dfn as u32) * 10 + (dfn_subframe as u32)) as u16;
         let cycle = self.sl_config.sl_cycle_ms.max(1);
-        let subframe_in_cycle = (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
+        let subframe_in_cycle =
+            (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
 
         if subframe_in_cycle == self.sl_config.sl_on_duration_ms {
             // Track WUS skips in telemetry
@@ -614,10 +619,13 @@ impl SidelinkAdvancedDrxEngine {
         let (dfn, dfn_subframe) = self.aligner.sfn_to_dfn(sfn, subframe);
         let total_dfn_subframe = ((dfn as u32) * 10 + (dfn_subframe as u32)) as u16;
         let cycle = self.sl_config.sl_cycle_ms.max(1);
-        let subframe_in_cycle = (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
+        let subframe_in_cycle =
+            (total_dfn_subframe + cycle - (self.sl_config.sl_start_offset_ms % cycle)) % cycle;
 
         if subframe_in_cycle < self.sl_config.sl_on_duration_ms {
-            self.beam_sweeper.as_ref().map(|s| s.get_beam_index(subframe_in_cycle))
+            self.beam_sweeper
+                .as_ref()
+                .map(|s| s.get_beam_index(subframe_in_cycle))
         } else {
             None
         }
@@ -628,7 +636,8 @@ impl SidelinkAdvancedDrxEngine {
         if self.telemetry.total_subframes_evaluated == 0 {
             return 0.0;
         }
-        let active_subframes = self.telemetry.total_subframes_evaluated - self.telemetry.deep_sleep_subframes;
+        let active_subframes =
+            self.telemetry.total_subframes_evaluated - self.telemetry.deep_sleep_subframes;
         active_subframes as f64 / self.telemetry.total_subframes_evaluated as f64
     }
 

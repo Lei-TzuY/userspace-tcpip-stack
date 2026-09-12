@@ -102,12 +102,22 @@ impl fmt::Display for SCellError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SCellError::InvalidSCellId(id) => write!(f, "Invalid SCell ID: {} (valid: 1..=31)", id),
-            SCellError::InvalidGroupId(g) => write!(f, "Invalid SCell Group ID: {} (valid: 0..=3)", g),
-            SCellError::SCellAlreadyExists(id) => write!(f, "SCell with ID {} already registered", id),
+            SCellError::InvalidGroupId(g) => {
+                write!(f, "Invalid SCell Group ID: {} (valid: 0..=3)", g)
+            }
+            SCellError::SCellAlreadyExists(id) => {
+                write!(f, "SCell with ID {} already registered", id)
+            }
             SCellError::SCellNotFound(id) => write!(f, "SCell with ID {} not found", id),
-            SCellError::InvalidBwpConfiguration(msg) => write!(f, "Invalid BWP configuration: {}", msg),
+            SCellError::InvalidBwpConfiguration(msg) => {
+                write!(f, "Invalid BWP configuration: {}", msg)
+            }
             SCellError::MacCeBufferTooShort { expected, actual } => {
-                write!(f, "MAC CE buffer too short: expected {} bytes, got {}", expected, actual)
+                write!(
+                    f,
+                    "MAC CE buffer too short: expected {} bytes, got {}",
+                    expected, actual
+                )
             }
             SCellError::InvalidMacCePayload(msg) => write!(f, "Invalid MAC CE payload: {}", msg),
             SCellError::InvalidLcid(lcid) => write!(f, "Unsupported MAC CE LCID: {}", lcid),
@@ -254,7 +264,11 @@ pub struct SCellConfig {
 }
 
 impl SCellConfig {
-    pub fn new(scell_id: u8, active_bwp_id: u8, dormant_bwp_id: Option<u8>) -> Result<Self, SCellError> {
+    pub fn new(
+        scell_id: u8,
+        active_bwp_id: u8,
+        dormant_bwp_id: Option<u8>,
+    ) -> Result<Self, SCellError> {
         if scell_id == 0 || scell_id > MAX_SCELLS as u8 {
             return Err(SCellError::InvalidSCellId(scell_id));
         }
@@ -286,7 +300,12 @@ impl SCellConfig {
         self
     }
 
-    pub fn with_power_profile(mut self, activated_mw: f64, dormant_mw: f64, deactivated_mw: f64) -> Self {
+    pub fn with_power_profile(
+        mut self,
+        activated_mw: f64,
+        dormant_mw: f64,
+        deactivated_mw: f64,
+    ) -> Self {
         self.power_activated_mw = activated_mw;
         self.power_dormant_mw = dormant_mw;
         self.power_deactivated_mw = deactivated_mw;
@@ -358,7 +377,8 @@ impl SCellTelemetry {
 
     /// Computes the ratio of time spent in power-saving states (Dormant + Deactivated).
     pub fn power_save_duty_cycle(&self) -> f64 {
-        let total = self.total_active_time_ms + self.total_dormant_time_ms + self.total_deactivated_time_ms;
+        let total =
+            self.total_active_time_ms + self.total_dormant_time_ms + self.total_deactivated_time_ms;
         if total == 0 {
             0.0
         } else {
@@ -400,7 +420,8 @@ impl FastSCellDormancyEngine {
             return Err(SCellError::SCellAlreadyExists(id));
         }
         let initial_bwp = config.first_active_bwp_id;
-        self.states.insert(id, SCellRuntimeState::new(id, initial_bwp));
+        self.states
+            .insert(id, SCellRuntimeState::new(id, initial_bwp));
         self.configs.insert(id, config);
         Ok(())
     }
@@ -441,8 +462,15 @@ impl FastSCellDormancyEngine {
         target_state: SCellState,
         cause: TransitionCause,
     ) -> Result<Option<SCellStateTransition>, SCellError> {
-        let config = self.configs.get(&scell_id).ok_or(SCellError::SCellNotFound(scell_id))?.clone();
-        let state = self.states.get_mut(&scell_id).ok_or(SCellError::SCellNotFound(scell_id))?;
+        let config = self
+            .configs
+            .get(&scell_id)
+            .ok_or(SCellError::SCellNotFound(scell_id))?
+            .clone();
+        let state = self
+            .states
+            .get_mut(&scell_id)
+            .ok_or(SCellError::SCellNotFound(scell_id))?;
 
         if state.current_state == target_state {
             // State is unchanged; however, receiving an activation command for an already active cell
@@ -505,7 +533,9 @@ impl FastSCellDormancyEngine {
                 SCellState::Dormant => self.telemetry.mac_ce_dormancy_switches += 1,
                 SCellState::Deactivated => self.telemetry.mac_ce_deactivations += 1,
             },
-            TransitionCause::DeactivationTimerExpiry => self.telemetry.deactivation_timer_expiries += 1,
+            TransitionCause::DeactivationTimerExpiry => {
+                self.telemetry.deactivation_timer_expiries += 1
+            }
             TransitionCause::DormancyTimerExpiry => self.telemetry.dormancy_timer_expiries += 1,
             _ => {}
         }
@@ -575,7 +605,11 @@ impl FastSCellDormancyEngine {
                     // Only transition cells that are not Deactivated (L1 DCI cannot awaken Deactivated cells per Rel-18)
                     if let Some(curr) = self.states.get(&scell_id) {
                         if curr.current_state != SCellState::Deactivated {
-                            if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                            if let Some(t) = self.perform_state_transition(
+                                scell_id,
+                                target_state,
+                                cause.clone(),
+                            )? {
                                 transitions.push(t);
                             }
                         }
@@ -607,7 +641,9 @@ impl FastSCellDormancyEngine {
                 if let Some(curr) = self.states.get(&scell_id) {
                     // L1 DCI switches between Dormant and Activated
                     if curr.current_state != SCellState::Deactivated {
-                        if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                        if let Some(t) =
+                            self.perform_state_transition(scell_id, target_state, cause.clone())?
+                        {
                             transitions.push(t);
                         }
                     }
@@ -640,7 +676,10 @@ impl FastSCellDormancyEngine {
         match lcid {
             LCID_SCELL_ACT_DEACT_1_OCTET => {
                 if payload.is_empty() {
-                    return Err(SCellError::MacCeBufferTooShort { expected: 1, actual: payload.len() });
+                    return Err(SCellError::MacCeBufferTooShort {
+                        expected: 1,
+                        actual: payload.len(),
+                    });
                 }
                 let byte = payload[0];
                 // Bits C7..C1 correspond to SCell ID 7..1. Bit 0 (R) is reserved.
@@ -652,7 +691,9 @@ impl FastSCellDormancyEngine {
                         SCellState::Deactivated
                     };
                     if self.configs.contains_key(&scell_id) {
-                        if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                        if let Some(t) =
+                            self.perform_state_transition(scell_id, target_state, cause.clone())?
+                        {
                             transitions.push(t);
                         }
                     }
@@ -661,7 +702,10 @@ impl FastSCellDormancyEngine {
 
             LCID_SCELL_ACT_DEACT_4_OCTET => {
                 if payload.len() < 4 {
-                    return Err(SCellError::MacCeBufferTooShort { expected: 4, actual: payload.len() });
+                    return Err(SCellError::MacCeBufferTooShort {
+                        expected: 4,
+                        actual: payload.len(),
+                    });
                 }
                 // 32-bit field: C31..C1, followed by R (or standard big-endian octet layout)
                 // In TS 38.321 §6.1.3.10:
@@ -687,7 +731,9 @@ impl FastSCellDormancyEngine {
                         SCellState::Deactivated
                     };
                     if self.configs.contains_key(&scell_id) {
-                        if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                        if let Some(t) =
+                            self.perform_state_transition(scell_id, target_state, cause.clone())?
+                        {
                             transitions.push(t);
                         }
                     }
@@ -696,7 +742,10 @@ impl FastSCellDormancyEngine {
 
             LCID_SCELL_DORMANCY_1_OCTET => {
                 if payload.is_empty() {
-                    return Err(SCellError::MacCeBufferTooShort { expected: 1, actual: payload.len() });
+                    return Err(SCellError::MacCeBufferTooShort {
+                        expected: 1,
+                        actual: payload.len(),
+                    });
                 }
                 let byte = payload[0];
                 // In TS 38.321 §6.1.3.35, 1-octet format:
@@ -706,7 +755,11 @@ impl FastSCellDormancyEngine {
                     let bits = (byte >> shift) & 0b11;
                     if let Some(target_state) = TwoBitState::from_bits(bits).to_scell_state() {
                         if self.configs.contains_key(&scell_id) {
-                            if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                            if let Some(t) = self.perform_state_transition(
+                                scell_id,
+                                target_state,
+                                cause.clone(),
+                            )? {
                                 transitions.push(t);
                             }
                         }
@@ -716,7 +769,10 @@ impl FastSCellDormancyEngine {
 
             LCID_SCELL_DORMANCY_4_OCTET => {
                 if payload.len() < 4 {
-                    return Err(SCellError::MacCeBufferTooShort { expected: 4, actual: payload.len() });
+                    return Err(SCellError::MacCeBufferTooShort {
+                        expected: 4,
+                        actual: payload.len(),
+                    });
                 }
                 // 4-octet format: 32 bits = 16 SCells (SCells 1..16), 2 bits each
                 for scell_id in 1..=16 {
@@ -726,7 +782,11 @@ impl FastSCellDormancyEngine {
                     let bits = (payload[byte_idx] >> shift) & 0b11;
                     if let Some(target_state) = TwoBitState::from_bits(bits).to_scell_state() {
                         if self.configs.contains_key(&scell_id) {
-                            if let Some(t) = self.perform_state_transition(scell_id, target_state, cause.clone())? {
+                            if let Some(t) = self.perform_state_transition(
+                                scell_id,
+                                target_state,
+                                cause.clone(),
+                            )? {
                                 transitions.push(t);
                             }
                         }
@@ -833,12 +893,15 @@ impl FastSCellDormancyEngine {
             // Global telemetry updates
             let energy_j = energy_mj / 1_000.0;
             self.telemetry.total_energy_consumed_joules += energy_j;
-            self.telemetry.baseline_energy_without_dormancy_joules += (config.power_activated_mw * delta_ms as f64) / 1_000.0;
+            self.telemetry.baseline_energy_without_dormancy_joules +=
+                (config.power_activated_mw * delta_ms as f64) / 1_000.0;
 
             match state.current_state {
                 SCellState::Activated => self.telemetry.total_active_time_ms += delta_ms as u64,
                 SCellState::Dormant => self.telemetry.total_dormant_time_ms += delta_ms as u64,
-                SCellState::Deactivated => self.telemetry.total_deactivated_time_ms += delta_ms as u64,
+                SCellState::Deactivated => {
+                    self.telemetry.total_deactivated_time_ms += delta_ms as u64
+                }
             }
 
             // 1. Check sCellDeactivationTimer
@@ -892,7 +955,10 @@ impl FastSCellDormancyEngine {
 
     /// Records a CQI and RSRP measurement on the SCell (even while in Dormant state).
     pub fn record_cqi(&mut self, scell_id: u8, cqi: u8, rsrp_dbm: f32) -> Result<(), SCellError> {
-        let state = self.states.get_mut(&scell_id).ok_or(SCellError::SCellNotFound(scell_id))?;
+        let state = self
+            .states
+            .get_mut(&scell_id)
+            .ok_or(SCellError::SCellNotFound(scell_id))?;
         state.last_reported_cqi = Some(cqi);
         state.last_rsrp_dbm = Some(rsrp_dbm);
 
@@ -908,7 +974,10 @@ impl FastSCellDormancyEngine {
     /// - If Dormant: 2-4 ms (fast L1 DCI activation with fresh channel state).
     /// - If Deactivated: 24-34 ms (cold start RF PLL lock + RRC sync).
     pub fn predict_activation_latency_ms(&self, scell_id: u8) -> Result<u32, SCellError> {
-        let state = self.states.get(&scell_id).ok_or(SCellError::SCellNotFound(scell_id))?;
+        let state = self
+            .states
+            .get(&scell_id)
+            .ok_or(SCellError::SCellNotFound(scell_id))?;
         match state.current_state {
             SCellState::Activated => Ok(0),
             SCellState::Dormant => Ok(L1_DCI_ACTIVATION_LATENCY_MS),
@@ -932,7 +1001,10 @@ impl FastSCellDormancyEngine {
     }
 
     /// Triggers traffic demand ramp-up, rapidly awakening a dormant or deactivated SCell.
-    pub fn request_traffic_activation(&mut self, scell_id: u8) -> Result<Option<SCellStateTransition>, SCellError> {
+    pub fn request_traffic_activation(
+        &mut self,
+        scell_id: u8,
+    ) -> Result<Option<SCellStateTransition>, SCellError> {
         self.perform_state_transition(
             scell_id,
             SCellState::Activated,

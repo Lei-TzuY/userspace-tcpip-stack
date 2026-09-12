@@ -161,7 +161,9 @@ impl Complex64 {
 pub fn invert_complex_matrix(mat: &[Vec<Complex64>]) -> Result<Vec<Vec<Complex64>>, MuMimoError> {
     let k = mat.len();
     if k == 0 || mat.iter().any(|row| row.len() != k) {
-        return Err(MuMimoError::LinearAlgebraError("Matrix must be non-empty square".into()));
+        return Err(MuMimoError::LinearAlgebraError(
+            "Matrix must be non-empty square".into(),
+        ));
     }
 
     // Augmented matrix [A | I]
@@ -184,7 +186,9 @@ pub fn invert_complex_matrix(mat: &[Vec<Complex64>]) -> Result<Vec<Vec<Complex64
         }
 
         if max_val < 1e-14 {
-            return Err(MuMimoError::LinearAlgebraError("Matrix is singular / non-invertible".into()));
+            return Err(MuMimoError::LinearAlgebraError(
+                "Matrix is singular / non-invertible".into(),
+            ));
         }
 
         // Swap rows
@@ -282,17 +286,38 @@ impl fmt::Display for MuMimoError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::LinearAlgebraError(msg) => write!(f, "MU-MIMO linear algebra error: {}", msg),
-            Self::InsufficientAntennas { required, available } => {
-                write!(f, "gNB antennas ({}) insufficient for paired users ({})", available, required)
+            Self::InsufficientAntennas {
+                required,
+                available,
+            } => {
+                write!(
+                    f,
+                    "gNB antennas ({}) insufficient for paired users ({})",
+                    available, required
+                )
             }
             Self::InvalidPrecodingScheme(val) => write!(f, "Invalid precoding scheme: {}", val),
-            Self::DmrsPortExhaustion { requested, max_ports } => {
-                write!(f, "Requested ports ({}) exceeds max orthogonal ports ({})", requested, max_ports)
+            Self::DmrsPortExhaustion {
+                requested,
+                max_ports,
+            } => {
+                write!(
+                    f,
+                    "Requested ports ({}) exceeds max orthogonal ports ({})",
+                    requested, max_ports
+                )
             }
             Self::SerializationError(msg) => write!(f, "MU-MIMO serialization error: {}", msg),
             Self::DeserializationError(msg) => write!(f, "MU-MIMO deserialization error: {}", msg),
-            Self::ChecksumMismatch { expected, calculated } => {
-                write!(f, "MU-MIMO CRC mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, calculated)
+            Self::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "MU-MIMO CRC mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, calculated
+                )
             }
         }
     }
@@ -384,18 +409,25 @@ impl MuMimoGrantFrame {
     /// Decodes from wire binary frame, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, MuMimoError> {
         if data.len() < 18 {
-            return Err(MuMimoError::DeserializationError("Buffer too short for MuMimoGrantFrame".into()));
+            return Err(MuMimoError::DeserializationError(
+                "Buffer too short for MuMimoGrantFrame".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(MuMimoError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(MuMimoError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x4D || data[1] != 0x55 || data[2] != 0x4D || data[3] != 0x12 {
-            return Err(MuMimoError::DeserializationError("Invalid MuMimoGrantFrame magic".into()));
+            return Err(MuMimoError::DeserializationError(
+                "Invalid MuMimoGrantFrame magic".into(),
+            ));
         }
 
         let cell_id = u16::from_be_bytes(data[4..6].try_into().unwrap());
@@ -410,7 +442,9 @@ impl MuMimoGrantFrame {
 
         for _ in 0..alloc_count {
             if offset + 19 > payload_len {
-                return Err(MuMimoError::DeserializationError("Truncated allocation record".into()));
+                return Err(MuMimoError::DeserializationError(
+                    "Truncated allocation record".into(),
+                ));
             }
             let ue_id = u32::from_be_bytes(data[offset..offset + 4].try_into().unwrap());
             let dmrs_port = u16::from_be_bytes(data[offset + 4..offset + 6].try_into().unwrap());
@@ -559,7 +593,9 @@ impl NrMuMimoEngine {
             if ue.channel_vector.len() != self.num_gnb_antennas {
                 return Err(MuMimoError::LinearAlgebraError(format!(
                     "UE {} channel length ({}) does not match gNB antennas ({})",
-                    idx, ue.channel_vector.len(), self.num_gnb_antennas
+                    idx,
+                    ue.channel_vector.len(),
+                    self.num_gnb_antennas
                 )));
             }
         }
@@ -576,7 +612,8 @@ impl NrMuMimoEngine {
         }
 
         let mut selected_indices = vec![best_idx];
-        let mut orthogonal_basis: Vec<Vec<Complex64>> = vec![candidates[best_idx].channel_vector.clone()];
+        let mut orthogonal_basis: Vec<Vec<Complex64>> =
+            vec![candidates[best_idx].channel_vector.clone()];
 
         // 2. Iteratively select remaining users
         while selected_indices.len() < max_k {
@@ -665,7 +702,10 @@ impl NrMuMimoEngine {
             return Ok(Vec::new());
         }
         if k > m {
-            return Err(MuMimoError::InsufficientAntennas { required: k, available: m });
+            return Err(MuMimoError::InsufficientAntennas {
+                required: k,
+                available: m,
+            });
         }
 
         match scheme {
@@ -688,7 +728,8 @@ impl NrMuMimoEngine {
                 let mut g = vec![vec![Complex64::ZERO; k]; k];
                 for i in 0..k {
                     for j in 0..k {
-                        g[i][j] = complex_vector_inner_product(&paired_channels[i], &paired_channels[j]);
+                        g[i][j] =
+                            complex_vector_inner_product(&paired_channels[i], &paired_channels[j]);
                     }
                 }
 
@@ -860,7 +901,11 @@ impl NrMuMimoEngine {
             su_benchmark_rate_mbps,
             capacity_gain_ratio: gain_ratio,
             fallback_to_su_mimo: fallback_to_su,
-            average_inter_user_leakage_db: if k > 0 { total_leakage_db / (k as f64) } else { -100.0 },
+            average_inter_user_leakage_db: if k > 0 {
+                total_leakage_db / (k as f64)
+            } else {
+                -100.0
+            },
         })
     }
 }

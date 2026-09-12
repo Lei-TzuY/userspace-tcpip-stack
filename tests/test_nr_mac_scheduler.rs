@@ -43,13 +43,24 @@ fn test_cqi_modulation_progression() {
         assert_eq!(table[cqi].modulation_order, 2, "CQI {} should be QPSK", cqi);
     }
     for cqi in 7..=9 {
-        assert_eq!(table[cqi].modulation_order, 4, "CQI {} should be 16QAM", cqi);
+        assert_eq!(
+            table[cqi].modulation_order, 4,
+            "CQI {} should be 16QAM",
+            cqi
+        );
     }
     for cqi in 10..=13 {
-        assert_eq!(table[cqi].modulation_order, 6, "CQI {} should be 64QAM", cqi);
+        assert_eq!(
+            table[cqi].modulation_order, 6,
+            "CQI {} should be 64QAM",
+            cqi
+        );
     }
     assert_eq!(table[14].modulation_order, 8, "CQI 14 should be 256QAM");
-    assert_eq!(table[15].modulation_order, 10, "CQI 15 should be 1024QAM (Rel-18)");
+    assert_eq!(
+        table[15].modulation_order, 10,
+        "CQI 15 should be 1024QAM (Rel-18)"
+    );
 }
 
 #[test]
@@ -59,7 +70,10 @@ fn test_spectral_efficiency_monotonic() {
         assert!(
             table[i].spectral_efficiency >= table[i - 1].spectral_efficiency,
             "Spectral efficiency should be monotonically increasing: CQI {} ({}) < CQI {} ({})",
-            i, table[i].spectral_efficiency, i - 1, table[i - 1].spectral_efficiency
+            i,
+            table[i].spectral_efficiency,
+            i - 1,
+            table[i - 1].spectral_efficiency
         );
     }
 }
@@ -234,9 +248,12 @@ fn test_harq_rv_cycling() {
     for (i, &expected_rv) in expected_rvs.iter().enumerate() {
         hp.nack();
         assert_eq!(
-            hp.rv, expected_rv,
+            hp.rv,
+            expected_rv,
             "After retx {}, RV should be {}, got {}",
-            i + 1, expected_rv, hp.rv
+            i + 1,
+            expected_rv,
+            hp.rv
         );
     }
 }
@@ -319,7 +336,10 @@ fn test_bsr_index_monotonic() {
         assert!(
             decode_bsr_index(i) > decode_bsr_index(i - 1),
             "BSR index {} ({}) should be > BSR index {} ({})",
-            i, decode_bsr_index(i), i - 1, decode_bsr_index(i - 1)
+            i,
+            decode_bsr_index(i),
+            i - 1,
+            decode_bsr_index(i - 1)
         );
     }
 }
@@ -388,7 +408,10 @@ fn test_rr_no_ues() {
 fn test_rr_single_ue() {
     let mut sched = MacScheduler::new(SchedulingAlgorithm::RoundRobin, 50, 156, 1);
     sched.add_ue(0x1001, 5);
-    sched.get_ue_mut(0x1001).unwrap().update_buffer_status(10000);
+    sched
+        .get_ue_mut(0x1001)
+        .unwrap()
+        .update_buffer_status(10000);
     sched.get_ue_mut(0x1001).unwrap().update_cqi(10);
 
     let result = sched.schedule_slot();
@@ -405,7 +428,10 @@ fn test_rr_multiple_ues_fair() {
 
     for i in 0..4u16 {
         sched.add_ue(0x1000 + i, 5);
-        sched.get_ue_mut(0x1000 + i).unwrap().update_buffer_status(50000);
+        sched
+            .get_ue_mut(0x1000 + i)
+            .unwrap()
+            .update_buffer_status(50000);
         sched.get_ue_mut(0x1000 + i).unwrap().update_cqi(10);
     }
 
@@ -414,8 +440,12 @@ fn test_rr_multiple_ues_fair() {
 
     // Each UE should get roughly 25 PRBs
     for grant in &result.grants {
-        assert!(grant.prb_count >= 20 && grant.prb_count <= 30,
-            "RNTI 0x{:04X} got {} PRBs, expected ~25", grant.rnti, grant.prb_count);
+        assert!(
+            grant.prb_count >= 20 && grant.prb_count <= 30,
+            "RNTI 0x{:04X} got {} PRBs, expected ~25",
+            grant.rnti,
+            grant.prb_count
+        );
     }
 }
 
@@ -426,7 +456,10 @@ fn test_rr_skip_empty_buffer() {
     sched.add_ue(0x1002, 5);
 
     // Only UE 0x1001 has data
-    sched.get_ue_mut(0x1001).unwrap().update_buffer_status(10000);
+    sched
+        .get_ue_mut(0x1001)
+        .unwrap()
+        .update_buffer_status(10000);
     sched.get_ue_mut(0x1001).unwrap().update_cqi(10);
 
     let result = sched.schedule_slot();
@@ -438,12 +471,18 @@ fn test_rr_skip_empty_buffer() {
 fn test_rr_skip_drx_inactive() {
     let mut sched = MacScheduler::new(SchedulingAlgorithm::RoundRobin, 50, 156, 1);
     sched.add_ue(0x1001, 5);
-    sched.get_ue_mut(0x1001).unwrap().update_buffer_status(10000);
+    sched
+        .get_ue_mut(0x1001)
+        .unwrap()
+        .update_buffer_status(10000);
     sched.get_ue_mut(0x1001).unwrap().update_cqi(10);
     sched.get_ue_mut(0x1001).unwrap().drx_state = DrxState::LongCycle;
 
     let result = sched.schedule_slot();
-    assert!(result.grants.is_empty(), "UE in DRX should not be scheduled");
+    assert!(
+        result.grants.is_empty(),
+        "UE in DRX should not be scheduled"
+    );
 }
 
 // ===========================================================================
@@ -456,13 +495,19 @@ fn test_pf_prioritizes_low_throughput() {
 
     // UE1: high CQI, high avg throughput → lower PF metric
     sched.add_ue(0x2001, 5);
-    sched.get_ue_mut(0x2001).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x2001)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x2001).unwrap().update_cqi(14);
     sched.get_ue_mut(0x2001).unwrap().avg_throughput = 10000.0;
 
     // UE2: lower CQI, low avg throughput → higher PF metric
     sched.add_ue(0x2002, 5);
-    sched.get_ue_mut(0x2002).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x2002)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x2002).unwrap().update_cqi(5);
     sched.get_ue_mut(0x2002).unwrap().avg_throughput = 1.0;
 
@@ -485,11 +530,17 @@ fn test_max_cqi_high_cqi_first() {
     let mut sched = MacScheduler::new(SchedulingAlgorithm::MaxCqi, 20, 156, 1);
 
     sched.add_ue(0x3001, 5);
-    sched.get_ue_mut(0x3001).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x3001)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x3001).unwrap().update_cqi(3); // Low CQI
 
     sched.add_ue(0x3002, 5);
-    sched.get_ue_mut(0x3002).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x3002)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x3002).unwrap().update_cqi(15); // High CQI
 
     let result = sched.schedule_slot();
@@ -508,12 +559,18 @@ fn test_qos_aware_prioritizes_high_priority() {
 
     // UE1: 5QI=9 (priority 90, low priority)
     sched.add_ue(0x4001, 9);
-    sched.get_ue_mut(0x4001).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x4001)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x4001).unwrap().update_cqi(10);
 
     // UE2: 5QI=1 (priority 20, high priority GBR)
     sched.add_ue(0x4002, 1);
-    sched.get_ue_mut(0x4002).unwrap().update_buffer_status(50000);
+    sched
+        .get_ue_mut(0x4002)
+        .unwrap()
+        .update_buffer_status(50000);
     sched.get_ue_mut(0x4002).unwrap().update_cqi(10);
 
     let result = sched.schedule_slot();
@@ -530,7 +587,10 @@ fn test_qos_aware_prioritizes_high_priority() {
 fn test_harq_ack_frees_process() {
     let mut sched = MacScheduler::new(SchedulingAlgorithm::RoundRobin, 50, 156, 1);
     sched.add_ue(0x5001, 5);
-    sched.get_ue_mut(0x5001).unwrap().update_buffer_status(100000);
+    sched
+        .get_ue_mut(0x5001)
+        .unwrap()
+        .update_buffer_status(100000);
     sched.get_ue_mut(0x5001).unwrap().update_cqi(10);
 
     // Schedule → uses HARQ 0
@@ -548,7 +608,10 @@ fn test_harq_ack_frees_process() {
 fn test_harq_nack_triggers_retx() {
     let mut sched = MacScheduler::new(SchedulingAlgorithm::RoundRobin, 50, 156, 1);
     sched.add_ue(0x5001, 5);
-    sched.get_ue_mut(0x5001).unwrap().update_buffer_status(100000);
+    sched
+        .get_ue_mut(0x5001)
+        .unwrap()
+        .update_buffer_status(100000);
     sched.get_ue_mut(0x5001).unwrap().update_cqi(10);
 
     // Schedule
@@ -559,7 +622,10 @@ fn test_harq_nack_triggers_retx() {
     // NACK
     sched.process_harq_feedback(0x5001, harq_id, false).unwrap();
     let ue = sched.get_ue(0x5001).unwrap();
-    assert_eq!(ue.harq_processes[harq_id as usize].state, HarqState::NackRetransmit);
+    assert_eq!(
+        ue.harq_processes[harq_id as usize].state,
+        HarqState::NackRetransmit
+    );
 
     // Next schedule should produce retransmission
     let result2 = sched.schedule_slot();
@@ -568,7 +634,11 @@ fn test_harq_nack_triggers_retx() {
     let retx_grant = result2.grants.iter().find(|g| g.harq_id == harq_id);
     assert!(retx_grant.is_some(), "Should retransmit HARQ {}", harq_id);
     assert!(retx_grant.unwrap().is_retransmission);
-    assert_eq!(retx_grant.unwrap().tbs_bits, original_tbs, "Retx TBS should match original");
+    assert_eq!(
+        retx_grant.unwrap().tbs_bits,
+        original_tbs,
+        "Retx TBS should match original"
+    );
 }
 
 #[test]
@@ -664,7 +734,8 @@ fn test_wire_pdu_invalid_magic() {
         num_grants: 0,
         payload: vec![0x01],
         crc16: 0,
-    }.serialize();
+    }
+    .serialize();
     wire[0] = 0xFF;
     assert!(MacSchedWirePdu::deserialize(&wire).is_err());
 }
@@ -677,7 +748,8 @@ fn test_wire_pdu_crc_corruption() {
         num_grants: 1,
         payload: vec![0x11, 0x22],
         crc16: 0,
-    }.serialize();
+    }
+    .serialize();
     let mut corrupted = wire.clone();
     let last = corrupted.len() - 1;
     corrupted[last] ^= 0xFF;
@@ -696,7 +768,11 @@ fn test_wire_pdu_truncated() {
 #[test]
 fn test_crc16_known() {
     let crc = compute_crc16(b"123456789");
-    assert_eq!(crc, 0x29B1, "CRC-16/CCITT of '123456789': got 0x{:04X}", crc);
+    assert_eq!(
+        crc, 0x29B1,
+        "CRC-16/CCITT of '123456789': got 0x{:04X}",
+        crc
+    );
 }
 
 // ===========================================================================
@@ -722,8 +798,14 @@ fn test_multi_slot_stability() {
 
     for i in 0..10u16 {
         sched.add_ue(0x1000 + i, 5);
-        sched.get_ue_mut(0x1000 + i).unwrap().update_buffer_status(100000);
-        sched.get_ue_mut(0x1000 + i).unwrap().update_cqi(7 + (i as u8 % 5));
+        sched
+            .get_ue_mut(0x1000 + i)
+            .unwrap()
+            .update_buffer_status(100000);
+        sched
+            .get_ue_mut(0x1000 + i)
+            .unwrap()
+            .update_cqi(7 + (i as u8 % 5));
     }
 
     // Run 100 slots without panicking

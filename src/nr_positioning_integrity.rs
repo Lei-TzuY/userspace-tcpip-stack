@@ -119,17 +119,36 @@ pub enum IntegrityError {
 impl fmt::Display for IntegrityError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InsufficientAnchors { available, required } => {
-                write!(f, "Available anchors ({}) insufficient for operation ({})", available, required)
+            Self::InsufficientAnchors {
+                available,
+                required,
+            } => {
+                write!(
+                    f,
+                    "Available anchors ({}) insufficient for operation ({})",
+                    available, required
+                )
             }
             Self::SingularGeometryMatrix => {
-                write!(f, "Geometry matrix is collinear / singular (DOP is infinite)")
+                write!(
+                    f,
+                    "Geometry matrix is collinear / singular (DOP is infinite)"
+                )
             }
             Self::InvalidStatus(val) => write!(f, "Invalid safety status: {}", val),
             Self::SerializationError(msg) => write!(f, "Integrity serialization error: {}", msg),
-            Self::DeserializationError(msg) => write!(f, "Integrity deserialization error: {}", msg),
-            Self::ChecksumMismatch { expected, calculated } => {
-                write!(f, "Integrity CRC mismatch: expected 0x{:04X}, calculated 0x{:04X}", expected, calculated)
+            Self::DeserializationError(msg) => {
+                write!(f, "Integrity deserialization error: {}", msg)
+            }
+            Self::ChecksumMismatch {
+                expected,
+                calculated,
+            } => {
+                write!(
+                    f,
+                    "Integrity CRC mismatch: expected 0x{:04X}, calculated 0x{:04X}",
+                    expected, calculated
+                )
             }
         }
     }
@@ -291,18 +310,25 @@ impl PositioningIntegrityReport {
     /// Decodes from wire format binary frame, verifying CRC-16 integrity.
     pub fn decode_wire(data: &[u8]) -> Result<Self, IntegrityError> {
         if data.len() < 36 {
-            return Err(IntegrityError::DeserializationError("Buffer too short for report".into()));
+            return Err(IntegrityError::DeserializationError(
+                "Buffer too short for report".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
         let expected_crc = u16::from_be_bytes([data[payload_len], data[payload_len + 1]]);
         let calculated_crc = compute_crc16(&data[..payload_len]);
         if expected_crc != calculated_crc {
-            return Err(IntegrityError::ChecksumMismatch { expected: expected_crc, calculated: calculated_crc });
+            return Err(IntegrityError::ChecksumMismatch {
+                expected: expected_crc,
+                calculated: calculated_crc,
+            });
         }
 
         if data[0] != 0x50 || data[1] != 0x49 || data[2] != 0x4E || data[3] != 0x12 {
-            return Err(IntegrityError::DeserializationError("Invalid report magic".into()));
+            return Err(IntegrityError::DeserializationError(
+                "Invalid report magic".into(),
+            ));
         }
 
         let ue_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -315,7 +341,9 @@ impl PositioningIntegrityReport {
 
         let trps_len = data[33] as usize;
         if data.len() != 34 + trps_len * 2 + 2 {
-            return Err(IntegrityError::DeserializationError("Payload length mismatch".into()));
+            return Err(IntegrityError::DeserializationError(
+                "Payload length mismatch".into(),
+            ));
         }
 
         let mut offset = 34;
@@ -377,7 +405,8 @@ impl PositioningIntegrityTelemetry {
         if self.total_epochs_evaluated == 0 {
             0.0
         } else {
-            ((self.safe_epochs + self.caution_epochs) as f64 / self.total_epochs_evaluated as f64) * 100.0
+            ((self.safe_epochs + self.caution_epochs) as f64 / self.total_epochs_evaluated as f64)
+                * 100.0
         }
     }
 }
@@ -526,12 +555,11 @@ impl NrPositioningIntegrityEngine {
                 accepted_ssr = compute_ssr(accepted_pos);
             }
 
-            let step = (
-                (accepted_pos[0] - pos[0]).powi(2)
+            let step = ((accepted_pos[0] - pos[0]).powi(2)
                 + (accepted_pos[1] - pos[1]).powi(2)
                 + (accepted_pos[2] - pos[2]).powi(2)
-                + (accepted_pos[3] - pos[3]).powi(2)
-            ).sqrt();
+                + (accepted_pos[3] - pos[3]).powi(2))
+            .sqrt();
 
             pos = accepted_pos;
             current_ssr = accepted_ssr;
@@ -601,7 +629,8 @@ impl NrPositioningIntegrityEngine {
 
         loop {
             let m = active_anchors.len();
-            let (pos, g_mat, cov, s_mat) = Self::solve_navigation_state(&active_anchors, initial_guess)?;
+            let (pos, g_mat, cov, s_mat) =
+                Self::solve_navigation_state(&active_anchors, initial_guess)?;
 
             // Calculate pseudorange residuals: r_i = y_i - pred_i
             let mut residuals = Vec::with_capacity(m);
@@ -640,7 +669,8 @@ impl NrPositioningIntegrityEngine {
                             g_s_ii += g_mat[i][k] * s_mat[k][i];
                         }
                         let p_ii = (1.0 - g_s_ii).max(0.01);
-                        let norm_res = (residuals[i] * residuals[i]) / (active_anchors[i].sigma_m.powi(2) * p_ii);
+                        let norm_res = (residuals[i] * residuals[i])
+                            / (active_anchors[i].sigma_m.powi(2) * p_ii);
 
                         if norm_res > max_norm_res {
                             max_norm_res = norm_res;

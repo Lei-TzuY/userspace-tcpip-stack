@@ -223,13 +223,8 @@ impl SidelinkIucEngine {
 
     /// Schedule own transmission on a specific slot and subchannel.
     pub fn schedule_own_transmission(&mut self, slot: u64, subchannel: u8) {
-        self.own_reservations.insert(
-            slot,
-            SidelinkSlotResource {
-                slot,
-                subchannel,
-            },
-        );
+        self.own_reservations
+            .insert(slot, SidelinkSlotResource { slot, subchannel });
     }
 
     // -----------------------------------------------------------------------
@@ -383,7 +378,8 @@ impl SidelinkIucEngine {
         }
 
         // 20% candidate fallback rule: if filtered candidates < 20% of original, revert to full set
-        let min_required = (candidate_resources.len() as f64 * self.config.min_candidate_ratio).ceil() as usize;
+        let min_required =
+            (candidate_resources.len() as f64 * self.config.min_candidate_ratio).ceil() as usize;
         if filtered.len() < min_required && !candidate_resources.is_empty() {
             candidate_resources.to_vec()
         } else {
@@ -449,7 +445,10 @@ impl SidelinkIucEngine {
         // Pick alternative candidate that avoids the colliding slot/subchannel
         let alternative = available_candidates
             .iter()
-            .find(|c| !(c.slot == conflict.colliding_slot && c.subchannel == conflict.colliding_subchannel))
+            .find(|c| {
+                !(c.slot == conflict.colliding_slot
+                    && c.subchannel == conflict.colliding_subchannel)
+            })
             .copied();
 
         if let Some(alt) = alternative {

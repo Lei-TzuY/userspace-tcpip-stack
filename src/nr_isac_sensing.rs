@@ -51,9 +51,15 @@ pub enum IsacSensingMode {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IsacMultiplexingMode {
     /// Time-Division Multiplexing: dedicated sensing slots interleaved with comm slots.
-    TimeDivision { sensing_slot_period: u16, sensing_slot_duration: u16 },
+    TimeDivision {
+        sensing_slot_period: u16,
+        sensing_slot_duration: u16,
+    },
     /// Frequency-Division Multiplexing: dedicated sensing PRB subband within BWP.
-    FrequencyDivision { sensing_start_prb: u16, sensing_num_prbs: u16 },
+    FrequencyDivision {
+        sensing_start_prb: u16,
+        sensing_num_prbs: u16,
+    },
     /// Opportunistic Sensing: piggybacking on DL CSI-RS / PRS reference symbols.
     ReferenceSignalReuse,
 }
@@ -74,28 +80,57 @@ pub enum IsacError {
     InvalidBandwidth(f64),
     InvalidSubcarrierSpacing(f64),
     ExceededMaxTargets(usize),
-    InsufficientSamples { required: usize, actual: usize },
-    TargetOutOfRange { range_m: f64, max_range_m: f64 },
-    VelocityAmbiguity { velocity_m_s: f64, max_velocity_m_s: f64 },
+    InsufficientSamples {
+        required: usize,
+        actual: usize,
+    },
+    TargetOutOfRange {
+        range_m: f64,
+        max_range_m: f64,
+    },
+    VelocityAmbiguity {
+        velocity_m_s: f64,
+        max_velocity_m_s: f64,
+    },
 }
 
 impl std::fmt::Display for IsacError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::InvalidBandwidth(bw) => write!(f, "Invalid sensing bandwidth: {:.2} MHz", bw / 1e6),
+            Self::InvalidBandwidth(bw) => {
+                write!(f, "Invalid sensing bandwidth: {:.2} MHz", bw / 1e6)
+            }
             Self::InvalidSubcarrierSpacing(scs) => {
                 write!(f, "Invalid subcarrier spacing: {:.1} kHz", scs / 1e3)
             }
             Self::ExceededMaxTargets(count) => {
-                write!(f, "Exceeded max sensing targets ({}/{})", count, MAX_ISAC_TARGETS)
+                write!(
+                    f,
+                    "Exceeded max sensing targets ({}/{})",
+                    count, MAX_ISAC_TARGETS
+                )
             }
             Self::InsufficientSamples { required, actual } => {
-                write!(f, "Insufficient samples for 2D FFT (required {}, got {})", required, actual)
+                write!(
+                    f,
+                    "Insufficient samples for 2D FFT (required {}, got {})",
+                    required, actual
+                )
             }
-            Self::TargetOutOfRange { range_m, max_range_m } => {
-                write!(f, "Target range {:.1} m exceeds max range {:.1} m", range_m, max_range_m)
+            Self::TargetOutOfRange {
+                range_m,
+                max_range_m,
+            } => {
+                write!(
+                    f,
+                    "Target range {:.1} m exceeds max range {:.1} m",
+                    range_m, max_range_m
+                )
             }
-            Self::VelocityAmbiguity { velocity_m_s, max_velocity_m_s } => {
+            Self::VelocityAmbiguity {
+                velocity_m_s,
+                max_velocity_m_s,
+            } => {
                 write!(
                     f,
                     "Target velocity {:.1} m/s exceeds max unambiguous velocity {:.1} m/s",
@@ -563,7 +598,11 @@ impl IsacSensingEngine {
             }
         }
 
-        detected.sort_by(|a, b| b.snr_db.partial_cmp(&a.snr_db).unwrap_or(std::cmp::Ordering::Equal));
+        detected.sort_by(|a, b| {
+            b.snr_db
+                .partial_cmp(&a.snr_db)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         detected
     }
 

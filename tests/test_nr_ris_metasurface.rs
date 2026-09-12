@@ -9,8 +9,8 @@
 //! 6. Geometric angle validations, grid bounds, and error handling.
 
 use toy_tcpip::nr_ris_metasurface::{
-    ComplexPhasor, MetasurfaceArrayConfig, PhaseQuantization, PropagationRegime, RisEngine,
-    RisError, SphericalAngle, DEFAULT_RIS_CARRIER_FREQ_HZ, SPEED_OF_LIGHT_M_S,
+    ComplexPhasor, DEFAULT_RIS_CARRIER_FREQ_HZ, MetasurfaceArrayConfig, PhaseQuantization,
+    PropagationRegime, RisEngine, RisError, SPEED_OF_LIGHT_M_S, SphericalAngle,
 };
 
 #[test]
@@ -77,22 +77,19 @@ fn test_quantization_efficiency_and_power_loss() {
     config.quantization = PhaseQuantization::Continuous;
     let mut engine_cont = RisEngine::new(config.clone()).unwrap();
     engine_cont.optimize_coherent_alignment(direct, &gnb_to_ris, &ris_to_ue);
-    let (eff_cont, _) =
-        engine_cont.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
+    let (eff_cont, _) = engine_cont.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
 
     // 2. 2-bit phase
     config.quantization = PhaseQuantization::TwoBit;
     let mut engine_2bit = RisEngine::new(config.clone()).unwrap();
     engine_2bit.optimize_coherent_alignment(direct, &gnb_to_ris, &ris_to_ue);
-    let (eff_2bit, _) =
-        engine_2bit.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
+    let (eff_2bit, _) = engine_2bit.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
 
     // 3. 1-bit phase
     config.quantization = PhaseQuantization::OneBit;
     let mut engine_1bit = RisEngine::new(config).unwrap();
     engine_1bit.optimize_coherent_alignment(direct, &gnb_to_ris, &ris_to_ue);
-    let (eff_1bit, _) =
-        engine_1bit.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
+    let (eff_1bit, _) = engine_1bit.compute_effective_channel(direct, &gnb_to_ris, &ris_to_ue);
 
     let p_cont = eff_cont.norm_sqr();
     let p_2bit = eff_2bit.norm_sqr();
@@ -102,10 +99,7 @@ fn test_quantization_efficiency_and_power_loss() {
         p_cont >= p_2bit,
         "Continuous phase must be upper bound of 2-bit"
     );
-    assert!(
-        p_2bit >= p_1bit,
-        "2-bit phase must outperform 1-bit phase"
-    );
+    assert!(p_2bit >= p_1bit, "2-bit phase must outperform 1-bit phase");
 
     // 2-bit power should retain at least 80% of continuous power (~-0.9 dB)
     let ratio_2bit = p_2bit / p_cont;

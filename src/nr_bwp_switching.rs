@@ -136,7 +136,10 @@ pub enum BwpRole {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BwpSwitchingTrigger {
     /// DCI Format 0_1 / 1_1 Bandwidth Part Indicator field.
-    DciIndicator { target_bwp_id: u8, dci_format: String },
+    DciIndicator {
+        target_bwp_id: u8,
+        dci_format: String,
+    },
     /// `bwp-InactivityTimer` expiration fallback to default BWP.
     InactivityTimerExpiry,
     /// Fallback to initial BWP due to RACH initiation on a BWP lacking PRACH resources.
@@ -300,10 +303,16 @@ impl fmt::Display for BwpError {
         match self {
             BwpError::BwpNotFound(id) => write!(f, "BWP ID {} not found in cell configuration", id),
             BwpError::BwpCapacityExceeded { max, attempted } => {
-                write!(f, "BWP capacity exceeded: max {}, attempted {}", max, attempted)
+                write!(
+                    f,
+                    "BWP capacity exceeded: max {}, attempted {}",
+                    max, attempted
+                )
             }
             BwpError::InvalidBwpId(id) => write!(f, "Invalid BWP ID: {}", id),
-            BwpError::InvalidRiv(riv) => write!(f, "Invalid Resource Indication Value (RIV): {}", riv),
+            BwpError::InvalidRiv(riv) => {
+                write!(f, "Invalid Resource Indication Value (RIV): {}", riv)
+            }
             BwpError::CarrierBoundaryExceeded { start, count, max } => write!(
                 f,
                 "BWP boundaries [{}, {}] exceed carrier PRB limit {}",
@@ -313,9 +322,16 @@ impl fmt::Display for BwpError {
             ),
             BwpError::SwitchingConflict(msg) => write!(f, "BWP switching conflict: {}", msg),
             BwpError::TransmissionDuringTransition(msg) => {
-                write!(f, "Transmission rejected during BWP transition gap: {}", msg)
+                write!(
+                    f,
+                    "Transmission rejected during BWP transition gap: {}",
+                    msg
+                )
             }
-            BwpError::ChecksumMismatch { expected, calculated } => write!(
+            BwpError::ChecksumMismatch {
+                expected,
+                calculated,
+            } => write!(
                 f,
                 "CRC-16 mismatch: expected 0x{:04X}, calculated 0x{:04X}",
                 expected, calculated
@@ -358,7 +374,9 @@ impl BwpSwitchingCommandPdu {
     /// Deserializes command from binary wire format, verifying magic and CRC-16.
     pub fn decode_wire(data: &[u8]) -> Result<Self, BwpError> {
         if data.len() < 13 {
-            return Err(BwpError::DeserializationError("Buffer too small for BWP command".into()));
+            return Err(BwpError::DeserializationError(
+                "Buffer too small for BWP command".into(),
+            ));
         }
 
         let payload_len = data.len() - 2;
@@ -372,7 +390,9 @@ impl BwpSwitchingCommandPdu {
         }
 
         if &data[0..4] != &BWP_WIRE_MAGIC {
-            return Err(BwpError::DeserializationError("Invalid BWP magic header".into()));
+            return Err(BwpError::DeserializationError(
+                "Invalid BWP magic header".into(),
+            ));
         }
 
         let cell_id = u32::from_be_bytes(data[4..8].try_into().unwrap());
@@ -496,7 +516,10 @@ impl NrBwpEngine {
     }
 
     /// Triggers a BWP switch based on specified trigger event per 3GPP TS 38.213 §12.
-    pub fn trigger_switch(&mut self, trigger: BwpSwitchingTrigger) -> Result<BwpSwitchingDelayType, BwpError> {
+    pub fn trigger_switch(
+        &mut self,
+        trigger: BwpSwitchingTrigger,
+    ) -> Result<BwpSwitchingDelayType, BwpError> {
         let target_id = match trigger {
             BwpSwitchingTrigger::DciIndicator { target_bwp_id, .. } => {
                 self.telemetry.dci_switches += 1;
@@ -527,8 +550,14 @@ impl NrBwpEngine {
             return Ok(BwpSwitchingDelayType::Type1);
         }
 
-        let current_bwp = self.bwps.get(&self.active_bwp_id).ok_or(BwpError::BwpNotFound(self.active_bwp_id))?;
-        let target_bwp = self.bwps.get(&target_id).ok_or(BwpError::BwpNotFound(target_id))?;
+        let current_bwp = self
+            .bwps
+            .get(&self.active_bwp_id)
+            .ok_or(BwpError::BwpNotFound(self.active_bwp_id))?;
+        let target_bwp = self
+            .bwps
+            .get(&target_id)
+            .ok_or(BwpError::BwpNotFound(target_id))?;
 
         // Determine delay type per TS 38.133 §8.6
         let delay_type = if current_bwp.scs == target_bwp.scs {

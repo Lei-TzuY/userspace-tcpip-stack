@@ -10,13 +10,12 @@
 //! - Binary wire framing (DciWirePdu) and CRC-16 CCITT integrity.
 
 use toy_tcpip::nr_dci_engine::{
-    align_dci_0_0_and_1_0, attach_crc24c_and_scramble_rnti, avoid_forbidden_size,
-    compute_crc24c, compute_num_rbgs, compute_riv_bits, decode_riv,
-    encode_riv, extract_scrambled_rnti, get_rbg_size, is_forbidden_dci_size,
-    rbg_bitmap_to_prbs, verify_crc24c_with_rnti, BitReader, BitWriter, DciError,
-    DciFormat0_0, DciFormat0_1, DciFormat1_0, DciFormat1_1, DciFormat2_0,
-    DciFormat2_1, DciFormat2_4, DciWireFormatType, DciWirePdu, FdResourceAllocation,
-    RbgSizeConfig, RntiType, MAX_NR_PRBS,
+    BitReader, BitWriter, DciError, DciFormat0_0, DciFormat0_1, DciFormat1_0, DciFormat1_1,
+    DciFormat2_0, DciFormat2_1, DciFormat2_4, DciWireFormatType, DciWirePdu, FdResourceAllocation,
+    MAX_NR_PRBS, RbgSizeConfig, RntiType, align_dci_0_0_and_1_0, attach_crc24c_and_scramble_rnti,
+    avoid_forbidden_size, compute_crc24c, compute_num_rbgs, compute_riv_bits, decode_riv,
+    encode_riv, extract_scrambled_rnti, get_rbg_size, is_forbidden_dci_size, rbg_bitmap_to_prbs,
+    verify_crc24c_with_rnti,
 };
 
 // ---------------------------------------------------------------------------
@@ -316,16 +315,16 @@ fn test_dci_format_0_1_roundtrip() {
     let mut reader = BitReader::new(writer.as_bit_slice());
     let dec = DciFormat0_1::deserialize(
         &mut reader,
-        true,  // has_carrier
-        true,  // has_bwp
-        true,  // fdra_type: Type 1 RIV
-        13,    // fdra_bits
-        2,     // sri_bits
-        4,     // tpmi_bits
-        4,     // csi_bits
-        8,     // cbgti_bits
-        true,  // has_ptrs
-        true,  // has_beta
+        true, // has_carrier
+        true, // has_bwp
+        true, // fdra_type: Type 1 RIV
+        13,   // fdra_bits
+        2,    // sri_bits
+        4,    // tpmi_bits
+        4,    // csi_bits
+        8,    // cbgti_bits
+        true, // has_ptrs
+        true, // has_beta
     )
     .unwrap();
 

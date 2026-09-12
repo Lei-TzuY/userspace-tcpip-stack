@@ -84,7 +84,11 @@ impl Vector3D {
     }
 
     pub fn zero() -> Self {
-        Self { x: 0.0, y: 0.0, z: 0.0 }
+        Self {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        }
     }
 
     pub fn norm(&self) -> f64 {
@@ -238,7 +242,11 @@ pub struct GroundUeLocation {
 
 impl GroundUeLocation {
     pub fn new(lat_deg: f64, lon_deg: f64, alt_m: f64) -> Self {
-        Self { lat_deg, lon_deg, alt_m }
+        Self {
+            lat_deg,
+            lon_deg,
+            alt_m,
+        }
     }
 
     /// Convert to ECEF position vector.
@@ -269,7 +277,10 @@ impl GroundUeLocation {
 pub enum NtnBeamType {
     /// Phased-array steers beam to fixed ground cell coordinates.
     /// Handover occurs when satellite drops below minimum elevation.
-    EarthFixed { cell_center_lat_deg: f64, cell_center_lon_deg: f64 },
+    EarthFixed {
+        cell_center_lat_deg: f64,
+        cell_center_lon_deg: f64,
+    },
     /// Fixed antenna pattern moves across Earth's surface with satellite ground velocity (~7 km/s).
     /// Handover occurs frequently as beam sweeps past UE.
     EarthMoving { beam_radius_km: f64 },
@@ -528,10 +539,19 @@ impl NtnMobilityEngine {
                 NtnChoExecutionCondition::ElevationThreshold { min_elevation_deg } => {
                     current_serving_el <= *min_elevation_deg
                 }
-                NtnChoExecutionCondition::LocationBased { max_distance_to_cell_center_m } => {
+                NtnChoExecutionCondition::LocationBased {
+                    max_distance_to_cell_center_m,
+                } => {
                     match self.beam_type {
-                        NtnBeamType::EarthFixed { cell_center_lat_deg, cell_center_lon_deg } => {
-                            let center = GroundUeLocation::new(cell_center_lat_deg, cell_center_lon_deg, 0.0);
+                        NtnBeamType::EarthFixed {
+                            cell_center_lat_deg,
+                            cell_center_lon_deg,
+                        } => {
+                            let center = GroundUeLocation::new(
+                                cell_center_lat_deg,
+                                cell_center_lon_deg,
+                                0.0,
+                            );
                             let dist = self.ue_location.to_ecef().sub(&center.to_ecef()).norm();
                             dist >= *max_distance_to_cell_center_m
                         }

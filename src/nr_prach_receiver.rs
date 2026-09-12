@@ -167,7 +167,10 @@ impl Complex64 {
     }
 
     pub fn conj(&self) -> Self {
-        Self { re: self.re, im: -self.im }
+        Self {
+            re: self.re,
+            im: -self.im,
+        }
     }
 
     pub fn mul(&self, rhs: &Complex64) -> Self {
@@ -330,7 +333,7 @@ pub struct DetectedPreamble {
     pub cyclic_shift: usize,
     pub peak_power: f64,
     pub noise_floor: f64,
-    pub pnr_db: f64,             // Peak-to-Noise Ratio in dB
+    pub pnr_db: f64, // Peak-to-Noise Ratio in dB
     pub estimated_delay_samples: f64,
     pub timing_advance_index: u16, // 12-bit N_TA (0..3846)
 }

@@ -57,22 +57,40 @@ pub enum PagingError {
 impl fmt::Display for PagingError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::InvalidDrxCycle(t) => write!(f, "Invalid DRX cycle T: {} frames (must be 32, 64, 128, or 256)", t),
+            Self::InvalidDrxCycle(t) => write!(
+                f,
+                "Invalid DRX cycle T: {} frames (must be 32, 64, 128, or 256)",
+                t
+            ),
             Self::InvalidNParameter { n, t } => {
-                write!(f, "Invalid N: {} for DRX cycle T: {} (must divide T evenly)", n, t)
+                write!(
+                    f,
+                    "Invalid N: {} for DRX cycle T: {} (must divide T evenly)",
+                    n, t
+                )
             }
             Self::InvalidNsParameter(ns) => write!(f, "Invalid Ns: {} (must be 1, 2, or 4)", ns),
             Self::InvalidPfOffset { offset, t } => {
                 write!(f, "Invalid PF offset: {} (must be < T: {})", offset, t)
             }
             Self::InvalidSfn(sfn) => write!(f, "Invalid SFN: {} (must be < 1024)", sfn),
-            Self::InvalidSubgroupCount(c) => write!(f, "Invalid subgroup count: {} (must be 1, 2, 4, or 8)", c),
+            Self::InvalidSubgroupCount(c) => {
+                write!(f, "Invalid subgroup count: {} (must be 1, 2, 4, or 8)", c)
+            }
             Self::InvalidWireMagic(m) => write!(f, "Invalid wire magic: 0x{:08X}", m),
             Self::WirePayloadTooShort { needed, found } => {
-                write!(f, "Wire payload too short: needed {} bytes, found {}", needed, found)
+                write!(
+                    f,
+                    "Wire payload too short: needed {} bytes, found {}",
+                    needed, found
+                )
             }
             Self::WireCrcMismatch { expected, computed } => {
-                write!(f, "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}", expected, computed)
+                write!(
+                    f,
+                    "Wire CRC-16 mismatch: expected 0x{:04X}, computed 0x{:04X}",
+                    expected, computed
+                )
             }
         }
     }
@@ -131,7 +149,10 @@ impl PagingConfig {
             return Err(PagingError::InvalidNParameter { n, t });
         }
         if pf_offset >= t {
-            return Err(PagingError::InvalidPfOffset { offset: pf_offset, t });
+            return Err(PagingError::InvalidPfOffset {
+                offset: pf_offset,
+                t,
+            });
         }
         Ok(Self {
             drx_cycle,
@@ -186,11 +207,7 @@ pub fn compute_po_index(config: &PagingConfig, ue_id: u16) -> u8 {
 
 /// Finds the next Paging Frame SFN $\ge \text{current\_sfn}$ (handling 1024-frame wrap-around):
 /// Returns `(next_pf_sfn, po_index)`.
-pub fn next_paging_frame(
-    current_sfn: u16,
-    config: &PagingConfig,
-    ue_id: u16,
-) -> (u16, u8) {
+pub fn next_paging_frame(current_sfn: u16, config: &PagingConfig, ue_id: u16) -> (u16, u8) {
     let t = config.drx_cycle.frames();
     let n = config.n;
     let target_mod = ((t / n) * (ue_id % n)) % t;
@@ -295,7 +312,10 @@ pub struct PagingRecord {
 }
 
 /// Checks if a list of PagingRecords contains a page for the UE.
-pub fn check_paging_records(records: &[PagingRecord], my_identity: UePagingIdentity) -> Option<PagingCause> {
+pub fn check_paging_records(
+    records: &[PagingRecord],
+    my_identity: UePagingIdentity,
+) -> Option<PagingCause> {
     for rec in records {
         if rec.ue_identity == my_identity {
             return Some(rec.paging_cause);

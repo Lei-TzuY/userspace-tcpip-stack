@@ -1,10 +1,9 @@
 //! Integration tests for 3GPP Rel-18/19 SS/PBCH Block (SSB), MIB & Beam Sweeping Engine.
 
 use toy_tcpip::nr_ssb_pbch::{
-    generate_pbch_dmrs, generate_pss, generate_sss, PbchPayload, PhysicalCellId,
-    SsbBeamMeasurement, SsbBurstManager, SsbCase, SsbLMax, SsbMib, SsbReType,
-    SsbResourceGrid, SsbWirePdu, PBCH_TOTAL_DATA_RES, PBCH_TOTAL_DMRS_RES, SSB_NUM_SUBCARRIERS,
-    SSB_WIRE_MAGIC, SYNC_SEQUENCE_LENGTH,
+    PBCH_TOTAL_DATA_RES, PBCH_TOTAL_DMRS_RES, PbchPayload, PhysicalCellId, SSB_NUM_SUBCARRIERS,
+    SSB_WIRE_MAGIC, SYNC_SEQUENCE_LENGTH, SsbBeamMeasurement, SsbBurstManager, SsbCase, SsbLMax,
+    SsbMib, SsbReType, SsbResourceGrid, SsbWirePdu, generate_pbch_dmrs, generate_pss, generate_sss,
 };
 
 #[test]
@@ -56,9 +55,21 @@ fn test_pss_m_sequence_orthogonality_and_properties() {
     assert_eq!(auto_corr2, 127);
 
     // Cross-correlation between different PSS sequences = -1 (ideal m-sequence property)
-    let cross_corr01 = pss0.iter().zip(pss1.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum::<i32>();
-    let cross_corr02 = pss0.iter().zip(pss2.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum::<i32>();
-    let cross_corr12 = pss1.iter().zip(pss2.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum::<i32>();
+    let cross_corr01 = pss0
+        .iter()
+        .zip(pss1.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum::<i32>();
+    let cross_corr02 = pss0
+        .iter()
+        .zip(pss2.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum::<i32>();
+    let cross_corr12 = pss1
+        .iter()
+        .zip(pss2.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum::<i32>();
 
     assert_eq!(cross_corr01, -1);
     assert_eq!(cross_corr02, -1);
@@ -78,7 +89,11 @@ fn test_sss_gold_sequence_and_pci_generation() {
     assert_eq!(auto_corr, 127);
 
     // Low cross-correlation between different Gold sequences
-    let cross_corr = sss_a.iter().zip(sss_b.iter()).map(|(&a, &b)| (a as i32) * (b as i32)).sum::<i32>();
+    let cross_corr = sss_a
+        .iter()
+        .zip(sss_b.iter())
+        .map(|(&a, &b)| (a as i32) * (b as i32))
+        .sum::<i32>();
     assert!(cross_corr.abs() < 35); // Gold sequence cross-correlation bounded
 }
 
@@ -137,8 +152,14 @@ fn test_ssb_resource_grid_re_allocation_counts() {
     // Verify exact RE counts according to 3GPP TS 38.211 Table 7.4.3.1-1
     assert_eq!(ssb_grid.count_re_type(SsbReType::Pss), 127);
     assert_eq!(ssb_grid.count_re_type(SsbReType::Sss), 127);
-    assert_eq!(ssb_grid.count_re_type(SsbReType::PbchDmrs), PBCH_TOTAL_DMRS_RES); // 144
-    assert_eq!(ssb_grid.count_re_type(SsbReType::PbchData), PBCH_TOTAL_DATA_RES); // 432
+    assert_eq!(
+        ssb_grid.count_re_type(SsbReType::PbchDmrs),
+        PBCH_TOTAL_DMRS_RES
+    ); // 144
+    assert_eq!(
+        ssb_grid.count_re_type(SsbReType::PbchData),
+        PBCH_TOTAL_DATA_RES
+    ); // 432
     assert_eq!(ssb_grid.count_re_type(SsbReType::Reserved), 17); // 8 + 9 in symbol 2
     assert_eq!(ssb_grid.count_re_type(SsbReType::Empty), 113); // 56 + 57 in symbol 0
 
@@ -174,11 +195,31 @@ fn test_beam_sweeping_burst_and_best_beam_selection() {
     assert!(manager.is_ssb_transmitted(4));
 
     let measurements = vec![
-        SsbBeamMeasurement { ssb_index: 0, ss_rsrp_dbm: -95.0, ss_rsrq_db: -12.0 },
-        SsbBeamMeasurement { ssb_index: 1, ss_rsrp_dbm: -82.0, ss_rsrq_db: -9.0 },
-        SsbBeamMeasurement { ssb_index: 2, ss_rsrp_dbm: -88.0, ss_rsrq_db: -10.5 },
-        SsbBeamMeasurement { ssb_index: 3, ss_rsrp_dbm: -75.0, ss_rsrq_db: -6.0 }, // highest RSRP but NOT transmitted!
-        SsbBeamMeasurement { ssb_index: 4, ss_rsrp_dbm: -80.0, ss_rsrq_db: -8.0 },
+        SsbBeamMeasurement {
+            ssb_index: 0,
+            ss_rsrp_dbm: -95.0,
+            ss_rsrq_db: -12.0,
+        },
+        SsbBeamMeasurement {
+            ssb_index: 1,
+            ss_rsrp_dbm: -82.0,
+            ss_rsrq_db: -9.0,
+        },
+        SsbBeamMeasurement {
+            ssb_index: 2,
+            ss_rsrp_dbm: -88.0,
+            ss_rsrq_db: -10.5,
+        },
+        SsbBeamMeasurement {
+            ssb_index: 3,
+            ss_rsrp_dbm: -75.0,
+            ss_rsrq_db: -6.0,
+        }, // highest RSRP but NOT transmitted!
+        SsbBeamMeasurement {
+            ssb_index: 4,
+            ss_rsrp_dbm: -80.0,
+            ss_rsrq_db: -8.0,
+        },
     ];
 
     // Select best beam with threshold -90 dBm
