@@ -165,12 +165,15 @@ fn packet(source_port: u16) -> Vec<u8> {
 
 fn run_forward() -> Result<(), String> {
     let mut stack = stack();
-    let packet = packet(40_000);
-    let parsed = Ipv4Packet::parse(&packet, true).map_err(|error| error.to_string())?;
-    let selected = resilient_route(&stack, &parsed)
-        .ok_or_else(|| "no route".to_string())?
-        .clone();
-    let selected_gateway = selected.gateway.ok_or_else(|| "no gateway".to_string())?;
+    let (packet, selected_gateway) = (40_000u16..40_256)
+        .find_map(|source_port| {
+            let candidate = packet(source_port);
+            let parsed = Ipv4Packet::parse(&candidate, true).ok()?;
+            let selected_gateway = resilient_route(&stack, &parsed)?.gateway?;
+            let legacy_gateway = stack.routing_table.lookup(parsed.header.dst_ip)?.gateway?;
+            (selected_gateway != legacy_gateway).then_some((candidate, selected_gateway))
+        })
+        .ok_or_else(|| "no flow distinguishes resilient ECMP from plain lookup".to_string())?;
 
     let withdrawn = [
         Ipv4Address::new(192, 0, 2, 1),
@@ -200,10 +203,19 @@ fn run_forward() -> Result<(), String> {
         return Err("route changed unexpectedly".to_string());
     }
 
-    let frame = send_resilient_ipv4(&mut stack, packet)?;
+    let expected_mac = stack
+        .arp_table
+        .lookup(&selected_gateway.0)
+        .ok_or_else(|| "selected gateway has no ARP entry".to_string())?;
+    let frame = stack
+        .send_ip_packet(reparsed.header.dst_ip, packet)
+        .ok_or_else(|| "production send path returned no frame".to_string())?;
     let ethernet = EthernetFrame::parse(&frame).map_err(|error| error.to_string())?;
     if ethernet.ethertype != EtherType::IPv4 {
         return Err("unexpected ethertype".to_string());
+    }
+    if ethernet.dst_mac != expected_mac {
+        return Err("production send path did not use resilient ECMP next hop".to_string());
     }
     Ok(())
 }
