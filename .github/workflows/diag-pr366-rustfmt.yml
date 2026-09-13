@@ -1,0 +1,32 @@
+name: diag-pr366-rustfmt
+on:
+  push:
+    branches:
+      - diag/pr366-rustfmt
+permissions:
+  contents: write
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: diag/pr366-rustfmt
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Apply rustfmt
+        run: cargo fmt --all
+      - name: Commit formatter result
+        shell: bash
+        run: |
+          if git diff --quiet -- src/router.rs; then
+            echo "router.rs already formatted"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/router.rs
+          git commit -m "diag: capture rustfmt output"
+          git push origin HEAD:diag/pr366-rustfmt
