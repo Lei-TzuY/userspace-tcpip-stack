@@ -89,12 +89,8 @@ fn run_fragment_arp_cycle() -> Result<(), String> {
     }
 
     let gateway_mac = MacAddress::new([0x02, 0, 0, 0, 2, next_hop.0[3]]);
-    let reply = ArpPacket::build_reply(
-        gateway_mac,
-        next_hop.0,
-        stack.config.mac,
-        stack.config.ip.0,
-    );
+    let reply =
+        ArpPacket::build_reply(gateway_mac, next_hop.0, stack.config.mac, stack.config.ip.0);
     let reply_frame = EthernetFrame::serialize(
         stack.config.mac,
         gateway_mac,
