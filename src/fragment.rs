@@ -152,6 +152,15 @@ impl IpReassemblyBuffer {
             identification,
         };
 
+        // RFC 791 encodes offsets in 8-octet units, so every fragment except
+        // the final one must carry a payload whose length is a multiple of 8.
+        // Enforce this at the reassembly API boundary too, not only in the wire
+        // parser, because callers may feed decoded fragment metadata directly.
+        if more_fragments && payload.len() % 8 != 0 {
+            self.remove_buffer(&key);
+            return None;
+        }
+
         // Reject inconsistent terminal lengths and conflicting overlaps. Once a
         // datagram has a final fragment, no fragment may extend beyond that end;
         // likewise, a newly arrived final fragment cannot truncate data already
@@ -346,6 +355,32 @@ mod tests {
 
     fn dst() -> Ipv4Address {
         Ipv4Address::new(198, 51, 100, 1)
+    }
+
+    #[test]
+    fn reassembly_rejects_misaligned_non_final_fragment_and_discards_datagram() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x1010;
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, true, &[2u8; 7]),
+            None
+        );
+        assert_eq!(reassembly.buffered_bytes, 0);
+
+        // The malformed datagram is discarded, so the same key can be reused.
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[3u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[4u8; 3]),
+            Some([&[3u8; 8][..], &[4u8; 3][..]].concat())
+        );
     }
 
     #[test]
