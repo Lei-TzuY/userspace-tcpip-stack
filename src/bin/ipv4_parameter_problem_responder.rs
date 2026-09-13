@@ -77,7 +77,10 @@ fn build_parameter_problem_reply(
 }
 
 fn decode_hex(input: &str) -> Result<Vec<u8>, String> {
-    let compact: String = input.chars().filter(|ch| !ch.is_ascii_whitespace()).collect();
+    let compact: String = input
+        .chars()
+        .filter(|ch| !ch.is_ascii_whitespace())
+        .collect();
     if !compact.len().is_multiple_of(2) {
         return Err("hex input must contain an even number of digits".to_string());
     }
@@ -103,7 +106,10 @@ fn run() -> Result<(), String> {
     let mut args = env::args().skip(1);
     let local_mac = args
         .next()
-        .ok_or_else(|| "usage: ipv4_parameter_problem_responder <local-mac> <local-ip> <ethernet-frame-hex>".to_string())?
+        .ok_or_else(|| {
+            "usage: ipv4_parameter_problem_responder <local-mac> <local-ip> <ethernet-frame-hex>"
+                .to_string()
+        })?
         .parse::<MacAddress>()?;
     let local_ip = args
         .next()
@@ -176,7 +182,10 @@ mod tests {
         assert_eq!(icmp.code, 0);
         assert_eq!(ipv4.payload[4], 6);
         assert_eq!(&ipv4.payload[5..8], &[0, 0, 0]);
-        assert_eq!(&ipv4.payload[8..], &EthernetFrame::parse(&frame).unwrap().payload[..28]);
+        assert_eq!(
+            &ipv4.payload[8..],
+            &EthernetFrame::parse(&frame).unwrap().payload[..28]
+        );
     }
 
     #[test]
