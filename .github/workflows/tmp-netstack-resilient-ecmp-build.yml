@@ -1,0 +1,128 @@
+name: Temporary NetStack resilient ECMP build
+
+on:
+  push:
+    branches:
+      - tmp/netstack-resilient-ecmp-build
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 0
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Patch production path and regression probe
+        shell: python
+        run: |
+          from pathlib import Path
+
+          stack_path = Path('src/stack.rs')
+          text = stack_path.read_text()
+          old_import = 'use crate::router::{RouteSource, RoutingTable};'
+          new_import = 'use crate::router::{Ipv4FlowKey, RouteSource, RoutingTable};'
+          if old_import in text:
+              text = text.replace(old_import, new_import, 1)
+
+          old = '''    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
+        let next_hop = if let Some(route) = self.routing_table.lookup(dst_ip) {
+            route.next_hop(dst_ip)
+        } else {
+            dst_ip
+        };
+'''
+          new = '''    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
+        // The explicit API destination remains authoritative. When the bytes are a
+        // matching IPv4 packet, derive stable transport entropy and use resilient
+        // rendezvous ECMP; malformed/mismatched raw bytes preserve the historical
+        // destination-only route lookup rather than changing this API into a validator.
+        let flow = Ipv4Packet::parse(&ip_bytes, false)
+            .ok()
+            .filter(|packet| packet.header.dst_ip == dst_ip)
+            .map(|packet| {
+                // Every fragment of one IPv4 datagram must follow the same ECMP member.
+                // Port fields exist only in the first fragment, so fragmented traffic
+                // deliberately falls back to address/protocol entropy for all fragments.
+                let fragmented = packet.header.more_fragments || packet.header.fragment_offset != 0;
+                let (source_port, destination_port) = if !fragmented
+                    && matches!(packet.header.protocol, IpProtocol::Tcp | IpProtocol::Udp)
+                    && packet.payload.len() >= 4
+                {
+                    (
+                        u16::from_be_bytes([packet.payload[0], packet.payload[1]]),
+                        u16::from_be_bytes([packet.payload[2], packet.payload[3]]),
+                    )
+                } else {
+                    (0, 0)
+                };
+                Ipv4FlowKey::new(
+                    packet.header.src_ip,
+                    dst_ip,
+                    packet.header.protocol.to_u8(),
+                    source_port,
+                    destination_port,
+                )
+            });
+
+        let route = flow
+            .and_then(|flow| self.routing_table.lookup_resilient_route_for_flow(flow))
+            .or_else(|| self.routing_table.lookup(dst_ip));
+        let next_hop = route.map_or(dst_ip, |route| route.next_hop(dst_ip));
+'''
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('send_ip_packet anchor not found')
+          stack_path.write_text(text)
+
+          probe_path = Path('src/bin/netstack_ipv4_ecmp_forward.rs')
+          probe = probe_path.read_text()
+          old_probe = '''    let frame = send_resilient_ipv4(&mut stack, packet)?;
+    let ethernet = EthernetFrame::parse(&frame).map_err(|error| error.to_string())?;
+    if ethernet.ethertype != EtherType::IPv4 {
+        return Err("unexpected ethertype".to_string());
+    }
+'''
+          new_probe = '''    let expected_mac = stack
+        .arp_table
+        .lookup(&selected_gateway.0)
+        .ok_or_else(|| "selected gateway has no ARP entry".to_string())?;
+    let frame = stack
+        .send_ip_packet(reparsed.header.dst_ip, packet)
+        .ok_or_else(|| "production send path returned no frame".to_string())?;
+    let ethernet = EthernetFrame::parse(&frame).map_err(|error| error.to_string())?;
+    if ethernet.ethertype != EtherType::IPv4 {
+        return Err("unexpected ethertype".to_string());
+    }
+    if ethernet.dst_mac != expected_mac {
+        return Err("production send path did not use resilient ECMP next hop".to_string());
+    }
+'''
+          if old_probe in probe:
+              probe = probe.replace(old_probe, new_probe, 1)
+          elif new_probe not in probe:
+              raise SystemExit('probe anchor not found')
+          probe_path.write_text(probe)
+      - name: Format
+        run: cargo fmt --all
+      - name: Focused regression
+        run: cargo test --bin netstack_ipv4_ecmp_forward
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: Full tests
+        run: cargo test --all-targets
+      - name: Commit generated candidate
+        shell: bash
+        run: |
+          if git diff --quiet -- src/stack.rs src/bin/netstack_ipv4_ecmp_forward.rs; then
+            exit 0
+          fi
+          git config user.name LeiZ
+          git config user.email 52287354+Lei-TzuY@users.noreply.github.com
+          git add src/stack.rs src/bin/netstack_ipv4_ecmp_forward.rs
+          git commit -m 'feat(stack): route IPv4 flows with resilient ECMP'
+          git push
