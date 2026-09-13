@@ -656,13 +656,7 @@ mod tests {
             (Ipv4Address::new(10, 0, 0, 3), "wan-c"),
         ];
         for (gateway, interface) in members {
-            rt.add_multipath_route_from(
-                prefix,
-                24,
-                Some(gateway),
-                interface,
-                RouteSource::Static,
-            );
+            rt.add_multipath_route_from(prefix, 24, Some(gateway), interface, RouteSource::Static);
         }
 
         let flows: Vec<_> = (40_000..40_256)
@@ -678,13 +672,7 @@ mod tests {
             "fixture must exercise the member being withdrawn"
         );
 
-        assert!(rt.remove_route_via(
-            prefix,
-            24,
-            Some(removed),
-            members[0].1,
-            RouteSource::Static,
-        ));
+        assert!(rt.remove_route_via(prefix, 24, Some(removed), members[0].1, RouteSource::Static,));
 
         for (flow, previous_gateway) in flows.iter().zip(before) {
             let selected = rt.lookup_resilient_route_for_flow(*flow).unwrap();
