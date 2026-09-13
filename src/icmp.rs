@@ -215,16 +215,22 @@ impl<'a> IcmpPacket<'a> {
     /// Builds an ICMP Parameter Problem (Type 12, Code 0) message.
     ///
     /// The pointer identifies the octet in the invoking IPv4 header where the
-    /// problem was detected. RFC 792 requires the remaining three bytes of the
-    /// error header to be zero and quotes the original IPv4 header plus at least
-    /// its first eight payload bytes.
+    /// problem was detected. RFC 792 places it directly in byte 4 of the ICMP
+    /// error header, followed by three reserved zero bytes, then the quoted
+    /// original IPv4 header plus at least its first eight payload bytes.
     pub fn build_parameter_problem(pointer: u8, orig_datagram: &[u8]) -> Vec<u8> {
         let copy_len = ipv4_error_quote_len(orig_datagram);
-        let mut payload = Vec::with_capacity(4 + copy_len);
-        payload.push(pointer);
-        payload.extend_from_slice(&[0, 0, 0]);
-        payload.extend_from_slice(&orig_datagram[..copy_len]);
-        Self::serialize(ICMP_TYPE_PARAMETER_PROBLEM, 0, 0, 0, &payload)
+        let mut buf = Vec::with_capacity(ICMP_HEADER_LEN + copy_len);
+        buf.push(ICMP_TYPE_PARAMETER_PROBLEM);
+        buf.push(0); // Code 0: pointer indicates the error.
+        buf.extend_from_slice(&[0, 0]); // Checksum placeholder.
+        buf.push(pointer);
+        buf.extend_from_slice(&[0, 0, 0]);
+        buf.extend_from_slice(&orig_datagram[..copy_len]);
+
+        let csum = compute_checksum(&buf);
+        buf[2..4].copy_from_slice(&csum.to_be_bytes());
+        buf
     }
 }
 
@@ -286,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn parameter_problem_encodes_pointer_and_quotes_ipv4_options() {
+    fn parameter_problem_encodes_pointer_in_error_header_and_quotes_ipv4_options() {
         let mut original = vec![0u8; 40];
         original[0] = 0x47; // IPv4, IHL=7 => 28-byte header + 8 quoted payload bytes.
         for (index, byte) in original.iter_mut().enumerate().skip(1) {
@@ -298,7 +304,9 @@ mod tests {
 
         assert_eq!(parsed.icmp_type, IcmpType::ParameterProblem);
         assert_eq!(parsed.code, 0);
-        assert_eq!(&parsed.payload[..4], &[9, 0, 0, 0]);
-        assert_eq!(&parsed.payload[4..], &original[..36]);
+        assert_eq!(&raw[4..8], &[9, 0, 0, 0]);
+        assert_eq!(parsed.identifier, 0x0900);
+        assert_eq!(parsed.sequence_number, 0);
+        assert_eq!(parsed.payload, &original[..36]);
     }
 }
