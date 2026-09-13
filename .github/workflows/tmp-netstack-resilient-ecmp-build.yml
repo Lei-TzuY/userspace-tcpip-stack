@@ -77,8 +77,7 @@ jobs:
           s = p.read_text()
           if "production send path did not use resilient ECMP next hop" not in s:
               start = s.index("    let frame = send_resilient_ipv4(&mut stack, packet)?;")
-              end_marker = "    Ok(())\n"
-              end = s.index(end_marker, start)
+              end = s.index("    Ok(())\n", start)
               replacement = """    let expected_mac = stack
                   .arp_table
                   .lookup(&selected_gateway.0)
@@ -102,7 +101,23 @@ jobs:
       - name: Focused regression
         run: cargo test --bin netstack_ipv4_ecmp_forward
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- -D warnings
+        id: clippy
+        continue-on-error: true
+        run: |
+          set +e
+          cargo clippy --all-targets --all-features -- -D warnings > clippy-diagnostic.txt 2>&1
+          status=$?
+          cat clippy-diagnostic.txt
+          exit $status
+      - name: Persist Clippy diagnostic
+        if: steps.clippy.outcome == 'failure'
+        run: |
+          git config user.name LeiZ
+          git config user.email 52287354+Lei-TzuY@users.noreply.github.com
+          git add clippy-diagnostic.txt
+          git commit -m "chore: capture Clippy diagnostic [skip ci]"
+          git push
+          exit 1
       - name: Full tests
         run: cargo test --all-targets
       - name: Commit candidate
