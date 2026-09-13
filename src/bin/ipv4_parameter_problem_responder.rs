@@ -151,14 +151,8 @@ mod tests {
     const REMOTE_IP: Ipv4Address = Ipv4Address([192, 0, 2, 2]);
 
     fn malformed_reserved_flag(protocol: u8) -> Vec<u8> {
-        let mut datagram = Ipv4Packet::serialize(
-            REMOTE_IP,
-            LOCAL_IP,
-            protocol,
-            0x1234,
-            64,
-            &[0; 8],
-        );
+        let mut datagram =
+            Ipv4Packet::serialize(REMOTE_IP, LOCAL_IP, protocol, 0x1234, 64, &[0; 8]);
         datagram[6] |= 0x80;
         datagram[10..12].fill(0);
         let checksum = compute_checksum(&datagram[..20]);
