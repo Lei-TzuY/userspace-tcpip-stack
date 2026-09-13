@@ -847,36 +847,43 @@ impl NetStack {
         // matching IPv4 packets contribute stable flow entropy to resilient
         // ECMP; malformed or destination-mismatched bytes preserve the legacy
         // destination-only lookup.
-        let flow = Ipv4Packet::parse(&ip_bytes, false)
+        let route = Ipv4Packet::parse(&ip_bytes, false)
             .ok()
             .filter(|packet| packet.header.dst_ip == dst_ip)
-            .map(|packet| {
-                // Every fragment of one datagram must use one next hop. Since
-                // only the first fragment carries transport ports, fragmented
-                // traffic deliberately uses address/protocol entropy throughout.
+            .and_then(|packet| {
+                // Every fragment of one datagram must use one next hop. IPv4
+                // Identification supplies datagram-scoped entropy because only
+                // the first fragment carries transport ports.
                 let fragmented = packet.header.more_fragments || packet.header.fragment_offset != 0;
-                let (source_port, destination_port) = if !fragmented
-                    && matches!(packet.header.protocol, IpProtocol::Tcp | IpProtocol::Udp)
-                    && packet.payload.len() >= 4
-                {
-                    (
-                        u16::from_be_bytes([packet.payload[0], packet.payload[1]]),
-                        u16::from_be_bytes([packet.payload[2], packet.payload[3]]),
+                if fragmented {
+                    self.routing_table.lookup_resilient_route_for_fragment(
+                        packet.header.src_ip,
+                        dst_ip,
+                        packet.header.protocol.to_u8(),
+                        packet.header.identification,
                     )
                 } else {
-                    (0, 0)
-                };
-                Ipv4FlowKey::new(
-                    packet.header.src_ip,
-                    dst_ip,
-                    packet.header.protocol.to_u8(),
-                    source_port,
-                    destination_port,
-                )
-            });
-
-        let route = flow
-            .and_then(|flow| self.routing_table.lookup_resilient_route_for_flow(flow))
+                    let (source_port, destination_port) =
+                        if matches!(packet.header.protocol, IpProtocol::Tcp | IpProtocol::Udp)
+                            && packet.payload.len() >= 4
+                        {
+                            (
+                                u16::from_be_bytes([packet.payload[0], packet.payload[1]]),
+                                u16::from_be_bytes([packet.payload[2], packet.payload[3]]),
+                            )
+                        } else {
+                            (0, 0)
+                        };
+                    self.routing_table
+                        .lookup_resilient_route_for_flow(Ipv4FlowKey::new(
+                            packet.header.src_ip,
+                            dst_ip,
+                            packet.header.protocol.to_u8(),
+                            source_port,
+                            destination_port,
+                        ))
+                }
+            })
             .or_else(|| self.routing_table.lookup(dst_ip));
         let next_hop = route.map_or(dst_ip, |route| route.next_hop(dst_ip));
 

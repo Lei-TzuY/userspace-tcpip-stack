@@ -394,6 +394,20 @@ impl RoutingTable {
         self.lookup_best_route_by_hash(flow.destination, flow.stable_hash())
     }
 
+    fn lookup_resilient_route_by_hash(
+        &self,
+        destination: Ipv4Address,
+        flow_hash: u64,
+    ) -> Option<&RouteEntry> {
+        self.lookup_best_routes(destination)
+            .into_iter()
+            .max_by(|left, right| {
+                resilient_route_score(flow_hash, left)
+                    .cmp(&resilient_route_score(flow_hash, right))
+                    .then_with(|| route_identity_cmp(left, right))
+            })
+    }
+
     /// Selects one best equal-cost route with rendezvous hashing.
     ///
     /// Unlike modulo-based ECMP, removing one member only remaps flows that selected
@@ -401,14 +415,28 @@ impl RoutingTable {
     /// Route identity is part of the score so the result is independent of insertion
     /// order and remains deterministic across process restarts.
     pub fn lookup_resilient_route_for_flow(&self, flow: Ipv4FlowKey) -> Option<&RouteEntry> {
-        let flow_hash = flow.stable_hash();
-        self.lookup_best_routes(flow.destination)
-            .into_iter()
-            .max_by(|left, right| {
-                resilient_route_score(flow_hash, left)
-                    .cmp(&resilient_route_score(flow_hash, right))
-                    .then_with(|| route_identity_cmp(left, right))
-            })
+        self.lookup_resilient_route_by_hash(flow.destination, flow.stable_hash())
+    }
+
+    /// Selects a resilient ECMP route for every fragment of one IPv4 datagram.
+    ///
+    /// Transport ports are unavailable after the first fragment, so fragmented
+    /// traffic uses the IPv4 Identification field as datagram-scoped entropy.
+    /// Domain separation keeps fragment hashes distinct from ordinary 5-tuples
+    /// while all fragments sharing the same Identification retain one next hop.
+    pub fn lookup_resilient_route_for_fragment(
+        &self,
+        source: Ipv4Address,
+        destination: Ipv4Address,
+        protocol: u8,
+        identification: u16,
+    ) -> Option<&RouteEntry> {
+        let base_hash = Ipv4FlowKey::new(source, destination, protocol, 0, 0).stable_hash();
+        let fragment_hash = fnv1a_extend(
+            fnv1a_extend(base_hash, b"ipv4-fragment"),
+            &identification.to_be_bytes(),
+        );
+        self.lookup_resilient_route_by_hash(destination, fragment_hash)
     }
 
     /// Exact-prefix lookup, ignoring longest-prefix semantics.

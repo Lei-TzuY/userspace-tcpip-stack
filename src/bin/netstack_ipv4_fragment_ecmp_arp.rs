@@ -56,12 +56,11 @@ fn run_fragment_arp_cycle() -> Result<(), String> {
     let first = fragment_packet(src, dst, identification, 0, true, &first_payload);
     let later = fragment_packet(src, dst, identification, 2, false, &later_payload);
 
-    let flow = Ipv4FlowKey::new(src, dst, IP_PROTO_UDP, 0, 0);
     let next_hop = stack
         .routing_table
-        .lookup_resilient_route_for_flow(flow)
+        .lookup_resilient_route_for_fragment(src, dst, IP_PROTO_UDP, identification)
         .map(|route| route.next_hop(dst))
-        .ok_or_else(|| "missing resilient ECMP route".to_string())?;
+        .ok_or_else(|| "missing resilient fragment ECMP route".to_string())?;
 
     for fragment in [&first, &later] {
         let arp_request = stack
@@ -115,6 +114,33 @@ fn run_fragment_arp_cycle() -> Result<(), String> {
         .collect::<Result<_, _>>()?;
     if forwarded != [first, later] {
         return Err("ARP resolution did not flush both fragments in queue order".into());
+    }
+
+    // A different Identification value is a different fragmented datagram and
+    // must be eligible for a different resilient ECMP member. Search the finite
+    // IPv4 ID space for one that deterministically selects another gateway, then
+    // prove the production transmit path sends its ARP resolution there.
+    let (alternate_identification, alternate_hop) = (0..=u16::MAX)
+        .filter(|candidate| *candidate != identification)
+        .find_map(|candidate| {
+            stack
+                .routing_table
+                .lookup_resilient_route_for_fragment(src, dst, IP_PROTO_UDP, candidate)
+                .map(|route| (candidate, route.next_hop(dst)))
+                .filter(|(_, hop)| *hop != next_hop)
+        })
+        .ok_or_else(|| "fragment Identification did not add ECMP entropy".to_string())?;
+    let alternate = fragment_packet(src, dst, alternate_identification, 0, true, &first_payload);
+    let arp_request = stack
+        .send_ip_packet(dst, alternate)
+        .ok_or_else(|| "alternate fragmented datagram produced no frame".to_string())?;
+    let ethernet = EthernetFrame::parse(&arp_request).map_err(|error| error.to_string())?;
+    if ethernet.ethertype != EtherType::Arp {
+        return Err("alternate fragmented datagram did not trigger ARP".into());
+    }
+    let request = ArpPacket::parse(ethernet.payload).map_err(|error| error.to_string())?;
+    if request.target_ip != alternate_hop.0 {
+        return Err("production path ignored fragment Identification entropy".into());
     }
 
     Ok(())
