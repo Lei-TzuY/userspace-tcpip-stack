@@ -19,6 +19,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+
           p = Path("src/stack.rs")
           s = p.read_text()
           s = s.replace(
@@ -26,14 +27,11 @@ jobs:
               "use crate::router::{Ipv4FlowKey, RouteSource, RoutingTable};",
               1,
           )
-          old = """    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
-              let next_hop = if let Some(route) = self.routing_table.lookup(dst_ip) {
-                  route.next_hop(dst_ip)
-              } else {
-                  dst_ip
-              };
-          """
-          new = """    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
+          marker = "    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {"
+          if "lookup_resilient_route_for_flow(flow)" not in s:
+              start = s.index(marker)
+              body = s.index("        if let Some(dst_mac) = self.arp_table.lookup(&next_hop.0) {", start)
+              prefix = """    pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
               // Keep the explicit API destination authoritative. Valid matching IPv4
               // packets contribute stable transport entropy to resilient ECMP; raw or
               // mismatched bytes preserve the historical destination-only lookup.
@@ -70,22 +68,18 @@ jobs:
                   .and_then(|flow| self.routing_table.lookup_resilient_route_for_flow(flow))
                   .or_else(|| self.routing_table.lookup(dst_ip));
               let next_hop = route.map_or(dst_ip, |route| route.next_hop(dst_ip));
+
           """
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
-              raise SystemExit("send_ip_packet anchor not found")
+              s = s[:start] + prefix + s[body:]
           p.write_text(s)
 
           p = Path("src/bin/netstack_ipv4_ecmp_forward.rs")
           s = p.read_text()
-          old = """    let frame = send_resilient_ipv4(&mut stack, packet)?;
-              let ethernet = EthernetFrame::parse(&frame).map_err(|error| error.to_string())?;
-              if ethernet.ethertype != EtherType::IPv4 {
-                  return Err("unexpected ethertype".to_string());
-              }
-          """
-          new = """    let expected_mac = stack
+          if "production send path did not use resilient ECMP next hop" not in s:
+              start = s.index("    let frame = send_resilient_ipv4(&mut stack, packet)?;")
+              end_marker = "    Ok(())\n"
+              end = s.index(end_marker, start)
+              replacement = """    let expected_mac = stack
                   .arp_table
                   .lookup(&selected_gateway.0)
                   .ok_or_else(|| "selected gateway has no ARP entry".to_string())?;
@@ -100,10 +94,7 @@ jobs:
                   return Err("production send path did not use resilient ECMP next hop".to_string());
               }
           """
-          if old in s:
-              s = s.replace(old, new, 1)
-          elif new not in s:
-              raise SystemExit("probe anchor not found")
+              s = s[:start] + replacement + s[end:]
           p.write_text(s)
           PY
       - name: Format
