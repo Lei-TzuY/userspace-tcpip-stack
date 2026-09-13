@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(&ipv4.payload[5..8], &[0, 0, 0]);
         assert_eq!(
             &ipv4.payload[8..],
-            &EthernetFrame::parse(&frame).unwrap().payload[..28]
+            &EthernetFrame::parse(&frame).unwrap().payload[..28],
         );
     }
 
