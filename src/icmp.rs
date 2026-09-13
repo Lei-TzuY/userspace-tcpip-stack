@@ -1,6 +1,6 @@
 //! Layer 3: Internet Control Message Protocol (ICMP - RFC 792).
 //!
-//! Handles ICMP Echo Request (Type 8) and Echo Reply (Type 0).
+//! Handles ICMP Echo, error-message parsing, and construction helpers.
 
 use crate::checksum::{compute_checksum, verify_checksum};
 use std::fmt;
@@ -9,6 +9,7 @@ pub const ICMP_TYPE_ECHO_REPLY: u8 = 0;
 pub const ICMP_TYPE_DEST_UNREACHABLE: u8 = 3;
 pub const ICMP_TYPE_ECHO_REQUEST: u8 = 8;
 pub const ICMP_TYPE_TIME_EXCEEDED: u8 = 11;
+pub const ICMP_TYPE_PARAMETER_PROBLEM: u8 = 12;
 
 pub const ICMP_HEADER_LEN: usize = 8;
 
@@ -18,6 +19,7 @@ pub enum IcmpType {
     EchoRequest,
     DestinationUnreachable,
     TimeExceeded,
+    ParameterProblem,
     Other(u8),
 }
 
@@ -28,6 +30,7 @@ impl IcmpType {
             ICMP_TYPE_ECHO_REQUEST => IcmpType::EchoRequest,
             ICMP_TYPE_DEST_UNREACHABLE => IcmpType::DestinationUnreachable,
             ICMP_TYPE_TIME_EXCEEDED => IcmpType::TimeExceeded,
+            ICMP_TYPE_PARAMETER_PROBLEM => IcmpType::ParameterProblem,
             other => IcmpType::Other(other),
         }
     }
@@ -38,6 +41,7 @@ impl IcmpType {
             IcmpType::EchoRequest => ICMP_TYPE_ECHO_REQUEST,
             IcmpType::DestinationUnreachable => ICMP_TYPE_DEST_UNREACHABLE,
             IcmpType::TimeExceeded => ICMP_TYPE_TIME_EXCEEDED,
+            IcmpType::ParameterProblem => ICMP_TYPE_PARAMETER_PROBLEM,
             IcmpType::Other(val) => *val,
         }
     }
@@ -50,6 +54,7 @@ impl fmt::Display for IcmpType {
             IcmpType::EchoRequest => write!(f, "Echo Request (8)"),
             IcmpType::DestinationUnreachable => write!(f, "Destination Unreachable (3)"),
             IcmpType::TimeExceeded => write!(f, "Time Exceeded (11)"),
+            IcmpType::ParameterProblem => write!(f, "Parameter Problem (12)"),
             IcmpType::Other(val) => write!(f, "ICMP Type ({})", val),
         }
     }
@@ -206,6 +211,21 @@ impl<'a> IcmpPacket<'a> {
         payload.extend_from_slice(&orig_datagram[..copy_len]);
         Self::serialize(ICMP_TYPE_DEST_UNREACHABLE, code, 0, 0, &payload)
     }
+
+    /// Builds an ICMP Parameter Problem (Type 12, Code 0) message.
+    ///
+    /// The pointer identifies the octet in the invoking IPv4 header where the
+    /// problem was detected. RFC 792 requires the remaining three bytes of the
+    /// error header to be zero and quotes the original IPv4 header plus at least
+    /// its first eight payload bytes.
+    pub fn build_parameter_problem(pointer: u8, orig_datagram: &[u8]) -> Vec<u8> {
+        let copy_len = ipv4_error_quote_len(orig_datagram);
+        let mut payload = Vec::with_capacity(4 + copy_len);
+        payload.push(pointer);
+        payload.extend_from_slice(&[0, 0, 0]);
+        payload.extend_from_slice(&orig_datagram[..copy_len]);
+        Self::serialize(ICMP_TYPE_PARAMETER_PROBLEM, 0, 0, 0, &payload)
+    }
 }
 
 #[cfg(test)]
@@ -263,5 +283,22 @@ mod tests {
         assert_eq!(parsed.icmp_type, IcmpType::DestinationUnreachable);
         assert_eq!(&parsed.payload[..4], &[0, 0, 0, 0]);
         assert_eq!(&parsed.payload[4..], original.as_slice());
+    }
+
+    #[test]
+    fn parameter_problem_encodes_pointer_and_quotes_ipv4_options() {
+        let mut original = vec![0u8; 40];
+        original[0] = 0x47; // IPv4, IHL=7 => 28-byte header + 8 quoted payload bytes.
+        for (index, byte) in original.iter_mut().enumerate().skip(1) {
+            *byte = (index as u8).wrapping_mul(5);
+        }
+
+        let raw = IcmpPacket::build_parameter_problem(9, &original);
+        let parsed = IcmpPacket::parse(&raw, true).unwrap();
+
+        assert_eq!(parsed.icmp_type, IcmpType::ParameterProblem);
+        assert_eq!(parsed.code, 0);
+        assert_eq!(&parsed.payload[..4], &[9, 0, 0, 0]);
+        assert_eq!(&parsed.payload[4..], &original[..36]);
     }
 }
