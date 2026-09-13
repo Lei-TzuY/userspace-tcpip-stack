@@ -1,7 +1,7 @@
 //! Network layer routing table and Longest Prefix Match (LPM) route lookup.
 
 use crate::ipv4::Ipv4Address;
-use std::fmt;
+use std::{cmp::Ordering, fmt};
 
 fn fnv1a_extend(mut hash: u64, bytes: &[u8]) -> u64 {
     const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
@@ -172,6 +172,43 @@ impl RouteEntry {
     pub fn distance(&self) -> u8 {
         self.source.distance()
     }
+}
+
+fn resilient_route_score(flow_hash: u64, route: &RouteEntry) -> u64 {
+    const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+    let mut hash = fnv1a_extend(FNV_OFFSET_BASIS, &flow_hash.to_be_bytes());
+    hash = fnv1a_extend(
+        hash,
+        &route
+            .destination
+            .mask(route.prefix_len)
+            .to_u32()
+            .to_be_bytes(),
+    );
+    hash = fnv1a_extend(hash, &[route.prefix_len]);
+    match route.gateway {
+        Some(gateway) => {
+            hash = fnv1a_extend(hash, &[1]);
+            hash = fnv1a_extend(hash, &gateway.to_u32().to_be_bytes());
+        }
+        None => hash = fnv1a_extend(hash, &[0]),
+    }
+    hash = fnv1a_extend(hash, route.interface.as_bytes());
+    fnv1a_extend(hash, route.source.as_str().as_bytes())
+}
+
+fn route_identity_cmp(left: &RouteEntry, right: &RouteEntry) -> Ordering {
+    left.destination
+        .to_u32()
+        .cmp(&right.destination.to_u32())
+        .then(left.prefix_len.cmp(&right.prefix_len))
+        .then(
+            left.gateway
+                .map(|gateway| gateway.to_u32())
+                .cmp(&right.gateway.map(|gateway| gateway.to_u32())),
+        )
+        .then(left.interface.cmp(&right.interface))
+        .then(left.source.as_str().cmp(right.source.as_str()))
 }
 
 impl fmt::Display for RouteEntry {
@@ -355,6 +392,23 @@ impl RoutingTable {
     /// Selects one best equal-cost route using the stable IPv4 transport 5-tuple.
     pub fn lookup_best_route_for_flow(&self, flow: Ipv4FlowKey) -> Option<&RouteEntry> {
         self.lookup_best_route_by_hash(flow.destination, flow.stable_hash())
+    }
+
+    /// Selects one best equal-cost route with rendezvous hashing.
+    ///
+    /// Unlike modulo-based ECMP, removing one member only remaps flows that selected
+    /// that member; flows already mapped to surviving members keep their affinity.
+    /// Route identity is part of the score so the result is independent of insertion
+    /// order and remains deterministic across process restarts.
+    pub fn lookup_resilient_route_for_flow(&self, flow: Ipv4FlowKey) -> Option<&RouteEntry> {
+        let flow_hash = flow.stable_hash();
+        self.lookup_best_routes(flow.destination)
+            .into_iter()
+            .max_by(|left, right| {
+                resilient_route_score(flow_hash, left)
+                    .cmp(&resilient_route_score(flow_hash, right))
+                    .then_with(|| route_identity_cmp(left, right))
+            })
     }
 
     /// Exact-prefix lookup, ignoring longest-prefix semantics.
@@ -546,5 +600,98 @@ mod tests {
             alternate.is_some(),
             "transport entropy should reach both ECMP members"
         );
+    }
+
+    #[test]
+    fn resilient_ecmp_affinity_is_independent_of_insertion_order() {
+        let prefix = Ipv4Address::new(203, 0, 113, 0);
+        let destination = Ipv4Address::new(203, 0, 113, 9);
+        let source = Ipv4Address::new(192, 0, 2, 10);
+        let members = [
+            (Ipv4Address::new(10, 0, 0, 1), "wan-a"),
+            (Ipv4Address::new(10, 0, 0, 2), "wan-b"),
+            (Ipv4Address::new(10, 0, 0, 3), "wan-c"),
+        ];
+
+        let mut forward = RoutingTable::new();
+        for (gateway, interface) in members {
+            forward.add_multipath_route_from(
+                prefix,
+                24,
+                Some(gateway),
+                interface,
+                RouteSource::Static,
+            );
+        }
+
+        let mut reverse = RoutingTable::new();
+        for (gateway, interface) in members.into_iter().rev() {
+            reverse.add_multipath_route_from(
+                prefix,
+                24,
+                Some(gateway),
+                interface,
+                RouteSource::Static,
+            );
+        }
+
+        for source_port in 40_000..40_128 {
+            let flow = Ipv4FlowKey::new(source, destination, 17, source_port, 443);
+            let left = forward.lookup_resilient_route_for_flow(flow).unwrap();
+            let right = reverse.lookup_resilient_route_for_flow(flow).unwrap();
+            assert_eq!(left.gateway, right.gateway);
+            assert_eq!(left.interface, right.interface);
+        }
+    }
+
+    #[test]
+    fn resilient_ecmp_withdrawal_only_remaps_flows_from_removed_member() {
+        let mut rt = RoutingTable::new();
+        let prefix = Ipv4Address::new(203, 0, 113, 0);
+        let destination = Ipv4Address::new(203, 0, 113, 9);
+        let source = Ipv4Address::new(192, 0, 2, 10);
+        let members = [
+            (Ipv4Address::new(10, 0, 0, 1), "wan-a"),
+            (Ipv4Address::new(10, 0, 0, 2), "wan-b"),
+            (Ipv4Address::new(10, 0, 0, 3), "wan-c"),
+        ];
+        for (gateway, interface) in members {
+            rt.add_multipath_route_from(
+                prefix,
+                24,
+                Some(gateway),
+                interface,
+                RouteSource::Static,
+            );
+        }
+
+        let flows: Vec<_> = (40_000..40_256)
+            .map(|source_port| Ipv4FlowKey::new(source, destination, 17, source_port, 443))
+            .collect();
+        let before: Vec<_> = flows
+            .iter()
+            .map(|flow| rt.lookup_resilient_route_for_flow(*flow).unwrap().gateway)
+            .collect();
+        let removed = members[0].0;
+        assert!(
+            before.iter().any(|gateway| *gateway == Some(removed)),
+            "fixture must exercise the member being withdrawn"
+        );
+
+        assert!(rt.remove_route_via(
+            prefix,
+            24,
+            Some(removed),
+            members[0].1,
+            RouteSource::Static,
+        ));
+
+        for (flow, previous_gateway) in flows.iter().zip(before) {
+            let selected = rt.lookup_resilient_route_for_flow(*flow).unwrap();
+            assert_ne!(selected.gateway, Some(removed));
+            if previous_gateway != Some(removed) {
+                assert_eq!(selected.gateway, previous_gateway);
+            }
+        }
     }
 }
