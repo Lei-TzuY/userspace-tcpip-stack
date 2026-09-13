@@ -152,6 +152,14 @@ impl IpReassemblyBuffer {
             identification,
         };
 
+        // A zero-length fragment contributes no datagram bytes but would still
+        // allocate a FragmentEntry. Reject it at the API boundary so repeated
+        // empty fragments cannot grow per-key metadata outside byte accounting.
+        if payload.is_empty() {
+            self.remove_buffer(&key);
+            return None;
+        }
+
         // RFC 791 encodes offsets in 8-octet units, so every fragment except
         // the final one must carry a payload whose length is a multiple of 8.
         // Enforce this at the reassembly API boundary too, not only in the wire
@@ -380,6 +388,41 @@ mod tests {
         assert_eq!(
             reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[4u8; 3]),
             Some([&[3u8; 8][..], &[4u8; 3][..]].concat())
+        );
+    }
+
+    #[test]
+    fn reassembly_rejects_zero_length_fragment_and_discards_datagram() {
+        let mut reassembly = IpReassemblyBuffer::new();
+        let id = 0x1111;
+
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[1u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, true, &[]),
+            None
+        );
+        assert_eq!(reassembly.buffered_bytes, 0);
+        assert!(reassembly.buffers.is_empty());
+
+        // Empty fragments cannot pin metadata, and the same key remains reusable.
+        for _ in 0..64 {
+            assert_eq!(
+                reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[]),
+                None
+            );
+        }
+        assert_eq!(reassembly.buffered_bytes, 0);
+        assert!(reassembly.buffers.is_empty());
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 0, true, &[2u8; 8]),
+            None
+        );
+        assert_eq!(
+            reassembly.add_fragment(src(), dst(), 17, id, 1, false, &[3u8; 3]),
+            Some([&[2u8; 8][..], &[3u8; 3][..]].concat())
         );
     }
 
