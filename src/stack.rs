@@ -15,7 +15,7 @@ use crate::icmpv6::{
 use crate::ipv4::{IP_PROTO_ICMP, IP_PROTO_TCP, IP_PROTO_UDP, IpProtocol, Ipv4Address, Ipv4Packet};
 use crate::ipv6::{Ipv6Address, Ipv6Packet, NEXT_HEADER_ICMPV6};
 use crate::nat::NatTable;
-use crate::router::{RouteSource, RoutingTable};
+use crate::router::{Ipv4FlowKey, RouteSource, RoutingTable};
 use crate::router_ipv6::Ipv6RoutingTable;
 use crate::socket::{
     SocketError, SocketRuntime, TcpDiagnostics, TcpListenerHandle, TcpStreamHandle, UdpSocketHandle,
@@ -843,11 +843,42 @@ impl NetStack {
     }
 
     pub fn send_ip_packet(&mut self, dst_ip: Ipv4Address, ip_bytes: Vec<u8>) -> Option<Vec<u8>> {
-        let next_hop = if let Some(route) = self.routing_table.lookup(dst_ip) {
-            route.next_hop(dst_ip)
-        } else {
-            dst_ip
-        };
+        // Keep the explicit API destination authoritative. Structurally valid,
+        // matching IPv4 packets contribute stable flow entropy to resilient
+        // ECMP; malformed or destination-mismatched bytes preserve the legacy
+        // destination-only lookup.
+        let flow = Ipv4Packet::parse(&ip_bytes, false)
+            .ok()
+            .filter(|packet| packet.header.dst_ip == dst_ip)
+            .map(|packet| {
+                // Every fragment of one datagram must use one next hop. Since
+                // only the first fragment carries transport ports, fragmented
+                // traffic deliberately uses address/protocol entropy throughout.
+                let fragmented = packet.header.more_fragments || packet.header.fragment_offset != 0;
+                let (source_port, destination_port) = if !fragmented
+                    && matches!(packet.header.protocol, IpProtocol::Tcp | IpProtocol::Udp)
+                    && packet.payload.len() >= 4
+                {
+                    (
+                        u16::from_be_bytes([packet.payload[0], packet.payload[1]]),
+                        u16::from_be_bytes([packet.payload[2], packet.payload[3]]),
+                    )
+                } else {
+                    (0, 0)
+                };
+                Ipv4FlowKey::new(
+                    packet.header.src_ip,
+                    dst_ip,
+                    packet.header.protocol.to_u8(),
+                    source_port,
+                    destination_port,
+                )
+            });
+
+        let route = flow
+            .and_then(|flow| self.routing_table.lookup_resilient_route_for_flow(flow))
+            .or_else(|| self.routing_table.lookup(dst_ip));
+        let next_hop = route.map_or(dst_ip, |route| route.next_hop(dst_ip));
 
         if let Some(dst_mac) = self.arp_table.lookup(&next_hop.0) {
             Some(EthernetFrame::serialize(
