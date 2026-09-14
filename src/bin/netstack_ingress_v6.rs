@@ -165,12 +165,10 @@ mod tests {
 
     const LOCAL_MAC: MacAddress = MacAddress([0x02, 0, 0, 0, 0, 1]);
     const REMOTE_MAC: MacAddress = MacAddress([0x02, 0, 0, 0, 0, 2]);
-    const LOCAL_IP: Ipv6Address = Ipv6Address([
-        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-    ]);
-    const REMOTE_IP: Ipv6Address = Ipv6Address([
-        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    ]);
+    const LOCAL_IP: Ipv6Address =
+        Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
+    const REMOTE_IP: Ipv6Address =
+        Ipv6Address([0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]);
 
     fn ethernet_ipv6(packet: &[u8]) -> Vec<u8> {
         EthernetFrame::serialize(LOCAL_MAC, REMOTE_MAC, ETHERTYPE_IPV6, packet)
@@ -190,7 +188,10 @@ mod tests {
         assert_eq!(ipv6.header.dst_ip, REMOTE_IP);
         assert_eq!(ipv6.payload[0], ICMPV6_TYPE_PARAMETER_PROBLEM);
         assert_eq!(ipv6.payload[1], 0);
-        assert_eq!(u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()), 4);
+        assert_eq!(
+            u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()),
+            4
+        );
         assert_eq!(
             compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
             0
