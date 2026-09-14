@@ -343,14 +343,8 @@ mod tests {
     }
 
     fn malformed_reserved_flag_frame(protocol: u8) -> Vec<u8> {
-        let mut datagram = Ipv4Packet::serialize(
-            REMOTE_IP,
-            LOCAL_IP,
-            protocol,
-            0x1234,
-            64,
-            b"abcdefgh",
-        );
+        let mut datagram =
+            Ipv4Packet::serialize(REMOTE_IP, LOCAL_IP, protocol, 0x1234, 64, b"abcdefgh");
         datagram[6] |= 0x80;
         datagram[10] = 0;
         datagram[11] = 0;
