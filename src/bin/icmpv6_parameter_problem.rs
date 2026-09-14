@@ -1,9 +1,7 @@
 use std::env;
 use std::str::FromStr;
 
-use toy_tcpip::ipv6::{
-    Ipv6Address, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checksum,
-};
+use toy_tcpip::ipv6::{Ipv6Address, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checksum};
 
 const ICMPV6_TYPE_PARAMETER_PROBLEM: u8 = 4;
 const MAX_INVOKING_BYTES: usize = 1232; // 1280 - IPv6(40) - ICMPv6 error header(8)
@@ -59,8 +57,7 @@ fn build_parameter_problem(
     packet.extend_from_slice(&pointer.to_be_bytes());
     packet.extend_from_slice(&invoking_packet[..quoted]);
 
-    let checksum =
-        compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &packet);
+    let checksum = compute_ipv6_transport_checksum(src_ip, dst_ip, NEXT_HEADER_ICMPV6, &packet);
     packet[2..4].copy_from_slice(&checksum.to_be_bytes());
     Ok(packet)
 }
@@ -70,12 +67,16 @@ fn run() -> Result<(), String> {
     if args.len() != 6 {
         return Err(format!(
             "usage: {} <src-ipv6> <dst-ipv6> <code:0|1|2> <pointer> <invoking-packet-hex>",
-            args.first().map(String::as_str).unwrap_or("icmpv6_parameter_problem")
+            args.first()
+                .map(String::as_str)
+                .unwrap_or("icmpv6_parameter_problem")
         ));
     }
 
-    let src_ip = Ipv6Address::from_str(&args[1]).map_err(|err| format!("invalid source IPv6: {err}"))?;
-    let dst_ip = Ipv6Address::from_str(&args[2]).map_err(|err| format!("invalid destination IPv6: {err}"))?;
+    let src_ip =
+        Ipv6Address::from_str(&args[1]).map_err(|err| format!("invalid source IPv6: {err}"))?;
+    let dst_ip = Ipv6Address::from_str(&args[2])
+        .map_err(|err| format!("invalid destination IPv6: {err}"))?;
     let code = args[3]
         .parse::<u8>()
         .map_err(|_| "code must be an integer in 0..=2".to_string())?;
