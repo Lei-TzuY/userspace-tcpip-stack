@@ -428,7 +428,16 @@ mod tests {
 
     #[test]
     fn unrecognized_option_with_action_10_generates_code_2() {
-        let options = [NEXT_HEADER_NO_NEXT, 0, 0x80, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let options = [
+            NEXT_HEADER_NO_NEXT,
+            0,
+            0x80,
+            0,
+            IPV6_OPT_PAD1,
+            IPV6_OPT_PAD1,
+            0,
+            0,
+        ];
         let invoking =
             Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
         let replies = process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking));
@@ -447,7 +456,16 @@ mod tests {
 
     #[test]
     fn unrecognized_option_with_action_01_drops_silently() {
-        let options = [NEXT_HEADER_NO_NEXT, 0, 0x40, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let options = [
+            NEXT_HEADER_NO_NEXT,
+            0,
+            0x40,
+            0,
+            IPV6_OPT_PAD1,
+            IPV6_OPT_PAD1,
+            0,
+            0,
+        ];
         let invoking =
             Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
         assert_eq!(unrecognized_option_policy(&invoking), OptionPolicy::Drop);
@@ -456,7 +474,16 @@ mod tests {
 
     #[test]
     fn unrecognized_option_with_action_00_is_skipped() {
-        let options = [NEXT_HEADER_NO_NEXT, 0, 0x1e, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let options = [
+            NEXT_HEADER_NO_NEXT,
+            0,
+            0x1e,
+            0,
+            IPV6_OPT_PAD1,
+            IPV6_OPT_PAD1,
+            0,
+            0,
+        ];
         let invoking =
             Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
         assert_eq!(unrecognized_option_policy(&invoking), OptionPolicy::Pass);
