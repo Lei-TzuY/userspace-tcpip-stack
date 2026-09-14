@@ -5,7 +5,9 @@ use std::str::FromStr;
 use toy_tcpip::ethernet::{ETHERTYPE_IPV6, EtherType, EthernetFrame, MacAddress};
 use toy_tcpip::ipv4::Ipv4Address;
 use toy_tcpip::ipv6::{
-    Ipv6Address, Ipv6Error, Ipv6Packet, NEXT_HEADER_ICMPV6, compute_ipv6_transport_checksum,
+    Ipv6Address, Ipv6Error, Ipv6Packet, NEXT_HEADER_DEST_OPTS, NEXT_HEADER_FRAGMENT,
+    NEXT_HEADER_GRE, NEXT_HEADER_HOP_BY_HOP, NEXT_HEADER_ICMPV6, NEXT_HEADER_NO_NEXT,
+    NEXT_HEADER_ROUTING, NEXT_HEADER_TCP, NEXT_HEADER_UDP, compute_ipv6_transport_checksum,
 };
 use toy_tcpip::stack::{NetStack, NetStackConfig};
 
@@ -13,6 +15,7 @@ const ICMPV6_TYPE_PARAMETER_PROBLEM: u8 = 4;
 const ICMPV6_ERROR_HEADER_LEN: usize = 8;
 const MAX_INVOKING_BYTES: usize = 1232; // 1280 - IPv6(40) - ICMPv6 error header(8)
 const PAYLOAD_LENGTH_POINTER: u32 = 4;
+const NEXT_HEADER_POINTER: u32 = 6;
 
 fn decode_hex(input: &str) -> Result<Vec<u8>, String> {
     let compact: String = input
@@ -40,7 +43,44 @@ fn encode_hex(bytes: &[u8]) -> String {
     output
 }
 
-fn malformed_ipv6_parameter_problem(
+fn is_recognized_next_header(next_header: u8) -> bool {
+    matches!(
+        next_header,
+        NEXT_HEADER_HOP_BY_HOP
+            | NEXT_HEADER_TCP
+            | NEXT_HEADER_UDP
+            | NEXT_HEADER_ROUTING
+            | NEXT_HEADER_FRAGMENT
+            | NEXT_HEADER_GRE
+            | NEXT_HEADER_ICMPV6
+            | NEXT_HEADER_NO_NEXT
+            | NEXT_HEADER_DEST_OPTS
+    )
+}
+
+fn build_parameter_problem_reply(
+    ethernet: &EthernetFrame<'_>,
+    local_ip: Ipv6Address,
+    source: Ipv6Address,
+    packet: &[u8],
+    code: u8,
+    pointer: u32,
+) -> Vec<u8> {
+    let quoted_len = packet.len().min(MAX_INVOKING_BYTES);
+    let mut icmp = Vec::with_capacity(ICMPV6_ERROR_HEADER_LEN + quoted_len);
+    icmp.push(ICMPV6_TYPE_PARAMETER_PROBLEM);
+    icmp.push(code);
+    icmp.extend_from_slice(&[0, 0]);
+    icmp.extend_from_slice(&pointer.to_be_bytes());
+    icmp.extend_from_slice(&packet[..quoted_len]);
+    let checksum = compute_ipv6_transport_checksum(local_ip, source, NEXT_HEADER_ICMPV6, &icmp);
+    icmp[2..4].copy_from_slice(&checksum.to_be_bytes());
+
+    let reply = Ipv6Packet::serialize(local_ip, source, NEXT_HEADER_ICMPV6, 64, &icmp);
+    EthernetFrame::serialize(ethernet.src_mac, ethernet.dst_mac, ETHERTYPE_IPV6, &reply)
+}
+
+fn ipv6_parameter_problem(
     local_mac: MacAddress,
     local_ip: Ipv6Address,
     raw_frame: &[u8],
@@ -51,12 +91,6 @@ fn malformed_ipv6_parameter_problem(
     }
     let packet = ethernet.payload;
     if packet.len() < 40 || packet[0] >> 4 != 6 {
-        return None;
-    }
-    if !matches!(
-        Ipv6Packet::parse(packet),
-        Err(Ipv6Error::PayloadLengthMismatch { .. })
-    ) {
         return None;
     }
 
@@ -70,38 +104,43 @@ fn malformed_ipv6_parameter_problem(
         return None;
     }
 
-    // RFC 4443 section 2.4(e): never send an ICMPv6 error in response to another
-    // ICMPv6 error. For a truncated packet the fixed header still exposes enough
-    // bytes to classify a directly encapsulated ICMPv6 message when present.
-    if packet[6] == NEXT_HEADER_ICMPV6
-        && packet
-            .get(40)
-            .is_some_and(|message_type| *message_type < 128)
-    {
-        return None;
+    match Ipv6Packet::parse(packet) {
+        Err(Ipv6Error::PayloadLengthMismatch { .. }) => {
+            // RFC 4443 section 2.4(e): never send an ICMPv6 error in response to another
+            // ICMPv6 error. For a truncated packet the fixed header still exposes enough
+            // bytes to classify a directly encapsulated ICMPv6 message when present.
+            if packet[6] == NEXT_HEADER_ICMPV6
+                && packet
+                    .get(40)
+                    .is_some_and(|message_type| *message_type < 128)
+            {
+                return None;
+            }
+            Some(build_parameter_problem_reply(
+                &ethernet,
+                local_ip,
+                source,
+                packet,
+                0,
+                PAYLOAD_LENGTH_POINTER,
+            ))
+        }
+        Ok(ipv6) if !is_recognized_next_header(ipv6.header.next_header) => {
+            Some(build_parameter_problem_reply(
+                &ethernet,
+                local_ip,
+                source,
+                packet,
+                1,
+                NEXT_HEADER_POINTER,
+            ))
+        }
+        _ => None,
     }
-
-    let quoted_len = packet.len().min(MAX_INVOKING_BYTES);
-    let mut icmp = Vec::with_capacity(ICMPV6_ERROR_HEADER_LEN + quoted_len);
-    icmp.push(ICMPV6_TYPE_PARAMETER_PROBLEM);
-    icmp.push(0); // Code 0: erroneous header field.
-    icmp.extend_from_slice(&[0, 0]);
-    icmp.extend_from_slice(&PAYLOAD_LENGTH_POINTER.to_be_bytes());
-    icmp.extend_from_slice(&packet[..quoted_len]);
-    let checksum = compute_ipv6_transport_checksum(local_ip, source, NEXT_HEADER_ICMPV6, &icmp);
-    icmp[2..4].copy_from_slice(&checksum.to_be_bytes());
-
-    let reply = Ipv6Packet::serialize(local_ip, source, NEXT_HEADER_ICMPV6, 64, &icmp);
-    Some(EthernetFrame::serialize(
-        ethernet.src_mac,
-        local_mac,
-        ETHERTYPE_IPV6,
-        &reply,
-    ))
 }
 
 fn process_frame(local_mac: MacAddress, local_ip: Ipv6Address, raw_frame: &[u8]) -> Vec<Vec<u8>> {
-    if let Some(reply) = malformed_ipv6_parameter_problem(local_mac, local_ip, raw_frame) {
+    if let Some(reply) = ipv6_parameter_problem(local_mac, local_ip, raw_frame) {
         return vec![reply];
     }
     let mut stack = NetStack::new(NetStackConfig {
@@ -196,6 +235,35 @@ mod tests {
             compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
             0
         );
+    }
+
+    #[test]
+    fn unrecognized_next_header_generates_code_1() {
+        let invoking = Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, 253, 64, &[0; 8]);
+        let replies = process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking));
+        assert_eq!(replies.len(), 1);
+
+        let ethernet = EthernetFrame::parse(&replies[0]).unwrap();
+        assert_eq!(ethernet.dst_mac, REMOTE_MAC);
+        let ipv6 = Ipv6Packet::parse(ethernet.payload).unwrap();
+        assert_eq!(ipv6.header.src_ip, LOCAL_IP);
+        assert_eq!(ipv6.header.dst_ip, REMOTE_IP);
+        assert_eq!(ipv6.payload[0], ICMPV6_TYPE_PARAMETER_PROBLEM);
+        assert_eq!(ipv6.payload[1], 1);
+        assert_eq!(
+            u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()),
+            NEXT_HEADER_POINTER
+        );
+        assert_eq!(
+            compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
+            0
+        );
+    }
+
+    #[test]
+    fn recognized_no_next_header_does_not_generate_parameter_problem() {
+        let invoking = Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_NO_NEXT, 64, &[]);
+        assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
     }
 
     #[test]
