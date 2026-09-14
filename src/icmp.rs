@@ -3,6 +3,9 @@
 //! Handles ICMP Echo, error-message parsing, and construction helpers.
 
 use crate::checksum::{compute_checksum, verify_checksum};
+use crate::ethernet::{ETHERTYPE_IPV4, EtherType, EthernetFrame, MacAddress};
+use crate::ipv4::{IP_PROTO_ICMP, Ipv4Address, Ipv4Error, Ipv4Packet};
+use crate::stack::NetStack;
 use std::fmt;
 
 pub const ICMP_TYPE_ECHO_REPLY: u8 = 0;
@@ -234,9 +237,121 @@ impl<'a> IcmpPacket<'a> {
     }
 }
 
+fn parameter_problem_pointer(error: &Ipv4Error) -> Option<u8> {
+    match error {
+        Ipv4Error::TotalLengthSmallerThanHeader { .. } => Some(2),
+        Ipv4Error::ReservedFragmentFlagSet => Some(6),
+        _ => None,
+    }
+}
+
+fn safe_ipv4_error_source(address: Ipv4Address) -> bool {
+    !address.is_unspecified()
+        && !address.is_broadcast()
+        && !address.is_multicast()
+        && !address.is_loopback()
+}
+
+/// Builds a guarded ICMPv4 Parameter Problem reply for a malformed Ethernet/IPv4 frame.
+///
+/// Only parser failures with an unambiguous RFC 792 pointer are eligible. The invoking
+/// IPv4 header must still have a valid checksum, target this host, come from a unicast
+/// source, and be an initial non-ICMP fragment. Those gates preserve the stack's
+/// fail-closed behaviour and RFC 1122/1812 error-suppression rules.
+pub fn build_ipv4_parameter_problem_reply(
+    local_mac: MacAddress,
+    local_ip: Ipv4Address,
+    raw_frame: &[u8],
+) -> Option<Vec<u8>> {
+    let ethernet = EthernetFrame::parse(raw_frame).ok()?;
+    if ethernet.ethertype != EtherType::IPv4 || ethernet.dst_mac != local_mac {
+        return None;
+    }
+
+    let datagram = ethernet.payload;
+    let error = Ipv4Packet::parse(datagram, true).err()?;
+    let pointer = parameter_problem_pointer(&error)?;
+
+    if datagram.len() < 20 || datagram[0] >> 4 != 4 {
+        return None;
+    }
+    let ihl = (datagram[0] & 0x0f) as usize;
+    if ihl < 5 {
+        return None;
+    }
+    let header_len = ihl.checked_mul(4)?;
+    if header_len > datagram.len() || !verify_checksum(&datagram[..header_len]) {
+        return None;
+    }
+
+    let source = Ipv4Address::from_bytes(datagram[12..16].try_into().ok()?);
+    let destination = Ipv4Address::from_bytes(datagram[16..20].try_into().ok()?);
+    if destination != local_ip || !safe_ipv4_error_source(source) {
+        return None;
+    }
+
+    if datagram[9] == IP_PROTO_ICMP {
+        return None;
+    }
+    let flags_fragment = u16::from_be_bytes([datagram[6], datagram[7]]);
+    if flags_fragment & 0x1fff != 0 {
+        return None;
+    }
+
+    let icmp = IcmpPacket::build_parameter_problem(pointer, datagram);
+    let ip = Ipv4Packet::serialize(local_ip, source, IP_PROTO_ICMP, 0, 64, &icmp);
+    Some(EthernetFrame::serialize(
+        ethernet.src_mac,
+        local_mac,
+        ETHERTYPE_IPV4,
+        &ip,
+    ))
+}
+
+impl NetStack {
+    /// Processes an Ethernet frame through the normal stack ingress while adding
+    /// RFC 792 Parameter Problem generation for malformed IPv4 headers that the
+    /// ordinary parser rejects before `process_frame` can reach its IPv4 branch.
+    pub fn process_frame_with_ipv4_errors(&mut self, raw_frame: &[u8]) -> Vec<Vec<u8>> {
+        if let Some(reply) =
+            build_ipv4_parameter_problem_reply(self.config.mac, self.config.ip, raw_frame)
+        {
+            return vec![reply];
+        }
+        self.process_frame(raw_frame)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::stack::NetStackConfig;
+
+    const LOCAL_MAC: MacAddress = MacAddress([0x02, 0, 0, 0, 0, 1]);
+    const REMOTE_MAC: MacAddress = MacAddress([0x02, 0, 0, 0, 0, 2]);
+    const LOCAL_IP: Ipv4Address = Ipv4Address([192, 0, 2, 1]);
+    const REMOTE_IP: Ipv4Address = Ipv4Address([192, 0, 2, 2]);
+
+    fn stack() -> NetStack {
+        NetStack::new(NetStackConfig {
+            mac: LOCAL_MAC,
+            ip: LOCAL_IP,
+            ipv6: None,
+            subnet_mask: 24,
+            gateway: None,
+        })
+    }
+
+    fn malformed_reserved_flag_frame(protocol: u8) -> Vec<u8> {
+        let mut datagram =
+            Ipv4Packet::serialize(REMOTE_IP, LOCAL_IP, protocol, 0x1234, 64, b"abcdefgh");
+        datagram[6] |= 0x80;
+        datagram[10] = 0;
+        datagram[11] = 0;
+        let checksum = compute_checksum(&datagram[..20]);
+        datagram[10..12].copy_from_slice(&checksum.to_be_bytes());
+        EthernetFrame::serialize(LOCAL_MAC, REMOTE_MAC, ETHERTYPE_IPV4, &datagram)
+    }
 
     #[test]
     fn test_icmp_echo_reply_creation() {
@@ -308,5 +423,47 @@ mod tests {
         assert_eq!(parsed.identifier, 0x0900);
         assert_eq!(parsed.sequence_number, 0);
         assert_eq!(parsed.payload, &original[..36]);
+    }
+
+    #[test]
+    fn netstack_ingress_emits_parameter_problem_for_reserved_fragment_flag() {
+        let mut stack = stack();
+        let replies = stack.process_frame_with_ipv4_errors(&malformed_reserved_flag_frame(17));
+        assert_eq!(replies.len(), 1);
+
+        let ethernet = EthernetFrame::parse(&replies[0]).unwrap();
+        assert_eq!(ethernet.dst_mac, REMOTE_MAC);
+        assert_eq!(ethernet.src_mac, LOCAL_MAC);
+        let ipv4 = Ipv4Packet::parse(ethernet.payload, true).unwrap();
+        assert_eq!(ipv4.header.src_ip, LOCAL_IP);
+        assert_eq!(ipv4.header.dst_ip, REMOTE_IP);
+        let icmp = IcmpPacket::parse(ipv4.payload, true).unwrap();
+        assert_eq!(icmp.icmp_type, IcmpType::ParameterProblem);
+        assert_eq!(&ipv4.payload[4..8], &[6, 0, 0, 0]);
+    }
+
+    #[test]
+    fn netstack_ingress_keeps_icmp_error_suppression() {
+        let mut stack = stack();
+        let replies =
+            stack.process_frame_with_ipv4_errors(&malformed_reserved_flag_frame(IP_PROTO_ICMP));
+        assert!(replies.is_empty());
+    }
+
+    #[test]
+    fn netstack_ingress_falls_back_to_normal_echo_processing() {
+        let mut stack = stack();
+        let request = IcmpPacket::build_echo_request(7, 9, b"ping");
+        let ipv4 = Ipv4Packet::serialize(REMOTE_IP, LOCAL_IP, IP_PROTO_ICMP, 1, 64, &request);
+        let frame = EthernetFrame::serialize(LOCAL_MAC, REMOTE_MAC, ETHERTYPE_IPV4, &ipv4);
+
+        let replies = stack.process_frame_with_ipv4_errors(&frame);
+        assert_eq!(replies.len(), 1);
+        let ethernet = EthernetFrame::parse(&replies[0]).unwrap();
+        let ipv4 = Ipv4Packet::parse(ethernet.payload, true).unwrap();
+        let icmp = IcmpPacket::parse(ipv4.payload, true).unwrap();
+        assert_eq!(icmp.icmp_type, IcmpType::EchoReply);
+        assert_eq!(icmp.identifier, 7);
+        assert_eq!(icmp.sequence_number, 9);
     }
 }
