@@ -447,7 +447,10 @@ mod tests {
         let ipv6 = Ipv6Packet::parse(ethernet.payload).unwrap();
         assert_eq!(ipv6.payload[0], ICMPV6_TYPE_PARAMETER_PROBLEM);
         assert_eq!(ipv6.payload[1], 2);
-        assert_eq!(u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()), 42);
+        assert_eq!(
+            u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()),
+            42
+        );
         assert_eq!(
             compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
             0
