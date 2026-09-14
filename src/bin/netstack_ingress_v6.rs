@@ -199,7 +199,8 @@ mod tests {
 
     #[test]
     fn icmpv6_error_does_not_trigger_another_error() {
-        let mut invoking = Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_ICMPV6, 64, &[1; 8]);
+        let mut invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_ICMPV6, 64, &[1; 8]);
         invoking[4..6].copy_from_slice(&16u16.to_be_bytes());
         assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
     }
