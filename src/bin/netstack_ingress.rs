@@ -104,14 +104,7 @@ mod tests {
     #[test]
     fn normal_echo_request_uses_regular_netstack_ingress() {
         let echo = IcmpPacket::build_echo_request(0x1234, 7, b"ping");
-        let datagram = Ipv4Packet::serialize(
-            REMOTE_IP,
-            LOCAL_IP,
-            IP_PROTO_ICMP,
-            0x1000,
-            64,
-            &echo,
-        );
+        let datagram = Ipv4Packet::serialize(REMOTE_IP, LOCAL_IP, IP_PROTO_ICMP, 0x1000, 64, &echo);
         let replies = process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv4(&datagram));
         assert_eq!(replies.len(), 1);
 
