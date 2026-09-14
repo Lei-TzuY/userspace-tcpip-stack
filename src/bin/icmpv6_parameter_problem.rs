@@ -74,10 +74,10 @@ fn run() -> Result<(), String> {
         ));
     }
 
-    let src_ip =
-        Ipv6Address::from_str(&args[1]).map_err(|err| format!("invalid source IPv6: {err}"))?;
+    let src_ip = Ipv6Address::from_str(&args[1])
+        .map_err(|_| "invalid source IPv6 address".to_string())?;
     let dst_ip = Ipv6Address::from_str(&args[2])
-        .map_err(|err| format!("invalid destination IPv6: {err}"))?;
+        .map_err(|_| "invalid destination IPv6 address".to_string())?;
     let code = args[3]
         .parse::<u8>()
         .map_err(|_| "code must be an integer in 0..=2".to_string())?;
