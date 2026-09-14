@@ -45,8 +45,7 @@ fn build_parameter_problem(
     if invoking_packet.is_empty() {
         return Err("invoking IPv6 packet must not be empty".into());
     }
-    let pointer_offset = usize::try_from(pointer)
-        .map_err(|_| "pointer must fit the platform address space".to_string())?;
+    let pointer_offset = pointer as usize;
     if pointer_offset >= invoking_packet.len() {
         return Err("pointer must identify an octet inside the invoking packet".into());
     }
