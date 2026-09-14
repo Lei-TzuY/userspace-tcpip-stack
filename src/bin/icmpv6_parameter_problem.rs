@@ -74,8 +74,8 @@ fn run() -> Result<(), String> {
         ));
     }
 
-    let src_ip = Ipv6Address::from_str(&args[1])
-        .map_err(|_| "invalid source IPv6 address".to_string())?;
+    let src_ip =
+        Ipv6Address::from_str(&args[1]).map_err(|_| "invalid source IPv6 address".to_string())?;
     let dst_ip = Ipv6Address::from_str(&args[2])
         .map_err(|_| "invalid destination IPv6 address".to_string())?;
     let code = args[3]
