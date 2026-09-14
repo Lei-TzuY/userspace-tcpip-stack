@@ -9,6 +9,9 @@ use toy_tcpip::ipv6::{
     NEXT_HEADER_GRE, NEXT_HEADER_HOP_BY_HOP, NEXT_HEADER_ICMPV6, NEXT_HEADER_NO_NEXT,
     NEXT_HEADER_ROUTING, NEXT_HEADER_TCP, NEXT_HEADER_UDP, compute_ipv6_transport_checksum,
 };
+use toy_tcpip::ipv6_ext::{
+    IPV6_OPT_JUMBO_PAYLOAD, IPV6_OPT_PAD1, IPV6_OPT_PADN, IPV6_OPT_ROUTER_ALERT,
+};
 use toy_tcpip::stack::{NetStack, NetStackConfig};
 
 const ICMPV6_TYPE_PARAMETER_PROBLEM: u8 = 4;
@@ -16,6 +19,20 @@ const ICMPV6_ERROR_HEADER_LEN: usize = 8;
 const MAX_INVOKING_BYTES: usize = 1232; // 1280 - IPv6(40) - ICMPv6 error header(8)
 const PAYLOAD_LENGTH_POINTER: u32 = 4;
 const NEXT_HEADER_POINTER: u32 = 6;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum OptionPolicy {
+    Pass,
+    Drop,
+    ParameterProblem(u32),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum ParameterProblemOutcome {
+    Pass,
+    Drop,
+    Reply(Vec<u8>),
+}
 
 fn decode_hex(input: &str) -> Result<Vec<u8>, String> {
     let compact: String = input
@@ -56,6 +73,100 @@ fn is_recognized_next_header(next_header: u8) -> bool {
             | NEXT_HEADER_NO_NEXT
             | NEXT_HEADER_DEST_OPTS
     )
+}
+
+fn is_recognized_option(option_type: u8) -> bool {
+    matches!(
+        option_type,
+        IPV6_OPT_PAD1 | IPV6_OPT_PADN | IPV6_OPT_ROUTER_ALERT | IPV6_OPT_JUMBO_PAYLOAD
+    )
+}
+
+/// Applies the RFC 8200 section 4.2 action bits for options that this stack does
+/// not recognize. The pointer is relative to the start of the invoking IPv6
+/// packet, as required by RFC 4443 Parameter Problem Code 2.
+fn unrecognized_option_policy(packet: &[u8]) -> OptionPolicy {
+    if packet.len() < 40 {
+        return OptionPolicy::Drop;
+    }
+
+    let mut next_header = packet[6];
+    let mut payload = &packet[40..];
+    let mut payload_offset = 40usize;
+
+    loop {
+        match next_header {
+            NEXT_HEADER_HOP_BY_HOP | NEXT_HEADER_DEST_OPTS => {
+                if payload.len() < 2 {
+                    return OptionPolicy::Drop;
+                }
+                let header_len = (usize::from(payload[1]) + 1) * 8;
+                if payload.len() < header_len {
+                    return OptionPolicy::Drop;
+                }
+
+                let options = &payload[2..header_len];
+                let mut cursor = 0usize;
+                while cursor < options.len() {
+                    let option_type = options[cursor];
+                    if option_type == IPV6_OPT_PAD1 {
+                        cursor += 1;
+                        continue;
+                    }
+                    if cursor + 1 >= options.len() {
+                        return OptionPolicy::Drop;
+                    }
+                    let option_len = usize::from(options[cursor + 1]);
+                    let option_end = cursor + 2 + option_len;
+                    if option_end > options.len() {
+                        return OptionPolicy::Drop;
+                    }
+
+                    if !is_recognized_option(option_type) {
+                        match option_type >> 6 {
+                            0 => {}
+                            1 => return OptionPolicy::Drop,
+                            2 | 3 => {
+                                let pointer = payload_offset + 2 + cursor;
+                                return OptionPolicy::ParameterProblem(pointer as u32);
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
+                    cursor = option_end;
+                }
+
+                next_header = payload[0];
+                payload = &payload[header_len..];
+                payload_offset += header_len;
+            }
+            NEXT_HEADER_ROUTING => {
+                if payload.len() < 2 {
+                    return OptionPolicy::Drop;
+                }
+                let header_len = (usize::from(payload[1]) + 1) * 8;
+                if payload.len() < header_len {
+                    return OptionPolicy::Drop;
+                }
+                next_header = payload[0];
+                payload = &payload[header_len..];
+                payload_offset += header_len;
+            }
+            NEXT_HEADER_FRAGMENT => {
+                if payload.len() < 8 {
+                    return OptionPolicy::Drop;
+                }
+                let fragment_field = u16::from_be_bytes([payload[2], payload[3]]);
+                if fragment_field & 0xfff8 != 0 {
+                    return OptionPolicy::Pass;
+                }
+                next_header = payload[0];
+                payload = &payload[8..];
+                payload_offset += 8;
+            }
+            _ => return OptionPolicy::Pass,
+        }
+    }
 }
 
 /// Classifies whether the invoking IPv6 packet carries an ICMPv6 error after
@@ -125,14 +236,16 @@ fn ipv6_parameter_problem(
     local_mac: MacAddress,
     local_ip: Ipv6Address,
     raw_frame: &[u8],
-) -> Option<Vec<u8>> {
-    let ethernet = EthernetFrame::parse(raw_frame).ok()?;
+) -> ParameterProblemOutcome {
+    let Ok(ethernet) = EthernetFrame::parse(raw_frame) else {
+        return ParameterProblemOutcome::Pass;
+    };
     if ethernet.ethertype != EtherType::IPv6 || ethernet.dst_mac != local_mac {
-        return None;
+        return ParameterProblemOutcome::Pass;
     }
     let packet = ethernet.payload;
     if packet.len() < 40 || packet[0] >> 4 != 6 {
-        return None;
+        return ParameterProblemOutcome::Pass;
     }
 
     let mut source = [0u8; 16];
@@ -142,7 +255,7 @@ fn ipv6_parameter_problem(
     destination.copy_from_slice(&packet[24..40]);
     let destination = Ipv6Address(destination);
     if destination != local_ip || source.is_unspecified() || source.is_multicast() {
-        return None;
+        return ParameterProblemOutcome::Pass;
     }
 
     match Ipv6Packet::parse(packet) {
@@ -152,9 +265,9 @@ fn ipv6_parameter_problem(
             // If truncation or a non-initial fragment makes the upper-layer type unknowable,
             // fail closed and suppress the generated error.
             if invoking_contains_icmpv6_error(packet) != Some(false) {
-                return None;
+                return ParameterProblemOutcome::Drop;
             }
-            Some(build_parameter_problem_reply(
+            ParameterProblemOutcome::Reply(build_parameter_problem_reply(
                 &ethernet,
                 local_ip,
                 source,
@@ -164,7 +277,7 @@ fn ipv6_parameter_problem(
             ))
         }
         Ok(ipv6) if !is_recognized_next_header(ipv6.header.next_header) => {
-            Some(build_parameter_problem_reply(
+            ParameterProblemOutcome::Reply(build_parameter_problem_reply(
                 &ethernet,
                 local_ip,
                 source,
@@ -173,13 +286,28 @@ fn ipv6_parameter_problem(
                 NEXT_HEADER_POINTER,
             ))
         }
-        _ => None,
+        Ok(_) => match unrecognized_option_policy(packet) {
+            OptionPolicy::ParameterProblem(pointer) => {
+                if invoking_contains_icmpv6_error(packet) != Some(false) {
+                    ParameterProblemOutcome::Drop
+                } else {
+                    ParameterProblemOutcome::Reply(build_parameter_problem_reply(
+                        &ethernet, local_ip, source, packet, 2, pointer,
+                    ))
+                }
+            }
+            OptionPolicy::Drop => ParameterProblemOutcome::Drop,
+            OptionPolicy::Pass => ParameterProblemOutcome::Pass,
+        },
+        Err(_) => ParameterProblemOutcome::Pass,
     }
 }
 
 fn process_frame(local_mac: MacAddress, local_ip: Ipv6Address, raw_frame: &[u8]) -> Vec<Vec<u8>> {
-    if let Some(reply) = ipv6_parameter_problem(local_mac, local_ip, raw_frame) {
-        return vec![reply];
+    match ipv6_parameter_problem(local_mac, local_ip, raw_frame) {
+        ParameterProblemOutcome::Reply(reply) => return vec![reply],
+        ParameterProblemOutcome::Drop => return Vec::new(),
+        ParameterProblemOutcome::Pass => {}
     }
     let mut stack = NetStack::new(NetStackConfig {
         mac: local_mac,
@@ -296,6 +424,42 @@ mod tests {
             compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
             0
         );
+    }
+
+    #[test]
+    fn unrecognized_option_with_action_10_generates_code_2() {
+        let options = [NEXT_HEADER_NO_NEXT, 0, 0x80, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
+        let replies = process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking));
+        assert_eq!(replies.len(), 1);
+
+        let ethernet = EthernetFrame::parse(&replies[0]).unwrap();
+        let ipv6 = Ipv6Packet::parse(ethernet.payload).unwrap();
+        assert_eq!(ipv6.payload[0], ICMPV6_TYPE_PARAMETER_PROBLEM);
+        assert_eq!(ipv6.payload[1], 2);
+        assert_eq!(u32::from_be_bytes(ipv6.payload[4..8].try_into().unwrap()), 42);
+        assert_eq!(
+            compute_ipv6_transport_checksum(LOCAL_IP, REMOTE_IP, NEXT_HEADER_ICMPV6, ipv6.payload),
+            0
+        );
+    }
+
+    #[test]
+    fn unrecognized_option_with_action_01_drops_silently() {
+        let options = [NEXT_HEADER_NO_NEXT, 0, 0x40, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
+        assert_eq!(unrecognized_option_policy(&invoking), OptionPolicy::Drop);
+        assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
+    }
+
+    #[test]
+    fn unrecognized_option_with_action_00_is_skipped() {
+        let options = [NEXT_HEADER_NO_NEXT, 0, 0x1e, 0, IPV6_OPT_PAD1, IPV6_OPT_PAD1, 0, 0];
+        let invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &options);
+        assert_eq!(unrecognized_option_policy(&invoking), OptionPolicy::Pass);
     }
 
     #[test]
