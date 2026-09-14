@@ -58,6 +58,47 @@ fn is_recognized_next_header(next_header: u8) -> bool {
     )
 }
 
+/// Classifies whether the invoking IPv6 packet carries an ICMPv6 error after
+/// extension headers. `None` means the chain cannot be inspected safely, so
+/// callers must conservatively suppress any generated ICMPv6 error.
+fn invoking_contains_icmpv6_error(packet: &[u8]) -> Option<bool> {
+    if packet.len() < 40 {
+        return None;
+    }
+
+    let mut next_header = packet[6];
+    let mut payload = &packet[40..];
+    loop {
+        match next_header {
+            NEXT_HEADER_ICMPV6 => return payload.first().map(|message_type| *message_type < 128),
+            NEXT_HEADER_HOP_BY_HOP | NEXT_HEADER_ROUTING | NEXT_HEADER_DEST_OPTS => {
+                if payload.len() < 2 {
+                    return None;
+                }
+                let header_len = (usize::from(payload[1]) + 1) * 8;
+                if payload.len() < header_len {
+                    return None;
+                }
+                next_header = payload[0];
+                payload = &payload[header_len..];
+            }
+            NEXT_HEADER_FRAGMENT => {
+                if payload.len() < 8 {
+                    return None;
+                }
+                let fragment_field = u16::from_be_bytes([payload[2], payload[3]]);
+                if fragment_field & 0xfff8 != 0 {
+                    return None;
+                }
+                next_header = payload[0];
+                payload = &payload[8..];
+            }
+            NEXT_HEADER_NO_NEXT => return Some(false),
+            _ => return Some(false),
+        }
+    }
+}
+
 fn build_parameter_problem_reply(
     ethernet: &EthernetFrame<'_>,
     local_ip: Ipv6Address,
@@ -107,13 +148,10 @@ fn ipv6_parameter_problem(
     match Ipv6Packet::parse(packet) {
         Err(Ipv6Error::PayloadLengthMismatch { .. }) => {
             // RFC 4443 section 2.4(e): never send an ICMPv6 error in response to another
-            // ICMPv6 error. For a truncated packet the fixed header still exposes enough
-            // bytes to classify a directly encapsulated ICMPv6 message when present.
-            if packet[6] == NEXT_HEADER_ICMPV6
-                && packet
-                    .get(40)
-                    .is_some_and(|message_type| *message_type < 128)
-            {
+            // ICMPv6 error, including one reached through an extension-header chain.
+            // If truncation or a non-initial fragment makes the upper-layer type unknowable,
+            // fail closed and suppress the generated error.
+            if invoking_contains_icmpv6_error(packet) != Some(false) {
                 return None;
             }
             Some(build_parameter_problem_reply(
@@ -272,6 +310,39 @@ mod tests {
             Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_ICMPV6, 64, &[1; 8]);
         invoking[4..6].copy_from_slice(&16u16.to_be_bytes());
         assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
+    }
+
+    #[test]
+    fn extension_header_icmpv6_error_does_not_trigger_another_error() {
+        let mut payload = vec![0u8; 16];
+        payload[0] = NEXT_HEADER_ICMPV6;
+        payload[1] = 0;
+        payload[8] = 1;
+        let mut invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &payload);
+        invoking[4..6].copy_from_slice(&24u16.to_be_bytes());
+        assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
+    }
+
+    #[test]
+    fn truncated_extension_chain_suppresses_error() {
+        let mut invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &[58]);
+        invoking[4..6].copy_from_slice(&8u16.to_be_bytes());
+        assert!(process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking)).is_empty());
+    }
+
+    #[test]
+    fn informational_icmpv6_after_extension_header_can_trigger_error() {
+        let mut payload = vec![0u8; 16];
+        payload[0] = NEXT_HEADER_ICMPV6;
+        payload[1] = 0;
+        payload[8] = 128;
+        let mut invoking =
+            Ipv6Packet::serialize(REMOTE_IP, LOCAL_IP, NEXT_HEADER_HOP_BY_HOP, 64, &payload);
+        invoking[4..6].copy_from_slice(&24u16.to_be_bytes());
+        let replies = process_frame(LOCAL_MAC, LOCAL_IP, &ethernet_ipv6(&invoking));
+        assert_eq!(replies.len(), 1);
     }
 
     #[test]
