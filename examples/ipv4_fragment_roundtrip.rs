@@ -105,8 +105,7 @@ mod tests {
     #[test]
     fn rejects_udp_payload_that_cannot_fit_an_ipv4_datagram() {
         let max_udp_payload = u16::MAX as usize - IPV4_MIN_HEADER_LEN - UDP_HEADER_LEN;
-        let err =
-            roundtrip(1500, max_udp_payload + 1).expect_err("oversized payload must fail");
+        let err = roundtrip(1500, max_udp_payload + 1).expect_err("oversized payload must fail");
         assert!(err.contains("exceeds IPv4 datagram capacity"));
     }
 }
