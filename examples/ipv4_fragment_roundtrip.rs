@@ -1,9 +1,9 @@
 use std::env;
 use std::process::ExitCode;
 
-use toy_tcpip::fragment::{IpReassemblyBuffer, fragment_payload};
-use toy_tcpip::ipv4::{IP_PROTO_UDP, IPV4_MIN_HEADER_LEN, Ipv4Address, Ipv4Packet};
-use toy_tcpip::udp::{UDP_HEADER_LEN, UdpDatagram};
+use toy_tcpip::fragment::{fragment_payload, IpReassemblyBuffer};
+use toy_tcpip::ipv4::{Ipv4Address, Ipv4Packet, IP_PROTO_UDP, IPV4_MIN_HEADER_LEN};
+use toy_tcpip::udp::{UdpDatagram, UDP_HEADER_LEN};
 
 fn parse_usize_arg(name: &str, default: usize) -> Result<usize, String> {
     let prefix = format!("--{name}=");
@@ -105,7 +105,8 @@ mod tests {
     #[test]
     fn rejects_udp_payload_that_cannot_fit_an_ipv4_datagram() {
         let max_udp_payload = u16::MAX as usize - IPV4_MIN_HEADER_LEN - UDP_HEADER_LEN;
-        let err = roundtrip(1500, max_udp_payload + 1).expect_err("oversized payload must fail");
+        let err =
+            roundtrip(1500, max_udp_payload + 1).expect_err("oversized payload must fail");
         assert!(err.contains("exceeds IPv4 datagram capacity"));
     }
 }
