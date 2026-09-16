@@ -15,20 +15,8 @@ fn single_path_replacement_collapses_existing_multipath_candidates() {
     let router_a = ip("fe80::1");
     let router_b = ip("fe80::2");
 
-    table.add_multipath_route_from(
-        prefix,
-        64,
-        Some(router_a),
-        "eth0",
-        RouteSource::Bgp,
-    );
-    table.add_multipath_route_from(
-        prefix,
-        64,
-        Some(router_b),
-        "eth1",
-        RouteSource::Bgp,
-    );
+    table.add_multipath_route_from(prefix, 64, Some(router_a), "eth0", RouteSource::Bgp);
+    table.add_multipath_route_from(prefix, 64, Some(router_b), "eth1", RouteSource::Bgp);
 
     table.add_route_from(prefix, 64, Some(router_b), "eth1", RouteSource::Bgp);
 
