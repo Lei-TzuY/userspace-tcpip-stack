@@ -1,7 +1,8 @@
+use std::str::FromStr;
+
 use userspace_tcpip_stack::ipv6::Ipv6Address;
 use userspace_tcpip_stack::router::RouteSource;
 use userspace_tcpip_stack::router_ipv6::Ipv6RoutingTable;
-use std::str::FromStr;
 
 fn ip(value: &str) -> Ipv6Address {
     Ipv6Address::from_str(value).unwrap()
