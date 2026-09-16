@@ -30,13 +30,7 @@ fn single_path_replacement_collapses_existing_multipath_candidates() {
         RouteSource::Bgp,
     );
 
-    table.add_route_from(
-        prefix,
-        64,
-        Some(router_b),
-        "eth1",
-        RouteSource::Bgp,
-    );
+    table.add_route_from(prefix, 64, Some(router_b), "eth1", RouteSource::Bgp);
 
     let routes = table.routes_from(RouteSource::Bgp);
     assert_eq!(routes.len(), 1);
