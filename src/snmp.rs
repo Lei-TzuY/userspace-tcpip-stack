@@ -201,11 +201,14 @@ pub fn decode_ber_tlv(data: &[u8]) -> Result<(u8, &[u8], usize), SnmpError> {
         (l, 2 + num_octets)
     };
 
-    if data.len() < header_len + len {
-        return Err(SnmpError::PacketTooShort);
-    }
+    // A BER length can fill usize even when the input contains only its header.
+    // Validate the end before adding or slicing, including in release builds.
+    let end = header_len
+        .checked_add(len)
+        .ok_or(SnmpError::PacketTooShort)?;
+    let value = data.get(header_len..end).ok_or(SnmpError::PacketTooShort)?;
 
-    Ok((tag, &data[header_len..header_len + len], header_len + len))
+    Ok((tag, value, end))
 }
 
 pub fn decode_ber_integer(bytes: &[u8]) -> Result<i32, SnmpError> {
