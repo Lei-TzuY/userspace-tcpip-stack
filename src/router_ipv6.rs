@@ -190,15 +190,11 @@ impl Ipv6RoutingTable {
         let entry =
             Ipv6RouteEntry::with_source(destination, prefix_len, gateway, interface, source);
         let key = (entry.destination, entry.prefix_len);
-        if let Some(existing) = self
-            .routes
-            .iter_mut()
-            .find(|r| (r.destination, r.prefix_len) == key && r.source == source)
-        {
-            *existing = entry;
-        } else {
-            self.routes.push(entry);
-        }
+        // Single-path replacement also collapses candidates installed through
+        // the explicit multipath API, scoped to this normalized prefix/source.
+        self.routes
+            .retain(|r| (r.destination, r.prefix_len) != key || r.source != source);
+        self.routes.push(entry);
         self.sort();
     }
 
