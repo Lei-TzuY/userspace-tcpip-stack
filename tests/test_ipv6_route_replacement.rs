@@ -118,3 +118,21 @@ fn netstack_replacement_stops_forwarding_through_stale_ecmp_next_hops() {
     }
     assert!(stack.pending_ndp_packets.is_empty());
 }
+
+#[test]
+fn replacement_preserves_insertion_order_between_equal_cost_sources() {
+    let mut table = Ipv6RoutingTable::new();
+    let prefix = ip("2001:db8:42::");
+    table.add_route_from(prefix, 64, None, "connected", RouteSource::Connected);
+    table.add_route_from(prefix, 64, None, "ra", RouteSource::Ra);
+    table.add_multipath_route_from(prefix, 64, None, "connected-alt", RouteSource::Connected);
+
+    table.add_route_from(prefix, 64, None, "connected-new", RouteSource::Connected);
+
+    let best = table.lookup_best_routes(ip("2001:db8:42::99"));
+    assert_eq!(best.len(), 2);
+    assert_eq!(best[0].source, RouteSource::Connected);
+    assert_eq!(best[0].interface, "connected-new");
+    assert_eq!(best[1].source, RouteSource::Ra);
+    assert_eq!(best[1].interface, "ra");
+}
